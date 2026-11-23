@@ -193,7 +193,12 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
             "{\"runtime\":{\"ts\":{\"type\":\"date\"}}}",
             "runtime field [ts] shadows an index sort field"
         );
-        assertCreateFails("LENGTH(ts)", "{\"properties\":{\"ts\":{\"type\":\"text\"}}}", "needs doc values on field [ts]");
+        assertCreateFails("LENGTH(ts)", "{\"properties\":{\"ts\":{\"type\":\"text\"}}}", "field [ts] of unsupported type [text]");
+        assertCreateFails(
+            "flat IS NULL",
+            "{\"properties\":{\"flat\":{\"type\":\"flattened\"}}}",
+            "field [flat] of unsupported type [flattened]"
+        );
         assertCreateFails("DATE_TRUNC(1 hour, n)", "{\"properties\":{\"n\":{\"type\":\"long\"}}}", "index sort key");
         assertCreateFails(
             "DATE_TRUNC(1 hour, n.ts)",

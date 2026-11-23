@@ -24,8 +24,10 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.MultiValueMode;
@@ -162,7 +164,7 @@ public class EsqlIndexSortParserTests extends ESTestCase {
         Settings settings = Settings.builder().put("index.sort", "DATE_TRUNC(1 hour, @timestamp) DESC, host.name, MV_MAX(count)").build();
         assertThat(IndexSortConfig.sortFields(settings), equalTo(List.of("host.name", "count")));
         IndexSortConfig config = IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig();
-        assertThat(config.computedKeyFields(), equalTo(Set.of("@timestamp")));
+        assertThat(config.fields(), equalTo(Set.of("@timestamp", "host.name", "count")));
 
         Sort sort = buildIndexSort(config);
         assertThat(sort.getSort()[0], instanceOf(EsqlSortField.class));
@@ -298,6 +300,10 @@ public class EsqlIndexSortParserTests extends ESTestCase {
         assertResolveFails("DATE_TRUNC(1 hour, @timestamp)", Map.of("@timestamp", noDocValues), "needs doc values on field [@timestamp]");
         Map<String, MappedFieldType> location = Map.of("location", new GeoPointFieldMapper.GeoPointFieldType("location"));
         assertResolveFails("location IS NULL", location, "references field [location] of unsupported type [geo_point]");
+        MappedFieldType flattened = new FlattenedFieldMapper.Builder("flat", IndexSettingsModule.newIndexSettings("test", Settings.EMPTY))
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
+        assertResolveFails("flat IS NULL", Map.of("flat", flattened), "references field [flat] of unsupported type [flattened]");
     }
 
     private static void assertField(SortEntry entry, String field, SortOrder order, MultiValueMode mode, String missing) {

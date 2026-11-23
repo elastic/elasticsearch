@@ -63,6 +63,28 @@ public final class EsqlSortKey {
     );
 
     /**
+     * The mapped types of the fields that a key can read: types whose {@link BlockLoader} always reads their doc values, which a
+     * key needs at flush and merge, long after the index is created.
+     */
+    private static final Set<String> FIELD_TYPES = Set.of(
+        "long",
+        "integer",
+        "short",
+        "byte",
+        "double",
+        "float",
+        "half_float",
+        "scaled_float",
+        "unsigned_long",
+        "date",
+        "date_nanos",
+        "boolean",
+        "keyword",
+        "ip",
+        "version"
+    );
+
+    /**
      * Evaluating a key allocates blocks of {@link DocValuesExpressionReader#CHUNK} positions at a time, on flush and merge
      * threads that don't run under a request, so there is no breaker to account them to.
      */
@@ -140,15 +162,13 @@ public final class EsqlSortKey {
         if (fieldType instanceof AbstractScriptFieldType<?>) {
             throw error(expression, "can't use runtime field [" + field + "]");
         }
+        if (FIELD_TYPES.contains(fieldType.typeName()) == false) {
+            throw error(expression, "references field [" + field + "] of unsupported type [" + fieldType.typeName() + "]");
+        }
         if (fieldType.hasDocValues() == false) {
             throw error(expression, "needs doc values on field [" + field + "]");
         }
-        DataType type = DataType.fromEs(fieldType.familyTypeName());
-        // Spatial doc values are encoded differently from the values that ES|QL functions take
-        if (type == null || type == DataType.UNSUPPORTED || DataType.isSpatial(type)) {
-            throw error(expression, "references field [" + field + "] of unsupported type [" + fieldType.typeName() + "]");
-        }
-        return type.widenSmallNumeric();
+        return DataType.fromEs(fieldType.familyTypeName()).widenSmallNumeric();
     }
 
     private static BlockLoader blockLoader(String expression, String field, MappedFieldType fieldType, IndexSettings indexSettings) {

@@ -42,6 +42,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
@@ -381,7 +382,7 @@ public final class IndexSortConfig {
     /**
      * The sort fields of an index, from {@link #INDEX_SORT_SETTING} if it is set and from {@link #INDEX_SORT_FIELD_SETTING}
      * (or its default) otherwise, one per sort entry so a field can repeat, for example {@code MV_MIN(a), MV_MAX(a)}. Doesn't
-     * include the slice key or computed keys, see {@link #computedKeyFields()}.
+     * include the slice key or the fields of computed keys, see {@link #fields()}.
      */
     public static List<String> sortFields(Settings settings) {
         String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
@@ -466,7 +467,7 @@ public final class IndexSortConfig {
     // visible for tests
     final FieldSortSpec[] sortSpecs;
     private final IndexSettings indexSettings;
-    private final Set<String> computedKeyFields;
+    private final Set<String> fields;
     private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
@@ -492,7 +493,7 @@ public final class IndexSortConfig {
             modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
             missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
             computedKeys = new ArrayList<>(Collections.nCopies(fields.size(), null));
-            computedKeyFields = Set.of();
+            this.fields = Set.copyOf(fields);
         } else {
             List<SortEntry> entries = parseSortExpression(expression);
             // A computed key has no field, its spec is named after its text
@@ -501,7 +502,9 @@ public final class IndexSortConfig {
             modes = new ArrayList<>(entries.stream().map(SortEntry::mode).toList());
             missingValues = new ArrayList<>(entries.stream().map(SortEntry::missing).toList());
             computedKeys = new ArrayList<>(entries.stream().map(SortEntry::computedKey).toList());
-            computedKeyFields = entries.stream().flatMap(e -> e.computedKeyFields().stream()).collect(Collectors.toUnmodifiableSet());
+            this.fields = entries.stream()
+                .flatMap(e -> e.field() != null ? Stream.of(e.field()) : e.computedKeyFields().stream())
+                .collect(Collectors.toUnmodifiableSet());
             if (computedKeys.stream().anyMatch(Objects::nonNull) && indexCreatedVersion.before(IndexVersions.INDEX_SORT_COMPUTED_KEYS)) {
                 throw new IllegalArgumentException(
                     "setting ["
@@ -647,9 +650,12 @@ public final class IndexSortConfig {
         }
     }
 
-    /** The fields that the computed keys of this sort read. The mapping must keep them sortable like {@link #sortFields}. */
-    public Set<String> computedKeyFields() {
-        return computedKeyFields;
+    /**
+     * The fields that this sort reads, including those of its computed keys but not the slice key. The mapping must keep them
+     * sortable.
+     */
+    public Set<String> fields() {
+        return fields;
     }
 
     public boolean hasSortOnField(final String fieldName) {

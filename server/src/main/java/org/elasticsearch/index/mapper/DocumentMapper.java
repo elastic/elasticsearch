@@ -14,12 +14,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -169,7 +167,7 @@ public class DocumentMapper {
             if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
                 throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
             }
-            for (String field : sortFieldsAndComputedKeyFields(settings)) {
+            for (String field : settings.getIndexSortConfig().fields()) {
                 NestedObjectMapper nestedMapper = mappers().nestedLookup().getNestedMappers().get(field);
                 String nestedParent = nestedMapper != null ? nestedMapper.fullPath() : mappers().nestedLookup().getNestedParent(field);
                 if (nestedParent != null) {
@@ -180,7 +178,7 @@ public class DocumentMapper {
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort()) {
-            Set<String> sortFields = sortFieldsAndComputedKeyFields(settings);
+            Set<String> sortFields = settings.getIndexSortConfig().fields();
             Collection<RuntimeField> runtimeFields = mapping().getRoot().runtimeFields();
             for (RuntimeField rf : runtimeFields) {
                 for (MappedFieldType ft : rf.asMappedFieldTypes().toList()) {
@@ -214,12 +212,5 @@ public class DocumentMapper {
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
-    }
-
-    /** The fields of the index sort, including those that its computed keys read. */
-    private static Set<String> sortFieldsAndComputedKeyFields(IndexSettings settings) {
-        Set<String> fields = new HashSet<>(IndexSortConfig.sortFields(settings.getSettings()));
-        fields.addAll(settings.getIndexSortConfig().computedKeyFields());
-        return fields;
     }
 }

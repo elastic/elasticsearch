@@ -40,7 +40,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -87,19 +86,18 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
     }
 
     @Override
-    public String createStarted(
+    public void createStarted(
+        String streamId,
         TaskId taskId,
         Instant expiration,
         List<ColumnInfo> columns,
         Map<String, String> headers,
         List<String> warnings
     ) {
-        var streamId = UUID.randomUUID().toString();
         addToCurrentBulk(true, false, bulk -> {
             metadata = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings);
             bulk.addMetadata(metadata);
         });
-        return streamId;
     }
 
     @Override

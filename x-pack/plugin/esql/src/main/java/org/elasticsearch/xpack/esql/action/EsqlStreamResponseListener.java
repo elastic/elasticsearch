@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -289,7 +290,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.contextRestorer = threadContext.newRestorableContext(false);
         if (client != null && options.store() != StreamOptions.Store.NONE) {
             writer = new SystemIndexStreamWriter(client, recycler, TransportVersion.current());
-            streamId = writer.createStarted(resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
+            streamId = UUIDs.randomBase64UUID();
+            writer.createStarted(streamId, resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
         }
         resultStream.publisher().subscribe(subscriber);
         subscribed = true;

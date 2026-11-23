@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 165755
 pr: 166787
-summary: Do not load the right operand of a LOOKUP JOIN ON expression as an unmapped left field
+summary: Fixed an issue where a RENAME of an unmapped field caused a LOOKUP JOIN with an ON expression to fail with "Found ambiguous reference" when unmapped_fields is nullify, load or load_all
 type: bug

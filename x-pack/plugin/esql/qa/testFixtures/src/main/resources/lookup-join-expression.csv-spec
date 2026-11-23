@@ -1308,9 +1308,10 @@ emp_no:integer | languages:integer | lang:keyword | lang_minus_one:keyword | lan
 10005          | 1                 | English      | null                   | null
 ;
 
-// The left key is unmapped. A RENAME of an unmapped field under LOAD is null for every row, so the join finds no match. The operands of the
-// right, name_str and other2, are not loaded onto the left side as unmapped fields, which made them ambiguous. The rows are those with a
-// single id, since a row with several ids joins with a warning in the columnar mode and with none in the others.
+// A RENAME of an unmapped field before the join makes the join resolve while the left fields still hold both operands of every comparison.
+// The operands of the right, name_str and other2, are not loaded onto the left side as unmapped fields, which made them ambiguous. Here the
+// renamed field is also a key, and under LOAD it is null for every row, so the join finds no match. The rows are those with a single id,
+// since a row with several ids joins with a warning in the columnar mode and with none in the others.
 lookupJoinExpressionWithUnmappedLeftKeyInLoadMode
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
@@ -1330,4 +1331,54 @@ id_left:integer | name_left:keyword | extra1:keyword | other1:keyword | other2:i
 1               | null            | foo            | null           | null
 2               | null            | bar            | null           | null
 3               | null            | baz            | null           | null
+;
+
+// The renamed unmapped field is not a key: it is the RENAME before the join that matters. language_code is unmapped on the left, where it
+// holds 1, 2 and 3, and the lookup has it, so the condition binds it to the lookup and every row gets 3.
+lookupJoinExpressionAfterRenameOfUnmappedFieldWithKeyOfTheLookup
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: optional_fields_v5
+required_capability: lookup_join_expression_on_unmapped_left_key
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL m = "3"
+| RENAME unmapped.nested AS nested
+| LOOKUP JOIN keyword_languages_lookup ON language_code == m
+| KEEP @timestamp, m, nested, language_code, language_name
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | m:keyword | nested:keyword | language_code:keyword | language_name:keyword
+2024-10-23T12:15:03.360Z | 3         | g              | 3                     | Spanish
+2024-10-23T12:27:28.948Z | 3         | f              | 3                     | Spanish
+2024-10-23T13:33:34.937Z | 3         | e              | 3                     | Spanish
+;
+
+// language_code is not joined on, but is used before the join: left_code keeps the 1, 2 and 3 of the left, and language_code is the 4 of
+// the lookup, for the row of lname == language_name. The key lname is not unmapped either.
+lookupJoinExpressionAfterRenameOfUnmappedFieldWithFieldUsedBeforeTheJoin
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: optional_fields_v5
+required_capability: lookup_join_expression_on_unmapped_left_key
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| EVAL lname = "German", left_code = language_code
+| RENAME unmapped.nested AS nested
+| LOOKUP JOIN keyword_languages_lookup ON lname == language_name
+| KEEP @timestamp, left_code, language_code
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | left_code:keyword | language_code:keyword
+2024-10-23T12:15:03.360Z | 4                 | 4
+2024-10-23T12:27:28.948Z | 3                 | 4
+2024-10-23T13:33:34.937Z | 2                 | 4
 ;

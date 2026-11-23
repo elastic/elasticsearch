@@ -5031,9 +5031,11 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
-         * {@code LOOKUP JOIN ... ON left == right} with a left key that is an unmapped field, under {@code unmapped_fields}
-         * {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer loads the right operand onto the left side as an unmapped
-         * field, which made it ambiguous once the join resolved ("Found ambiguous reference"). See
+         * A {@code LOOKUP JOIN} with an {@code ON} expression, after a {@code RENAME} of an unmapped field, under
+         * {@code unmapped_fields} {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer fails with "Found ambiguous
+         * reference", whether or not a key of the join is the unmapped field. The rename makes the join resolve inside the rule that
+         * handles the unmapped fields, while it still has the parser's left fields, which hold both operands of every comparison, so the
+         * operand that the lookup index has was loaded onto the left side as an unmapped field. See
          * <a href="https://github.com/elastic/elasticsearch/issues/165755">#165755</a>.
          */
         LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,

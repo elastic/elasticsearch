@@ -121,9 +121,11 @@ public class AnalyzerUnmappedJoinKeyTests extends AnalyzerUnmappedTestBase {
         "FROM test | RENAME languages AS lang_left, does_not_exist AS name_left | LOOKUP JOIN languages_lookup ON ";
 
     /**
-     * The parser puts both operands of every equality of a join ON expression in the left fields, as it cannot tell the sides apart. With
-     * an unmapped left key the join does not resolve before the unmapped fields do, and the right operand was loaded onto the left side
-     * as an unmapped field, which made the name ambiguous once the join resolved.
+     * The parser puts both operands of every comparison of a join ON expression in the left fields, as it cannot tell the sides apart.
+     * A RENAME of an unmapped field before the join, which these queries have, makes the join resolve inside the rule that handles the
+     * unmapped fields, while it still has those left fields, and the right operand was loaded onto the left side as an unmapped field,
+     * which made the name ambiguous once the join resolved. The key does not have to be that field: see
+     * {@link #testExpressionJoinAfterRenameOfUnmappedFieldWithMappedKeysDoesNotLoadTheRightOperand}.
      */
     public void testExpressionJoinWithUnmappedLeftKeyDoesNotLoadTheRightOperand() {
         for (String on : new String[] {
@@ -142,6 +144,45 @@ public class AnalyzerUnmappedJoinKeyTests extends AnalyzerUnmappedTestBase {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * It is the RENAME of an unmapped field before the join that triggers this, not an unmapped key: {@code languages} is mapped and
+     * {@code foo} is not in the condition. The same holds for every comparison, since the parser puts both operands of each in the left
+     * fields.
+     */
+    public void testExpressionJoinAfterRenameOfUnmappedFieldWithMappedKeysDoesNotLoadTheRightOperand() {
+        for (String on : new String[] {
+            "languages == language_code",
+            "languages != language_code",
+            "languages < language_code",
+            "languages <= language_code",
+            "languages > language_code",
+            "languages >= language_code",
+            "languages == language_code AND languages < language_code" }) {
+            String query = "FROM test | RENAME does_not_exist AS foo | LOOKUP JOIN languages_lookup ON " + on;
+            for (String setting : new String[] { setUnmappedNullify(query), setUnmappedLoad(query), setUnmappedLoadAll(query) }) {
+                LogicalPlan plan = test().addLanguagesLookup().statement(setting);
+                for (EsRelation relation : plan.collect(EsRelation.class)) {
+                    if (relation.indexMode() != IndexMode.LOOKUP) {
+                        assertThat(setting, Expressions.names(relation.output()), not(hasItem("language_code")));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A field that the left side has, mapped or loaded for use before the join, and that the lookup index has too, is ambiguous in the
+     * condition, as a mapped field on both sides is. Not loading the right operand does not hide that: here {@code language_code} is
+     * used before the join, so it is a left column.
+     */
+    public void testExpressionJoinOnAFieldThatBothSidesHaveIsAmbiguous() {
+        String query = "FROM test | EVAL m = \"3\", left_code = language_code | LOOKUP JOIN keyword_languages_lookup ON language_code == m";
+        for (String setting : new String[] { setUnmappedNullify(query), setUnmappedLoad(query), setUnmappedLoadAll(query) }) {
+            test().addLookupIndex("keyword_languages_lookup", keywordLanguagesLookup())
+                .statementError(setting, containsString("Found ambiguous reference to [language_code]"));
         }
     }
 }

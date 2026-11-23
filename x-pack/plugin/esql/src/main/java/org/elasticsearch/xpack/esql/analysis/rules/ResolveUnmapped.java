@@ -601,9 +601,9 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (node instanceof LookupJoin lj) {
             Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
             Set<String> rightOutputNames = new HashSet<>(Expressions.names(lj.right().output()));
-            // For a join ON expression the parser puts both operands of every equality in leftFields, as it cannot tell the sides apart.
-            // The one that the lookup index has is a right key, not an unmapped left field: loading it onto the left side would make
-            // the name ambiguous once ResolveRefs resolves the join.
+            // For a join ON expression the parser puts both operands of every comparison (==, !=, <, <=, >, >=) in leftFields, as it
+            // cannot tell the sides apart. The one that the lookup index has is a right key, not an unmapped left field: loading it onto
+            // the left side would make the name ambiguous once ResolveRefs resolves the join.
             Set<String> operandsOfTheRight = lj.config().joinOnConditions() != null ? rightOutputNames : Set.of();
             collectUnresolvedLeftKeys(lj, leftOutputNames, operandsOfTheRight, sink);
             // joinOnConditions UAs not found in either child → load candidates.

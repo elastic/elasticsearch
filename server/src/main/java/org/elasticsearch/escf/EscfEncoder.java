@@ -248,9 +248,12 @@ public final class EscfEncoder implements SourceBatchEncoder {
             return true;
         } catch (JsonParsingException e) {
             // The handler may have written part of the row already; the next beginRow() discards it.
+            // It may also have reported leaves to the sink, which the Jackson pass reports again.
+            sink.reset();
             logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
             return false;
         } catch (RuntimeException e) {
+            sink.reset();
             logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
             return false;
         }

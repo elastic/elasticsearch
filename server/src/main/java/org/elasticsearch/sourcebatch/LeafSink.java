@@ -62,4 +62,11 @@ public interface LeafSink {
      * column so it can decide how to react.
      */
     default void onArrayLeaf(int columnIndex, String dottedPath) {}
+
+    /**
+     * Discards everything this sink was told about the current document. The encoder calls it when it abandons a parse
+     * part-way and parses the document again from the start, so that leaves seen before the abandoned point are not
+     * reported twice.
+     */
+    default void reset() {}
 }

@@ -76,7 +76,11 @@ public abstract class RoutingExtractor implements LeafSink {
         }
     }
 
-    /** Clear per-document state so the extractor can be reused for the next document in the bulk. */
+    /**
+     * Clear per-document state so the extractor can be reused for the next document in the bulk, or for the
+     * encoder's second parse of the same document.
+     */
+    @Override
     public final void reset() {
         resetBuilderState();
     }

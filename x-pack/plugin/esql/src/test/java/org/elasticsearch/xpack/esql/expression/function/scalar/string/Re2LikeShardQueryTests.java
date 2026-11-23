@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2RegExp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 
@@ -27,6 +28,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -69,9 +71,14 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         assertTrue("the build reserves memory while it runs", breaker.peak() > 0);
         assertThat("nothing stays reserved once the automaton is built", breaker.getUsed(), equalTo(0L));
 
-        // repeats of a wide class add a transition per range per copy, past the breaker's limit
-        expectThrows(CircuitBreakingException.class, () -> query("\\pL{1000}".repeat(100), context));
-        assertThat(breaker.getUsed(), equalTo(0L));
+        // a program that fits the breaker, 100 copies of a class of hundreds of ranges, whose transitions don't: the
+        // build is charged as it grows and stops when the breaker trips
+        String regex = "\\pL{100}";
+        TrackingCircuitBreaker small = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
+        expectThrows(CircuitBreakingException.class, () -> query(regex, limited));
+        assertThat("past the program's reservation", small.peak(), greaterThan(100 * Re2RegExp.BYTES_PER_INSTRUCTION));
+        assertThat(small.getUsed(), equalTo(0L));
     }
 
     private MapperService keyword(boolean indexed) throws IOException {

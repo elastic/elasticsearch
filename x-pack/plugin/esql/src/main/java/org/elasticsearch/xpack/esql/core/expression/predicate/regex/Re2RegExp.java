@@ -64,7 +64,7 @@ public final class Re2RegExp {
      * Peak bytes per instruction of the program: its instruction, the node simplifying expands to it, and the builder's
      * arrays indexed by instruction, of which the visited marks take sixteen ints.
      */
-    static final long BYTES_PER_INSTRUCTION = 256L;
+    public static final long BYTES_PER_INSTRUCTION = 256L;
 
     /**
      * Most states and transitions one build may make: as many as {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT} lets a

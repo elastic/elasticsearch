@@ -98,9 +98,19 @@ public class Re2AutomatonBenchmark {
         for (Map.Entry<String, Shape> entry : SHAPES.entrySet()) {
             Shape shape = entry.getValue();
             Automaton re2 = new Re2Pattern(shape.re2()).createAutomaton(false);
-            Automaton lucene = lucene(shape.lucene(), shape.luceneFlags());
-            if (subsetOf(re2, lucene) == false || subsetOf(lucene, re2) == false) {
-                throw new AssertionError("[" + entry.getKey() + "] RE2 and Lucene automata accept different languages");
+            // every measured path, so that none of them is timed building another language
+            Map<String, Automaton> paths = Map.of(
+                "re2Accounted",
+                new Re2Pattern(shape.re2()).createAutomaton(false, BREAKER, "benchmark"),
+                "lucene",
+                lucene(shape.lucene(), shape.luceneFlags()),
+                "luceneAccounted",
+                luceneAccounted(shape.lucene(), shape.luceneFlags())
+            );
+            for (Map.Entry<String, Automaton> path : paths.entrySet()) {
+                if (subsetOf(re2, path.getValue()) == false || subsetOf(path.getValue(), re2) == false) {
+                    throw new AssertionError("[" + entry.getKey() + "] RE2 and " + path.getKey() + " accept different languages");
+                }
             }
         }
     }
@@ -139,7 +149,11 @@ public class Re2AutomatonBenchmark {
      */
     @Benchmark
     public Automaton luceneAccounted() {
-        Automaton nfa = new CircuitBreakingRegExp(lucene, RegExp.ALL, luceneFlags).toAutomaton(BREAKER, "benchmark");
+        return luceneAccounted(lucene, luceneFlags);
+    }
+
+    private static Automaton luceneAccounted(String regex, int flags) {
+        Automaton nfa = new CircuitBreakingRegExp(regex, RegExp.ALL, flags).toAutomaton(BREAKER, "benchmark");
         return CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, BREAKER, "benchmark");
     }
 

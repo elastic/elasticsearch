@@ -284,17 +284,21 @@ public class Regexp {
   public long programSize() {
     long size = 0;
     switch (op) {
+      case STAR:
+      case PLUS:
+      case QUEST:
+        // simplify repeats the empty string once, and a star, plus or quest of the same one once
+        if (subs[0].op == Op.EMPTY_MATCH
+            || (subs[0].op == op && (flags & RE2.NON_GREEDY) == (subs[0].flags & RE2.NON_GREEDY))) {
+          return subs[0].programSize();
+        }
+        size = (op == Op.STAR ? 2 : 1) + subs[0].programSize();
+        break;
       case LITERAL:
         size = runes.length;
         break;
       case CAPTURE:
-      case STAR:
-        // a star can be 1+ or 2+; 2 is the pessimistic count
         size = 2 + subs[0].programSize();
-        break;
-      case PLUS:
-      case QUEST:
-        size = 1 + subs[0].programSize();
         break;
       case CONCAT:
         for (Regexp sub : subs) {

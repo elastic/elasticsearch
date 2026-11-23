@@ -13,7 +13,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * What {@link Re2RegExp} matches and rejects. The expectations are those of Go's {@code regexp}, parsed and anchored
@@ -402,60 +403,54 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     /**
-     * Repeats of a class with many ranges, one after the other, pass the parser's bound on nested repeats but add a
-     * transition per range per copy, so the build is charged to the breaker as it grows and stops when it trips, with
-     * nothing left reserved.
+     * A program that fits the breaker but whose transitions don't: 100 copies of a class of 4,000 ranges is 100
+     * instructions and 400,000 transitions. The builder charges the transitions as it adds them, stops when the breaker
+     * trips, and leaves nothing reserved.
      */
-    public void testBuildIsChargedToTheBreaker() {
-        String regex = "\\pL{1000}".repeat(100);
-        Re2RegExp regExp = new Re2RegExp(regex, FLAGS);
-        LimitedBreaker breaker = new LimitedBreaker(ByteSizeValue.ofMb(1).getBytes());
+    public void testTransitionsAreChargedToTheBreaker() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        Re2RegExp regExp = new Re2RegExp(wideClass(4000) + "{100}", FLAGS);
         expectThrows(CircuitBreakingException.class, () -> regExp.toAutomaton(breaker, "test"));
+        assertThat("past the program's reservation", breaker.peak(), greaterThan(100 * Re2RegExp.BYTES_PER_INSTRUCTION));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A program too large for the breaker is refused before it is simplified and compiled. */
+    public void testProgramIsReservedBeforeItIsCompiled() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        // 100 repeats of 1,000 copies: 100,000 instructions
+        Re2RegExp regExp = new Re2RegExp("\\pL{1000}".repeat(100), FLAGS);
+        expectThrows(CircuitBreakingException.class, () -> regExp.toAutomaton(breaker, "test"));
+        assertThat(breaker.peak(), equalTo(0L));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /**
-     * A breaker that trips past a limit without keeping what it refused, as the request breaker does; the fold budget
-     * keeps the bytes of a refused reservation, so it can't show that the build released all it reserved.
+     * Simplifying collapses a plus of a plus, so the reservation counts it once: 50 nested pluses in a repeat of 1,000
+     * would be 51,000 instructions counted each, past the breaker, and are 2,000.
      */
-    private static final class LimitedBreaker extends NoopCircuitBreaker {
-        private final long limit;
-        private long used;
-
-        LimitedBreaker(long limit) {
-            super("limited");
-            this.limit = limit;
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            if (used + bytes > limit) {
-                throw new CircuitBreakingException("[" + label + "] would be too large", used + bytes, limit, Durability.TRANSIENT);
-            }
-            used += bytes;
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used += bytes;
-        }
-
-        @Override
-        public long getUsed() {
-            return used;
-        }
+    public void testNestedIdenticalRepeatsAreCountedOnce() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        String regex = "(?:" + "(?:".repeat(50) + "a+" + ")+".repeat(50) + "){1000}";
+        Re2RegExp regExp = new Re2RegExp(regex, FLAGS);
+        assertThat(regExp.toAutomaton(breaker, "test").getNumStates(), greaterThan(0));
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /** Without a breaker, the size of the build is still bounded. */
     public void testBuildIsBoundedWithoutBreaker() {
         // 1,000 copies of a class of 4,000 ranges, each a single rune, take 4,000,000 transitions, past the bound
-        StringBuilder alternate = new StringBuilder("[");
-        for (int i = 0; i < 4000; i++) {
-            alternate.append("\\x{").append(Integer.toHexString(0x1000 + 2 * i)).append('}');
-        }
-        alternate.append("]{1000}");
-        Re2RegExp regExp = new Re2RegExp(alternate.toString(), FLAGS);
+        Re2RegExp regExp = new Re2RegExp(wideClass(4000) + "{1000}", FLAGS);
         expectThrows(TooComplexToDeterminizeException.class, regExp::toAutomaton);
+    }
+
+    /** A class of {@code ranges} single runes, every other one from U+1000, so that none merges with the next. */
+    private static String wideClass(int ranges) {
+        StringBuilder regex = new StringBuilder("[");
+        for (int i = 0; i < ranges; i++) {
+            regex.append("\\x{").append(Integer.toHexString(0x1000 + 2 * i)).append('}');
+        }
+        return regex.append(']').toString();
     }
 
     private static void assertDoesNotMatch(String regex, String... values) {

@@ -86,6 +86,7 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 |---|---|---|---|---|
 | 4 | Selector without a metric name | `{job="api"}` | - | [#146977]({{es-issue}}146977) |
 | 5 | Regex matcher on `__name__` | `{__name__=~"node_.*"}` | Combine the metrics with `or`: `node_cpu or node_mem` | [#146977]({{es-issue}}146977) |
+| 6 | In a regex matcher, a capture group name used twice, a long or lowercase Unicode class name, or a `{` that starts no count followed by a repetition {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"(?P<n>a)(?P<n>b)"}`, `{l=~"\\p{Letter}"}`, `{l=~"x{*"}` | Use distinct group names, short class names such as `\\p{L}`, and `\\{` | - |
 :::
 
 **Behaves differently**
@@ -95,8 +96,11 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 6 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
-| 7 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `{path=~"a~b"}`, `{v=~"<1-5>"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators | RE2 syntax, where they are literals | - |
+| 7 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
+| 8 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `{path=~"a~b"}`, `{v=~"<1-5>"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators | RE2 syntax, where they are literals | - |
+| 9 | Unicode classes in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"\\pL+"}` | The classes of Unicode 6.0 | The classes of Unicode 15.0, which hold characters added since | - |
+| 10 | A case-insensitive group then an alternative that starts with the same letters {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"(?i:a)b\|ac"}` | Doesn't match `AB` | Matches `AB` | - |
+| 11 | A backslash before a non-ASCII character in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"\\é"}` | Matches `é` | Rejected | - |
 :::
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]
@@ -112,7 +116,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 8 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
+| 12 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
 :::
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]
@@ -128,7 +132,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 9 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
+| 13 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
 :::
 
 #### @ modifier [prometheus-compatibility-at-modifier]
@@ -140,7 +144,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 10 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
+| 14 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Subquery [prometheus-compatibility-subquery]
@@ -152,7 +156,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 11 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
+| 15 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Gotchas [prometheus-compatibility-gotchas]
@@ -170,7 +174,7 @@ A selector without a range, such as `http_requests_total`, returns the latest sa
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 12 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
-| 13 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
-| 14 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
+| 16 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
+| 17 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
+| 18 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
 :::

@@ -606,6 +606,20 @@ public class QuerySettingsTests extends ESTestCase {
         ApproximationSettings approximation = QuerySettings.APPROXIMATION.get(resolved);
         assertThat(approximation.rows(), is(nullValue()));
         assertThat(approximation.confidenceLevel(), equalTo(0.9));
+
+        // A rows that the more specific place sets itself still applies.
+        QuerySetting setWithRows = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "approximation", approxMap("rows", Literal.integer(Source.EMPTY, 30000)))
+        );
+        ResolvedSettings resolvedWithRows = QuerySettings.resolve(
+            clusterSetting(QuerySettings.APPROXIMATION, "{\"rows\": 20000}"),
+            Settings.EMPTY,
+            requestParams,
+            new EsqlStatement(null, List.of(setWithRows)),
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(QuerySettings.APPROXIMATION.get(resolvedWithRows).rows(), equalTo(30000));
     }
 
     private static ApproximationSettings resolveApproximation(ApproximationSettings requestValue, Expression querySetExpr) {

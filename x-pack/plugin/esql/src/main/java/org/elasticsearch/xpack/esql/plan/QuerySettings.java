@@ -251,7 +251,7 @@ public final class QuerySettings {
             + "falls back to the less specific place if the more specific one doesn't set it. `confidence_level` always "
             + "comes from the most specific place, so it resets to `0.90` when that place doesn't set it. A `false` value "
             + "discards the values of the less specific places, so if a more specific place enables approximation "
-            + "again, `rows` is the system default.\n\n"
+            + "again without setting `rows`, `rows` is the system default.\n\n"
             + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "

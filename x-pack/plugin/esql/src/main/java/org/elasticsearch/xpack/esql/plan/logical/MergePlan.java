@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -342,7 +343,22 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * {@code gender} is null. A branch that outputs the column through a merge of its own is what that merge says.
      */
     public boolean mergesColumnThatTheQueryMade(Attribute merged) {
-        return columnOrigin(merged.name()) == ColumnOrigin.QUERY;
+        String name = merged.name();
+        // One walk for the columns that are known to be null, and one bottom-up pass over the merges, so that the work does not grow
+        // with the depth of the nesting: a merge reads what the merges below it decided for their columns from their ids.
+        Predicate<Attribute> nullOnly = producesOnlyNull(this);
+        Map<NameId, ColumnOrigin> originOfMergedColumn = new HashMap<>();
+        forEachUp(plan -> {
+            if (plan instanceof MergePlan merge) {
+                ColumnOrigin origin = merge.originFromBranches(name, nullOnly, originOfMergedColumn);
+                for (Attribute out : merge.output()) {
+                    if (out.name().equals(name)) {
+                        originOfMergedColumn.put(out.id(), origin);
+                    }
+                }
+            }
+        });
+        return originOfMergedColumn.get(merged.id()) == ColumnOrigin.QUERY;
     }
 
     /** What a column of a merge holds, see {@link #mergesColumnThatTheQueryMade}. */
@@ -352,41 +368,28 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         QUERY
     }
 
-    private ColumnOrigin columnOrigin(String name) {
+    /**
+     * @param below what the merges below this one decided for their column of this name, by the id of that column in their output
+     */
+    private ColumnOrigin originFromBranches(String name, Predicate<Attribute> nullOnly, Map<NameId, ColumnOrigin> below) {
         boolean metadata = false;
         for (LogicalPlan branch : children()) {
-            switch (branchOrigin(branch, name)) {
-                case QUERY -> {
-                    return ColumnOrigin.QUERY;
-                }
-                case METADATA -> metadata = true;
-                case NULLS -> {
+            // a branch that does not have the column contributes nulls to it
+            ColumnOrigin origin = ColumnOrigin.NULLS;
+            for (Attribute attr : branch.output()) {
+                if (attr.name().equals(name)) {
+                    origin = attr instanceof MetadataAttribute ? ColumnOrigin.METADATA
+                        : nullOnly.test(attr) ? ColumnOrigin.NULLS
+                        : below.getOrDefault(attr.id(), ColumnOrigin.QUERY);
+                    break;
                 }
             }
+            if (origin == ColumnOrigin.QUERY) {
+                return ColumnOrigin.QUERY;
+            }
+            metadata |= origin == ColumnOrigin.METADATA;
         }
         return metadata ? ColumnOrigin.METADATA : ColumnOrigin.NULLS;
-    }
-
-    private static ColumnOrigin branchOrigin(LogicalPlan branch, String name) {
-        for (Attribute attr : branch.output()) {
-            if (attr.name().equals(name) == false) {
-                continue;
-            }
-            if (attr instanceof MetadataAttribute) {
-                return ColumnOrigin.METADATA;
-            }
-            if (producesOnlyNull(branch).test(attr)) {
-                return ColumnOrigin.NULLS;
-            }
-            for (MergePlan inner : branch.collect(MergePlan.class)) {
-                if (inner.outputSet().contains(attr)) {
-                    return inner.columnOrigin(name);
-                }
-            }
-            return ColumnOrigin.QUERY;
-        }
-        // a branch that does not have the column contributes nulls to it
-        return ColumnOrigin.NULLS;
     }
 
     /**

@@ -192,6 +192,22 @@ public class FillNullTests extends ESTestCase {
         }
     }
 
+    /** What a column is does not change with how deep the unions are nested: the metadata or a computed column at the bottom decides. */
+    public void testAllColumnsDecideAMetadataNameThroughDeeplyNestedMerges() {
+        Attribute metadata = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        for (boolean computed : new boolean[] { false, true }) {
+            LogicalPlan plan = computed ? withComputedColumn(childWith(List.of(k)), "_index", k) : childWith(List.of(metadata, k));
+            Attribute merged = null;
+            for (int depth = 0; depth < 40; depth++) {
+                merged = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+                plan = unionOf(List.of(merged, k), plan, withNullColumn(childWith(List.of(k)), "_index"));
+            }
+            FillNull fill = allFields(List.of(merged, k)).replaceChild(plan).withConfiguration(TEST_CFG);
+            assertEquals(computed ? Set.of("_index", "k") : Set.of("k"), filledNames(fill));
+        }
+    }
+
     /** A column that a nested merge passes on as metadata, next to a branch that holds it as nulls, is still not the query's own. */
     public void testAllColumnsLeaveAMetadataNameAloneThatANestedMergePassesOn() {
         Attribute metadata = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);

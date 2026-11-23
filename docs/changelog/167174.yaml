@@ -1,0 +1,6 @@
+area: Analysis
+issues: []
+pr: 167174
+summary: "Split queries on whitespace with lowercase normalizer, like the documentation\
+  \ says"
+type: bug

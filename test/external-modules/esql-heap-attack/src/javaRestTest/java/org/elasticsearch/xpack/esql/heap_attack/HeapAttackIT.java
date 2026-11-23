@@ -37,8 +37,7 @@ import static org.hamcrest.Matchers.matchesRegex;
  * Heap-attack tests for sorting, TopN and grouping on many fields. We want to make
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
-// The slowest periodic CI jobs take close to 40 minutes for this suite.
-@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackIT extends HeapAttackTestCase {
 
     /**

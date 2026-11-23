@@ -21,10 +21,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -427,8 +429,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     public void testTooFewVectorsAreNotLearned() throws IOException {
-        // With only 2 vectors and nDims=4, the projection is estimated from those 2 vectors, completed with random
-        // directions, and reported as not learned
+        // With only 2 vectors and nDims=4, too few to estimate the projected subspace, the projection is the seeded random
+        // one, reported as not learned
         int dim = 16;
         float[][] vectors = {
             { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 },
@@ -455,8 +457,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(dim * nDims, trained.wT().length);
         // Too few vectors for the projection to be inherited/warm-started at merge
         assertFalse(trained.learned());
-        // but its subspace is still estimated from the two vectors, which are recorded as its sample
-        assertEquals(vectors.length, trained.matrix().trainingSampleSize());
+        // nor is it learned from them: it is the seeded projection, stored as its seed and shared with other segments
+        assertTrue(trained.matrix().isSeeded());
+        assertEquals(0, trained.matrix().trainingSampleSize());
+        assertEquals(AshProjectionMatrix.seeded(dim, nDims, 42L, executor()).id(), trained.matrix().id());
     }
 
     public void testTrainReportsLearnedFlag() throws IOException {
@@ -576,7 +580,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // an inherited sample size no sample in this test has, so that keeping it rather than the merged one would show
         int mergedSampleSize = Math.min(dim * trainingFactor, vectors.length);
         int inheritedSampleSize = mergedSampleSize + 1;
-        AshProjectionMatrix inheritedMatrix = new AshProjectionMatrix(
+        AshProjectionMatrix inheritedMatrix = AshProjectionMatrix.of(
             inheritedProjection.wT(),
             dim,
             rank,
@@ -667,65 +671,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         );
         var trained = train(quantizer, vectors, i -> centroid);
 
-        assertTrue("a full-dimension rotation is as good as a learned one", trained.learned());
+        assertFalse("nothing is learned into a full-dimension rotation, and merges do not inherit it", trained.learned());
         assertEquals("a random rotation is not learned from a sample", 0, trained.matrix().trainingSampleSize());
+        assertTrue("the rotation is seeded, so segments store only its seed", trained.matrix().isSeeded());
         assertOrthonormalRows(trained.wT(), dim, dim, 1e-4f);
-    }
-
-    public void testTrainFromFewerVectorsThanProjectedDimensionsStillLearnsTheData() throws IOException {
-        // 20 vectors for 16 projected dimensions: fewer than the 2 * 16 needed to be inherited, but plenty to find the
-        // 4-dimensional subspace the vectors live in, which a random projection would only half capture
-        int dim = 32;
-        int rank = 4;
-        float[] planted = plantedSubspace(dim, rank);
-        float[][] vectors = plantedVectors(dim, rank, 20, planted);
-        float[] centroid = new float[dim];
-
-        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-            0.5f,
-            Integer.MAX_VALUE,
-            2,
-            AsymmetricHashingQuantizer.Method.LEARNED,
-            0,
-            10,
-            42L,
-            executor()
-        );
-        var trained = train(quantizer, vectors, i -> centroid);
-
-        int nDims = quantizer.nDims(dim);
-        assertEquals(16, nDims);
-        assertFalse("too few vectors for the projection to be inherited at merge", trained.learned());
-        assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
-        assertThat(capturedEnergy(planted, rank, trained.wT(), nDims, dim), greaterThan(rank * 0.95f));
-    }
-
-    public void testTrainWithFewerVectorsThanProjectedDimensionsCompletesTheBasis() throws IOException {
-        // fewer vectors than projected dimensions: the sample supplies only as many directions as it has vectors
-        int dim = 64;
-        float[][] vectors = new float[AsymmetricHashingQuantizer.MIN_PCA_VECTORS][];
-        for (int i = 0; i < vectors.length; i++) {
-            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
-        }
-        float[] centroid = new float[dim];
-
-        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-            0.5f,
-            Integer.MAX_VALUE,
-            2,
-            AsymmetricHashingQuantizer.Method.LEARNED,
-            0,
-            10,
-            42L,
-            executor()
-        );
-        var trained = train(quantizer, vectors, i -> centroid);
-
-        int nDims = quantizer.nDims(dim);
-        assertTrue("more projected dimensions than vectors", nDims > vectors.length);
-        assertEquals(dim * nDims, trained.wT().length);
-        assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
-        assertFalse(trained.learned());
     }
 
     public void testLearnedFlagNeedsTwiceAsManyVectorsAsProjectedDimensions() throws IOException {
@@ -747,12 +696,36 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         );
         int nDims = quantizer.nDims(dim);
 
-        assertFalse(quantizer.train(ord -> vectors[ord], 2 * nDims - 1, dim, centroidGetter).learned());
-        assertTrue(quantizer.train(ord -> vectors[ord], 2 * nDims, dim, centroidGetter).learned());
-        // below the floor there is nothing to learn from
-        var tiny = quantizer.train(ord -> vectors[ord], AsymmetricHashingQuantizer.MIN_PCA_VECTORS - 1, dim, centroidGetter);
+        // below twice as many vectors as projected dimensions, the seeded projection, which is not learned
+        var belowBoundary = quantizer.train(ord -> vectors[ord], 2 * nDims - 1, dim, centroidGetter);
+        assertFalse(belowBoundary.learned());
+        assertTrue(belowBoundary.matrix().isSeeded());
+        var atBoundary = quantizer.train(ord -> vectors[ord], 2 * nDims, dim, centroidGetter);
+        assertTrue(atBoundary.learned());
+        assertFalse(atBoundary.matrix().isSeeded());
+        // a single vector has nothing to learn from either
+        var tiny = quantizer.train(ord -> vectors[ord], 1, dim, centroidGetter);
         assertFalse(tiny.learned());
         assertOrthonormalRows(tiny.wT(), nDims, dim, 1e-4f);
+    }
+
+    public void testOrthonormalizeRowsDoesNotDependOnTheExecutor() {
+        // seeded projections are generated by whichever executor first needs them, so the result must not depend on it.
+        // Both multiplies that project rows off earlier blocks need over 512 columns, the columns of the rows of earlier
+        // blocks and the original dimensions, for every vectorization backend to split them into tasks
+        int n = randomIntBetween(1040, 1200);
+        int k = randomIntBetween(660, 800);
+        long seed = randomLong();
+        float[] onCallingThread = AshUtils.randomGaussians(new Random(seed), n * k);
+        AshUtils.orthonormalizeRows(onCallingThread, n, k, null);
+        float[] parallel = AshUtils.randomGaussians(new Random(seed), n * k);
+        AtomicInteger tasks = new AtomicInteger();
+        AshUtils.orthonormalizeRows(parallel, n, k, new TaskExecutor(task -> {
+            tasks.incrementAndGet();
+            executor.execute(task);
+        }));
+        assertThat("the executor ran tasks", tasks.get(), greaterThan(0));
+        assertThat(parallel, equalTo(onCallingThread));
     }
 
     public void testOrthonormalizeRowsRepairsRowsInTheSpanOfEarlierOnes() {
@@ -863,7 +836,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         );
         // an inherited sample size other than the merged sample's, so that recording the merged one instead would show
         int inheritedSampleSize = vectors.length + 1;
-        AshProjectionMatrix inherited = new AshProjectionMatrix(
+        AshProjectionMatrix inherited = AshProjectionMatrix.of(
             train(quantizer, vectors, i -> zero).wT(),
             dim,
             quantizer.nDims(dim),
@@ -901,7 +874,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int count = randomIntBetween(1, 2 * nDims - 1);
         // an inherited sample size other than the merged count, so that recording the merged one instead would show
         int inheritedSampleSize = 2 * nDims + count;
-        AshProjectionMatrix inherited = new AshProjectionMatrix(
+        AshProjectionMatrix inherited = AshProjectionMatrix.of(
             AshUtils.randomGaussians(random(), nDims * dim),
             dim,
             nDims,
@@ -919,15 +892,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(inheritedSampleSize, warm.matrix().trainingSampleSize());
     }
 
-    public void testWarmStartWithoutDimensionalityReductionSkipsRefinement() throws IOException {
-        // With no dimensionality reduction and no Procrustes iterations there is nothing to refine, so warm-starting must
-        // not read the merged vectors (to build the second-moment matrix) and must return a fresh random rotation
-        int dim = 16;
-        float[][] vectors = new float[200][];
-        for (int i = 0; i < vectors.length; i++) {
-            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
-        }
-        float[] zero = new float[dim];
+    public void testWarmStartWithoutDimensionalityReductionIsRejected() {
+        // without dimensionality reduction or Procrustes iterations W is the seeded rotation, which merges never inherit
+        int dim = randomIntBetween(4, 64);
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             1.0f,
             Integer.MAX_VALUE,
@@ -938,10 +905,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             42L,
             executor()
         );
-        var trained = train(quantizer, vectors, i -> zero);
-        assertTrue(trained.learned());
-
-        AshProjectionMatrix inherited = new AshProjectionMatrix(
+        AshProjectionMatrix inherited = AshProjectionMatrix.of(
             AshUtils.randomOrthogonal(random(), dim, executor()),
             dim,
             dim,
@@ -949,15 +913,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             UUID.randomUUID(),
             0
         );
-        var warm = quantizer.trainWarmStart(ord -> { throw new AssertionError("must not read vectors"); }, vectors.length, dim, ord -> {
-            throw new AssertionError("must not read centroids");
-        }, inherited, 2);
-
-        assertTrue(warm.learned());
-        assertNotEquals("a fresh rotation is a new matrix", inherited.id(), warm.matrix().id());
-        assertEquals("a random rotation is not learned from a sample", 0, warm.matrix().trainingSampleSize());
-        assertOrthonormalRows(warm.wT(), dim, dim, 1e-4f);
-        assertArrayEquals("fresh rotation, as from training", trained.wT(), warm.wT(), 0f);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> quantizer.trainWarmStart(ord -> { throw new AssertionError("must not read vectors"); }, 4 * dim, dim, ord -> {
+                throw new AssertionError("must not read centroids");
+            }, inherited, 2)
+        );
     }
 
     public void testWarmStartRejectsInheritedMatrixOfAnotherShape() throws IOException {
@@ -975,7 +936,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             executor()
         );
         // a full rotation, while the quantizer projects to half the dimensions
-        AshProjectionMatrix otherShape = new AshProjectionMatrix(
+        AshProjectionMatrix otherShape = AshProjectionMatrix.of(
             AshUtils.randomOrthogonal(random(), dim, executor()),
             dim,
             dim,
@@ -987,32 +948,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> quantizer.trainWarmStart(ord -> vectors[ord], vectors.length, dim, i -> centroid, otherShape, 2)
         );
-    }
-
-    public void testProcrustesWithFewerVectorsThanProjectedDimensionsStaysOrthonormal() throws IOException {
-        // the Procrustes step needs at least as many vectors as projected dimensions; below that the rotation is random
-        int dim = 32;
-        float[] zero = new float[dim];
-        for (int count : new int[] { 2, 3, 5 }) {
-            float[][] vectors = new float[count][];
-            for (int i = 0; i < count; i++) {
-                vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
-            }
-            AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-                0.5f,
-                Integer.MAX_VALUE,
-                2,
-                AsymmetricHashingQuantizer.Method.LEARNED,
-                2,
-                10,
-                42L,
-                executor()
-            );
-
-            var trained = train(quantizer, vectors, i -> zero);
-
-            assertOrthonormalRows(trained.wT(), quantizer.nDims(dim), dim, 1e-3f);
-        }
     }
 
     public void testProcrustesIterationsApplyWithoutDimensionalityReduction() throws IOException {
@@ -1097,44 +1032,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat("relative error of the second-moment matrix", Math.sqrt(differenceSq / expectedSq), lessThan(1e-4));
     }
 
-    public void testSegmentWithNoMoreVectorsThanProjectedDimensionsIsProjectedWithoutLoss() throws IOException {
-        // A flat segment is centered on the mean of its own vectors and encoded with a projection learned from them.
-        // Their residuals span at most (count - 1) dimensions, so with that few vectors the projection keeps all of every
-        // residual; a random projection would keep about half of each
-        int dim = 64;
-        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-            0.5f,
-            Integer.MAX_VALUE,
-            2,
-            AsymmetricHashingQuantizer.Method.LEARNED,
-            0,
-            10,
-            42L,
-            executor()
-        );
-        int nDims = quantizer.nDims(dim);
-        for (int count : new int[] { AsymmetricHashingQuantizer.MIN_PCA_VECTORS, 3, 10, nDims - 1, nDims }) {
-            float[][] vectors = new float[count][];
-            float[] mean = new float[dim];
-            for (int i = 0; i < count; i++) {
-                vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
-                ESVectorUtil.linearCombination(1f / count, vectors[i], mean);
-            }
-
-            var trained = train(quantizer, vectors, i -> mean);
-
-            assertOrthonormalRows(trained.wT(), nDims, dim, 1e-3f);
-            for (int i = 0; i < count; i++) {
-                float[] residual = vectors[i].clone();
-                ESVectorUtil.linearCombination(-1f, mean, residual);
-                float[] projected = ESVectorUtil.matrixVectorMultiply(trained.wT(), nDims, dim, residual);
-                float kept = ESVectorUtil.dotProduct(projected, projected);
-                float total = ESVectorUtil.dotProduct(residual, residual);
-                assertEquals("count " + count + ", vector " + i, total, kept, total * 1e-3f);
-            }
-        }
-    }
-
     public void testTrainWithoutAnyVarianceFallsBackToRandom() throws IOException {
         // every vector is its own centroid, so every residual is zero
         int dim = 32;
@@ -1153,29 +1050,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         var trained = train(quantizer, vectors, i -> centroid);
 
         assertFalse(trained.learned());
+        assertTrue(trained.matrix().isSeeded());
         assertOrthonormalRows(trained.wT(), quantizer.nDims(dim), dim, 1e-4f);
         for (float v : trained.wT()) {
             assertTrue(Float.isFinite(v));
-        }
-    }
-
-    public void testCompleteBasisKeepsTheLeadingSpan() {
-        int n = 40;
-        int have = 6;
-        int want = 20;
-        float[] leading = plantedSubspace(n, have);
-
-        float[] full = AshUtils.completeBasis(leading, n, have, want, random(), executor());
-
-        assertEquals(want * n, full.length);
-        assertOrthonormalRows(full, want, n, 1e-4f);
-        assertThat(capturedEnergy(leading, have, full, want, n), greaterThan(have - 1e-3f));
-        // the extra rows lie outside the span of the first ones
-        float[] firstRows = Arrays.copyOf(full, have * n);
-        for (int i = have; i < want; i++) {
-            float[] row = Arrays.copyOfRange(full, i * n, (i + 1) * n);
-            float[] coordinates = ESVectorUtil.matrixVectorMultiply(firstRows, have, n, row);
-            assertThat(ESVectorUtil.dotProduct(coordinates, coordinates), lessThan(1e-4f));
         }
     }
 

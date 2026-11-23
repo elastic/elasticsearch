@@ -25,6 +25,7 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.ash.AshPostingsVisitor;
 import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
+import org.elasticsearch.index.codec.vectors.ash.AshQueryProjection;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
@@ -47,7 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVectorsReader.ASHFieldEntry> {
 
-    private final ConcurrentHashMap<String, AshProjectionMatrix> ashMatrixCache;
+    // Only the int8 W^T that queries use; merges read the float W^T from the segment when they need it
+    private final ConcurrentHashMap<String, AshQueryProjection> queryProjections;
 
     private final int queryBitsPerDim;
 
@@ -74,13 +76,13 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             ESNextDiskASHVectorsFormat.VERSION_ON_DISK_MERGE,
             ESNextDiskASHVectorsFormat.DYNAMIC_VISIT_RATIO
         );
-        this.ashMatrixCache = new ConcurrentHashMap<>();
+        this.queryProjections = new ConcurrentHashMap<>();
         this.queryBitsPerDim = queryBitsPerDim;
     }
 
     private ESNextDiskASHVectorsReader(ESNextDiskASHVectorsReader other, GenericFlatVectorReaders genericReaders) {
         super(other, genericReaders);
-        this.ashMatrixCache = other.ashMatrixCache;
+        this.queryProjections = other.queryProjections;
         this.queryBitsPerDim = other.queryBitsPerDim;
     }
 
@@ -206,22 +208,24 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         );
     }
 
-    private AshProjectionMatrix getAshProjectionMatrix(FieldInfo fieldInfo) {
-        return ashMatrixCache.computeIfAbsent(fieldInfo.name, name -> {
+    private AshQueryProjection getQueryProjection(FieldInfo fieldInfo) {
+        return queryProjections.computeIfAbsent(fieldInfo.name, name -> {
             try {
-                final ASHFieldEntry fieldEntry = fields.get(fieldInfo.number);
-                long preconditionerOffset = fieldEntry.preconditionerOffset;
-                long preconditionerLength = fieldEntry.preconditionerLength;
-                if (preconditionerLength <= 0) {
-                    throw new IllegalStateException("ASH segment missing projection matrix for field: " + fieldInfo.name);
-                }
-                IndexInput slice = ivfCentroids.slice("ash-preconditioner", preconditionerOffset, preconditionerLength);
-                slice.seek(0);
-                return AshProjectionMatrix.read(slice);
+                return AshProjectionMatrix.readQueryProjection(projectionMatrixSlice(fieldInfo));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    private IndexInput projectionMatrixSlice(FieldInfo fieldInfo) throws IOException {
+        final ASHFieldEntry fieldEntry = fields.get(fieldInfo.number);
+        if (fieldEntry.preconditionerLength <= 0) {
+            throw new IllegalStateException("ASH segment missing projection matrix for field: " + fieldInfo.name);
+        }
+        IndexInput slice = ivfCentroids.slice("ash-preconditioner", fieldEntry.preconditionerOffset, fieldEntry.preconditionerLength);
+        slice.seek(0);
+        return slice;
     }
 
     /**
@@ -231,14 +235,29 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
      * Used at merge time to seed the merged segment's projection matrix from an existing input
      * segment instead of re-learning W from scratch. W is a global orthonormal projection of
      * centered/normalized vectors, so it is effectively centroid-independent and can be reused
-     * across a merge without re-training.
+     * across a merge without re-training. The matrix is read from the segment on every call, so that open segments
+     * do not keep its float W^T in memory.
      */
-    AshProjectionMatrix getProjectionMatrix(FieldInfo fieldInfo) {
+    AshProjectionMatrix getProjectionMatrix(FieldInfo fieldInfo) throws IOException {
+        IndexInput slice = projectionMatrixSliceIfPresent(fieldInfo);
+        return slice == null ? null : AshProjectionMatrix.read(slice);
+    }
+
+    /**
+     * Returns the {@link AshProjectionMatrix.Header} of the ASH projection matrix W for the given field, or {@code null} if
+     * this segment does not have one. Reads only the header, so a merge can choose which input segment's matrix to read.
+     */
+    AshProjectionMatrix.Header getProjectionMatrixHeader(FieldInfo fieldInfo) throws IOException {
+        IndexInput slice = projectionMatrixSliceIfPresent(fieldInfo);
+        return slice == null ? null : AshProjectionMatrix.readHeader(slice);
+    }
+
+    private IndexInput projectionMatrixSliceIfPresent(FieldInfo fieldInfo) throws IOException {
         final ASHFieldEntry fieldEntry = fields.get(fieldInfo.number);
         if (fieldEntry == null || fieldEntry.preconditionerLength <= 0) {
             return null;
         }
-        return getAshProjectionMatrix(fieldInfo);
+        return projectionMatrixSlice(fieldInfo);
     }
 
     /** Returns the bits per projected dimension the given field was written with in this segment, for tests. */
@@ -272,7 +291,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         // projections as a float query does
         QueryTransformCache transformCache = queryTarget.transformCache();
 
-        var ashMatrix = getAshProjectionMatrix(fieldInfo);
+        var queryProjection = getQueryProjection(fieldInfo);
         int dimension = fieldInfo.getVectorDimension();
         int numCentroids = entry.numCentroids();
         // Raw float centroids are stored as the last (numCentroids * dimension * Float.BYTES) bytes
@@ -309,7 +328,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 endDoc = sliceAcceptDocs.endDoc();
             }
             return AshPostingsVisitor.createSliced(
-                ashMatrix,
+                queryProjection,
                 target,
                 fieldInfo.getVectorSimilarityFunction(),
                 unwrappedInput,
@@ -324,7 +343,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             );
         }
         return AshPostingsVisitor.create(
-            ashMatrix,
+            queryProjection,
             target,
             fieldInfo.getVectorSimilarityFunction(),
             unwrappedInput,

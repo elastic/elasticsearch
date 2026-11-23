@@ -143,7 +143,8 @@ public class AshPostingsListWriter {
         // - merge with an inheritable W (inherited != null): warm-start from it, running a couple of steps of
         // subspace iteration against the merged set's second-moment matrix, then applying a new rotation.
         // - otherwise: train W from scratch: the PCA subspace of the training sample, then a rotation (random, unless
-        // Procrustes iterations are configured).
+        // Procrustes iterations are configured); or, for a segment too small to learn from or a field without
+        // dimensionality reduction, the seeded projection.
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
         if (inherited != null) {
@@ -153,10 +154,9 @@ public class AshPostingsListWriter {
             trained = ashQuantizer.train(vectors, nVectors, originalDim, centroidGetter);
         }
 
-        // Store the projection matrix for later serialization. The quantizer reports whether W was learned from
-        // enough vectors to be inherited/warm-started at merge time. A random orthonormal fallback, or a
-        // projection learned from fewer than twice as many vectors as projected dimensions (a small segment), is
-        // marked learned=false so that merge does not inherit it.
+        // Store the projection matrix for later serialization. The quantizer reports whether W may be inherited or
+        // warm-started at merge; the seeded projection, used by segments too small to learn from and by full-dimension
+        // rotations, is not.
         this.ashProjectionMatrix = trained.matrix();
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments

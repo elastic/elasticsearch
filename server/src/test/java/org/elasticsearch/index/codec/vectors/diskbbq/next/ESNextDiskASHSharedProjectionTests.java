@@ -77,11 +77,11 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
     }
 
     /** The distinct projection matrix ids of the segments. */
-    private static Set<UUID> distinctMatrixIds(DirectoryReader reader) {
+    private static Set<UUID> distinctMatrixIds(DirectoryReader reader) throws IOException {
         Set<UUID> ids = new HashSet<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             FieldInfo fieldInfo = ctx.reader().getFieldInfos().fieldInfo(FIELD);
-            ids.add(ESNextDiskASHVectorsFormatTests.ashReader(ctx.reader(), FIELD).getProjectionMatrix(fieldInfo).id());
+            ids.add(ESNextDiskASHVectorsFormatTests.ashReader(ctx.reader(), FIELD).getProjectionMatrixHeader(fieldInfo).id());
         }
         return ids;
     }

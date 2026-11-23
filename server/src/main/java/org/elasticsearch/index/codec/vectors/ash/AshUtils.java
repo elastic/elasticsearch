@@ -243,25 +243,6 @@ final class AshUtils {
     }
 
     /**
-     * Extends {@code have} orthonormal rows to {@code want} orthonormal rows: the extra rows are random directions
-     * orthogonal to the first ones, which keep their span.
-     *
-     * @param bT   the {@code have} orthonormal vectors, one per row, row-major {@code (have x n)}
-     * @param n    the length of each vector
-     * @param have the number of vectors supplied
-     * @param want the number of vectors required, at most {@code n}
-     * @return the {@code want} orthonormal vectors, row-major {@code (want x n)}
-     */
-    public static float[] completeBasis(float[] bT, int n, int have, int want, Random random, TaskExecutor executor) {
-        assert bT.length == have * n;
-        assert have <= want && want <= n;
-        float[] full = Arrays.copyOf(bT, want * n);
-        randomGaussians(random, full, have * n, (want - have) * n);
-        orthonormalizeRows(full, n, want, executor);
-        return full;
-    }
-
-    /**
      * Subspace (block power) iteration: {@code B <- orth(C^s B)}. All k vectors advance at once, so the cost is
      * O(multiplies * n^2 * k), without the per-vector deflation a one-at-a-time method would need.
      * <p>

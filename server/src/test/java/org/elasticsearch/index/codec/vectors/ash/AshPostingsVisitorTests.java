@@ -39,19 +39,17 @@ public class AshPostingsVisitorTests extends ESTestCase {
     private static final int ORIGINAL_DIM = 32;
     private static final int N_DIMS = 16;
 
-    private static AshProjectionMatrix randomMatrix() {
-        return new AshProjectionMatrix(
+    private static AshQueryProjection randomProjection() {
+        return AshQueryProjection.quantize(
+            UUID.randomUUID(),
             AshUtils.randomGaussians(random(), ORIGINAL_DIM * N_DIMS),
             ORIGINAL_DIM,
-            N_DIMS,
-            true,
-            UUID.randomUUID(),
-            0
+            N_DIMS
         );
     }
 
     private static AshPostingsVisitor<?> visitor(
-        AshProjectionMatrix matrix,
+        AshQueryProjection projection,
         float[] query,
         IndexInput input,
         int bitsPerDim,
@@ -60,7 +58,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
     ) throws IOException {
         float[] centroid = new float[ORIGINAL_DIM];
         return AshPostingsVisitor.create(
-            matrix,
+            projection,
             query,
             VectorSimilarityFunction.EUCLIDEAN,
             input,
@@ -74,17 +72,17 @@ public class AshPostingsVisitorTests extends ESTestCase {
 
     public void testFloatPathSharesProjectionWhateverTheDocumentBits() throws IOException {
         try (Directory dir = new ByteBuffersDirectory(); IndexInput input = emptyInput(dir)) {
-            AshProjectionMatrix matrix = randomMatrix();
+            AshQueryProjection projection = randomProjection();
             float[] query = VectorTestUtils.randomFloatVector(ORIGINAL_DIM);
             CountingQueryTransformCache transforms = new CountingQueryTransformCache();
 
-            AshPostingsVisitor<?> first = visitor(matrix, query, input, 1, 0, transforms);
+            AshPostingsVisitor<?> first = visitor(projection, query, input, 1, 0, transforms);
             // segments with the same matrix but other document bits project the query the same way
-            AshPostingsVisitor<?> second = visitor(matrix, query, input, 2, 0, transforms);
+            AshPostingsVisitor<?> second = visitor(projection, query, input, 2, 0, transforms);
             assertThat(transforms.computed(), equalTo(1));
             assertThat(second.scorerQuery, sameInstance(first.scorerQuery));
 
-            AshPostingsVisitor<?> other = visitor(randomMatrix(), query, input, 1, 0, transforms);
+            AshPostingsVisitor<?> other = visitor(randomProjection(), query, input, 1, 0, transforms);
             assertThat(transforms.computed(), equalTo(2));
             assertThat(other.scorerQuery, not(sameInstance(first.scorerQuery)));
         }
@@ -92,18 +90,18 @@ public class AshPostingsVisitorTests extends ESTestCase {
 
     public void testIntegerPathSharesProjectionPerDocumentBits() throws IOException {
         try (Directory dir = new ByteBuffersDirectory(); IndexInput input = emptyInput(dir)) {
-            AshProjectionMatrix matrix = randomMatrix();
+            AshQueryProjection projection = randomProjection();
             float[] query = VectorTestUtils.randomFloatVector(ORIGINAL_DIM);
             CountingQueryTransformCache transforms = new CountingQueryTransformCache();
             int queryBits = 4;
 
-            AshPostingsVisitor<?> first = visitor(matrix, query, input, 1, queryBits, transforms);
-            AshPostingsVisitor<?> again = visitor(matrix, query, input, 1, queryBits, transforms);
+            AshPostingsVisitor<?> first = visitor(projection, query, input, 1, queryBits, transforms);
+            AshPostingsVisitor<?> again = visitor(projection, query, input, 1, queryBits, transforms);
             assertThat(transforms.computed(), equalTo(1));
             assertThat(again.scorerQuery, sameInstance(first.scorerQuery));
 
             // the quantized query depends on the document bits
-            AshPostingsVisitor<?> otherBits = visitor(matrix, query, input, 2, queryBits, transforms);
+            AshPostingsVisitor<?> otherBits = visitor(projection, query, input, 2, queryBits, transforms);
             assertThat(transforms.computed(), equalTo(2));
             assertThat(otherBits.scorerQuery, not(sameInstance(first.scorerQuery)));
         }
@@ -115,7 +113,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
      */
     public void testNamedSlicesOfASegmentShareProjection() throws IOException {
         try (Directory dir = new ByteBuffersDirectory(); IndexInput input = emptyInput(dir)) {
-            AshProjectionMatrix matrix = randomMatrix();
+            AshQueryProjection projection = randomProjection();
             float[] query = VectorTestUtils.randomFloatVector(ORIGINAL_DIM);
             int bitsPerDim = randomIntBetween(1, 2);
             int queryBitsPerDim = randomFrom(0, 4);
@@ -130,7 +128,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
 
             int sliceEnd = randomIntBetween(1, docs - 1);
             AshPostingsVisitor<?> first = slicedVisitor(
-                matrix,
+                projection,
                 query,
                 input,
                 bitsPerDim,
@@ -142,7 +140,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
                 transforms
             );
             AshPostingsVisitor<?> second = slicedVisitor(
-                matrix,
+                projection,
                 query,
                 input,
                 bitsPerDim,
@@ -159,7 +157,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
     }
 
     private static AshPostingsVisitor<?> slicedVisitor(
-        AshProjectionMatrix matrix,
+        AshQueryProjection projection,
         float[] query,
         IndexInput input,
         int bitsPerDim,
@@ -171,7 +169,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
         CountingQueryTransformCache transforms
     ) throws IOException {
         return AshPostingsVisitor.createSliced(
-            matrix,
+            projection,
             query,
             VectorSimilarityFunction.EUCLIDEAN,
             input,

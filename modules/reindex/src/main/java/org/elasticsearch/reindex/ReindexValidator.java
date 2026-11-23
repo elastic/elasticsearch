@@ -42,7 +42,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.RemoteClusterAware;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -166,9 +165,7 @@ public class ReindexValidator {
                 if (sourceSlices.anySliceEnabled()) {
                     throw new IllegalArgumentException(
                         required
-                            + " because the source also targets indices without slices "
-                            + describeIndices(sourceSlices.indicesWithoutSlices())
-                            + ", whose documents have no slice to keep; set ["
+                            + " because the source also targets indices without slices, whose documents have no slice to keep; set ["
                             + SliceIndexing.FIELD_NAME
                             + "] in [dest], read the source with ["
                             + SliceIndexing.FIELD_NAME
@@ -207,7 +204,7 @@ public class ReindexValidator {
         boolean sourceSliceMode
     ) {
         boolean anySourceSliceEnabled = false;
-        List<String> sourceIndicesWithoutSlices = new ArrayList<>();
+        boolean anySourceWithoutSlices = false;
         boolean sourceRequiresRouting = false;
         // Remote sources (reindex-from-remote and cross-cluster/cross-project index expressions) cannot be resolved against the local
         // cluster state, and doing so throws "Cross-cluster calls are not supported in this context". Skip remote index names, mirroring
@@ -223,7 +220,7 @@ public class ReindexValidator {
                     if (IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
                         anySourceSliceEnabled = true;
                     } else {
-                        sourceIndicesWithoutSlices.add(index.getName());
+                        anySourceWithoutSlices = true;
                         if (routingRequired(indexMetadata)) {
                             sourceRequiresRouting = true;
                         }
@@ -233,7 +230,7 @@ public class ReindexValidator {
         }
 
         final boolean slicesInvolved = sourceSliceMode || destSliceProvided || destinationSliceEnabled || anySourceSliceEnabled;
-        final SourceSlices sourceSlices = new SourceSlices(anySourceSliceEnabled, sourceIndicesWithoutSlices);
+        final SourceSlices sourceSlices = new SourceSlices(anySourceSliceEnabled, anySourceWithoutSlices);
         if (slicesInvolved == false) {
             return sourceSlices;
         }
@@ -262,26 +259,16 @@ public class ReindexValidator {
     /**
      * The local source indices of a reindex by whether their documents have a slice.
      *
-     * @param anySliceEnabled      whether any of them is slice-enabled
-     * @param indicesWithoutSlices the names of those that are not
+     * @param anySliceEnabled     whether any of them is slice-enabled
+     * @param anyWithoutSlices    whether any of them is not
      */
-    private record SourceSlices(boolean anySliceEnabled, List<String> indicesWithoutSlices) {
+    private record SourceSlices(boolean anySliceEnabled, boolean anyWithoutSlices) {
         /**
          * Whether every document of the source has a slice. Without a local source index there is none.
          */
         boolean allSliceEnabled() {
-            return anySliceEnabled && indicesWithoutSlices.isEmpty();
+            return anySliceEnabled && anyWithoutSlices == false;
         }
-    }
-
-    /**
-     * Names the first few of the given indices in name order, a source can target a lot of them.
-     */
-    private static String describeIndices(List<String> indices) {
-        final int shown = 3;
-        final List<String> sorted = indices.stream().sorted().toList();
-        final String names = "[" + String.join(", ", sorted.subList(0, Math.min(shown, sorted.size()))) + "]";
-        return sorted.size() > shown ? names + " and " + (sorted.size() - shown) + " more" : names;
     }
 
     private static boolean routingRequired(IndexMetadata indexMetadata) {

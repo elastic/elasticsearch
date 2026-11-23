@@ -176,23 +176,10 @@ public class ReindexValidatorTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
         assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
-        assertThat(e.getMessage(), containsString("the source also targets indices without slices [plain-index]"));
-        // only the indices that cannot supply a slice are named
+        assertThat(e.getMessage(), containsString("the source also targets indices without slices, whose documents have no slice to keep"));
+        // a source expression is expanded before the source search is authorized, so the message must not name what it matched
+        assertThat(e.getMessage(), not(containsString("plain-index")));
         assertThat(e.getMessage(), not(containsString("source-index")));
-    }
-
-    public void testSourceIndicesWithoutSlicesAreNamedInTheErrorUpToALimit() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        ProjectMetadata.Builder project = ProjectMetadata.builder(randomUniqueProjectId());
-        project.put(sliceIndex("source-index", true), true).put(sliceIndex("dest-index", true), true);
-        for (int i = 1; i <= 5; i++) {
-            project.put(sliceIndex("plain-" + i, false), true);
-        }
-        ReindexValidator validator = validatorWithProject(project.build());
-        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-*").setDestIndex("dest-index");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
-        assertThat(e.getMessage(), containsString("[plain-1, plain-2, plain-3] and 2 more"));
     }
 
     public void testAllowMixedSourceIntoSliceEnabledDestinationWhenAnotherMechanismSuppliesTheSlice() {
@@ -381,14 +368,6 @@ public class ReindexValidatorTests extends ESTestCase {
             );
         }
         return project.build();
-    }
-
-    private static IndexMetadata sliceIndex(String name, boolean sliceEnabled) {
-        return IndexMetadata.builder(name)
-            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), sliceEnabled).build())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
     }
 
     private ProjectMetadata projectMetadataWithDestinationSliceSetting(boolean destinationSliceEnabled) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166583
+summary: "Improve error message when rejecting an `IN` subquery that returns more than one column"
+type: bug

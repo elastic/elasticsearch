@@ -689,6 +689,17 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testDescribeVerifiesItsInput() {
+        defaultAnalyzer().error(
+            "from test | where 1 | describe",
+            equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by emp_no | where c + 1 | describe | keep name",
+            equalTo("1:50: Condition expression needs to be boolean, found [LONG]")
+        );
+    }
+
     public void testAggWithNonBooleanFilter() {
         for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
             String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";

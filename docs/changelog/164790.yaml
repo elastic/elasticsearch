@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 164790
-summary: Fix `StringIndexOutOfBoundsException` in EsqlCCSUtils
-type: bug

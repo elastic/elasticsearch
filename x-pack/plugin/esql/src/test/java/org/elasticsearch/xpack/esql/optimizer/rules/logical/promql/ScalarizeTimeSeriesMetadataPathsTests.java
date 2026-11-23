@@ -100,19 +100,24 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertThat(plan.collect(TimeSeriesAggregate.class).getFirst().groupings(), hasSize(1));
     }
 
-    /**
-     * A field that isn't a keyword dimension may hold what the container doesn't, or hold it in another form: the read
-     * stays.
-     */
-    public void testReadOfAFieldThatIsNotAKeywordDimensionStays() {
+    /** A dimension that isn't a keyword holds its text in the container and its typed value in its field: the read stays. */
+    public void testReadOfADimensionThatIsNotAKeywordStays() {
         Alias labels = labels();
         TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
-        LogicalPlan plan = new Eval(
-            SOURCE,
-            aggregate,
-            List.of(read("shard", labels.toAttribute(), "shard"), read("event", labels.toAttribute(), "event"))
-        );
+        LogicalPlan plan = new Eval(SOURCE, aggregate, List.of(read("shard", labels.toAttribute(), "shard")));
         assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    /**
+     * A field that is no dimension holds a label the container doesn't: the aggregate groups by it too, as by a label a query
+     * groups by, and writes it into the container, so the read is the field.
+     */
+    public void testReadOfAFieldThatIsNoDimensionKeysTheAggregate() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        LogicalPlan plan = scalarize(new Eval(SOURCE, aggregate, List.of(read("event", labels.toAttribute(), "event"))));
+        assertThat(reads(plan), empty());
+        assertThat(plan.collect(TimeSeriesAggregate.class).getFirst().groupings(), hasItem(event));
     }
 
     /** A written label reads as what was written, a label left out as null, any other label as before the writes. */
@@ -423,11 +428,11 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     }
 
     /**
-     * Applies the rule and checks what holds for every plan: the output stays, keys and packs stay, a time-series
-     * aggregate gains only dimension fields as keys, and a second run changes nothing.
+     * Applies the rule and checks what holds for every plan: the output stays, packs stay, a time-series aggregate keeps its
+     * keys but the series' label container and gains only fields of the source as keys, and a second run changes nothing.
      */
     private static LogicalPlan scalarize(LogicalPlan plan) {
-        LogicalPlan scalarized = new ScalarizeTimeSeriesMetadataPaths().apply(plan);
+        LogicalPlan scalarized = new ScalarizeTimeSeriesMetadataPaths().apply(plan, EsqlTestUtils.TEST_CFG);
         assertEquals(plan.output(), scalarized.output());
         assertEquals(plan.collect(PackDims.class).size(), scalarized.collect(PackDims.class).size());
         assertEquals(plan.collect(UnpackDims.class).size(), scalarized.collect(UnpackDims.class).size());
@@ -435,13 +440,18 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         List<TimeSeriesAggregate> after = scalarized.collect(TimeSeriesAggregate.class);
         assertEquals(before.size(), after.size());
         for (int i = 0; i < before.size(); i++) {
+            for (Expression grouping : before.get(i).groupings()) {
+                if (grouping instanceof Alias alias && alias.child() instanceof TimeSeriesWithout) {
+                    continue;
+                }
+                assertThat(after.get(i).groupings(), hasItem(grouping));
+            }
             List<Expression> added = new ArrayList<>(after.get(i).groupings());
-            assertTrue(added.containsAll(before.get(i).groupings()));
             added.removeAll(before.get(i).groupings());
+            added.removeIf(g -> g instanceof Alias alias && alias.child() instanceof TimeSeriesWithout);
             assertThat(added, everyItem(instanceOf(FieldAttribute.class)));
-            assertTrue(added.stream().allMatch(g -> ((FieldAttribute) g).isDimension()));
         }
-        assertEquals(scalarized, new ScalarizeTimeSeriesMetadataPaths().apply(scalarized));
+        assertEquals(scalarized, new ScalarizeTimeSeriesMetadataPaths().apply(scalarized, EsqlTestUtils.TEST_CFG));
         return scalarized;
     }
 

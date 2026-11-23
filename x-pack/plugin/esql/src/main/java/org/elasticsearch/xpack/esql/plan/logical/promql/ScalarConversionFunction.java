@@ -57,15 +57,15 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     /** scalar(): collapse to one value per step, e.g. scalar(sum by (cluster) (metric)). */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // The result has no labels, so the child's label set is irrelevant: it exposes none.
-        IntermediateResult child = context.withRequired(TranslationSchema.EMPTY).translate(child());
+        // The result has no labels.
+        IntermediateResult child = context.translate(child());
         if (child.value().foldable()) {
             Expression value = new ToDouble(source(), child.value());
-            return new IntermediateResult(child.plan(), TranslationSchema.EMPTY, value, child.step(), child.pendingFilter());
+            return new IntermediateResult(child.plan(), value, null, child.step(), child.pendingFilter());
         }
         var scalarExpr = new Scalar(source(), child.value());
         return child.kind().afterInitialAggregation
-            ? context.regroup(child, TranslationSchema.EMPTY, false, scalarExpr)
-            : context.collapse(child, TranslationSchema.EMPTY, scalarExpr);
+            ? context.emitAggregate(child, null, scalarExpr)
+            : context.emitInitialAggregate(child, null, scalarExpr);
     }
 }

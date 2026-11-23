@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -30,10 +31,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -183,39 +180,38 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        List<String> keys = TranslationContext.mapFinite(groupings());
-        if (grouping() == WITHOUT) {
-            keys = context.withoutLabels(keys);
-        }
-        TranslationSchema childRequired = switch (grouping()) {
-            case BY -> finite(keys);
-            // without (K) declares its own packing, every label but K, which keeps one row per remaining label set even
-            // for an empty K, and widens every pending one by K
-            case WITHOUT -> union(subtract(context.required(), keys), open(keys));
-            case NONE -> TranslationSchema.EMPTY;
-        };
-        TranslationContext childTranslation = context.withRequired(childRequired);
-        IntermediateResult ir = childTranslation.translate(child());
+        IntermediateResult ir = context.translate(child());
         if (ir.kind().constant) {
             return ir;
         }
-        TranslationSchema schema = switch (grouping()) {
-            case BY -> finite(TranslationContext.mapFinite(output()));
-            case WITHOUT -> context.regroupWithout(ir.schema(), keys);
-            case NONE -> TranslationSchema.EMPTY;
-        };
+        Expression labels = groupLabels(context, ir.labels());
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
         Expression function = buildEsqlFunction(ir.value(), promqlCtx);
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
         IntermediateResult result = ir.kind().afterInitialAggregation
-            ? context.regroup(ir, schema, grouping() == WITHOUT, function)
-            : context.collapse(ir, schema, function);
+            ? context.emitAggregate(ir, labels, function)
+            : context.emitInitialAggregate(ir, labels, function);
         // A count is at least 1 for an element. A group none of whose series has a value - every series of an operator
         // left without a partner, say - is no element in Prometheus, not a count of 0.
         if (function instanceof Count) {
             result = context.eval(result, TranslationContext.zeroCountAsNull(result.valueColumn()));
         }
         return result;
+    }
+
+    /**
+     * The labels of a group: {@code by(...)} keeps the listed labels, {@code without(...)} leaves them out and, like every
+     * aggregation, the metric name; a group without labels has none.
+     */
+    protected @Nullable Expression groupLabels(TranslationContext context, @Nullable Expression input) {
+        return switch (grouping()) {
+            case BY -> {
+                List<String> kept = PromqlLabels.labelNames(output());
+                yield kept.isEmpty() || input == null ? null : PromqlLabels.keeping(input, kept);
+            }
+            case WITHOUT -> context.withoutMetricName(PromqlLabels.without(input, PromqlLabels.labelNames(groupings())));
+            case NONE -> null;
+        };
     }
 }

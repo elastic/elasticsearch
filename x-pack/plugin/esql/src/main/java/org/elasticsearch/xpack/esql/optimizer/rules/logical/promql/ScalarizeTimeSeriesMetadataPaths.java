@@ -8,18 +8,23 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -35,20 +40,32 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
-import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Function;
 
 /**
  * The PromQL translation threads the labels of a series through the plan as one keyword label container, {@code _timeseries},
  * the JSON object of the series' dimensions, and reads a label out of it with {@link TimeSeriesMetadataPath}, which parses the
  * container row by row. This rule replaces such a read with the value it reads, when that value is in the plan already: a
  * dimension field of the source, a value a {@link TimeSeriesMetadataSet} wrote, or nothing. A read it cannot replace stays and
- * stays correct, so the rule is an optimization only.
+ * stays correct.
+ * <p>
+ * First it keys every {@link TimeSeriesAggregate} by what the source holds. The translation keys the aggregate of the series
+ * by their label container, which it derives from the source's one with {@link TimeSeriesMetadataFilter}s; the aggregate runs
+ * on the data nodes, so a key that called a label container function would not run on nodes that do not know them, and would
+ * read the label container of every row. Leaving labels out is a {@link TimeSeriesWithout} of them; keeping labels groups by
+ * their fields, and the container is rebuilt from the fields above the aggregate, where only the coordinator reads it.
  * <p>
  * It follows what engines do with a read of a field of a struct or a JSON column:
  * <ul>
@@ -83,14 +100,296 @@ import java.util.Map;
  * an empty one. A written attribute is its value: the translation writes a label column, which holds a label's values as the
  * translation reads them from a dimension field, or a computed label, whose empty value it turns into null.
  */
-public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, LogicalPlan> {
+public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
     @Override
-    public LogicalPlan apply(LogicalPlan plan) {
+    public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+        return apply(plan, context.configuration(), field -> PromqlLabels.path(field, context.indexResolution().values()));
+    }
+
+    /** The rule under {@code configuration}, over a source of no passthrough object. */
+    public LogicalPlan apply(LogicalPlan plan, Configuration configuration) {
+        return apply(plan, configuration, field -> PromqlLabels.path(field, List.of()));
+    }
+
+    /**
+     * The rule under {@code configuration}, which the text of a field that is no string takes, and {@code paths}, the keys of a
+     * source field, which a label written into a label container takes.
+     */
+    public LogicalPlan apply(LogicalPlan plan, Configuration configuration, Function<String, List<String>> paths) {
+        plan = plan.transformUp(TimeSeriesAggregate.class, aggregate -> keyBySource(aggregate, configuration, paths));
+        Set<String> named = new TreeSet<>();
+        plan.forEachExpressionDown(AbstractTimeSeriesMetadataFunction.class, function -> {
+            if (function instanceof TimeSeriesMetadataPath
+                || function instanceof TimeSeriesMetadataFilter filter && filter.exclude() == false) {
+                function.keys().stream().map(Run::name).filter(name -> name != null).forEach(named::add);
+            }
+        });
+        if (named.isEmpty() == false) {
+            plan = plan.transformUp(TimeSeriesAggregate.class, aggregate -> withFields(aggregate, named, configuration, paths));
+        }
         if (plan.anyMatch(node -> node.expressions().stream().anyMatch(e -> e.anyMatch(TimeSeriesMetadataPath.class::isInstance)))) {
-            return new Run().apply(plan);
+            return passThroughRedefinitions(new Run().apply(plan));
         }
         return plan;
+    }
+
+    /**
+     * {@code plan} without the aliases that define an attribute from itself. A read the translation names after a field of the
+     * source, under the field's own id, as the command declares a label it groups by, becomes that field once it is replaced,
+     * possibly as its text read back as its type: the alias would define the field's id from the field. The field passes
+     * through under its id instead: the alias goes, and so do the copies of the field carried up to it.
+     */
+    private static LogicalPlan passThroughRedefinitions(LogicalPlan plan) {
+        Map<NameId, Expression> carried = new HashMap<>();
+        plan.forEachDown(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                if (field.name().startsWith(Attribute.rawTemporaryName("promql_label"))) {
+                    carried.put(field.id(), field.child());
+                }
+            }
+        });
+        Map<NameId, Attribute> passed = new HashMap<>();
+        plan.forEachDown(node -> {
+            Set<NameId> input = new HashSet<>();
+            node.children().forEach(child -> child.output().forEach(attribute -> input.add(attribute.id())));
+            for (Expression expression : node.expressions()) {
+                expression.forEachDown(Alias.class, alias -> {
+                    Expression value = valueOf(alias.child(), carried, new HashSet<>());
+                    if (value instanceof Attribute field && field.id().equals(alias.id())) {
+                        List<NameId> copies = new ArrayList<>();
+                        Expression copy = alias.child();
+                        while (copy instanceof Attribute attribute && carried.get(attribute.id()) instanceof Attribute next) {
+                            copies.add(attribute.id());
+                            copy = next;
+                        }
+                        if (copy.equals(field) || input.contains(field.id())) {
+                            copies.forEach(id -> passed.put(id, field));
+                            passed.put(alias.id(), field);
+                        }
+                    }
+                });
+            }
+        });
+        if (passed.isEmpty()) {
+            return plan;
+        }
+        return plan.transformUp(LogicalPlan.class, node -> {
+            LogicalPlan rewritten = node.transformExpressionsOnly(
+                Attribute.class,
+                attribute -> passed.containsKey(attribute.id()) && attribute.id().equals(passed.get(attribute.id()).id()) == false
+                    ? passed.get(attribute.id())
+                    : attribute
+            );
+            if (rewritten instanceof Eval eval) {
+                List<Alias> fields = eval.fields().stream().filter(field -> passed.containsKey(field.id()) == false).toList();
+                if (fields.size() < eval.fields().size()) {
+                    return fields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), fields);
+                }
+            }
+            if (rewritten instanceof Project project) {
+                List<NamedExpression> projections = new ArrayList<>();
+                for (NamedExpression projection : project.projections()) {
+                    projections.add(
+                        projection instanceof Alias alias && passed.containsKey(alias.id()) ? passed.get(alias.id()) : projection
+                    );
+                }
+                return project.withProjections(projections.stream().distinct().toList());
+            }
+            return rewritten;
+        });
+    }
+
+    /**
+     * The value {@code expression} reads, through the values carried up under temporary names: an attribute read as its text
+     * and back as its type is the attribute.
+     */
+    private static Expression valueOf(Expression expression, Map<NameId, Expression> carried, Set<NameId> seen) {
+        Expression value = expression.transformUp(
+            Attribute.class,
+            attribute -> carried.containsKey(attribute.id()) && seen.add(attribute.id())
+                ? valueOf(carried.get(attribute.id()), carried, seen)
+                : attribute
+        );
+        if (value instanceof AbstractConvertFunction convert
+            && convert.field() instanceof ToString text
+            && text.field() instanceof Attribute attribute
+            && attribute.dataType() == convert.dataType()) {
+            return attribute;
+        }
+        return value;
+    }
+
+    /**
+     * {@code aggregate} keyed by what the source holds in place of each key that is a {@link TimeSeriesMetadataFilter} chain of
+     * literal labels over the source's label container: one leaving labels out is the {@link TimeSeriesWithout} of them, one
+     * keeping labels groups by their fields, with the key, under its id, rebuilt from them above the aggregate. A label no
+     * field holds is absent.
+     */
+    private static LogicalPlan keyBySource(
+        TimeSeriesAggregate aggregate,
+        Configuration configuration,
+        Function<String, List<String>> paths
+    ) {
+        List<Expression> groupings = new ArrayList<>();
+        List<NamedExpression> aggregates = new ArrayList<>(aggregate.aggregates());
+        List<Alias> rebuilt = new ArrayList<>();
+        List<Attribute> fields = aggregate.child().output();
+        for (Expression grouping : aggregate.groupings()) {
+            List<TimeSeriesMetadataFilter> filters = new ArrayList<>();
+            Expression container = Alias.unwrap(grouping);
+            while (container instanceof TimeSeriesMetadataFilter filter && filter.keys().stream().allMatch(l -> Run.name(l) != null)) {
+                filters.add(filter);
+                container = filter.children().getFirst();
+            }
+            Alias key = grouping instanceof Alias alias ? alias : null;
+            TimeSeriesWithout source = container instanceof TimeSeriesWithout without ? without : null;
+            if (key == null || filters.isEmpty() || source == null) {
+                groupings.add(grouping);
+                continue;
+            }
+            Set<String> excluded = new TreeSet<>();
+            for (Expression field : source.children()) {
+                if (field instanceof Attribute attribute) {
+                    excluded.add(PromqlLabels.labelName(attribute));
+                }
+            }
+            Set<String> kept = null;
+            for (TimeSeriesMetadataFilter filter : filters.reversed()) {
+                Set<String> names = new TreeSet<>(filter.keys().stream().map(Run::name).toList());
+                if (filter.exclude()) {
+                    if (kept == null) {
+                        excluded.addAll(names);
+                    } else {
+                        kept.removeAll(names);
+                    }
+                } else if (kept == null) {
+                    kept = names;
+                    kept.removeAll(excluded);
+                } else {
+                    kept.retainAll(names);
+                }
+            }
+            if (kept == null) {
+                List<Expression> leftOut = excluded.stream().<Expression>map(label -> {
+                    Attribute field = field(fields, label);
+                    return field != null ? field : new ReferenceAttribute(key.source(), label, DataType.KEYWORD);
+                }).toList();
+                groupings.add(new Alias(key.source(), key.name(), new TimeSeriesWithout(source.source(), leftOut), key.id()));
+                continue;
+            }
+            Expression labels = Literal.keyword(key.source(), "{}");
+            for (String label : kept) {
+                Attribute field = field(fields, label);
+                if (field == null) {
+                    continue;
+                }
+                if (groupings.contains(field) == false) {
+                    groupings.add(field);
+                }
+                if (aggregates.contains(field) == false) {
+                    aggregates.add(field);
+                }
+                Expression text = DataType.isString(field.dataType()) ? field : new ToString(key.source(), field, configuration);
+                labels = new TimeSeriesMetadataSet(
+                    key.source(),
+                    labels,
+                    Literal.keyword(key.source(), label),
+                    text,
+                    paths.apply(fieldName(field))
+                );
+            }
+            aggregates.removeIf(output -> output.id().equals(key.id()));
+            rebuilt.add(new Alias(key.source(), key.name(), labels, key.id()));
+        }
+        if (groupings.equals(aggregate.groupings())) {
+            return aggregate;
+        }
+        LogicalPlan keyed = aggregate.with(groupings, aggregates);
+        return rebuilt.isEmpty() ? keyed : new Eval(aggregate.source(), keyed, rebuilt);
+    }
+
+    /**
+     * {@code aggregate}, keyed by the label container of each series, with the labels {@code named} that fields of the source
+     * hold but the container does not, as fields that are no dimension: the aggregate groups by them too, as a label a query
+     * groups by, and they are written into the container above it, under its id, so every read and keep of the container sees
+     * them.
+     */
+    private static LogicalPlan withFields(
+        TimeSeriesAggregate aggregate,
+        Set<String> named,
+        Configuration configuration,
+        Function<String, List<String>> paths
+    ) {
+        Alias series = null;
+        for (Expression grouping : aggregate.groupings()) {
+            if (grouping instanceof Alias alias && alias.child() instanceof TimeSeriesWithout) {
+                series = alias;
+            }
+        }
+        if (series == null) {
+            return aggregate;
+        }
+        Set<String> excluded = new TreeSet<>();
+        for (Expression field : series.child().children()) {
+            if (field instanceof Attribute attribute) {
+                excluded.add(PromqlLabels.labelName(attribute));
+            }
+        }
+        List<Expression> groupings = new ArrayList<>(aggregate.groupings());
+        List<NamedExpression> aggregates = new ArrayList<>(aggregate.aggregates());
+        Alias loaded = new Alias(series.source(), series.name(), series.child());
+        Expression labels = loaded.toAttribute();
+        for (String label : named) {
+            Attribute field = field(aggregate.child().output(), label);
+            if (field == null || ((FieldAttribute) field).isDimension() || excluded.contains(label)) {
+                continue;
+            }
+            if (groupings.contains(field) == false) {
+                groupings.add(field);
+                aggregates.add(field);
+            }
+            Expression text = DataType.isString(field.dataType()) ? field : new ToString(series.source(), field, configuration);
+            labels = new TimeSeriesMetadataSet(
+                series.source(),
+                labels,
+                Literal.keyword(series.source(), label),
+                text,
+                paths.apply(fieldName(field))
+            );
+        }
+        if (labels == loaded.toAttribute()) {
+            return aggregate;
+        }
+        Alias key = series;
+        groupings.replaceAll(grouping -> grouping == key ? loaded : grouping);
+        aggregates.replaceAll(output -> output.id().equals(key.id()) ? loaded.toAttribute() : output);
+        LogicalPlan keyed = aggregate.with(groupings, aggregates);
+        return new Eval(aggregate.source(), keyed, List.of(new Alias(series.source(), series.name(), labels, series.id())));
+    }
+
+    /**
+     * The field of the source that holds label {@code label}: a field that is no metric, the passthrough field preferred to a
+     * field of the same name; null when no field holds it.
+     */
+    private static String fieldName(Attribute field) {
+        return ((FieldAttribute) field).fieldName().string();
+    }
+
+    private static Attribute field(List<Attribute> fields, String label) {
+        Attribute bare = null;
+        for (Attribute field : fields) {
+            if (field instanceof FieldAttribute == false || field.isMetric() || field instanceof TimeSeriesMetadataAttribute) {
+                continue;
+            }
+            if (PromqlLabels.labelName(field).equals(label)) {
+                if (field.name().equals(label) == false) {
+                    return field;
+                }
+                bare = field;
+            }
+        }
+        return bare;
     }
 
     /**

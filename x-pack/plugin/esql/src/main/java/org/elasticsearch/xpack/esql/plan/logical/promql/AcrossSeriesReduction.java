@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
@@ -38,12 +40,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Across-series reduction such as {@code topk}.
@@ -131,102 +129,70 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // Ranking happens per series, so the child stays at series grain whatever the enclosing translation regroups
-        // by; the partition labels must be exposed to rank within them. limit_ratio is membership-neutral:
-        // its sampling key is solely the input vector's identity, so outer partitions are neither required
-        // from the child nor materialized below.
-        List<String> partitions = TranslationContext.mapFinite(groupings());
+        // Ranking happens per series; limit_ratio is membership-neutral: its sampling key is solely the input vector's
+        // identity, so outer partitions play no part in it.
         boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
-        if (grouping() == WITHOUT) {
-            partitions = context.withoutLabels(partitions);
-        }
-        TranslationSchema partitioning = grouping() == WITHOUT ? open(partitions) : finite(partitions);
-        TranslationSchema childRequired = isLimitRatio
-            ? union(context.required(), open())
-            : union(union(context.required(), open()), partitioning);
-        IntermediateResult childResult = context.withRequired(childRequired).translate(child());
+        IntermediateResult childResult = context.translate(child());
         if (childResult.kind().constant) {
             if (isLimitRatio) {
                 // A constant vector's empty label set is a valid identity: sample it directly with an
                 // empty key set, without introducing an aggregation.
-                LogicalPlan sampled = emitLimitRatioFilter(childResult);
-                return childResult.with(sampled, childResult.schema(), childResult.value());
+                LogicalPlan sampled = emitLimitRatioFilter(childResult, List.of());
+                return childResult.with(sampled, childResult.value());
             }
             return childResult;
         }
 
-        var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), partitioning);
-
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, childResult.step(), context.configuration());
+        // Ranking reads every series of the child: a raw child collapses to one row per series, a table already is one.
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
-            ? context.regroup(childResult, schema, false, childResult.value())
-            : context.collapse(childResult, schema, childResult.value());
-        LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitions, promqlCtx);
-        return aggregated.with(result, aggregated.schema(), aggregated.value());
+            ? childResult
+            : context.emitInitialAggregate(childResult, childResult.value());
+        LogicalPlan result = isLimitRatio
+            ? emitLimitRatioFilter(aggregated, aggregated.labels() == null ? List.of() : List.of(aggregated.labels()))
+            : emitTopNBy(context, aggregated, promqlCtx);
+        return aggregated.with(result, aggregated.value());
     }
 
     /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step and partition. */
-    private LogicalPlan emitTopNBy(
-        TranslationContext context,
-        IntermediateResult table,
-        List<String> partitions,
-        PromqlContext promqlContext
-    ) {
-        ReductionGrouping grouping = reductionGrouping(context, table, partitions);
+    private LogicalPlan emitTopNBy(TranslationContext context, IntermediateResult table, PromqlContext promqlContext) {
+        Source source = source();
         var order = (Order) buildEsqlFunction(table.value(), promqlContext);
         // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
-        Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
-        return new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k, grouping.groupings());
+        Expression k = new ToInteger(source, new Floor(source, parameters().getFirst()));
+        LogicalPlan plan = table.plan();
+        var groupings = new ArrayList<Expression>(List.of(table.step()));
+        List<String> partitions = PromqlLabels.labelNames(groupings());
+        Expression partition = table.labels() == null ? null : switch (grouping()) {
+            // The partition labels; a label absent from every series is one partition, like Prometheus.
+            case BY -> partitions.isEmpty() ? null : PromqlLabels.keeping(table.labels(), partitions);
+            // Every label but the listed ones and the metric name, as Prometheus groups a without.
+            case WITHOUT -> context.withoutMetricName(PromqlLabels.without(table.labels(), partitions));
+            case NONE -> null;
+        };
+        if (partition != null) {
+            Alias alias = new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName("partition"), partition);
+            // Named apart from a key packed below: the key stays in the output of the node it keys.
+            String name = TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME);
+            PackDims pack = new PackDims(
+                source,
+                new Eval(source, plan, List.of(alias)),
+                List.of(alias.toAttribute()),
+                new ReferenceAttribute(source, null, name, DataType.KEYWORD)
+            );
+            plan = pack;
+            groupings.add(pack.packed());
+        }
+        return new TopNBy(source, plan, order != null ? List.of(order) : List.of(), k, groupings);
     }
 
     /**
      * Keeps an approximate {@code ratio} of the already-collapsed per-series rows with a plain
-     * {@link Filter} over the internal {@link HashOffset} sampling offset, so no sort order is
-     * built and no dedicated plan node or execution operator is needed. The sampling key is
-     * membership-neutral: solely the input identity (the {@code _timeseries} blob at series
-     * grain, else the surviving grouping labels or packed label sets, with packing-covered
-     * labels dropped and the rest ordered by name so key order cannot change the hash).
-     * Outer {@code by} partition labels are neither hashed nor materialized as null columns. The filter sits
-     * above the aggregation producing its keys, which the optimizer cannot push past.
+     * {@link Filter} over the internal {@link HashOffset} sampling offset of {@code keys}, the input identity: the label
+     * container of each series. No sort order is built and no dedicated plan node or execution operator is needed. The
+     * filter sits above the aggregation producing its keys, which the optimizer cannot push past.
      */
-    private LogicalPlan emitLimitRatioFilter(IntermediateResult table) {
-        // The sampling key is the input identity from below. At series grain that is the
-        // _timeseries blob; over an aggregated input the rows are groups, so their own grain
-        // labels are the key (for example pod and cluster groups for limit_ratio over sum by).
-        // With no key columns every row shares one identity, so a single-series result is kept
-        // or dropped deterministically.
-        List<Expression> keys = new ArrayList<>();
-        Attribute series = table.plan().output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
-        if (series != null) {
-            addIfMissing(keys, series);
-        } else {
-            // No series blob: the rows are groups. Their identity is the concrete grouping
-            // underneath -- packed label sets when the schema packs labels away (for example
-            // sum without), else the grain label columns. Packings hold only dimensions, never
-            // the step, so the identity is stable across steps.
-            var resolvedSkips = new ArrayList<Set<String>>();
-            for (Set<String> skip : TranslationContext.finestFirst(table.schema().skips())) {
-                Attribute packing = table.packed(skip);
-                if (packing != null) {
-                    addIfMissing(keys, packing);
-                    resolvedSkips.add(skip);
-                }
-            }
-            // A finite label carried inside any packing adds no identity: the packing already
-            // determines it (for example pod inside _timeseries$region). The surviving labels
-            // sort by name so grouping-key order cannot change the hashed bytes.
-            table.schema()
-                .labels()
-                .stream()
-                .filter(label -> resolvedSkips.stream().allMatch(skip -> skip.contains(label)))
-                .sorted()
-                .forEach(label -> {
-                    Attribute carrier = table.label(label);
-                    // Guaranteed by emitRegroup, which resolves every schema label (null-filling missing ones).
-                    assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
-                    addIfMissing(keys, carrier);
-                });
-        }
+    private LogicalPlan emitLimitRatioFilter(IntermediateResult table, List<Expression> keys) {
         // Validated at analysis (ResolvePromqlFunctions): a foldable numeric non-NaN literal.
         double ratio = ((Number) parameters().getFirst().fold(FoldContext.small())).doubleValue();
         Source source = source();
@@ -245,54 +211,4 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         }
         return new Filter(source, table.plan(), new GreaterThanOrEqual(source, offset, new Literal(source, 1.0 + ratio, DataType.DOUBLE)));
     }
-
-    private static void addIfMissing(List<Expression> key, Attribute carrier) {
-        if (key.stream().noneMatch(e -> e instanceof Attribute a && a.id().equals(carrier.id()))) {
-            key.add(carrier);
-        }
-    }
-
-    /**
-     * The grouping a reduction keeps rows within: the step bucket plus one carrier per {@code by} partition label.
-     * A partition label absent from every series ranks as one partition, like Prometheus, via a null-carrying
-     * {@link Eval} over the collapsed table.
-     */
-    private ReductionGrouping reductionGrouping(TranslationContext context, IntermediateResult table, List<String> partitions) {
-        var groupings = new ArrayList<Expression>();
-        groupings.add(table.step());
-        LogicalPlan plan = table.plan();
-        if (grouping() == WITHOUT) {
-            // The packing of every label but the listed ones, plus each label column the packing may not hold: one a
-            // relabel derived. A label column the packing holds too adds nothing to the partition.
-            Set<String> skip = Set.copyOf(partitions);
-            Attribute packing = table.packed(skip);
-            if (packing == null) {
-                throw new IllegalStateException("packing " + skip + " must be carried by the reduced table");
-            }
-            groupings.add(packing);
-            for (String label : table.schema().labels()) {
-                Attribute carrier = table.label(label);
-                if (skip.contains(label) == false && carrier != null) {
-                    groupings.add(carrier);
-                }
-            }
-        } else if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
-            var nulls = new ArrayList<Alias>();
-            for (String partition : partitions) {
-                Attribute carrier = table.label(partition);
-                if (carrier == null) {
-                    // a partition label absent from every series ranks as one partition, like Prometheus
-                    nulls.add(TranslationContext.emitNullExpression(TranslationContext.mapToRef(partition)));
-                    carrier = nulls.getLast().toAttribute();
-                }
-                groupings.add(carrier);
-            }
-            if (nulls.isEmpty() == false) {
-                plan = new Eval(context.cmd().source(), plan, nulls);
-            }
-        }
-        return new ReductionGrouping(plan, groupings);
-    }
-
-    private record ReductionGrouping(LogicalPlan plan, List<Expression> groupings) {}
 }

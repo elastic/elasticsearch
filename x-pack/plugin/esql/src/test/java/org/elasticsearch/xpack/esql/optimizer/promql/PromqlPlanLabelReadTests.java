@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -86,7 +87,7 @@ public class PromqlPlanLabelReadTests extends AbstractPromqlPlanOptimizerTests {
                     failures.add(spec[0] + ":" + spec[2] + " reads [" + label.utf8ToString() + "]");
                 }
             }
-            if (new ScalarizeTimeSeriesMetadataPaths().apply(plan).equals(plan) == false) {
+            if (new ScalarizeTimeSeriesMetadataPaths().apply(plan, EsqlTestUtils.TEST_CFG).equals(plan) == false) {
                 failures.add(spec[0] + ":" + spec[2] + " changes when scalarized again");
             }
             if (plan.anyMatch(

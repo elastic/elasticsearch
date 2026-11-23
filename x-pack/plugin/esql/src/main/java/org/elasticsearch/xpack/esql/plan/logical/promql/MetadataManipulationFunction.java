@@ -13,13 +13,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -31,16 +29,10 @@ import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Dedicated logical node for the PromQL label-manipulation functions {@code label_replace} and {@code label_join}.
@@ -176,161 +168,101 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
     }
 
     /**
-     * Translates a {@code label_replace}/{@code label_join} into a derived label column.
+     * Translates a {@code label_replace}/{@code label_join}: the destination label of each series is written into its label
+     * container. The child is first collapsed to one row per series (forcing the initial aggregate when it has not happened
+     * yet), so each series' labels are read once.
      * <p>
-     * The child is first collapsed to one row per series (forcing the initial aggregate when it has not happened yet), so
-     * the source labels are materialized as columns to derive from. The destination value is then computed with an
-     * {@link Eval} under the destination's stable id and declared as a label of the result, so the enclosing
-     * {@code by(...)} aggregation groups on it exactly as it would on a stored label. The derived label shadows a stored
-     * label of the same name: any such stored column is projected away so a lookup by name binds to the derived one.
-     * <p>
-     * Because ES|QL treats {@code null} and {@code ""} as distinct grouping keys while Prometheus treats an absent label
-     * and an empty label value alike, every "label absent" outcome is normalized: an absent source is coalesced to
-     * {@code ""} before matching, {@code label_replace}'s no-match ({@code null}) is coalesced back to the existing value,
-     * and an empty result removes the label. All such series therefore fall into the same group, matching Prometheus.
+     * Because ES|QL treats {@code null} and {@code ""} as distinct values while Prometheus treats an absent label and an empty
+     * label value alike, an absent source label reads as {@code ""}, and an empty destination value removes the label.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // The child must expose the labels the derivation reads, on top of whatever the enclosing translation requires. A
-        // relabel that may overwrite a label of raw series needs every label of them too, to check two are left apart.
-        TranslationSchema childRequired = union(context.required(), finite(sourceLabels()));
-        boolean concrete = child().output().stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()));
-        String name = TranslationContext.mapFinite(destination());
-        boolean overwrites = concrete
-            ? child().output().stream().anyMatch(label -> TranslationContext.mapFinite(label).equals(name))
-            : context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
-        if (overwrites && concrete == false) {
-            childRequired = union(childRequired, TranslationSchema.open());
-        }
-        IntermediateResult child = context.withRequired(childRequired).translate(child());
+        IntermediateResult child = context.translate(child());
         if (child.kind().constant) {
             return child;
         }
-
-        // Collapse to one row per series so the source labels exist as columns; this mirrors the seam in
-        // translateIntermediate that forces the initial per-series aggregate for a not-yet-aggregated subtree.
-        IntermediateResult aggregated = child.kind().afterInitialAggregation
-            ? child
-            : context.collapse(child, child.schema(), child.value());
-
+        IntermediateResult aggregated = child.kind().afterInitialAggregation ? child : context.emitInitialAggregate(child, child.value());
         Source source = source();
-        Attribute destination = destination();
+        Expression labels = aggregated.labels() != null ? aggregated.labels() : TranslationContext.emptyLabels(source);
+        String name = PromqlLabels.labelName(destination());
         // The value once, under a column of its own the destination reads: an empty value removes the label, as in
         // Prometheus, so the destination reads as absent, like a label never set.
         Alias computed = new Alias(
             source,
-            TemporaryNameGenerator.locallyUniqueTemporaryName(destination.name()),
+            TemporaryNameGenerator.locallyUniqueTemporaryName(name),
             definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
-                ? labelReplaceValue(context, source, aggregated)
-                : labelJoinValue(context, source, aggregated)
+                ? labelReplaceValue(source, labels, name)
+                : labelJoinValue(source, labels)
         );
         Attribute value = computed.toAttribute();
         Expression empty = new Equals(source, value, Literal.keyword(source, ""));
-        Expression destinationValue = new Case(source, empty, List.of(new Literal(source, null, DataType.KEYWORD), value));
-
-        Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
-        LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(computed, derived));
-        boolean opaque = aggregated.schema().isOpen();
-        if (opaque) {
-            // The label is written into every packing holding it too, so the series' identity is the relabeled one.
-            var packings = new ArrayList<Alias>();
-            for (var skip : aggregated.schema().skips()) {
-                if (skip.contains(name) == false) {
-                    Attribute packing = aggregated.packed(skip);
-                    var written = new TimeSeriesMetadataSet(
-                        source,
-                        packing,
-                        Literal.keyword(source, name),
-                        derived.toAttribute(),
-                        context.labelPath(name)
-                    );
-                    packings.add(new Alias(source, packing.name(), written));
-                }
-            }
-            if (packings.isEmpty() == false) {
-                plan = new Eval(context.cmd().source(), plan, packings);
-            }
-        }
-        var unshadowed = new ArrayList<NamedExpression>();
-        for (Attribute attribute : plan.output()) {
-            if (attribute.id().equals(computed.id())) {
-                continue;
-            }
-            if (attribute.id().equals(derived.id()) || TranslationContext.mapFinite(attribute).equals(name) == false) {
-                unshadowed.add(attribute);
-            }
-        }
-        if (unshadowed.size() < plan.output().size()) {
-            plan = new Project(context.cmd().source(), plan, unshadowed);
-        }
-        TranslationSchema schema = union(aggregated.schema(), finite(List.of(name)));
-        // A relabel that may overwrite a label can leave two series with one label set, which Prometheus fails. The check reads
-        // every label of a series: the label columns of a concrete input, or the packing with the label columns it leaves out.
-        Set<String> finest = schema.finestSkip();
-        boolean complete = concrete || finest != null && schema.labels().containsAll(finest);
-        if (overwrites && complete) {
-            var labels = new ArrayList<Attribute>();
-            Attribute packing = opaque ? TranslationContext.find(plan.output(), TranslationContext.mapOpen(schema.finestSkip())) : null;
-            if (packing != null) {
-                labels.add(packing);
-            }
-            for (String label : schema.labels()) {
-                Attribute column = TranslationContext.find(plan.output(), label);
-                if (column != null) {
-                    labels.add(column);
-                }
-            }
-            plan = TranslationContext.uniqueSeries(context.cmd().source(), plan, aggregated.step(), labels);
-        }
-        return new IntermediateResult(
-            plan,
-            schema,
-            aggregated.value(),
-            aggregated.step(),
-            aggregated.pendingFilter(),
-            Kind.AFTER_INITIAL_AGGREGATE
+        Alias derived = new Alias(
+            source,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(name),
+            new Case(source, empty, List.of(new Literal(source, null, DataType.KEYWORD), value))
         );
+        LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(computed, derived));
+        Expression relabeled = new TimeSeriesMetadataSet(
+            source,
+            labels,
+            Literal.keyword(source, name),
+            derived.toAttribute(),
+            context.labelPath(name)
+        );
+        if (overwrites(context, name)) {
+            // Overwriting a label can leave two series with one label set, which Prometheus fails.
+            Alias container = new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName(MetadataAttribute.TIMESERIES), relabeled);
+            plan = new Eval(context.cmd().source(), plan, List.of(container));
+            plan = TranslationContext.uniqueSeries(context.cmd().source(), plan, aggregated.step(), container.toAttribute());
+            relabeled = container.toAttribute();
+        }
+        return aggregated.with(plan, aggregated.value()).withLabels(relabeled);
     }
 
     /**
-     * The {@code label_replace} destination value:
-     * {@code COALESCE(RegexExpand(COALESCE(src, ""), regex, repl), existingDst)}.
-     * The inner coalesce feeds the empty string when the source label is absent (so the regex matches against {@code ""}
-     * like Prometheus). The outer coalesce implements Prometheus's no-match semantics: a no-match ({@code null}) leaves
-     * the destination label unchanged, so it falls back to the destination's existing value - the stored label when the
-     * destination overwrites one, or {@code ""} (the "absent" grouping key) when the destination is a new label. A match
-     * with an empty expansion (the delete sentinel) resolves to {@code ""}, joining that same "absent" group.
+     * Whether the destination may name a label the input series carry, so that overwriting it can leave two series with one
+     * label set: the input declares it, or its series keep their source labels and the source maps a field for it.
      */
-    private Expression labelReplaceValue(TranslationContext context, Source source, IntermediateResult table) {
-        List<Expression> params = parameters();
-        String srcLabel = literalString(params.get(2));
-        Expression regex = params.get(3);
-        Expression replacement = params.get(1);
-        Expression src = sourceLabelValue(context, source, table, srcLabel);
-        Expression extracted = new RegexExpand(source, src, regex, replacement);
-        Expression existingDst = sourceLabelValue(context, source, table, TranslationContext.mapFinite(destination()));
-        return new Coalesce(source, extracted, List.of(existingDst));
+    private boolean overwrites(TranslationContext context, String name) {
+        boolean concrete = child().output().stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()));
+        return concrete
+            ? child().output().stream().anyMatch(label -> PromqlLabels.labelName(label).equals(name))
+            : context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
     }
 
     /**
-     * The {@code label_join} destination value: the source label values coalesced to {@code ""} and joined by the
-     * separator. With no source labels the result is {@code ""} - the same "absent" grouping key produced by
+     * The {@code label_replace} destination value: {@code COALESCE(RegexExpand(COALESCE(src, ""), regex, repl), dst)}. An
+     * absent source matches as the empty string, like in Prometheus; a no-match ({@code null}) leaves the destination as it
+     * is, and an empty expansion removes it.
+     */
+    private Expression labelReplaceValue(Source source, Expression labels, String destination) {
+        List<Expression> params = parameters();
+        Expression extracted = new RegexExpand(
+            source,
+            sourceLabelValue(source, labels, literalString(params.get(2))),
+            params.get(3),
+            params.get(1)
+        );
+        return new Coalesce(source, extracted, List.of(PromqlLabels.read(labels, destination)));
+    }
+
+    /**
+     * The {@code label_join} destination value: the source label values, absent ones as {@code ""}, joined by the
+     * separator. With no source labels the result is empty, which removes the destination like an empty
      * {@code label_replace}; a single source label is copied verbatim (no separator). With two or more source labels the
      * separator is inserted between every value, so even all-empty sources yield the separator run (for example a
      * {@code "-"} separator over two absent labels produces {@code "-"}), matching Prometheus.
      */
-    private Expression labelJoinValue(TranslationContext context, Source source, IntermediateResult table) {
+    private Expression labelJoinValue(Source source, Expression labels) {
         List<Expression> params = parameters();
         Literal separator = Literal.keyword(source, literalString(params.get(1)));
-
         List<Expression> parts = new ArrayList<>(2 * params.size() + 1);
         for (int i = 2; i < params.size(); i++) {
             if (parts.isEmpty() == false) {
                 parts.add(separator);
             }
-            parts.add(sourceLabelValue(context, source, table, literalString(params.get(i))));
+            parts.add(sourceLabelValue(source, labels, literalString(params.get(i))));
         }
-
         return switch (parts.size()) {
             case 0 -> Literal.keyword(source, "");
             case 1 -> parts.getFirst();
@@ -338,18 +270,12 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         };
     }
 
-    /**
-     * The value of a source label as a non-null string: {@code COALESCE(ToString(label), "")}, or {@code ""} if the
-     * table does not carry the label. The lookup reads the table's plan, so it sees stored labels only: a destination an
-     * enclosing {@code by(dst)} requires is a name in the schema, never a column here, and cannot resolve to itself.
-     */
-    private Expression sourceLabelValue(TranslationContext context, Source source, IntermediateResult table, String labelName) {
-        Attribute label = table.label(labelName);
-        if (label == null) {
+    /** The value of a source label as a non-null string. No label has an empty name, so one named so reads as {@code ""}. */
+    private static Expression sourceLabelValue(Source source, Expression labels, String labelName) {
+        if (labelName.isEmpty()) {
             return Literal.keyword(source, "");
         }
-        Expression stringValue = DataType.isString(label.dataType()) ? label : new ToString(source, label, context.configuration());
-        return new Coalesce(source, stringValue, List.of(Literal.keyword(source, "")));
+        return new Coalesce(source, PromqlLabels.read(labels, labelName), List.of(Literal.keyword(source, "")));
     }
 
 }

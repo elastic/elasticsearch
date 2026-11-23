@@ -62,7 +62,7 @@ public final class SortFunction extends PromqlFunctionCall implements ResultOrde
     }
 
     /**
-     * Identity translation: {@code sort}/{@code sort_desc} preserve the child's schema and grain, except native-histogram
+     * Identity translation: {@code sort}/{@code sort_desc} preserve the child's series, except native-histogram
      * samples are dropped (Prometheus {@code filterFloats}). Ordering is injected later.
      */
     @Override
@@ -71,10 +71,10 @@ public final class SortFunction extends PromqlFunctionCall implements ResultOrde
         if (result.value().resolved() && result.value().dataType().isHistogram()) {
             var skipAllFilter = new Filter(source(), result.plan(), Literal.FALSE);
             var nullGrouping = new Values(source(), new Literal(source(), null, DataType.DOUBLE));
-            IntermediateResult skipped = result.with(skipAllFilter, result.schema(), result.value());
+            IntermediateResult skipped = result.with(skipAllFilter, result.value());
             return skipped.kind().afterInitialAggregation
-                ? context.regroup(skipped, result.schema(), false, nullGrouping)
-                : context.collapse(skipped, result.schema(), nullGrouping);
+                ? context.emitAggregate(skipped, skipped.labels(), nullGrouping)
+                : context.emitInitialAggregate(skipped, skipped.labels(), nullGrouping);
         }
         return result;
     }

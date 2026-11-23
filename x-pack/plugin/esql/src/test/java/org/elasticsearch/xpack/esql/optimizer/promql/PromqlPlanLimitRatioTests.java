@@ -48,9 +48,8 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
-     * {@code limit_ratio} over an aggregate samples result series, not raw series: the input rows are
-     * groups carrying no {@code _timeseries}, so the sampling key is the concrete group columns from
-     * below (here {@code pod}) -- no synthesized key, no extra plan node beyond the sampling filter.
+     * {@code limit_ratio} over an aggregate samples result series, not raw series: the sampling key is the label container of
+     * each group (here holding {@code pod}) -- no extra plan node beyond the sampling filter.
      */
     public void testLimitRatioOverAggregateKeysOnGroupColumns() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
@@ -58,7 +57,8 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
         );
 
         var offset = hashOffset(plan);
-        assertThat(samplingKeyNames(offset), equalTo(List.of("pod")));
+        assertThat(offset.children(), hasSize(1));
+        assertThat(labelsOf(plan, offset.children().getFirst()), equalTo(List.of("pod")));
         var comparison = as(hashOffsetComparison(plan), LessThan.class);
         assertThat(comparison.right().fold(null), equalTo(0.5));
     }
@@ -169,15 +169,15 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
-     * Grouping-key order must not change the hashed identity: the label-derived keys sort by
-     * name, so {@code sum by (pod, cluster)} and {@code sum by (cluster, pod)} sample identically.
+     * Grouping-key order must not change the hashed identity: the label container of each group is canonical, so
+     * {@code sum by (pod, cluster)} and {@code sum by (cluster, pod)} sample identically.
      */
     public void testLimitRatioGroupingKeyOrderIsStable() {
-        var ordered = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)))");
-        var reordered = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (cluster, pod) (network.bytes_in)))");
+        var ordered = samplingLabels("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)))");
+        var reordered = samplingLabels("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (cluster, pod) (network.bytes_in)))");
 
-        assertThat(samplingKeyNames(reordered), equalTo(samplingKeyNames(ordered)));
-        assertThat(samplingKeyNames(ordered), equalTo(List.of("cluster", "pod")));
+        assertThat(reordered, equalTo(ordered));
+        assertThat(ordered, equalTo(List.of("cluster", "pod")));
     }
 
     /**
@@ -185,19 +185,19 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
      * regardless of any outer {@code by}: outer partitions must not narrow or widen the hashed set.
      */
     public void testLimitRatioOverSumByIgnoresOuterGrouping() {
-        var bare = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)))");
-        var outer = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)) by (pod))");
-        var reorderedOuter = hashOffset(
+        var bare = samplingLabels("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)))");
+        var outer = samplingLabels("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)) by (pod))");
+        var reorderedOuter = samplingLabels(
             "PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)) by (cluster, pod))"
         );
-        var missingOuter = hashOffset(
+        var missingOuter = samplingLabels(
             "PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum by (pod, cluster) (network.bytes_in)) by (does_not_exist))"
         );
 
-        assertThat(samplingKeyNames(bare).stream().sorted().toList(), equalTo(List.of("cluster", "pod")));
-        assertThat(samplingKeyNames(outer).stream().sorted().toList(), equalTo(List.of("cluster", "pod")));
-        assertThat(samplingKeyNames(reorderedOuter).stream().sorted().toList(), equalTo(List.of("cluster", "pod")));
-        assertThat(samplingKeyNames(missingOuter).stream().sorted().toList(), equalTo(List.of("cluster", "pod")));
+        assertThat(bare, equalTo(List.of("cluster", "pod")));
+        assertThat(outer, equalTo(List.of("cluster", "pod")));
+        assertThat(reorderedOuter, equalTo(List.of("cluster", "pod")));
+        assertThat(missingOuter, equalTo(List.of("cluster", "pod")));
     }
 
     /**
@@ -374,6 +374,14 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /** The sampling key names carried by the offset function. */
+    /** The labels the only sampling key of {@code query} holds: the label container of each sampled series. */
+    private List<String> samplingLabels(String query) {
+        var plan = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false, false));
+        var offset = as(hashOffsetFilter(plan).condition().collect(HashOffset.class).get(0), HashOffset.class);
+        assertThat(offset.children(), hasSize(1));
+        return labelsOf(plan, offset.children().getFirst());
+    }
+
     private static List<String> samplingKeyNames(HashOffset offset) {
         return offset.children().stream().map(c -> {
             assertThat(c, instanceOf(Attribute.class));

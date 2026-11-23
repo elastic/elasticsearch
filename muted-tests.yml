@@ -775,16 +775,6 @@ tests:
   - :server:test
   method: testDimsDerivedConfigFollowsFieldDimension
   issue: https://github.com/elastic/elasticsearch/issues/166795
-- class: org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripFailsQueryWithoutPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/166894
-- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripFailsQueryWithPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/166909
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   tasks:
   - :x-pack:plugin:esql:compute:test
@@ -805,16 +795,6 @@ tests:
   - :server:test
   method: testQuantizeForQuery
   issue: https://github.com/elastic/elasticsearch/issues/167018
-- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripFailsQueryWithoutPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/167009
-- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testTripDropsClusterWithPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/167022
 - class: org.elasticsearch.compute.operator.DriverTests
   tasks:
   - :x-pack:plugin:esql:compute:test

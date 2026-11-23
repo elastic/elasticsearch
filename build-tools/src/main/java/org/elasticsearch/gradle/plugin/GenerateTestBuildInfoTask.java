@@ -152,9 +152,11 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the jar to find the first unique class that isn't
+     * look through the jar to find the lexicographically smallest unique class that isn't
      * in META-INF (those may not be unique) and isn't module-info.class
-     * (which is also not unique) and avoid anonymous classes
+     * (which is also not unique) and avoid anonymous classes.
+     * The smallest name is chosen (rather than the first entry) so the output
+     * does not depend on entry order, keeping this task's output reproducible.
      */
     private java.util.Optional<String> extractClassNameFromJar(JarFile jarFile) {
         return jarFile.stream()
@@ -164,8 +166,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                     && je.getName().contains("$") == false
                     && je.getName().endsWith(".class")
             )
-            .findFirst()
-            .map(ZipEntry::getName);
+            .map(ZipEntry::getName)
+            .min(Comparator.naturalOrder());
     }
 
     /**
@@ -288,8 +290,10 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * look through the directory to find the first unique class that isn't
-     * module-info.class (which may not be unique) and avoid anonymous classes
+     * look through the directory to find the lexicographically smallest unique class that isn't
+     * module-info.class (which may not be unique) and avoid anonymous classes.
+     * The smallest relative path is chosen (rather than the first one visited) because
+     * directory iteration order is filesystem dependent and would make the output non-reproducible.
      */
     private String extractClassNameFromDirectory(File dir) throws IOException {
         var visitor = new SimpleFileVisitor<Path>() {
@@ -299,14 +303,15 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
                 String name = candidate.getFileName().toString(); // Just the part after the last dir separator
                 if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
-                    result = candidate.toAbsolutePath()
+                    String relative = candidate.toAbsolutePath()
                         .toString()
                         .substring(dir.getAbsolutePath().length() + 1)
                         .replace(File.separatorChar, '/');
-                    return TERMINATE;
-                } else {
-                    return CONTINUE;
+                    if (result == null || relative.compareTo(result) < 0) {
+                        result = relative;
+                    }
                 }
+                return CONTINUE;
             }
         };
         Files.walkFileTree(dir.toPath(), visitor);

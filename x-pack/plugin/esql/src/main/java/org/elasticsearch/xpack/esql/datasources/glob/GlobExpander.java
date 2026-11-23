@@ -872,11 +872,10 @@ public final class GlobExpander {
      * ({@code month=6}/{@code 06}/{@code 006}, {@code true}/{@code TRUE}). Where a value filter runs on the original
      * pattern, {@link PartitionValueMatcher} keeps those spellings and drops folders the typed comparison excludes;
      * where {@code PartitionValueFilter#forGlob} declines the pattern, the only partition hints re-applied are the
-     * ones {@link #folderPostFilterHints} keeps: a closed integral range and an equality whose printed form is not
-     * the unique on-disk spelling (non-integral, integer, boolean). The equality an exact-string splice carried is
-     * not one of them, and neither is a {@code NOT_EQUALS} or a range that is not a closed integral span, so the
-     * retry lists a superset rather than a subset. The {@code _file.*} filters stay too — they are exact and can
-     * hide nothing.
+     * ones {@link #folderPostFilterHints} keeps: a closed integral range and a non-integral equality. The equality
+     * an exact-string splice carried is not one of them, and neither is a {@code NOT_EQUALS} or a range that is not
+     * a closed integral span, so the retry lists a superset rather than a subset. The {@code _file.*} filters stay
+     * too — they are exact and can hide nothing.
      *
      * <p>TEMPLATE does not print a typed value into a {@code *} slot; only an exact string folder name is spliced.
      * The narrowed glob is already the longest exact prefix (string account/region still in the path, numeric
@@ -1432,7 +1431,7 @@ public final class GlobExpander {
             if (matched.isEmpty()) {
                 return FileList.EMPTY;
             }
-            matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig, glob);
+            matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
             if (matched.isEmpty()) {
                 return FileList.EMPTY;
             }
@@ -1668,7 +1667,6 @@ public final class GlobExpander {
         return finishListing(
             pattern,
             prefixStr,
-            glob,
             matched,
             valueExcluded,
             fileHintAnchor,
@@ -1698,7 +1696,6 @@ public final class GlobExpander {
     private static FileList finishListing(
         String pattern,
         String prefixStr,
-        String glob,
         List<StorageEntry> matched,
         List<StorageEntry> valueExcluded,
         @Nullable StorageEntry fileHintAnchor,
@@ -1799,7 +1796,7 @@ public final class GlobExpander {
             return emptyListing(pattern, exclusionNotice, truncated);
         }
 
-        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig, glob);
+        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
         if (matched.isEmpty()) {
             // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
             // it as a complete empty listing would hide files past the bound that fall inside the range.
@@ -2202,7 +2199,6 @@ public final class GlobExpander {
             }
             fanOutAsync(
                 pattern,
-                storagePath.globPart(),
                 prefix.toString(),
                 provider,
                 matcher,
@@ -2518,7 +2514,6 @@ public final class GlobExpander {
      */
     private static void fanOutAsync(
         String pattern,
-        String glob,
         String rootPrefixStr,
         StorageProvider provider,
         GlobMatcher matcher,
@@ -2688,7 +2683,6 @@ public final class GlobExpander {
                     finishListing(
                         pattern,
                         rootPrefixStr,
-                        glob,
                         merged.matched(),
                         new ArrayList<>(),
                         merged.fileHintAnchor(),
@@ -3044,47 +3038,6 @@ public final class GlobExpander {
         }
         int eq = first.indexOf('=');
         return "*".equals(first.substring(eq + 1));
-    }
-
-    /**
-     * Whether {@code glob} names a Hive {@code key=} folder anywhere — a leading {@code key=*}, a later
-     * {@code month=*}, or a globbed value such as {@code region=*-x}. Broader than {@link #walkableGlob}: the walk
-     * still needs a leading {@code key=*} or {@code **}, but the flat value filter can bind any of these segments.
-     */
-    private static boolean hiveKeyedGlob(String glob) {
-        if (walkableGlob(glob)) {
-            return true;
-        }
-        int from = 0;
-        while (from < glob.length()) {
-            int slash = glob.indexOf('/', from);
-            String segment = slash < 0 ? glob.substring(from) : glob.substring(from, slash);
-            if (PartitionValueMatcher.folderKey(segment) != null) {
-                return true;
-            }
-            if (slash < 0) {
-                return false;
-            }
-            from = slash + 1;
-        }
-        return false;
-    }
-
-    /** Whether {@code glob} has a Hive {@code key=} segment named {@code column}. */
-    private static boolean globNamesHiveColumn(String glob, String column) {
-        int from = 0;
-        while (from < glob.length()) {
-            int slash = glob.indexOf('/', from);
-            String segment = slash < 0 ? glob.substring(from) : glob.substring(from, slash);
-            if (column.equals(PartitionValueMatcher.folderKey(segment))) {
-                return true;
-            }
-            if (slash < 0) {
-                return false;
-            }
-            from = slash + 1;
-        }
-        return false;
     }
 
     /**
@@ -3500,15 +3453,15 @@ public final class GlobExpander {
                 // the original. A keyed data/year=*/** rewrites to data/year=2024/** and stays walkable, so the
                 // walk prunes under that prefix. Over-inclusion merely fragments, safely.
                 // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
-                // spellings such as 2.5 and narrow the detected type). A typed equality does not either: printing
-                // 6 would miss month=06, printing 6.0 would miss price=6.00, printing true would miss TRUE. A
-                // multi-value hint does not rewrite either. All of these change which files the listing keeps, so
-                // they join the identity: the walk's hints on a walkable pattern, every partition hint under
-                // TEMPLATE (the walk is off, the flat filter is not), the hints a rewritten walkable original may
-                // apply on retry, and the flat post-filter hints on any other pattern.
+                // spellings such as 2.5 and narrow the detected type). A non-integral equality does not either:
+                // printing 6.0 would miss price=6.00. A multi-value hint does not rewrite either. All of these
+                // change which files the listing keeps, so they join the identity: the walk's hints on a
+                // walkable pattern, every partition hint under TEMPLATE (the walk is off, the flat filter is not),
+                // the hints a rewritten walkable original may apply on retry, and the flat post-filter hints on
+                // any other pattern.
                 walkShapeEligible(effectivePattern, partitionConfig) || templateValueFilter(partitionConfig) || retryMayFilterOriginal
                     ? encodedHints(partitionPruningHints(hints))
-                    : encodedHints(folderPostFilterHints(hints, partitionConfig, effectivePattern)),
+                    : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
                 fileOrder,
                 // How far the listing was asked to run is part of which files it holds, so it is part of the key.
@@ -4095,51 +4048,10 @@ public final class GlobExpander {
         return equality;
     }
 
-    /**
-     * {@code EQUALS} and {@code IN} hints whose values are an integral number or a boolean. {@code rewriteSegment}
-     * leaves those segments as {@code *}; this is the pass that still drops a folder the typed comparison excludes,
-     * including on a non-walkable keyed glob the walk never visits. Only a column the glob names as {@code key=} is
-     * kept, so a data-column equality does not fragment the listing cache.
-     */
-    private static List<PartitionFilterHint> integralOrBooleanEqualityHints(
-        @Nullable List<PartitionFilterHint> hints,
-        PartitionConfig partitionConfig,
-        @Nullable String glob
-    ) {
-        if (hints == null || hints.isEmpty() || partitionConfig == null || glob == null || glob.isEmpty()) {
-            return List.of();
-        }
-        boolean hive = walkableStrategy(partitionConfig);
-        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
-            && partitionConfig.pathTemplate() != null
-            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
-        if (hive == false && template == false) {
-            return List.of();
-        }
-        List<PartitionFilterHint> equality = new ArrayList<>();
-        for (PartitionFilterHint hint : hints) {
-            if ((hint.operator() == Operator.EQUALS || hint.operator() == Operator.IN)
-                && containsIntegralOrBoolean(hint.values())
-                && globNamesHiveColumn(glob, hint.columnName())) {
-                equality.add(hint);
-            }
-        }
-        return equality;
-    }
-
     /** A {@link Float} or {@link Double} hint value, whose printed form is not the only on-disk spelling. */
     private static boolean containsNonIntegralNumber(List<Object> values) {
         for (Object value : values) {
             if (value instanceof Float || value instanceof Double) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsIntegralOrBoolean(List<Object> values) {
-        for (Object value : values) {
-            if (integralBound(value) || value instanceof Boolean) {
                 return true;
             }
         }
@@ -4206,28 +4118,24 @@ public final class GlobExpander {
     /**
      * Hints the flat listing applies after listObjects, without rewriting the glob. The listing-cache identity
      * keys the same set on a pattern the walk does not already key: a filtered query must not share an unfiltered
-     * entry. Integer and boolean equalities join the closed-range and non-integral-equality set: they no longer
-     * splice {@code key=*}, and a non-walkable keyed glob has no walk to apply them.
+     * entry.
      */
     private static List<PartitionFilterHint> folderPostFilterHints(
         @Nullable List<PartitionFilterHint> hints,
-        PartitionConfig partitionConfig,
-        @Nullable String glob
+        PartitionConfig partitionConfig
     ) {
         List<PartitionFilterHint> filterHints = new ArrayList<>();
         filterHints.addAll(closedRangeFilterHints(hints, partitionConfig));
         filterHints.addAll(nonIntegralEqualityHints(hints, partitionConfig));
-        filterHints.addAll(integralOrBooleanEqualityHints(hints, partitionConfig, glob));
         return filterHints;
     }
 
     private static List<StorageEntry> withoutFoldersOutsideClosedRange(
         List<StorageEntry> matched,
         @Nullable List<PartitionFilterHint> hints,
-        PartitionConfig partitionConfig,
-        @Nullable String glob
+        PartitionConfig partitionConfig
     ) {
-        List<PartitionFilterHint> rangeHints = folderPostFilterHints(hints, partitionConfig, glob);
+        List<PartitionFilterHint> rangeHints = folderPostFilterHints(hints, partitionConfig);
         if (rangeHints.isEmpty()) {
             return matched;
         }
@@ -4306,17 +4214,10 @@ public final class GlobExpander {
         ) {
             boolean hive = walkableGlob(glob) && walkableStrategy(config);
             boolean template = hive == false && templateValueFilter(config);
-            List<PartitionFilterHint> pruning;
-            if (hive || template) {
-                pruning = partitionPruningHints(hints);
-            } else if (walkableStrategy(config) && hiveKeyedGlob(glob)) {
-                // Non-walkable keyed glob (data/*/month=* or region=*-x/month=*). The walk is off, so the
-                // in-loop filter uses the same hint set the post-filter and cache identity keep.
-                hive = true;
-                pruning = folderPostFilterHints(hints, config, glob);
-            } else {
+            if (hive == false && template == false) {
                 return NONE;
             }
+            List<PartitionFilterHint> pruning = partitionPruningHints(hints);
             if (pruning.isEmpty() && folderRange == null) {
                 return NONE;
             }

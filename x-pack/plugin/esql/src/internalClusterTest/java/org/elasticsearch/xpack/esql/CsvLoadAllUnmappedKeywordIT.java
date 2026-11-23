@@ -311,6 +311,11 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return command;
     }
 
+    /** Does a RENAME of the query name this column, as the old name or as the new one? */
+    private static boolean renames(String query, String name) {
+        return Pattern.compile("(?i)\\bRENAME\\b[^|]*(?<![\\w.*])" + Pattern.quote(name) + "(?![\\w.*])").matcher(query).find();
+    }
+
     /** Does the query assign to a column of this name, as {@code EVAL name = ...} or {@code RENAME x AS name} do? */
     private static boolean definesColumn(String query, String name) {
         String quoted = Pattern.quote(name);
@@ -548,7 +553,8 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 boolean alreadyAColumn = names.contains(removedField);
                 // A field that the query names is a column of its own and keeps its key in the object, as any column does, so the object
                 // holds nothing that the column lacks: only a value that the original results do not have as a column is unexpected.
-                if (anyRemovedValue && expectedColumn == false) {
+                // A RENAME of the field is no such case: it renames the column and not the key, which stays with the value.
+                if (anyRemovedValue && expectedColumn == false && renames(testCase.query, removedField) == false) {
                     return actual;
                 }
                 // And the other way round: the key must still be there, with the value of the column. The object is not stripped when it

@@ -381,6 +381,9 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         }
     }
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+    // unmute when index.compound_format is wired to CompoundFormat; until then
+    // force-merge packs .cfs and skipIndexBytes sees no top-level .cns.
     public void testThePlainSkipperIsPersistedOnlyForAPrimarySort() throws IOException {
         final int numDocs = 3000;
         final Map<String, Long> bytes = new LinkedHashMap<>();
@@ -453,6 +456,9 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertTrue("a secondary sort key writes none: " + bytes, bytes.get("descending-secondary") + oneEntry <= bytes.get("descending"));
     }
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163164):
+    // unmute when index.compound_format is wired to CompoundFormat; until then
+    // force-merge packs .cfs and columnarFormatVersion sees no top-level .cnm.
     public void testAnIndexCreatedBeforeThePlainSkipperKeepsTheBaselineLayout() throws IOException {
         final Map<String, String> values = new LinkedHashMap<>();
         for (int doc = 0; doc < 3000; doc++) {

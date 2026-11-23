@@ -38,7 +38,12 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
     @Override
     protected Response runESQLCommand(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
-        var response = runAsync(user, command);
+        // The submission may return the finished result, and then the warnings, or a still running query and none. It is checked for
+        // the warnings of the test only when one is expected; the async GET below is where they are required.
+        WarningsHandler onSubmission = warningsHandler == null
+            ? null
+            : warnings -> warnings.stream().anyMatch(w -> w.contains("[FILLNULL] the fill value could not be applied") == false);
+        var response = runAsync(user, command, onSubmission);
         assertOK(response);
         var respMap = entityAsMap(response.getEntity());
         String id = (String) respMap.get("id");
@@ -98,6 +103,10 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
     // Keep_on_complete is always true, so we will always get an id
     private Response runAsync(String user, String command) throws IOException {
+        return runAsync(user, command, null);
+    }
+
+    private Response runAsync(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -111,7 +120,7 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         json.endObject();
         Request request = new Request("POST", "_query/async");
         request.setJsonEntity(Strings.toString(json));
-        request.setOptions(runAsUserOptions(user, null));
+        request.setOptions(runAsUserOptions(user, warningsHandler));
         request.addParameter("error_trace", "true");
         logRequest(request);
         Response response = client().performRequest(request);

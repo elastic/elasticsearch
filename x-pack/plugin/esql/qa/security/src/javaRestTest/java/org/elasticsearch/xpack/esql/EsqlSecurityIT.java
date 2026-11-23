@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -1246,7 +1248,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assumeTrue("requires FILLNULL capability", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FILLNULL.capabilityName())));
         // "redacted" cannot be applied to the double `value`, which FILLNULL leaves unchanged with a warning; `value` holds no nulls
         // here anyway. The point is that `*` never reaches the denied `org`.
-        Response resp = runESQLCommand("fls_user", "FROM index | FILLNULL \"redacted\" ON * | SORT value", FILL_VALUE_COULD_NOT_BE_APPLIED);
+        Response resp = runESQLCommand(
+            "fls_user",
+            "FROM index | FILLNULL \"redacted\" ON * | SORT value",
+            fillValueCouldNotBeAppliedTo("value")
+        );
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
         assertThat(result.columnNames(), containsInAnyOrder("value", "partial"));
@@ -1281,18 +1287,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=NULLIFY support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
         );
-        // the denied org is a NULL column, so the fill cannot be applied to it: it is left unchanged (null) with a warning
+        // the denied org is a NULL column, so the fill cannot be applied to it: it is left unchanged (null) with a warning. The FILLNULL
+        // is the first reference to org, so that it is the one that resolves the denied field as a nullified column.
         Response resp = runESQLCommand(
             "fls_user",
-            "SET unmapped_fields=\"nullify\"; FROM index | KEEP value, org | FILLNULL \"redacted\" ON org | SORT value",
-            FILL_VALUE_COULD_NOT_BE_APPLIED
+            "SET unmapped_fields=\"nullify\"; FROM index | FILLNULL \"redacted\" ON org | SORT value",
+            fillValueCouldNotBeAppliedTo("org")
         );
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
-        assertThat(result.columnNames(), containsInAnyOrder("value", "org"));
+        assertThat(result.columnNames(), containsInAnyOrder("value", "partial", "org"));
         assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
-        // the nullified column stays null - the fill neither reveals nor substitutes the denied data
+        // the nullified column stays null, and is reported as such - the fill neither reveals nor substitutes the denied data
         assertThat(result.values("org"), equalTo(Arrays.asList(null, null)));
+        assertThat(result.type("org"), equalTo("null"));
     }
 
     /**
@@ -1309,13 +1317,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Response resp = runESQLCommand(
             "fls_user",
             "SET unmapped_fields=\"nullify\"; FROM index | KEEP value, org | FILLNULL \"redacted\" ON * | SORT value",
-            FILL_VALUE_COULD_NOT_BE_APPLIED
+            fillValueCouldNotBeAppliedTo("value", "org")
         );
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
         assertThat(result.columnNames(), containsInAnyOrder("value", "org"));
         assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
         assertThat(result.values("org"), equalTo(Arrays.asList(null, null)));
+        assertThat(result.type("org"), equalTo("null"));
     }
 
     /**
@@ -3593,11 +3602,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
         return EsqlResult.of(entityAsMap(response));
     }
 
-    private record EsqlResult(List<String> columnNames, List<List<Object>> rows) {
+    private record EsqlResult(List<String> columnNames, List<String> columnTypes, List<List<Object>> rows) {
         @SuppressWarnings("unchecked")
         static EsqlResult of(Map<String, Object> respMap) {
             List<Map<String, Object>> columns = (List<Map<String, Object>>) respMap.get("columns");
-            return new EsqlResult(columns.stream().map(c -> (String) c.get("name")).toList(), (List<List<Object>>) respMap.get("values"));
+            return new EsqlResult(
+                columns.stream().map(c -> (String) c.get("name")).toList(),
+                columns.stream().map(c -> (String) c.get("type")).toList(),
+                (List<List<Object>>) respMap.get("values")
+            );
+        }
+
+        /** The type of one column by name. */
+        String type(String name) {
+            int idx = columnNames.indexOf(name);
+            assertThat("missing column [" + name + "] in " + columnNames, idx, greaterThanOrEqualTo(0));
+            return columnTypes.get(idx);
         }
 
         /** Values of one column by name, for the responses whose column order is not itself being asserted. */
@@ -3620,13 +3640,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    private static final Pattern FILL_UNCHANGED_FIELDS = Pattern.compile("unchanged: \\[(.*?)]");
+
     /**
-     * Permits exactly the warning {@code FILLNULL} emits when the fill value cannot be applied to a target column, so a query that
-     * fills across mixed types (or over a nullified, denied field) is not treated as failing on that expected warning. Any other
-     * warning, or none at all, still fails the request.
+     * Permits exactly one warning, the one {@code FILLNULL} emits when the fill value cannot be applied to target columns, and only
+     * when it names exactly these fields. Any other warning, none at all, or a different list of fields, which would show that
+     * the fill reached a column it should not or skipped one it should reach, still fails the request.
      */
-    private static final WarningsHandler FILL_VALUE_COULD_NOT_BE_APPLIED = warnings -> warnings.isEmpty()
-        || warnings.stream().anyMatch(w -> w.contains("[FILLNULL] the fill value could not be applied") == false);
+    private static WarningsHandler fillValueCouldNotBeAppliedTo(String... fields) {
+        Set<String> expected = Set.of(fields);
+        return warnings -> {
+            if (warnings.size() != 1 || warnings.getFirst().contains("[FILLNULL] the fill value could not be applied") == false) {
+                return true;
+            }
+            Matcher named = FILL_UNCHANGED_FIELDS.matcher(warnings.getFirst());
+            return named.find() == false
+                || Arrays.stream(named.group(1).split(",")).map(String::trim).collect(Collectors.toSet()).equals(expected) == false;
+        };
+    }
 
     protected Response runESQLCommand(String user, String command) throws IOException {
         return runESQLCommand(user, command, null);

@@ -66,6 +66,12 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
     @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
     public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {}
 
+    // The granted text field reconstructs to null, so FILLNULL ON * fills it, where the test expects the original values
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
+    public void testFieldLevelSecurityFillNullAllFieldsDoesNotRevealDeniedField() throws Exception {}
+
     // FLS-excluded fields are still reconstructed from _ignored_source (both the except:_source and the grant-allow-list shapes)
 
     @Override

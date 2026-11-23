@@ -24,6 +24,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Random;
 
@@ -79,7 +80,9 @@ public class BinaryQuantizationTests extends LuceneTestCase {
     }
 
     public void testQuantizeForQuery() {
-        int dimensions = random().nextInt(1, 4097);
+        // the field mapper rejects BBQ for fewer dimensions. With a single dimension a normalized vector and
+        // centroid are both +/-1 and often equal, so vector - centroid is zero and can't be normalized
+        int dimensions = random().nextInt(DenseVectorFieldMapper.BBQ_MIN_DIMS, 4097);
         int discretizedDimensions = BQVectorUtils.discretize(dimensions, 64);
 
         int randIdx = random().nextInt(VectorSimilarityFunction.values().length);

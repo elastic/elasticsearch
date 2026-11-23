@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 163759
+summary: "[Inference API] Abort Apache http client exchange on a timeout"
+type: bug

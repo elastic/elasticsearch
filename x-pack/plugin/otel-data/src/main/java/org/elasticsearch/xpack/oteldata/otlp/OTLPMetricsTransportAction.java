@@ -40,6 +40,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -73,14 +76,12 @@ import java.util.concurrent.TimeUnit;
  * It also handles the response according to the OpenTelemetry Protocol specifications,
  * including success, partial success responses, and errors due to bad data or server errors.
  *
- * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all data-point values and
- * attributes in the request are scalar,
- * (gauges and monotonic sums with string/bool/int/double attributes only), metrics are written
- * directly into an {@link EscfBatch} without a CBOR intermediate representation, and the coordinator
- * derives {@code _tsid} column-major via
+ * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all
+ * attributes in the request are expressible as ESCF columns (string/bool/int/double values and arrays thereof),
+ * metrics of every type are written directly into an {@link EscfBatch} without a CBOR intermediate representation,
+ * and the coordinator derives {@code _tsid} column-major via
  * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}. For all other cases
- * (histograms, summaries, non-scalar attributes, or the setting disabled) the existing XContent path
- * is used unchanged.
+ * (non-scalar attributes, or the setting disabled) the existing XContent path is used unchanged.
  *
  * @see <a href="https://opentelemetry.io/docs/specs/otlp">OTLP Specification</a>
  */
@@ -88,6 +89,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     public static final String NAME = "indices:data/write/otlp/metrics";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
+
+    private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
@@ -143,8 +146,11 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         // path requires all groups to target the same data stream. Groups targeting different data streams
         // fall through to doc-mode. Within a single data stream, BatchModeRouter handles routing to
         // multiple backing indices automatically via timestamp-based resolution.
+        List<DataPointGroupingContext.ResourceGroup> resourceGroups = new ArrayList<>(context.resourceGroups());
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
-        context.consume(allGroups::add);
+        context.forEachGroup(allGroups::add);
+        // The context outlives this method (it is referenced by the bulk response listener); only the local lists are used from here on.
+        context.clearResourceGroups();
 
         // Snapshot volatile setting to have it consistent for this request
         boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;
@@ -157,9 +163,11 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // ineligible, tryAddEscfBatch discards everything it built and returns false; we then fall
             // through to the doc-mode loop below for the whole request, exactly as if canUseBatchIndexing
             // had returned false in the first place.
-            if (tryAddEscfBatch(bulkRequestBuilder, allGroups, firstTarget, expandedContentTracker)) {
+            if (tryAddEscfBatch(bulkRequestBuilder, resourceGroups, firstTarget, expandedContentTracker)) {
+                logger.trace("built an ESCF batch of [{}] rows for [{}]", totalItems, firstTarget);
                 return context;
             }
+            logger.debug("[{}] is batch-indexed but a data point or attribute value is not expressible as ESCF columns", firstTarget);
         }
 
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
@@ -229,47 +237,44 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     // -------------------------------------------------------------------------
 
     /**
-     * Optimistically attempts to write every group in {@code groups} as scalar ESCF columns into a single
+     * Optimistically attempts to write every group in {@code resourceGroups} as ESCF columns into a single
      * {@link OTLPMetricBatchBuilder}, registering the resulting batch on {@code bulkRequestBuilder} on
      * success. Returns {@code false} without mutating {@code bulkRequestBuilder} if any group turns out
-     * ineligible (a non-scalar attribute or an unsupported data point) —
-     * {@link OTLPMetricBatchBuilder#buildMetricRow} discovers this the moment it tries to write the
+     * ineligible (a non-scalar attribute) —
+     * {@link OTLPMetricBatchBuilder#buildMetricRows} discovers this the moment it tries to write the
      * offending value, rather than this method scanning every group's data upfront. On failure, the
      * caller falls back to the doc-mode (XContent) path for the whole request.
      */
     private boolean tryAddEscfBatch(
         BulkRequestBuilder bulkRequestBuilder,
-        List<DataPointGroupingContext.DataPointGroup> groups,
+        Collection<DataPointGroupingContext.ResourceGroup> resourceGroups,
         String target,
         ExpandedContentTracker expandedContentTracker
     ) throws IOException {
         // Collect the per-row IndexRequests locally; they are only added to the real bulkRequestBuilder
         // (and the batch only registered) once every group has been written successfully, so a mid-batch
         // failure leaves bulkRequestBuilder untouched and safe to replay via doc-mode.
-        List<IndexRequest> indexRequests = new ArrayList<>(groups.size());
+        int[] totalDataPoints = new int[1]; // needs to be an object because we update it from the lambda expression below
+        List<IndexRequest> indexRequests = new ArrayList<>();
         try (OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(bytesRefRecycler, defaultMappingHints)) {
-            for (DataPointGroupingContext.DataPointGroup group : groups) {
-                var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(group.dataPoints().size());
-                var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(group.dataPoints().size());
-
-                // buildMetricRow() commits the row on success, so every group that reaches here has committed
-                // exactly one row, in order; the row index always equals indexRequests.size().
-                boolean ok = batchBuilder.buildMetricRow(group, dynamicTemplates, dynamicTemplateParams);
+            for (DataPointGroupingContext.ResourceGroup resourceGroup : resourceGroups) {
+                boolean ok = batchBuilder.buildMetricRows(resourceGroup, (group, dynamicTemplates, dynamicTemplateParams) -> {
+                    Instant tsTimestamp = DataStream.getCanonicalTimestampBound(
+                        Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(group.getTimestampUnixNano()))
+                    );
+                    IndexRequest indexRequest = new IndexRequest(target).opType(DocWriteRequest.OpType.CREATE)
+                        .setRequireDataStream(true)
+                        .setIncludeSourceOnError(false)
+                        .setDynamicTemplates(dynamicTemplates)
+                        .setDynamicTemplateParams(dynamicTemplateParams)
+                        .setTimeSeriesTimestamp(tsTimestamp);
+                    // Source row will be attached after build() below.
+                    totalDataPoints[0] += group.dataPoints().size();
+                    indexRequests.add(indexRequest);
+                });
                 if (ok == false) {
                     return false;
                 }
-
-                Instant tsTimestamp = DataStream.getCanonicalTimestampBound(
-                    Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(group.getTimestampUnixNano()))
-                );
-                IndexRequest indexRequest = new IndexRequest(target).opType(DocWriteRequest.OpType.CREATE)
-                    .setRequireDataStream(true)
-                    .setIncludeSourceOnError(false)
-                    .setDynamicTemplates(dynamicTemplates)
-                    .setDynamicTemplateParams(dynamicTemplateParams)
-                    .setTimeSeriesTimestamp(tsTimestamp);
-                // Source row will be attached after build() below.
-                indexRequests.add(indexRequest);
             }
 
             EscfBatch batch = batchBuilder.build();
@@ -277,12 +282,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // Guard against coordinator heap exhaustion on large fan-out OTLP exports (resource/scope
             // attributes copied into every row mean the batch can be significantly larger than the
             // incoming protobuf payload).
-            int dataPoints = 0;
-            for (DataPointGroupingContext.DataPointGroup group : groups) {
-                dataPoints += group.dataPoints().size();
-            }
+            // TODO: make this more granular, this only tracks the bytes after the explosion might have already happened
             try {
-                expandedContentTracker.add(batch.ramBytesUsed(), groups.size(), dataPoints);
+                expandedContentTracker.add(batch.ramBytesUsed(), indexRequests.size(), totalDataPoints[0]);
             } catch (ElasticsearchStatusException e) {
                 batch.close();
                 throw e;

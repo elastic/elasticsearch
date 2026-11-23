@@ -114,7 +114,6 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
-  - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
   - set: { esql.queries.kibana.total: kibana_total_counter }
@@ -291,7 +290,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer, dedup_command ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
@@ -335,7 +334,6 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
-  - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
   - set: { esql.queries.kibana.total: kibana_total_counter }
@@ -478,6 +476,19 @@ setup:
   - do: { xpack.usage: { } }
   - gt: { esql.features.limit_by: $limit_by_counter }
 
+  - set: { esql.features.dedup: dedup_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | dedup
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.dedup: $dedup_counter }
+
 ---
 took:
   - requires:
@@ -610,6 +621,31 @@ took:
   - exists: esql.datasources.queries.cpu_nanos.planning
   - exists: esql.datasources.queries.cpu_nanos.split_discovery
   - exists: esql.datasources.queries.cpu_nanos.total
+
+---
+"Datasource query CPU telemetry of unsuccessful queries":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_cpu_by_outcome ]
+      reason: "Datasource per-component CPU counters of failed and cancelled queries present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-component CPU counters (ns) of the queries that failed or were cancelled, apart from the ones of the queries that
+  # succeeded; always emitted, values are 0 if no such query ran
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.execution
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.read
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.planning
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.total
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.execution
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.read
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.planning
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.total
 
 ---
 "Datasource failure reason telemetry":

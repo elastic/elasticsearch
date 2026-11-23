@@ -6,6 +6,7 @@
  */
 
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.antlr.PostProcessAntlrSourcesTask
 
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
@@ -30,7 +31,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption', 'x-pack-eql']
 }
 
 base {
@@ -71,7 +72,19 @@ dependencies {
   compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
+  // esql-core no longer re-exports mapper-version (it extends it instead), so declare it directly. Runtime
+  // access comes via the extendedPlugins chain (esql -> x-pack-esql-core -> mapper-version).
+  compileOnly project(path: xpackModule('mapper-version'))
   implementation project(xpackModule('kql'))
+  // The EQL source command delegates execution to the EQL engine: it parses the EQL query at plan
+  // time (result mode) and issues EqlSearchAction at execution time. Declared compileOnly (not
+  // bundled) because x-pack-eql is an extendedPlugin — esql shares eql's classloader at runtime, so
+  // action/request/response classes keep a single class identity across the transport boundary.
+  compileOnly project(xpackModule('eql'))
+  // eql's action/response classes reference ql types (e.g. QlStatusResponse) in their hierarchy, so ql must
+  // be on the compile classpath. At runtime it is reached transitively via the extendedPlugins chain
+  // (esql -> eql -> ql); hence compileOnly rather than a bundled implementation dependency.
+  compileOnly project(xpackModule('ql'))
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
@@ -95,6 +108,12 @@ dependencies {
   testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
+  // Unit tests reference the mapper-version Version type directly; provide it on the (flat) test classpath.
+  testImplementation project(path: xpackModule('mapper-version'))
+  // Unit tests run on a flat classpath (no plugin classloader chain), so the EQL command's compileOnly
+  // eql dependency — and eql's own compileOnly ql dependency — must be added explicitly for tests.
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('ql'))
 
   testImplementation project(path: xpackModule('esql-datasource-csv'))
   testImplementation project(path: xpackModule('esql-datasource-ndjson'))
@@ -120,11 +139,17 @@ dependencies {
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
+  // PlanFieldSafePublicationTests reads the bytecode of plan classes to check how they assign lazily computed fields.
+  testImplementation 'org.ow2.asm:asm:9.11.1'
+  testImplementation 'org.ow2.asm:asm-tree:9.11.1'
 
   internalClusterTestImplementation(project('qa:testFixtures')) {
       transitive = false
   }
   internalClusterTestImplementation project(":modules:user-agent")
+  // The EQL source command test loads the EQL plugin into the test cluster and drives EqlSearchAction.
+  internalClusterTestImplementation project(xpackModule('eql'))
+  internalClusterTestImplementation project(xpackModule('ql'))
   internalClusterTestImplementation project(":modules:ip-location")
   internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
   internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))
@@ -245,6 +270,10 @@ tasks.named("internalClusterTest").configure {
   systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise).
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
+  // The stored results system index is only registered when enabled, which is the default for snapshot builds only.
+  systemProperty 'es.esql_stream_results_stored_feature_flag_enabled', 'true'
+  // The fetch phase is off in release builds unless its feature flag is on, and the fetch phase ITs need it.
+  systemProperty 'es.esql_fetch_phase_feature_flag_enabled', 'true'
   // Route the absolute docs path through nonInputProperties so it is not part of the build cache key
   // (an absolute path makes the key non-relocatable across CI checkouts). The directory contents are
   // declared separately below as a relative input so real doc changes still invalidate the cache.
@@ -436,59 +465,24 @@ tasks.register("regenPromqlParser", JavaExec) {
     "${file(grammarPath)}/PromqlBaseParser.g4"
 }
 
-tasks.register("regen") {
+tasks.register("regen", PostProcessAntlrSourcesTask) {
   dependsOn "regenParser"
   dependsOn "regenPromqlParser"
-  doLast {
-    // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/EsqlBaseLexer.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/EsqlBaseParser.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/PromqlBaseLexer.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/PromqlBaseParser.tokens", toDir: grammarPath)
-
-    // make the generated classes package private
-    ant.replaceregexp(
-      match: 'public ((interface|class) \\Q(Es|Prom)qlBase(Parser|Lexer)\\E\\w+)',
-      replace: '\\1',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: '*qlBase*.java')
-    }
-    // nuke timestamps/filenames in generated files
-    ant.replaceregexp(
-      match: '\\Q// Generated from \\E.*',
-      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: '*qlBase*.java')
-    }
-    // remove tabs in antlr generated files
-    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: '*qlBase*.java')
-    }
-    // suppress this-escape warnings on EsqlBaseLexer
-    ant.replaceregexp(
-      match: 'public ((Es|Prom)qlBaseLexer)',
-      replace: '@SuppressWarnings("this-escape")${line.separator}  public \\1',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: '*qlBaseLexer.java')
-    }
-
-    // suppress this-escape warnings on all internal EsqlBaseParser class constructores
-    ant.replaceregexp(
-      match: '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()',
-      flags: 'g',
-      replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
-      encoding: 'UTF-8'
-    ) {
-      fileset(dir: outputPath, includes: '*qlBaseParser.java')
-    }
-    // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: '*qlBase*.java')
-    }
-  }
+  generatedSourcesDir = file(outputPath)
+  // moves token files to grammar directory for use with IDE's
+  tokensDir = file(grammarPath)
+  tokenFiles = ["EsqlBaseLexer.tokens", "EsqlBaseParser.tokens", "PromqlBaseLexer.tokens", "PromqlBaseParser.tokens"]
+  // make the generated classes package private
+  replaceFirst('*qlBase*.java', 'public ((interface|class) \\Q(Es|Prom)qlBase(Parser|Lexer)\\E\\w+)', '$1')
+  // nuke timestamps/filenames in generated files
+  replaceFirst('*qlBase*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+  // remove tabs in antlr generated files
+  replaceAll('*qlBase*.java', '\t', '  ')
+  // suppress this-escape warnings on EsqlBaseLexer
+  replaceFirst('*qlBaseLexer.java', 'public ((Es|Prom)qlBaseLexer)', '@SuppressWarnings("this-escape")\n  public $1')
+  // suppress this-escape warnings on all internal EsqlBaseParser class constructores
+  replaceAll('*qlBaseParser.java', '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()', '$1@SuppressWarnings("this-escape")\n$1public $2')
+  fixLineEndings('*qlBase*.java')
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }

@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
@@ -19,9 +23,11 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.document.column.VectorColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,10 +50,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -411,6 +419,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                             + "]: x-content vs column-batch field sets differ"
                     );
                 }
+
+                assertFilteredColumnBatchHoldsRemainingDocs(mc, docCount, scenario.name());
             }
         }
     }
@@ -451,6 +461,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                                 + "] has mapper ["
                                 + owned.mapper().typeName()
                                 + "] that does not support columnar parse"
+                        );
+                    }
+                    if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT
+                        && ColumnGroupResolver.isDirectlyInOwnerObject(schema, c, path, owned.ownerPath()) == false) {
+                        causes.add(
+                            "leaf [" + path + "] is not directly in an object at the group mapper's path [" + owned.ownerPath() + "]"
                         );
                     }
                 } else {
@@ -523,10 +539,115 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 }
             } else if (column instanceof TokenStreamColumn) {
                 // inverted-index-only; no doc values to compare
+            } else if (column instanceof VectorColumn<?> vectorColumn) {
+                // Vectors are single-valued and have no dense bulk-fill cursor, so the tuple cursor is the only one to read.
+                final ObjectTupleCursor<?> cursor = vectorColumn.tuples();
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    perDoc.get(doc).add(new FieldDescriptor(name, ft, null, vectorBytes(cursor.value())));
+                }
             } else {
                 throw new AssertionError("unsupported column type in test harness: " + column.getClass());
             }
         }
+    }
+
+    /**
+     * Checks the batch {@code mc} hands to Lucene once some of its documents are filtered out, as {@code InternalEngine} does for the
+     * documents that fail their version check or that a replica has already processed. Lucene adds one document per doc id of the
+     * batch, so the batch must hold the remaining documents only, renumbered in order, each with the values it has in the unfiltered
+     * batch. That batch was just compared with x-content, which makes this a check against x-content too, and running it here
+     * covers every type of column a mapper builds.
+     */
+    private void assertFilteredColumnBatchHoldsRemainingDocs(MappedColumns mc, int docCount, String scenarioName) throws IOException {
+        if (docCount < 2) {
+            // The engine neither filters a batch it keeps all the documents of, nor adds one it keeps none of.
+            return;
+        }
+        final int kept = between(0, docCount - 1);
+        final int excluded = randomValueOtherThan(kept, () -> between(0, docCount - 1));
+        final FixedBitSet filter = new FixedBitSet(docCount);
+        final int[] compactedDocIds = new int[docCount];
+        int remainingDocs = 0;
+        for (int doc = 0; doc < docCount; doc++) {
+            if (doc == kept || (doc != excluded && randomBoolean())) {
+                filter.set(doc);
+                compactedDocIds[doc] = remainingDocs++;
+            } else {
+                compactedDocIds[doc] = -1;
+            }
+        }
+
+        final ColumnBatch filteredBatch = mc.withFilter(filter).toColumnBatch();
+        assertEquals("Batch [" + scenarioName + "]: documents in the filtered column batch", remainingDocs, filteredBatch.numDocs());
+        final Iterator<Column> filteredColumns = filteredBatch.columns().iterator();
+        for (Column column : mc.toColumnBatch().columns()) {
+            final String message = "Batch [" + scenarioName + "] column [" + column.name() + "] filtered to " + filter;
+            assertTrue(message, filteredColumns.hasNext());
+            final Column filteredColumn = filteredColumns.next();
+            assertEquals(message, column.name(), filteredColumn.name());
+            assertEquals(message, new FieldType(column.fieldType()), new FieldType(filteredColumn.fieldType()));
+            if (column instanceof LongColumn longColumn) {
+                assertEquals(message, longColumn.numericKind(), asInstanceOf(LongColumn.class, filteredColumn).numericKind());
+            } else if (column instanceof BinaryColumn binaryColumn) {
+                assertEquals(message, binaryColumn.storedType(), asInstanceOf(BinaryColumn.class, filteredColumn).storedType());
+            }
+            final List<ColumnValue> expected = new ArrayList<>();
+            for (ColumnValue value : columnValues(column)) {
+                if (compactedDocIds[value.doc()] >= 0) {
+                    expected.add(new ColumnValue(compactedDocIds[value.doc()], value.value()));
+                }
+            }
+            assertEquals(message, expected, columnValues(filteredColumn));
+        }
+        assertFalse("Batch [" + scenarioName + "]: the filtered column batch has extra columns", filteredColumns.hasNext());
+    }
+
+    /** A value that a column of a {@link ColumnBatch} holds for the document {@code doc}, in a form that compares by content. */
+    private record ColumnValue(int doc, Object value) {}
+
+    /**
+     * Every value of {@code column} in the order its tuple cursor returns them, the cursor that reads dense and sparse columns alike.
+     * A token stream is read as the terms it produces.
+     */
+    private static List<ColumnValue> columnValues(Column column) throws IOException {
+        final List<ColumnValue> values = new ArrayList<>();
+        if (column instanceof LongColumn longColumn) {
+            final LongTupleCursor cursor = longColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, cursor.longValue()));
+            }
+        } else if (column instanceof BinaryColumn binaryColumn) {
+            final ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, BytesRef.deepCopyOf(cursor.value())));
+            }
+        } else if (column instanceof TokenStreamColumn tokenStreamColumn) {
+            final ObjectTupleCursor<TokenStream> cursor = tokenStreamColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, terms(cursor.value())));
+            }
+        } else if (column instanceof VectorColumn<?> vectorColumn) {
+            final ObjectTupleCursor<?> cursor = vectorColumn.tuples();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                values.add(new ColumnValue(doc, vectorBytes(cursor.value())));
+            }
+        } else {
+            throw new AssertionError("unsupported column type in test harness: " + column.getClass());
+        }
+        return values;
+    }
+
+    private static List<BytesRef> terms(TokenStream tokenStream) throws IOException {
+        final List<BytesRef> terms = new ArrayList<>();
+        // A stream that never produces a token, like the one of the synthetic _id, need not declare a term attribute at all.
+        final TermToBytesRefAttribute term = tokenStream.getAttribute(TermToBytesRefAttribute.class);
+        tokenStream.reset();
+        while (tokenStream.incrementToken()) {
+            terms.add(BytesRef.deepCopyOf(term.getBytesRef()));
+        }
+        tokenStream.end();
+        tokenStream.close();
+        return terms;
     }
 
     /**
@@ -595,6 +716,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             longValue = numeric != null ? numeric.longValue() : null;
         }
         BytesRef bytesValue = null;
+        if (field instanceof KnnFloatVectorField vectorField) {
+            // A vector field has neither a numeric nor a binary value; compare the vector itself.
+            return new FieldDescriptor(field.name(), ft, null, vectorBytes(vectorField.vectorValue()));
+        }
+        if (field instanceof KnnByteVectorField vectorField) {
+            return new FieldDescriptor(field.name(), ft, null, vectorBytes(vectorField.vectorValue()));
+        }
         if (longValue == null) {
             final BytesRef binary = field.binaryValue();
             if (binary != null) {
@@ -604,6 +732,24 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             }
         }
         return new FieldDescriptor(field.name(), ft, longValue, bytesValue);
+    }
+
+    /**
+     * A comparable encoding of a {@code float[]} or {@code byte[]} vector value: the raw bits of every float element, or the bytes
+     * themselves, so that two vectors compare equal exactly when every element is bit-for-bit identical.
+     */
+    private static BytesRef vectorBytes(Object vector) {
+        if (vector instanceof float[] floats) {
+            final ByteBuffer buffer = ByteBuffer.allocate(floats.length * Float.BYTES);
+            for (float value : floats) {
+                buffer.putInt(Float.floatToRawIntBits(value));
+            }
+            return new BytesRef(buffer.array());
+        }
+        if (vector instanceof byte[] bytes) {
+            return new BytesRef(bytes.clone());
+        }
+        throw new AssertionError("unsupported vector value type in test harness: " + vector.getClass());
     }
 
     private static IndexRequest[] buildIndexRequests(List<Doc> docs, BytesReference[] sourceBytes) {

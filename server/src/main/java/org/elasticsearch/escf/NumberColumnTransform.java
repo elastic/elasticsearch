@@ -78,7 +78,7 @@ public final class NumberColumnTransform {
     }
 
     /**
-     * @param rejectDroppedValues whether to throw rather than let a source slot produce no output value. The
+     * @param rejectDroppedValues whether to throw rather than let an array element produce no output value. The
      *     row path records such a slot in the offsets sidecar as a null ordinal, which {@link ColumnarOffsetsBuilder}
      *     does not emit. Callers that record a sidecar pass {@code true} to fall the chunk back to the row path instead.
      */
@@ -99,7 +99,8 @@ public final class NumberColumnTransform {
                 yield result;
             }
             case EscfColumnKind.STRING -> {
-                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
+                // A scalar "" is a bare null, which records no offsets slot (see MultiValuedBinaryDocValuesField#keepsNullSlot).
+                EscfColumnData result = fromString(source, type, coerce, recycler, nullReplacement, false);
                 ownedSink.accept(result);
                 yield result;
             }
@@ -174,8 +175,8 @@ public final class NumberColumnTransform {
                         builder.setLong(doc, nullReplacement);
                     } else if (rejectDroppedValues) {
                         throw new UnsupportedOperationException(
-                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot, which the columnar "
-                                + "offsets sidecar does not emit"
+                            "toSortableLongColumn: an empty string with no null_value records a null offsets slot as an array element, "
+                                + "which the columnar offsets sidecar does not emit"
                         );
                     }
                     continue;

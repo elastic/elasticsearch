@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplin
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -165,17 +167,21 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -211,6 +217,7 @@ import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -7561,9 +7568,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected the pushed conjunction and disjunction as FILTER clauses", bool.filter().size(), equalTo(2));
+        var conjunction = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two MUST clauses", conjunction.must().size(), equalTo(2));
+        var boolDisjuntive = as(bool.filter().get(1), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -7651,9 +7659,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
         var source = source(fieldExtract2.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected the pushed conjunction and disjunction as FILTER clauses", bool.filter().size(), equalTo(2));
+        var conjunction = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two MUST clauses", conjunction.must().size(), equalTo(2));
+        var boolDisjuntive = as(bool.filter().get(1), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -10263,7 +10272,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
         plan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
-        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
+        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -10283,6 +10292,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
+                TEST_CFG,
                 EmptyIndexedByShardId.instance(),
                 null,
                 PlannerSettings.DEFAULTS,
@@ -10291,10 +10301,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             true,  // snapshotBuild - bare external sources are planned without a registered dataset
+            FetchOperatorProvider.UNSUPPORTED,
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null,  // client - not needed for these tests
+            LocalExecutionPlanner.ExternalComputeContext.NONE,
+            null,  // escfBulkService - not needed for these tests
+            () -> false
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
@@ -10396,6 +10411,47 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
         var topN = as(reductionPlan, TopNExec.class);
         assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
+    }
+
+    /**
+     * A relation that already outputs a {@code _doc}, because the coordinator loads columns by document later, keeps it
+     * through node-level late materialization. A second {@code _doc} would fail the data node's planning.
+     */
+    public void testLateMaterializationReusesTheDocOfTheRelation() {
+        // the global optimization ends the fragment in the projection late materialization starts from
+        var plan = testData.physicalOptimizer().optimize(physicalPlan("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP first_name
+            """));
+        ExchangeSinkExec sink = as(PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config).v2(), ExchangeSinkExec.class);
+        FragmentExec fragment = as(sink.child(), FragmentExec.class);
+        Project project = as(fragment.fragment(), Project.class);
+        FieldAttribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        List<NamedExpression> projections = new ArrayList<>();
+        projections.add(doc);
+        projections.addAll(project.projections());
+        LogicalPlan withDoc = project.withProjections(projections)
+            .transformUp(EsRelation.class, r -> r.withAttributes(CollectionUtils.prependToCopy(doc, r.output())));
+        FragmentExec fragmentWithDoc = fragment.withFragment(withDoc);
+        ExchangeSinkExec sinkWithDoc = new ExchangeSinkExec(sink.source(), fragmentWithDoc.output(), false, fragmentWithDoc);
+
+        ReductionPlan reduction = ComputeService.reductionPlan(
+            PlannerSettings.DEFAULTS,
+            new EsqlFlags(false),
+            config,
+            config.newFoldContext(),
+            sinkWithDoc,
+            true,
+            true,
+            null
+        );
+        as(reduction.nodeReducePlan().child(), ProjectExec.class);
+        FragmentExec dataFragment = as(reduction.dataNodePlan().child(), FragmentExec.class);
+        EsRelation relation = EsqlTestUtils.singleValue(dataFragment.fragment().collect(EsRelation.class));
+        assertThat(relation.output().stream().filter(EsQueryExec::isDocAttribute).toList(), equalTo(List.of(doc)));
+        assertThat(reduction.dataNodePlan().output(), hasItem(doc));
     }
 
     public void testReductionPlanForTopNByUsesNonSortedOutput() {
@@ -10518,10 +10574,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
+    /**
+     * Before single-pass time-series aggregation, the data node ends with the partial {@link TimeSeriesAggregate}, grouped by
+     * {@code _tsid}, whose results are disjoint between shards, so node-reduce is disabled.
+     */
     public void testDisableTimeSeriesAggsReduction() {
+        var dataPlan = timeSeriesAggsDataPlan(TransportVersionUtils.getPreviousVersion(TimeSeriesAggregate.TIME_SERIES_SINGLE_PASS));
+        var fragment = as(dataPlan.child(), FragmentExec.class);
+        var tsAggregate = as(fragment.fragment(), TimeSeriesAggregate.class);
+        assertFalse(tsAggregate.singlePass());
+
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+    }
+
+    /**
+     * With single-pass time-series aggregation, the data node also runs the outer aggregation, grouped by bucket only, so
+     * node-reduce merges its partial results like any other aggregation.
+     */
+    public void testSinglePassTimeSeriesAggsReduction() {
+        var dataPlan = timeSeriesAggsDataPlan(TimeSeriesAggregate.TIME_SERIES_SINGLE_PASS);
+        var fragment = as(dataPlan.child(), FragmentExec.class);
+        var aggregate = as(fragment.fragment(), Aggregate.class);
+        var tsAggregate = as(aggregate.child(), TimeSeriesAggregate.class);
+        assertTrue(tsAggregate.singlePass());
+
+        var reduction = as(PlannerUtils.reductionPlan(dataPlan), PlannerUtils.ReducedPlan.class);
+        var aggregateExec = as(reduction.plan(), AggregateExec.class);
+        assertThat(aggregateExec.getMode(), equalTo(AggregatorMode.INTERMEDIATE));
+        assertThat(aggregateExec.groupings(), hasSize(1));
+        as(aggregateExec.child(), TimeSeriesAggregateExec.class);
+    }
+
+    private ExchangeSinkExec timeSeriesAggsDataPlan(TransportVersion minimumVersion) {
         var mapping = loadMapping("k8s-mappings.json");
         EsIndex index = EsIndexGenerator.esIndex("k8s", mapping, Map.of("k8s", IndexMode.TIME_SERIES));
-        Analyzer analyzer = analyzer().configuration(config).addIndex(index).buildAnalyzer();
+        Analyzer analyzer = analyzer().configuration(config).addIndex(index).minimumTransportVersion(minimumVersion).buildAnalyzer();
         var timeSeriesData = new TestDataSource(mapping, index, analyzer, TEST_SEARCH_STATS);
 
         var plan = physicalPlan("""
@@ -10529,13 +10616,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | STATS max(rate(network.total_bytes_in)) BY TBUCKET(1 hour)
             """, timeSeriesData);
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
-        var fragment = as(as(plans.v2(), ExchangeSinkExec.class).child(), FragmentExec.class);
-        assertTrue(
-            "expected a time-series aggregation on the data node",
-            fragment.fragment().anyMatch(TimeSeriesAggregate.class::isInstance)
-        );
-
-        assertThat(PlannerUtils.reductionPlan(plans.v2()), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+        return as(plans.v2(), ExchangeSinkExec.class);
     }
 
     public void testDisableMetricsInfoReduction() {

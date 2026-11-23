@@ -14,6 +14,13 @@ capabilities API. Any [`WHERE`](/reference/query-languages/esql/commands/where.m
 `METRICS_INFO` narrow the set of time series considered, so only metrics with matching data are
 returned.
 
+:::{note}
+Prefer `METRICS_INFO` over [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md) when you
+only need metric-level metadata. It avoids producing a row for every metric and time series combination,
+which reduces memory use and processing cost. Use `TS_INFO` when you need metadata for individual series,
+including their dimension values, or aggregates that depend on the number of series, such as counting series per metric.
+:::
+
 ## Syntax
 
 ```esql

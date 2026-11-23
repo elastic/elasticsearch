@@ -103,6 +103,7 @@ toc:
           - file: esql/directives/directives.md
             children:
               - file: esql/directives/set.md
+              - file: esql/directives/let.md
           - file: esql/esql-commands.md
             children:
               - file: esql/commands/source-commands.md
@@ -462,6 +463,7 @@ toc:
           - file: esql/esql-process-data-with-dissect-grok.md
           - file: esql/esql-enrich-data.md
           - file: esql/esql-lookup-join.md
+          - file: esql/esql-runtime-search.md
       - file: esql/esql-types-and-fields.md
         children:
           - file: esql/esql-implicit-casting.md

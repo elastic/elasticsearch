@@ -15,7 +15,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 class RequestTask implements RejectableTask {
 
@@ -47,8 +46,8 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public Supplier<Boolean> getRequestCompletedFunction() {
-        return this::hasCompleted;
+    public TimedListener<InferenceServiceResults> getTimedListener() {
+        return timedListener;
     }
 
     @Override

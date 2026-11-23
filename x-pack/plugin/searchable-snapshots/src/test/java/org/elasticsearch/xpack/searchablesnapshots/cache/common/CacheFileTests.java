@@ -17,6 +17,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +44,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 import static org.hamcrest.Matchers.allOf;
@@ -204,7 +207,11 @@ public class CacheFileTests extends ESTestCase {
             populateAndReadFuture = cacheFile.populateAndRead(
                 ByteRange.of(0L, length),
                 ByteRange.of(0L, length),
-                channel -> Math.toIntExact(length),
+                (channel, onReadComplete) -> {
+                    try (onReadComplete) {
+                        return Math.toIntExact(length);
+                    }
+                },
                 (channel, from, to, progressUpdater) -> progressUpdater.accept(length),
                 threadPool.generic()
             );
@@ -212,7 +219,11 @@ public class CacheFileTests extends ESTestCase {
             populateAndReadFuture = null;
         }
         if (randomBoolean()) {
-            readIfAvailableFuture = cacheFile.readIfAvailableOrPending(ByteRange.of(0L, length), channel -> Math.toIntExact(length));
+            readIfAvailableFuture = cacheFile.readIfAvailableOrPending(ByteRange.of(0L, length), () -> {}, (channel, onReadComplete) -> {
+                try (onReadComplete) {
+                    return Math.toIntExact(length);
+                }
+            });
         } else {
             readIfAvailableFuture = null;
         }
@@ -239,6 +250,191 @@ public class CacheFileTests extends ESTestCase {
         if (evicted) {
             assertFalse(Files.exists(file));
             assertTrue(updatesListener.containsDelete(cacheFile));
+        }
+    }
+
+    public void testReadIfUnavailableOrEvictedReleasesCompletion() throws Exception {
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, 10, createTempDir().resolve("file.cache"), NOOP);
+        final TestEvictionListener evictionListener = new TestEvictionListener();
+        cacheFile.acquire(evictionListener);
+        try {
+            final AtomicInteger completions = new AtomicInteger();
+            assertNull(cacheFile.readIfAvailableOrPending(ByteRange.of(0, 10), completions::incrementAndGet, (channel, onReadComplete) -> {
+                fail("range is unavailable");
+                return 10;
+            }));
+            assertEquals(1, completions.get());
+
+            final Future<Integer> invalidRangeFuture = cacheFile.readIfAvailableOrPending(
+                ByteRange.of(0, 11),
+                Releasables.assertOnce(completions::incrementAndGet),
+                (channel, onReadComplete) -> {
+                    fail("range is invalid");
+                    return 11;
+                }
+            );
+            assertThat(
+                expectThrows(ExecutionException.class, invalidRangeFuture::get).getCause(),
+                instanceOf(IllegalArgumentException.class)
+            );
+            assertEquals(2, completions.get());
+
+            cacheFile.startEviction();
+            final Future<Integer> future = cacheFile.readIfAvailableOrPending(
+                ByteRange.of(0, 10),
+                completions::incrementAndGet,
+                (channel, onReadComplete) -> {
+                    fail("file is evicted");
+                    return 10;
+                }
+            );
+            assertThat(expectThrows(ExecutionException.class, future::get).getCause(), instanceOf(AlreadyClosedException.class));
+            assertEquals(3, completions.get());
+        } finally {
+            cacheFile.release(evictionListener);
+        }
+    }
+
+    /** A throwing completion must not be retried by the registration-failure cleanup path. */
+    public void testUnavailableReadCompletionFailureIsNotRetried() throws Exception {
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, 10, createTempDir().resolve("file.cache"), NOOP);
+        final TestEvictionListener evictionListener = new TestEvictionListener();
+        cacheFile.acquire(evictionListener);
+        try {
+            final AtomicInteger completions = new AtomicInteger();
+            final IllegalStateException failure = new IllegalStateException("simulated completion failure");
+            final Future<Integer> future = cacheFile.readIfAvailableOrPending(ByteRange.of(0, 10), Releasables.assertOnce(() -> {
+                completions.incrementAndGet();
+                throw failure;
+            }), (channel, onReadComplete) -> {
+                fail("range is unavailable");
+                return 10;
+            });
+            assertSame(failure, expectThrows(ExecutionException.class, future::get).getCause());
+            assertEquals(1, completions.get());
+        } finally {
+            cacheFile.release(evictionListener);
+        }
+    }
+
+    public void testReadTransfersCompletion() throws Exception {
+        assertReadCompletion(false, false, false);
+        assertReadCompletion(true, false, false);
+    }
+
+    public void testReadFailureTransfersCompletion() throws Exception {
+        assertReadCompletion(false, true, false);
+        assertReadCompletion(true, true, false);
+    }
+
+    public void testPendingFillFailureReleasesCompletion() throws Exception {
+        assertReadCompletion(true, false, true);
+    }
+
+    private void assertReadCompletion(boolean pending, boolean failRead, boolean failWrite) throws Exception {
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, 10, createTempDir().resolve("file.cache"), NOOP);
+        final TestEvictionListener evictionListener = new TestEvictionListener();
+        cacheFile.acquire(evictionListener);
+        try {
+            final ByteRange range = ByteRange.of(0, 10);
+            final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+            final IOException failure = new IOException("simulated failure");
+            final Future<Integer> populateFuture = cacheFile.populateAndRead(range, range, (channel, onReadComplete) -> {
+                try (onReadComplete) {
+                    return 10;
+                }
+            }, (channel, from, to, progress) -> {
+                if (failWrite) {
+                    throw failure;
+                }
+                progress.accept(to);
+            }, taskQueue.getThreadPool().generic());
+            if (pending == false) {
+                taskQueue.runAllRunnableTasks();
+                assertTrue(populateFuture.isDone());
+                assertEquals(10, populateFuture.get().intValue());
+            }
+
+            final AtomicInteger completions = new AtomicInteger();
+            final SetOnce<Releasable> transferredCompletion = new SetOnce<>();
+            final Releasable completion = Releasables.assertOnce(completions::incrementAndGet);
+            final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(range, completion, (channel, onReadComplete) -> {
+                assertSame(completion, onReadComplete);
+                transferredCompletion.set(onReadComplete);
+                if (failRead) {
+                    throw failure;
+                }
+                return 10;
+            });
+            assertNotNull(readFuture);
+            if (pending) {
+                assertFalse(readFuture.isDone());
+                assertEquals(0, completions.get());
+                taskQueue.runAllRunnableTasks();
+            }
+
+            assertTrue(readFuture.isDone());
+            assertTrue(populateFuture.isDone());
+            if (failRead || failWrite) {
+                assertSame(failure, expectThrows(ExecutionException.class, readFuture::get).getCause());
+            } else {
+                assertEquals(10, readFuture.get().intValue());
+            }
+            if (failWrite) {
+                assertNull(transferredCompletion.get());
+                assertEquals(1, completions.get());
+            } else {
+                assertEquals(0, completions.get());
+                // Even a throwing callback retains ownership until its asynchronous work completes.
+                transferredCompletion.get().close();
+                assertEquals(1, completions.get());
+            }
+            if (failWrite) {
+                assertSame(failure, expectThrows(ExecutionException.class, populateFuture::get).getCause());
+            } else {
+                assertEquals(10, populateFuture.get().intValue());
+            }
+        } finally {
+            cacheFile.release(evictionListener);
+        }
+    }
+
+    /** The channel is retained for the reader callback, independently of the transferred completion handle. */
+    public void testReadCompletionDoesNotRetainChannel() throws Exception {
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, 10, createTempDir().resolve("file.cache"), NOOP);
+        final TestEvictionListener evictionListener = new TestEvictionListener();
+        cacheFile.acquire(evictionListener);
+        try (Releasable releaseOwner = Releasables.releaseOnce(() -> cacheFile.release(evictionListener))) {
+            final ByteRange range = ByteRange.of(0, 10);
+            final Future<Integer> populateFuture = cacheFile.populateAndRead(range, range, (channel, onReadComplete) -> {
+                try (onReadComplete) {
+                    return 10;
+                }
+            }, (channel, from, to, progress) -> progress.accept(to), Runnable::run);
+            assertTrue(populateFuture.isDone());
+            assertEquals(10, populateFuture.get().intValue());
+
+            final FileChannel channel = cacheFile.getChannel();
+            final AtomicInteger completions = new AtomicInteger();
+            final SetOnce<Releasable> transferredCompletion = new SetOnce<>();
+            final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(
+                range,
+                Releasables.assertOnce(completions::incrementAndGet),
+                (readChannel, onReadComplete) -> {
+                    assertSame(channel, readChannel);
+                    transferredCompletion.set(onReadComplete);
+                    releaseOwner.close();
+                    assertTrue(readChannel.isOpen());
+                    return 10;
+                }
+            );
+            assertNotNull(readFuture);
+            assertTrue(readFuture.isDone());
+            assertEquals(10, readFuture.get().intValue());
+            assertFalse(channel.isOpen());
+            assertEquals(0, completions.get());
+            transferredCompletion.get().close();
+            assertEquals(1, completions.get());
         }
     }
 

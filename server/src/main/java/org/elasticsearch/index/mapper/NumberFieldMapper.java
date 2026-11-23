@@ -46,6 +46,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.ColumnarOffsetsBuilder;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnData;
@@ -206,22 +207,35 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * How a numeric field's doc values are laid out on disk, which the readers of them dispatch on.
+     */
+    public enum DocValuesDiskFormat {
+        /** The field has no doc values. */
+        NONE,
+        /** {@code SORTED_NUMERIC} doc values holding each value as a sortable long. */
+        SORTED_NUMERIC,
+        /**
+         * Binary doc values, one {@link ColumnarNumericDocValuesField} payload per document holding its non-null values in
+         * the order they were written. Nulls aren't kept, so the field has no {@code .offsets} companion. So far only
+         * {@code long} fields are written this way. Which codec stores the payloads is decided by {@code PerFieldFormatSupplier}.
+         */
+        BINARY
+    }
+
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
 
         private final Parameter<Number> nullValue;
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         /**
          * Parameter that marks this field as a time series dimension.
@@ -267,33 +281,25 @@ public class NumberFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
-                m -> toType(m).ignoreMalformed,
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
-            this.coerce = Parameter.explicitBoolParam(
-                "coerce",
-                true,
-                m -> toType(m).coerce,
-                COERCE_SETTING.get(indexSettings.getSettings())
-            );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, COERCE_SETTING.get(indexSettings.getSettings()));
             this.nullValue = new Parameter<>(
                 "null_value",
                 false,
                 () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false),
-                m -> toType(m).nullValue,
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(() -> {
                 if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
@@ -309,7 +315,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE, MetricType.COUNTER).addValidator(v -> {
+            this.metric = TimeSeriesParams.metricParam(MetricType.GAUGE, MetricType.COUNTER).addValidator(v -> {
                 if (v != null && docValuesParameters.getValue().enabled() == false) {
                     throw new IllegalArgumentException(
                         "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + docValuesParameters.name + "] is true"
@@ -317,7 +323,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(dimension);
 
-            this.indexTerms = Parameter.boolParam("index_terms", false, m -> toType(m).indexTerms, false).addValidator(v -> {
+            this.indexTerms = Parameter.boolParam("index_terms", false, false).addValidator(v -> {
                 if (v) {
                     if (type != NumberType.INTEGER && type != NumberType.LONG) {
                         throw new IllegalArgumentException("[index_terms] is only supported on [integer] and [long] fields");
@@ -380,7 +386,8 @@ public class NumberFieldMapper extends FieldMapper {
                 assert indexed.get() : "[index_terms] requires [index] to be true";
                 return IndexType.terms(indexed.get(), docValuesParameters.get().enabled());
             }
-            if (indexed.get() == false && docValuesParameters.get().enabled()) {
+            // Binary doc values can't carry a doc values skipper; the ColumNAR codec keeps a skip index of its own.
+            if (indexed.get() == false && docValuesParameters.get().enabled() && diskFormat != DocValuesDiskFormat.BINARY) {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return IndexType.skippers();
                 }
@@ -444,6 +451,22 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         private String offsetsFieldName;
+        private DocValuesDiskFormat diskFormat;
+
+        /**
+         * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into binary numeric
+         * doc values are written as {@link DocValuesDiskFormat#BINARY}.
+         */
+        // TODO: write the other numeric types as binary doc values too.
+        private DocValuesDiskFormat diskFormat() {
+            if (docValuesParameters.getValue().enabled() == false) {
+                return DocValuesDiskFormat.NONE;
+            }
+            if (type == NumberType.LONG && indexSettings.useBinaryNumericDocValues()) {
+                return DocValuesDiskFormat.BINARY;
+            }
+            return DocValuesDiskFormat.SORTED_NUMERIC;
+        }
 
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
@@ -453,17 +476,22 @@ public class NumberFieldMapper extends FieldMapper {
 
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            this.offsetsFieldName = getOffsetsFieldName(
-                context,
-                indexSettings.sourceKeepMode(),
-                docValuesParameters.getValue().enabled(),
-                stored.getValue(),
-                this,
-                indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER,
-                indexSettings.getMode().isStrictColumnar(),
-                docValuesParameters.getValue().multiValue()
-            );
+            this.diskFormat = diskFormat();
+            // A binary payload keeps a document's values in the order they were written and keeps no nulls, so it needs no
+            // offsets to rebuild an array.
+            this.offsetsFieldName = diskFormat == DocValuesDiskFormat.BINARY
+                ? null
+                : getOffsetsFieldName(
+                    context,
+                    indexSettings.sourceKeepMode(),
+                    docValuesParameters.getValue().enabled(),
+                    stored.getValue(),
+                    this,
+                    indexSettings.getIndexVersionCreated(),
+                    IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER,
+                    indexSettings.getMode().isStrictColumnar(),
+                    docValuesParameters.getValue().multiValue()
+                );
             MappedFieldType ft = new NumberFieldType(context.buildFullName(leafName()), this, context.isSourceSynthetic());
 
             return new NumberFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this, offsetsFieldName);
@@ -1264,7 +1292,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("ROUND_TO not supported for byte");
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE;
             }
@@ -1425,7 +1454,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("ROUND_TO not supported for short");
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE;
             }
@@ -1446,6 +1476,11 @@ public class NumberFieldMapper extends FieldMapper {
                     return ((Number) value).intValue();
                 }
                 return (int) doubleValue;
+            }
+
+            @Override
+            boolean isOutOfRange(Object value) {
+                return isOutOfRange(objectToDouble(value));
             }
 
             private boolean isOutOfRange(double value) {
@@ -1928,7 +1963,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 if (value instanceof Long) {
                     return false;
                 }
@@ -2193,6 +2229,14 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType);
 
+        /**
+         * Whether {@code value} lies outside the range of this whole-number type, so that no value of a field of this type can
+         * equal it. Floating-point types have no such range.
+         */
+        boolean isOutOfRange(Object value) {
+            throw new UnsupportedOperationException("[" + name + "] is not a whole-number type");
+        }
+
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
             String name,
             ValuesSourceType valuesSourceType,
@@ -2371,6 +2415,11 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
         private final boolean indexTerms;
+        private final boolean staticallySingleValued;
+        private final DocValuesDiskFormat diskFormat;
+        /** The readers of the field's binary doc values, or {@code null} when its disk format isn't {@link DocValuesDiskFormat#BINARY}. */
+        @Nullable
+        private final ColumnarNumbers columnar;
 
         public NumberFieldType(
             String name,
@@ -2386,9 +2435,50 @@ public class NumberFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource,
             boolean readInArrayOrder,
-            boolean indexTerms
+            boolean indexTerms,
+            boolean staticallySingleValued
+        ) {
+            this(
+                name,
+                type,
+                indexType,
+                isStored,
+                coerce,
+                nullValue,
+                meta,
+                script,
+                isDimension,
+                metricType,
+                indexMode,
+                isSyntheticSource,
+                readInArrayOrder,
+                indexTerms,
+                staticallySingleValued,
+                indexType.hasDocValues() ? DocValuesDiskFormat.SORTED_NUMERIC : DocValuesDiskFormat.NONE
+            );
+        }
+
+        private NumberFieldType(
+            String name,
+            NumberType type,
+            IndexType indexType,
+            boolean isStored,
+            boolean coerce,
+            Number nullValue,
+            Map<String, String> meta,
+            FieldValues<Number> script,
+            boolean isDimension,
+            MetricType metricType,
+            IndexMode indexMode,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder,
+            boolean indexTerms,
+            boolean staticallySingleValued,
+            DocValuesDiskFormat diskFormat
         ) {
             super(name, indexType, isStored, meta);
+            this.diskFormat = diskFormat;
+            this.columnar = diskFormat == DocValuesDiskFormat.BINARY ? ColumnarNumbers.of(type) : null;
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -2399,6 +2489,12 @@ public class NumberFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
             this.indexTerms = indexTerms;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2418,7 +2514,9 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.offsetsFieldName != null
                     && builder.docValuesParameters.getValue().multiValue()
                     && builder.indexSettings.getMode().isStrictColumnar(),
-                builder.indexTerms.getValue()
+                builder.indexTerms.getValue(),
+                builder.script.get() == null && builder.docValuesParameters.getValue().multiValue() == false,
+                builder.diskFormat
             );
         }
 
@@ -2441,6 +2539,7 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 false,
                 false,
+                false,
                 false
             );
         }
@@ -2458,6 +2557,7 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 null,
                 null,
+                false,
                 false,
                 false,
                 false
@@ -2515,6 +2615,9 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return new TermQuery(new Term(name(), term));
             }
+            if (diskFormat == DocValuesDiskFormat.BINARY) {
+                return columnar.termQuery(name(), value, indexType);
+            }
             return type.termQuery(name(), value, indexType);
         }
 
@@ -2566,6 +2669,9 @@ public class NumberFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
+            if (diskFormat == DocValuesDiskFormat.BINARY) {
+                return columnar.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, indexType);
+            }
             return type.rangeQuery(
                 name(),
                 lowerTerm,
@@ -2577,6 +2683,11 @@ public class NumberFieldMapper extends FieldMapper {
                 indexType.hasPoints(),
                 indexType.hasTerms()
             );
+        }
+
+        /** How this field's doc values are laid out on disk. */
+        public DocValuesDiskFormat diskFormat() {
+            return diskFormat;
         }
 
         @Override
@@ -2591,6 +2702,11 @@ public class NumberFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (diskFormat == DocValuesDiskFormat.BINARY) {
+                    // supportsBlockLoaderConfig refuses every function for these fields, so none is asked for.
+                    assert cfg == null : "no function is fused into a ColumNAR numeric block loader";
+                    return columnar.blockLoader(name());
+                }
                 if (cfg == null) {
                     return type.blockLoaderFromDocValues(name(), readInArrayOrder);
                 }
@@ -2623,6 +2739,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // TODO: fuse functions into ColumNAR numeric block loaders.
+            if (diskFormat == DocValuesDiskFormat.BINARY) {
+                return false;
+            }
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
                     case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT, MV_MAX, MV_MIN -> true;
@@ -2646,7 +2766,9 @@ public class NumberFieldMapper extends FieldMapper {
                 : type.numericType.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return type.getFieldDataBuilder(this, valuesSourceType);
+                return diskFormat == DocValuesDiskFormat.BINARY
+                    ? columnar.fieldDataBuilder(this, valuesSourceType)
+                    : type.getFieldDataBuilder(this, valuesSourceType);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
@@ -2744,8 +2866,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean dimension;
     private final boolean writeDimensionRouting;
-    private final ScriptCompiler scriptCompiler;
-    private final Script script;
     private final MetricType metricType;
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
@@ -2781,8 +2901,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        this.scriptCompiler = builder.scriptCompiler;
-        this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
@@ -2794,6 +2912,9 @@ public class NumberFieldMapper extends FieldMapper {
 
         // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
         this.fieldType = (NumberFieldType) mappedFieldType;
+        // indexValue's one-field-per-key check reads the last field added, which a binary payload added earlier isn't.
+        assert allowMultipleValues || fieldType.diskFormat != DocValuesDiskFormat.BINARY
+            : "a field that allows only one value can't write binary doc values";
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
             fieldType.indexType.hasDocValuesSkipper(),
@@ -2840,6 +2961,12 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean readsEmptyStringAsNull() {
+        // value(XContentParser) reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce();
+    }
+
+    @Override
     public NumberFieldType fieldType() {
         return fieldType;
     }
@@ -2882,7 +3009,12 @@ public class NumberFieldMapper extends FieldMapper {
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // ignore_malformed is not enforced by mapColumnBatch — it only matters for documents the
         // columnar path already refuses, and refusing late falls back to the row path.
-        return docValuesParameters.enabled() && indexTerms == false && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
+        return switch (fieldType.diskFormat) {
+            case NONE -> false;
+            case SORTED_NUMERIC -> indexTerms == false && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
+            // TODO: map binary doc values a column at a time too; until then these fields take the row path.
+            case BINARY -> false;
+        };
     }
 
     @Override
@@ -3028,7 +3160,7 @@ public class NumberFieldMapper extends FieldMapper {
                 long sortableLongValue = type.toSortableLong(value);
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue, offsetsFallback);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
         }
 
@@ -3126,7 +3258,16 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void addLongFields(LuceneDocument document, String name, long l) {
         final var indexType = fieldType.indexType();
-        if (indexTerms) {
+        if (fieldType.diskFormat == DocValuesDiskFormat.BINARY) {
+            // LongField and IndexTermsLongField write SORTED_NUMERIC doc values, so a field with binary doc values writes its index
+            // and doc values apart.
+            if (indexTerms) {
+                document.add(new Field(name, encodeLongIndexTerm(l), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
+            } else if (indexType.hasPoints()) {
+                document.add(new LongPoint(name, l));
+            }
+            ColumnarNumericDocValuesField.recordValue(document, name, l);
+        } else if (indexTerms) {
             if (indexType.hasDocValues()) {
                 document.add(new IndexTermsLongField(name, l, encodeLongIndexTerm(l)));
             } else {
@@ -3157,14 +3298,6 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), type, scriptCompiler, indexSettings).dimension(dimension)
-            .metric(metricType)
-            .allowMultipleValues(allowMultipleValues)
-            .init(this);
-    }
-
-    @Override
     public void doValidate(MappingLookup lookup) {
         if (dimension && null != lookup.nestedLookup().getNestedParent(fullPath())) {
             throw new IllegalArgumentException(
@@ -3185,6 +3318,12 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
+        if (fieldType.diskFormat == DocValuesDiskFormat.BINARY) {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(new ColumnarNumericPayloadSyntheticFieldLoaderLayer(fullPath(), type::writeValue));
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        }
         if (offsetsFieldName != null) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));

@@ -71,10 +71,13 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -106,6 +109,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -116,8 +120,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -269,10 +273,36 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     public record IndexingShardState(
         BatchedCompoundCommit latestCommit,
-        Set<BlobFile> otherBlobs,
+        Set<BccBlob> otherBlobs,
         Map<String, BlobFileRanges> blobFileRanges
     ) {
         public static IndexingShardState EMPTY = new IndexingShardState(null, Set.of(), Map.of());
+
+        /** Reconstructs a hollow commit's file locations from its metadata, without reading referenced blobs. */
+        public static IndexingShardState forHollowCommit(BatchedCompoundCommit latestBcc, Set<BccBlob> otherBlobs) {
+            // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
+            // replicated .si files in the CC's extra content with their extra content blob location instead.
+            // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
+            // expect replicated content to exist (all hollow files should be in first region typically), and we do not
+            // expect reading of any other files than .si files.
+            final var hollowCC = latestBcc.lastCompoundCommit();
+            assert hollowCC.hollow();
+            assert hollowCC.extraContent()
+                .keySet()
+                .stream()
+                .allMatch(filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension()))
+                : "currently only segment info ."
+                    + LuceneFilesExtensions.SI.getExtension()
+                    + " files are expected to be in extra content files, and found "
+                    + hollowCC.extraContent().keySet();
+            // When combining the replicated files with the commit files, the replicated .si files should override the
+            // referenced .si files in commit files, so that only the replicated .si files' locations stay.
+            final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
+                hollowCC.commitFiles().entrySet().stream(),
+                hollowCC.extraContent().entrySet().stream()
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
+            return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
+        }
     }
 
     public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
@@ -358,30 +388,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     );
 
     public static final String TRANSLOG_UPLOAD_DURATION_HISTOGRAM = "es.stateless.translog.upload.duration.histogram";
+    public static final String BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM =
+        "es.stateless.bcc_multipart_upload.part_start.latency.histogram";
+    public static final String BCC_UPLOAD_PART_DURATION_HISTOGRAM = "es.stateless.bcc_upload.part_duration.histogram";
     public static final String TRANSLOG_UPLOAD_SIZE_HISTOGRAM = "es.stateless.translog.upload.size.histogram";
-
-    // 1 to 1_000_000 milliseconds (= ~16 min)
-    public static final List<Long> TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES = List.of(
-        1L,
-        5L,
-        10L,
-        25L,
-        50L,
-        100L,
-        250L,
-        500L,
-        1_000L,
-        2_500L,
-        5_000L,
-        10_000L,
-        30_000L,
-        60_000L,
-        120_000L,
-        300_000L,
-        600_000L,
-        900_000L,
-        1_000_000L
-    );
 
     /**
      * Multipart upload threshold for the stateless object store. When set, this value is injected into the native multipart threshold
@@ -435,6 +445,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private final LongHistogram translogUploadDurationHistogram;
     private final LongHistogram translogUploadSizeHistogram;
     private final LongHistogram bccMultipartUploadPartStartLatencyHistogram;
+    private final LongHistogram bccMultipartUploadPartDurationHistogram;
+    private final LongHistogram bccObjectStoreUploadDurationHistogram;
 
     public ObjectStoreService(
         Settings settings,
@@ -450,13 +462,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(StatelessPlugin.TRANSLOG_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL)
+            threadPool.info(StatelessThreadPools.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             "upload_task_runner",
-            threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax(),
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL),
+            threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL),
             meterRegistry,
             threadPool::relativeTimeInNanos
         );
@@ -477,7 +489,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             TRANSLOG_UPLOAD_DURATION_HISTOGRAM,
             "time for the translog file to be uploaded (only for a successful upload)",
             "milliseconds",
-            TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
         );
         this.translogUploadSizeHistogram = meterRegistry.registerLongHistogram(
             TRANSLOG_UPLOAD_SIZE_HISTOGRAM,
@@ -486,9 +498,24 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             "kilobytes"
         );
         this.bccMultipartUploadPartStartLatencyHistogram = meterRegistry.registerLongHistogram(
-            "es.stateless.bcc_multipart_upload.part_start.latency.histogram",
+            BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM,
             "time from the start of a concurrent multipart upload of a BCC until the repository client requests the data of each part",
             "milliseconds"
+        );
+        this.bccMultipartUploadPartDurationHistogram = meterRegistry.registerLongHistogram(
+            BCC_UPLOAD_PART_DURATION_HISTOGRAM,
+            "time from when the repository client requests the data of a part of a BCC upload until it closes the stream of that "
+                + "part (an upload done in a single request counts as one part), recorded once per stream opened",
+            "milliseconds",
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
+        );
+        this.bccObjectStoreUploadDurationHistogram = meterRegistry.registerLongHistogram(
+            BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC,
+            "time spent writing a batched compound commit to the object store in one upload attempt, broken down by the ["
+                + BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY
+                + "] size bucket and by whether the attempt succeeded",
+            "milliseconds",
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
         );
     }
 
@@ -894,9 +921,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        }, StatelessPlugin.TRANSLOG_THREAD_POOL);
+        }, StatelessThreadPools.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
@@ -904,9 +931,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         asyncDeleteFile(() -> {
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
+        }, StatelessThreadPools.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -963,6 +990,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         for (var blob : blobs.entrySet()) {
             if (startsWithBlobPrefix(blob.getKey())) {
                 map.put(new PrimaryTermAndGeneration(blobPrimaryTerm, parseGenerationFromBlobName(blob.getKey())), blob.getValue());
+            } else if (MergeBlob.startsWithPrefix(blob.getKey())) {
+                logger.trace(() -> format("ignoring merge blob [%s] in [%s]", blob.getKey(), blobContainer.path().buildAsString()));
             } else {
                 logger.warn(
                     () -> format(
@@ -993,7 +1022,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -1004,7 +1033,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      * {@link BlobStoreCacheDirectory} and therefore populating the cache for every region that contains a compound commit header.
      *
      * @param directory         the {@link BlobStoreCacheDirectory} used to read the blob in the object store
-     * @param blobFile          the blob to read
+     * @param bccBlob          the blob to read
      * @param maxBlobLength     the blob's maximum length to read
      * @return                  an iterator over {@link StatelessCompoundCommit} objects that lazily reads compound commits
      *                          from the blob store with caching support
@@ -1012,11 +1041,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private static Iterator<StatelessCompoundCommit> readBatchedCompoundCommitIncrementallyUsingCache(
         BlobStoreCacheDirectory directory,
         IOContext context,
-        BlobFile blobFile,
+        BccBlob bccBlob,
         long maxBlobLength
     ) {
-        var blobReader = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
-        return BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, blobReader, false);
+        var blobReader = getBlobReader(directory, context, bccBlob.termAndGeneration(), maxBlobLength);
+        return BatchedCompoundCommit.readFromStoreIncrementally(bccBlob.blobName(), maxBlobLength, blobReader, false);
     }
 
     private static BatchedCompoundCommit.BlobReader getBlobReader(
@@ -1026,7 +1055,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -1037,7 +1066,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             )
         );
         var dir = directory.createPerBccMetadataReadDirectory(
-            Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
+            Map.of(blobName, new BlobFileRanges(new BlobLocation(new BccBlob(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
         );
 
@@ -1188,7 +1217,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
-        final ActionListener<Tuple<BatchedCompoundCommit, Set<BlobFile>>> blobsListener = listener.delegateFailureAndWrap(
+        final ActionListener<Tuple<BatchedCompoundCommit, Set<BccBlob>>> blobsListener = listener.delegateFailureAndWrap(
             (l, bccAndBlobs) -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
@@ -1198,7 +1227,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     ActionListener.completeWith(l, () -> IndexingShardState.EMPTY);
                     return;
                 }
-                final Set<BlobFile> otherBlobs = bccAndBlobs.v2();
+                final Set<BccBlob> otherBlobs = bccAndBlobs.v2();
                 logger.trace(
                     () -> format(
                         "%s found non-latest blobs in [%s]: %s",
@@ -1209,31 +1238,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 );
                 // If the last CC is hollow, we do not need to read any other blobs than the last CC itself.
                 if (readSingleBlobIfHollow && latestBcc.lastCompoundCommit().hollow()) {
-                    ActionListener.completeWith(l, () -> {
-                        // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
-                        // replicated .si files in the CC's extra content with their extra content blob location instead.
-                        // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
-                        // expect replicated content to exist (all hollow files should be in first region typically), and we do not
-                        // expect reading of any other files than .si files.
-                        final var hollowCC = latestBcc.lastCompoundCommit();
-                        assert hollowCC.extraContent()
-                            .keySet()
-                            .stream()
-                            .allMatch(
-                                filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension())
-                            )
-                            : "currently only segment info ."
-                                + LuceneFilesExtensions.SI.getExtension()
-                                + " files are expected to be in extra content files, and found "
-                                + hollowCC.extraContent().keySet();
-                        // When combining the replicated files with the commit files, the replicated .si files should override the
-                        // referenced .si files in commit files, so that only the replicated .si files' locations stay.
-                        final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
-                            hollowCC.commitFiles().entrySet().stream(),
-                            hollowCC.extraContent().entrySet().stream()
-                        ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
-                        return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
-                    });
+                    ActionListener.completeWith(l, () -> IndexingShardState.forHollowCommit(latestBcc, otherBlobs));
                 } else {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
 
@@ -1262,12 +1267,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
         if (blobsInfo != null) {
             // Short-circuit during relocation to avoid unnecessary LISTing when we get passed the blobs info from source.
-            SubscribableListener.<Tuple<BatchedCompoundCommit, Set<BlobFile>>>newForked(l -> ActionListener.completeWith(l, () -> {
+            SubscribableListener.<Tuple<BatchedCompoundCommit, Set<BccBlob>>>newForked(l -> ActionListener.completeWith(l, () -> {
                 BatchedCompoundCommit latestBcc = ObjectStoreService.readLatestBccUsingCache(
                     directory,
                     context,
-                    blobsInfo.latestBlobFile().termAndGeneration(),
-                    new BlobMetadata(blobsInfo.latestBlobFile().blobName(), blobsInfo.latestBlobFileLength())
+                    blobsInfo.latestBccBlob().termAndGeneration(),
+                    new BlobMetadata(blobsInfo.latestBccBlob().blobName(), blobsInfo.latestBlobFileLength())
                 );
                 return new Tuple<>(latestBcc, blobsInfo.otherBlobs());
             })).addListener(blobsListener);
@@ -1305,7 +1310,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     ) {
                         for (var blobContainerWithTerm : blobContainersWithTerms) {
                             // use the prewarm thread pool to avoid exceeding the connection pool size with blob listings
-                            threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                            threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
                                 .execute(
                                     ActionRunnable.run(
                                         listeners.acquire(),
@@ -1315,16 +1320,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         }
                     }
                 })
-                .<Tuple<BatchedCompoundCommit, Set<BlobFile>>>andThen((l, blobs) -> {
+                .<Tuple<BatchedCompoundCommit, Set<BccBlob>>>andThen((l, blobs) -> {
                     // Find the most recent batched compound commit and read its headers using cache
                     final BatchedCompoundCommit latestBcc = ObjectStoreService.readLatestBccUsingCache(directory, context, blobs);
-                    final Set<BlobFile> otherBlobs;
+                    final Set<BccBlob> otherBlobs;
                     if (latestBcc != null) {
                         // List of non latest blobs found in the object store
                         otherBlobs = blobs.entrySet()
                             .stream()
                             .filter(entry -> Objects.equals(entry.getKey(), latestBcc.primaryTermAndGeneration()) == false)
-                            .map(entry -> new BlobFile(entry.getValue().name(), entry.getKey()))
+                            .map(entry -> new BccBlob(entry.getValue().name(), entry.getKey()))
                             .collect(Collectors.toUnmodifiableSet());
                     } else {
                         // No blobs found
@@ -1354,7 +1359,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         }
 
-        final Executor executor = threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL);
+        final Executor executor = threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL);
         ConcurrentMultipartHelper.runConcurrentTasks(tasks.size(), executor, i -> {
             var t = tasks.get(i);
             task.ensureNotCancelled();
@@ -1388,7 +1393,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             blobName,
             blobName,
             virtualBcc.getTotalSizeInBytes(),
-            threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL)
+            threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL)
         );
     }
 
@@ -1408,14 +1413,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     /**
-     * Computes a map of blobs ({@code BlobFile}) referenced from the passed-in {@param commitFiles} where the map values
+     * Computes a map of blobs ({@link BccBlob}) referenced from the passed-in {@param commitFiles} where the map values
      * contain the set of file names, together with their maximum offset, in the blob file.
      */
-    private static Map<BlobFile, ReferencedFilesAndMaxBlobOffset> groupReferencedFilesByBlob(Map<String, BlobLocation> commitFiles) {
-        var referencedFilesByBlob = new HashMap<BlobFile, ReferencedFilesAndMaxBlobOffset>();
+    private static Map<BccBlob, ReferencedFilesAndMaxBlobOffset> groupReferencedFilesByBlob(Map<String, BlobLocation> commitFiles) {
+        var referencedFilesByBlob = new HashMap<BccBlob, ReferencedFilesAndMaxBlobOffset>();
         for (var commitFile : commitFiles.entrySet()) {
             var blobLocation = commitFile.getValue();
-            referencedFilesByBlob.compute(blobLocation.blobFile(), (ignored, existing) -> {
+            referencedFilesByBlob.compute(blobLocation.bccBlob(), (ignored, existing) -> {
                 long maxBlobOffset = blobLocation.offset();
                 if (existing == null) {
                     return new ReferencedFilesAndMaxBlobOffset(maxBlobOffset, Set.of(commitFile.getKey()));
@@ -1448,7 +1453,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         IOContext context,
         Executor bccHeaderReadExecutor,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
-        ObjLongConsumer<BlobFile> bccBlobSizeConsumer,
+        ObjLongConsumer<BccBlob> bccBlobSizeConsumer,
         ActionListener<Void> listener
     ) {
         readReferencedCompoundCommits(
@@ -1466,9 +1471,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private static void readReferencedCompoundCommits(
         Map<String, BlobLocation> commitFiles,
         Executor bccHeaderReadExecutor,
-        BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
+        BiFunction<BccBlob, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
-        ObjLongConsumer<BlobFile> bccBlobSizeConsumer,
+        ObjLongConsumer<BccBlob> bccBlobSizeConsumer,
         ActionListener<Void> listener
     ) {
         var referencedFilesByBlob = groupReferencedFilesByBlob(commitFiles);
@@ -1523,14 +1528,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public record StatelessCompoundCommitReference(
         StatelessCompoundCommit compoundCommit,
         // the blob that contains the stateless compound commit
-        BlobFile bccBlobFile,
+        BccBlob bccBlob,
         // the offset in the blob where the header for the stateless compound commit sits
         long headerOffsetInTheBccBlobFile
     ) {
         public StatelessCompoundCommitReference {
-            assert compoundCommit.primaryTerm() == bccBlobFile.primaryTerm() : "the CC term is different from the holder BCC's term";
-            assert compoundCommit.generation() >= bccBlobFile.generation()
-                : "the CC generation is smaller than the holder BCC's generation";
+            assert compoundCommit.primaryTerm() == bccBlob.primaryTerm() : "the CC term is different from the holder BCC's term";
+            assert compoundCommit.generation() >= bccBlob.generation() : "the CC generation is smaller than the holder BCC's generation";
         }
     }
 
@@ -1787,6 +1791,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
+    /// A [LocalIOInputStream] that runs `onFirstClose` the first time it is closed, before closing the wrapped stream.
+    static class OnCloseLocalIOInputStream extends LocalIOInputStream {
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final Runnable onFirstClose;
+
+        OnCloseLocalIOInputStream(InputStream delegate, Runnable onFirstClose) {
+            super(delegate);
+            this.onFirstClose = onFirstClose;
+        }
+
+        @Override
+        public void close() throws LocalIOException {
+            if (closed.compareAndSet(false, true)) {
+                try {
+                    onFirstClose.run();
+                } finally {
+                    super.close();
+                }
+            } else {
+                super.close();
+            }
+        }
+    }
+
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
@@ -1819,7 +1847,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         protected void doRun() {
             boolean success = false;
             final long objectStoreQueueWaitMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - timeInNanos);
-            final long uploadIoStartNanos = threadPool.relativeTimeInNanos();
+            final long uploadIoStartMillis = threadPool.relativeTimeInMillis();
             try {
                 final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
                 if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
@@ -1856,14 +1884,21 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                     );
                                 }
 
-                                return new LocalIOInputStream(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length));
+                                final long partOpenedNanos = threadPool.relativeTimeInNanos();
+                                return new OnCloseLocalIOInputStream(
+                                    virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length),
+                                    () -> bccMultipartUploadPartDurationHistogram.record(
+                                        TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - partOpenedNanos),
+                                        Map.of("multipart", length < totalSizeInBytes)
+                                    )
+                                );
                             },
                             false,
                             // Ensure that one large upload doesn't starve other uploads
                             new ThrottledTaskRunner(
                                 "bcc-concurrent-multipart-upload",
-                                Math.max(1, threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax() / 2),
-                                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                                Math.max(1, threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax() / 2),
+                                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
                             ).asExecutor()
                         );
                     } finally {
@@ -1871,7 +1906,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                 }
                 if (isDebugEnabled) {
-                    final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
+                    final long uploadIoMs = threadPool.relativeTimeInMillis() - uploadIoStartMillis;
                     logger.debug(
                         () -> format(
                             "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms"
@@ -1893,8 +1928,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
+                final long uploadIoMs = threadPool.relativeTimeInMillis() - uploadIoStartMillis;
+                bccObjectStoreUploadDurationHistogram.record(
+                    uploadIoMs,
+                    Map.of(
+                        BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY,
+                        BccUploadMetrics.bccSizeBucket(virtualBatchedCompoundCommit.getTotalSizeInBytes()),
+                        BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY,
+                        success
+                    )
+                );
                 if (success) {
-                    final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
                     listener.onResponse(new BccUploadObjectStoreTiming(objectStoreQueueWaitMs, uploadIoMs));
                 }
             }
@@ -1934,7 +1978,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (isRunning() && translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(StatelessThreadPools.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -2002,7 +2046,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             toDeleteInThisTask.values().forEach(commitBlobsToDelete::addAll);
             shardFileDeleteSchedulePermit.release();
             if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

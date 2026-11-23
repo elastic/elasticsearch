@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -53,6 +54,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -62,6 +64,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -98,9 +102,11 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -146,12 +152,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -165,6 +174,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -197,7 +207,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin, SystemIndexPlugin {
 
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
@@ -633,11 +643,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
         this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
-        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
-            for (var c : metricsCollectors) {
-                c.onQueryCompleted(metrics);
-            }
-        };
+        QueryMetricsListener collector = QueryMetricsListener.composite(metricsCollectors);
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
@@ -759,6 +765,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
+                EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -782,6 +790,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         settings.addAll(Federation.settings());
 
         return Collections.unmodifiableList(settings);
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()
+            ? List.of(EsqlStreamResultsIndexDescriptor.getSystemIndexDescriptor())
+            : List.of();
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "esql";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the results of streamed ES|QL queries";
     }
 
     @Override
@@ -815,6 +840,39 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
     }
 
+    /**
+     * Graceful shutdown waits for the tasks that keep an ES|QL query's work alive on a node:
+     * <ul>
+     *     <li>on the coordinator, the async query tasks, which outlive the HTTP request that started them and only complete once the
+     *     result is stored;</li>
+     *     <li>on the nodes holding the queried shards, the data node tasks;</li>
+     *     <li>on the node of a remote cluster that a cross-cluster query enters through, the cluster tasks;</li>
+     *     <li>on the nodes holding the lookup or enrich shards, the lookup tasks.</li>
+     * </ul>
+     * The compute and exchange tasks are not listed: they only run while one of the above is still running, since those tasks wait
+     * for their drivers and for their exchange sinks to be fully consumed before completing. The synchronous {@link EsqlQueryAction}
+     * and {@link EsqlStreamQueryAction} tasks are not listed either: they are only started by REST requests on the coordinator and
+     * complete within them, so the HTTP server's shutdown already waits for them.
+     */
+    @Override
+    public Collection<String> getActionsToAwaitOnShutdown() {
+        return List.of(
+            EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX,
+            ComputeService.DATA_ACTION_NAME,
+            ComputeService.CLUSTER_ACTION_NAME,
+            EnrichLookupService.LOOKUP_ACTION_NAME,
+            LookupFromIndexService.LOOKUP_ACTION_NAME
+        );
+    }
+
+    @Override
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        return true;
+    }
+
+    @Override
+    public void signalShutdown(Collection<String> shutdownNodeIds) {}
+
     @Override
     public List<RestHandler> getRestHandlers(
         RestHandlersServices restHandlersServices,
@@ -836,6 +894,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
+        // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
+        if (RestEsqlStreamQueryAction.ENABLED) {
+            handlers.add(new RestEsqlStreamQueryAction(capabilities));
+        }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
@@ -860,6 +922,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(DriverStatus.ENTRY);
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(FetchDocsSourceOperator.Status.ENTRY);
+        entries.add(FetchOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
         entries.add(EsqlQueryStatus.ENTRY);

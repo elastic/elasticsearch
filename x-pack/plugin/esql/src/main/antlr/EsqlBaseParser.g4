@@ -86,6 +86,8 @@ processingCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
     | {this.isDevVersion()}? describeCommand
+    | {this.isDevVersion()}? intoCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     ;
 
 whereCommand
@@ -305,6 +307,10 @@ mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
+nestedExpandCommand
+    : DEV_NESTED_EXPAND qualifiedName
+    ;
+
 explainCommand
     : DEV_EXPLAIN subqueryExpression
     ;
@@ -415,6 +421,10 @@ dedupCommand
     : DEDUP
     ;
 
+intoCommand
+    : DEV_INTO indexPattern
+    ;
+
 highlightCommand
     : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
     ;
@@ -456,7 +466,7 @@ setField
     ;
 
 letCommand
-    : DEV_LET letBinding SEMICOLON
+    : LET letBinding SEMICOLON
     ;
 
 letBinding

@@ -197,7 +197,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      */
     private final boolean inferenceIdIsFallback;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
         this(source, child, rowLimit, fields, OutputNaming.DEFAULT);

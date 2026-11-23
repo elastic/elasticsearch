@@ -61,7 +61,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
@@ -118,7 +118,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
      */
     public static final Setting<Boolean> TRANSFER_HOLLOW_COMMIT_METADATA_SETTING = Setting.boolSetting(
         "stateless.cluster.primary_relocation.transfer_hollow_commit_metadata",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -303,7 +303,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     request.targetNode(),
                     new TransportStatelessPrimaryRelocationPrewarmAction.Request(
                         shardId,
-                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                        new BlobFileWithLength(latestBcc.toBccBlob(), latestBcc.calculateBccBlobLength()),
                         hasRecentIdLookup
                     )
                 ),
@@ -587,19 +587,19 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
                     assert latestBcc != null : "no uploaded BCC for shard " + shardId;
                     final long blobLength = latestBcc.calculateBccBlobLength();
-                    final BlobFile latestBccBlob = latestBcc.toBlobFile();
+                    final BccBlob latestBccBlob = latestBcc.toBccBlob();
                     final var lastCommitBlobs = latestBcc.lastCompoundCommit().getBlobFiles();
                     final var lastCommitIsHollow = latestBcc.lastCompoundCommit().hollow();
                     // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
                     // BCCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
                     // Thus, we pass the generation of the last BCC.
-                    final Set<BlobFile> otherBlobFiles = statelessCommitService.getTrackedUploadedBlobFilesUpTo(
+                    final Set<BccBlob> otherBccBlobs = statelessCommitService.getTrackedUploadedBccBlobsUpTo(
                         shardId,
                         latestBcc.primaryTermAndGeneration().generation()
                     );
-                    otherBlobFiles.remove(latestBccBlob);
+                    otherBccBlobs.remove(latestBccBlob);
                     latestBccBlobLength.set(blobLength);
-                    otherBlobFilesCount.set(otherBlobFiles.size());
+                    otherBlobFilesCount.set(otherBccBlobs.size());
 
                     final var handoffEngine = indexShard.getEngineOrNull();
                     if (handoffEngine == null) {
@@ -625,7 +625,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                                 retentionLeases,
                                 statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
                                 new BlobFileWithLength(latestBccBlob, blobLength),
-                                otherBlobFiles,
+                                otherBccBlobs,
                                 hasRecentIdLookup,
                                 lastCommitBlobs,
                                 lastCommitIsHollow,

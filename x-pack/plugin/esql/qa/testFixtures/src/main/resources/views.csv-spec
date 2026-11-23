@@ -571,7 +571,7 @@ SET unmapped_fields="load"\;
 FROM employees_rehired
 | STATS rehired_count = COUNT(), null_count = COUNT(nonexistent_field)
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -590,7 +590,7 @@ FROM employees_rehired
 | WHERE extra IS NULL
 | STATS c = COUNT(*)
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -608,7 +608,7 @@ FROM employees_rehired
 | WHERE nonexistent_field IS NOT NULL
 | STATS c = COUNT(*)
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -625,7 +625,7 @@ SET unmapped_fields="load"\;
 FROM employees_rehired
 | STATS c = COUNT(*) BY nonexistent_field
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -644,7 +644,7 @@ FROM employees_rehired
 | KEEP emp_no, nonexistent_field
 | LIMIT 3
 ;
-warningRegex: does not affect the contents of view \[employees_rehired\], so field \[nonexistent_field\] is null in its rows
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[nonexistent_field\])(?=.*\[employees_rehired\])
 warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -1179,6 +1179,87 @@ max_rate:double
 13.173725
 ;
 
+tsViewBareRateOutputsDimensions
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
+tsViewBareRateOutputsDimensionsSetUnmappedNullify
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: optional_fields_nullify_tech_preview
+required_capability: views_implicit_timeseries_column_fix
+
+SET unmapped_fields="nullify"\;
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
+tsViewBareRateOutputsDimensionsSetUnmappedLoad
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: optional_fields_v5
+required_capability: views_implicit_timeseries_column_fix
+
+SET unmapped_fields="load"\;
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
 tsViewDownsampled
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
@@ -1194,6 +1275,60 @@ count:long | cluster:keyword
 3          | prod
 2          | qa
 2          | staging
+;
+
+// A PROMQL view over a label missing from the mapping; PROMQL matches absent labels as "".
+promqlViewAbsentLabel
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: fix_promql_view_with_caller_unmapped_fields
+
+FROM view_k8s_promql_absent_label
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+// The caller's SET keeps the view boundary; the PROMQL body must still nullify the missing label in its own scope.
+promqlViewAbsentLabelSetUnmappedNullify
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_promql_view_with_caller_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+FROM view_k8s_promql_absent_label
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+promqlViewAbsentLabelSetUnmappedLoad
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: optional_fields_v5
+required_capability: fix_promql_view_with_caller_unmapped_fields
+
+SET unmapped_fields="load"\;
+FROM view_k8s_promql_absent_label
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
 ;
 
 tsViewWildcard
@@ -3111,7 +3246,6 @@ required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
@@ -3120,7 +3254,7 @@ FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconn
 | KEEP _fork, unmapped_message, emp_no
 | SORT _fork, unmapped_message, emp_no NULLS LAST
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 _fork:keyword | unmapped_message:keyword | emp_no:integer
 fork2         | null                     | 10001
@@ -3136,7 +3270,6 @@ required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The sibling of the test above: the view does not surface unmapped_message, so the view boundary answers null for it
 // instead of loading it from the view's source, and WHERE ... IS NULL keeps all of the view's rows.
@@ -3147,7 +3280,7 @@ FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message IS NULL),
 | STATS c = COUNT(*), employees = COUNT(emp_no) BY _fork
 | SORT _fork
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 c:long | employees:long | _fork:keyword
 9      | 1              | fork2
@@ -3159,7 +3292,6 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The view is a pass-through to the very index that is also queried directly, as a sibling and in a subquery. Only the
 // index branches load unmapped_message from _source; the view must not merge with them and answers null for all its rows.
@@ -3169,7 +3301,7 @@ FROM view_partial_mapping_sample_data,
      (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 rows:long | loaded:long
 17        | 10
@@ -3182,13 +3314,12 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM (FROM view_partial_mapping_sample_data), partial_mapping_sample_data), (FROM sample_data)
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_sample_data], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_sample_data\])
 
 rows:long | loaded:long
 21        | 7
@@ -3200,14 +3331,13 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // view_with_unionall is a union of subqueries over employees_all, another view: all of it is the view's own scope.
 SET unmapped_fields="load"\;
 FROM view_with_unionall, partial_mapping_sample_data
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_unionall], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_with_unionall\])
 
 rows:long | loaded:long
 9         | 7
@@ -3219,14 +3349,13 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 // The view's trailing WHERE keeps its union of an index and a subquery inside the view, and either branch would surface the field.
 SET unmapped_fields="load"\;
 FROM view_partial_mapping_retained_union
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_retained_union], so field [unmapped_message] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_retained_union\])
 
 rows:long | loaded:long
 14        | 0
@@ -3237,13 +3366,12 @@ viewSettingLoadWarnsAboutFieldItDoesNotReference
 required_capability: views_crud_as_index_actions
 required_capability: set_in_view_definitions
 required_capability: settings_scoped_at_view_boundaries
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM view_partial_mapping_loads_event_duration
 | STATS rows = COUNT(*), loaded = COUNT(unmapped_message), durations = COUNT(unmapped_event_duration)
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_partial_mapping_loads_event_duration], so field [unmapped_message] is null in its rows; to load such fields, the view definition must reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[unmapped_message\])(?=.*\[view_partial_mapping_loads_event_duration\])
 
 rows:long | loaded:long | durations:long
 7         | 0           | 7
@@ -3519,7 +3647,6 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: optional_fields_load_with_fork_subqueries_and_views
-required_capability: warn_unmapped_fields_stopped_at_view
 
 SET unmapped_fields="load"\;
 FROM (FROM view_with_fork),
@@ -3528,8 +3655,8 @@ FROM (FROM view_with_fork),
 | KEEP _fork, emp_no, does_not_exist_field
 | SORT _fork, emp_no
 ;
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [employees_all], so field [does_not_exist_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
-warning:SET unmapped_fields=\"load\" does not affect the contents of view [view_with_fork], so field [does_not_exist_field] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[employees_all\])
+warningRegex:SET unmapped_fields.* does not affect the contents of (?=.*\[does_not_exist_field\])(?=.*\[view_with_fork\])
 
 _fork:keyword | emp_no:integer | does_not_exist_field:keyword
 fork1         | 10091          | null
@@ -3786,4 +3913,132 @@ attributes.host:keyword
 a
 c
 k
+;
+
+forkAfterViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_sample_data
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| KEEP event_duration, _fork
+| SORT _fork, event_duration
+;
+
+event_duration:long | _fork:keyword
+3450233             | fork1
+5033755             | fork1
+8268153             | fork1
+725448              | fork2
+1232382             | fork2
+1756467             | fork2
+2764889             | fork2
+;
+
+forkAfterViewWithForkStats
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_sample_data
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+4      | fork2
+;
+
+forkAfterViewWithInSubqueryContainingFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_in_subquery_with_fork
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkAfterInSubqueryOverViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| WHERE emp_no IN (FROM view_fork_employees | KEEP emp_no)
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkOverViewWithForkInsideInSubquery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no IN (
+    FROM view_fork_employees
+    | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+forkInsideInSubqueryInEvalOverViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_employees
+| WHERE emp_no <= 10004
+| EVAL m = emp_no IN (FROM view_fork_employees | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002) | KEEP emp_no)
+| FORK (WHERE m == true) (WHERE m == false)
+| SORT _fork, emp_no
+| KEEP emp_no, m, _fork
+;
+
+emp_no:integer | m:boolean | _fork:keyword
+10001          | true      | fork1
+10002          | true      | fork1
+10003          | true      | fork1
 ;

@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -287,13 +288,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio,
         boolean usePrecondition
     ) throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
+        TopDocs results = ThreadConfinedArena.withConfinedArena(
+            () -> getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition)
+        );
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
-            if (dedupByDoc.containsKey(globalDoc) == false) {
+            ScoreDoc existing = dedupByDoc.get(globalDoc);
+            if (existing == null) {
                 scoreDoc.doc = globalDoc;
                 dedupByDoc.put(globalDoc, scoreDoc);
+            } else if (scoreDoc.score > existing.score) {
+                // SOAR overspill copies of a doc score differently; keep the best
+                existing.score = scoreDoc.score;
             }
         }
         ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];

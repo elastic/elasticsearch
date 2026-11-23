@@ -314,6 +314,49 @@ public class PrimarySortRangeTests extends ESTestCase {
     }
 
     /**
+     * The slices of a range may be smaller than {@code minDocsPerSlice}: a range holds mostly docs that can match, so the full
+     * floor would leave drivers without work. The floor of a range is a fifth of {@code minDocsPerSlice}.
+     */
+    public void testRangeSlicesMayBeSmallerThanMinDocsPerSlice() throws IOException {
+        // One leaf of 100,000 docs. With 20 drivers and a floor of 5,000 docs the leaf is cut into slices of 5,000 docs.
+        index(randomBoolean(), NUM_DOCS);
+        int taskConcurrency = 20;
+        int minDocsPerSlice = 5_000;
+        // 40 of the 400 values hold about 10,000 docs. At the full floor the range would be cut into 2 slices of 5,000 docs,
+        // at the floor of a range, 1,000 docs, into about 10.
+        long lower = between(0, NUM_VALUES - 41);
+        long upper = lower + 39;
+        List<List<PartialLeafReaderContext>> groups = groups(range(lower, upper), taskConcurrency, minDocsPerSlice);
+        List<PartialLeafReaderContext> slices = groups.stream().flatMap(List::stream).toList();
+        forEachMatch(
+            lower,
+            upper,
+            (leaf, doc) -> assertTrue(
+                "doc " + doc + " of leaf " + leaf.ord + " is in no slice",
+                slices.stream().anyMatch(s -> s.leafReaderContext() == leaf && doc >= s.minDoc() && doc < s.maxDoc())
+            )
+        );
+        int rangeFloor = LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(minDocsPerSlice);
+        assertThat(rangeFloor, equalTo(1_000));
+        assertThat("the range is cut for the drivers", slices.size(), greaterThanOrEqualTo(taskConcurrency / 2));
+        for (PartialLeafReaderContext slice : slices) {
+            assertThat(slice.maxDoc() - slice.minDoc(), lessThanOrEqualTo(rangeFloor * 5 / 4));
+        }
+    }
+
+    public void testRangeFloorIsAFractionOfMinDocsPerSlice() {
+        assertThat(LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE), equalTo(10_000));
+        assertThat(LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(100), equalTo(20));
+        // The pragma can set a tiny floor, which must not become zero.
+        assertThat(LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(1), equalTo(1));
+        assertThat(LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(4), equalTo(1));
+        int minDocsPerSlice = between(1, 1_000_000);
+        int rangeFloor = LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(minDocsPerSlice);
+        assertThat(rangeFloor, greaterThanOrEqualTo(1));
+        assertThat(rangeFloor, lessThanOrEqualTo(minDocsPerSlice));
+    }
+
+    /**
      * A range that covers almost all docs must not give slices larger than the default for the whole leaf.
      */
     public void testWideRangeSlicesAreNotLargerThanDefault() throws IOException {

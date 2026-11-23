@@ -256,6 +256,10 @@ dls_user:
     - names: [ 'lookup-user2' ]
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
+    # Also used to prove an ungrouped MIN/MAX is not answered from segment metadata, which covers all documents
+    - names: [ 'min-max-dls' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "marketing"}}'
 
 # Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
 # delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).

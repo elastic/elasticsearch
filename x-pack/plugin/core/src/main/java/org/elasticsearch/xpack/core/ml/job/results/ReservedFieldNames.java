@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
-import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -35,6 +34,14 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
  */
 public final class ReservedFieldNames {
     private static final Pattern DOT_PATTERN = Pattern.compile("\\.");
+
+    /**
+     * Left over from the removed ES|QL datafeed source checkpoint. It was removed from the bundled results mapping, but the
+     * template version is unchanged, so an already installed template, and the indices created from it or from a version 3
+     * mapping, can still map it as "long". A mapping update cannot change that. Reserving it keeps an input field of this name
+     * from being copied as a string into that "long" field.
+     */
+    public static final String LEGACY_SOURCE_END_MS = "source_end_ms";
 
     /**
      * This array should be updated to contain all the field names that appear
@@ -217,9 +224,7 @@ public final class ReservedFieldNames {
         DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
         DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
 
-        EsqlDatafeedSourceCheckpoint.DATAFEED_ID.getPreferredName(),
-        EsqlDatafeedSourceCheckpoint.FINGERPRINT.getPreferredName(),
-        EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName(),
+        LEGACY_SOURCE_END_MS,
 
         ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),

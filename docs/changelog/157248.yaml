@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 157248
-summary: Fix streaming breaker accounting in `StreamingParallelIterator`
-type: bug

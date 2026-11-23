@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -240,9 +241,9 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation());
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField)\n| LIMIT 1"));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1"));
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
-        assertParams(harness, "timeField", "@timestamp");
+        assertThat(harness.capturedParams, empty());
     }
 
     public void testValidationQueryWithSummaryCountShouldFilterBothColumns() {
@@ -250,25 +251,13 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation().summaryCountField(SUMMARY_COUNT_FIELD));
 
-        assertThat(
-            harness.capturedQuery,
-            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?summaryCountField)\n| LIMIT 2")
-        );
-        assertParams(harness, "timeField", "@timestamp", "summaryCountField", "doc_count");
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\", \"doc_count\")\n| LIMIT 2"));
+        assertThat(harness.capturedParams, empty());
     }
 
-    private static void assertParams(ValidatorHarness harness, String... namesAndValues) {
-        List<EsqlQueryRequestBuilder.EsqlQueryParam> expected = new java.util.ArrayList<>();
-        for (int i = 0; i < namesAndValues.length; i += 2) {
-            expected.add(
-                new EsqlQueryRequestBuilder.EsqlQueryParam(
-                    namesAndValues[i],
-                    namesAndValues[i + 1],
-                    EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE
-                )
-            );
-        }
-        assertThat(harness.capturedParams, equalTo(expected));
+    public void testDescribeFilterShouldEscapeColumnNames() {
+        assertThat(EsqlDatafeedQueryValidator.esqlString("@timestamp"), equalTo("\"@timestamp\""));
+        assertThat(EsqlDatafeedQueryValidator.esqlString("a\"b\\c"), equalTo("\"a\\\"b\\\\c\""));
     }
 
     public void testTrailingLineCommentShouldKeepDescribeOnNewLine() {
@@ -278,7 +267,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(
             harness.capturedQuery,
-            equalTo("FROM logs | KEEP @timestamp // hourly\n\n| DESCRIBE\n| WHERE name IN (?timeField)\n| LIMIT 1")
+            equalTo("FROM logs | KEEP @timestamp // hourly\n\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1")
         );
     }
 

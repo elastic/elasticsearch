@@ -22,7 +22,6 @@ import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
-import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -38,8 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
-
-import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
@@ -134,14 +131,11 @@ public class EsqlDatafeedQueryValidator {
         }
         warnOnOuterLimit(esqlQuery, datafeedId);
         // Filter and LIMIT so the default result row cap cannot hide a required column when the query has many columns.
-        boolean needsSummaryCount = summaryCountField != null;
-        String describeSuffix = needsSummaryCount
-            ? DESCRIBE + "\n| WHERE name IN (?timeField, ?summaryCountField)\n| LIMIT 2"
-            : DESCRIBE + "\n| WHERE name IN (?timeField)\n| LIMIT 1";
+        // The names are inlined as string literals, not bound as params: params apply to the whole request, user query included.
+        String describeSuffix = summaryCountField != null
+            ? DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ", " + esqlString(summaryCountField) + ")\n| LIMIT 2"
+            : DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ")\n| LIMIT 1";
         String describeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, describeSuffix);
-        List<EsqlQueryParam> describeParams = needsSummaryCount
-            ? List.of(new EsqlQueryParam("timeField", timeField, VALUE), new EsqlQueryParam("summaryCountField", summaryCountField, VALUE))
-            : List.of(new EsqlQueryParam("timeField", timeField, VALUE));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -177,7 +171,7 @@ public class EsqlDatafeedQueryValidator {
             null,
             headers,
             projectRouting,
-            describeParams,
+            List.of(),
             ExecutionMetadata.CCS_ONLY,
             responseListener
         );
@@ -191,6 +185,11 @@ public class EsqlDatafeedQueryValidator {
         if (EsqlQueryClauseScanner.hasOuterLimit(esqlQuery)) {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, esqlDatafeedSubject(datafeedId)));
         }
+    }
+
+    /** An ES|QL double-quoted string literal for {@code value}. */
+    static String esqlString(String value) {
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static void checkDescription(

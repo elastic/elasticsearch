@@ -29,6 +29,15 @@ public class SizeLimitInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testRead_WithBufferLargerThanData_WithoutThrowingException() throws IOException {
+        int size = randomIntBetween(1, 100);
+
+        try (var stream = createRandomLimitedStream(size, size)) {
+            assertThat(stream.read(new byte[size + randomIntBetween(1, 100)]), is(size));
+            assertThat(stream.read(new byte[size]), is(-1));
+        }
+    }
+
     public void testRead_OneByteAtATime_WithoutThrowingException() throws IOException {
         int size = randomIntBetween(1, 100);
 

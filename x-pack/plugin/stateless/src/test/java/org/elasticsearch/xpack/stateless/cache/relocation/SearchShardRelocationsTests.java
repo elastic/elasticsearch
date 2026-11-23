@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,7 +107,10 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 // stale shutdown metadata of a node that has left the cluster
                 "gone-node",
                 SingleNodeShutdownMetadata.Type.REMOVE
-            )
+            ),
+            List.of(),
+            // an ordinary replica recovery has no relocation source, and is not a relocation
+            List.of(TARGET, OTHER_TARGET)
         );
 
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, TARGET), equalTo(2));
@@ -182,7 +186,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
         List<Relocation> promotableRelocations,
         Map<String, SingleNodeShutdownMetadata.Type> shutdowns
     ) {
-        return clusterState(searchRelocations, promotableRelocations, shutdowns, List.of());
+        return clusterState(searchRelocations, promotableRelocations, shutdowns, List.of(), List.of());
     }
 
     /// As above, with one more search replica started on the node, per entry of `startedSearchShardNodes`.
@@ -192,7 +196,20 @@ public class SearchShardRelocationsTests extends ESTestCase {
         Map<String, SingleNodeShutdownMetadata.Type> shutdowns,
         List<String> startedSearchShardNodes
     ) {
-        final int numShards = searchRelocations.size() + promotableRelocations.size() + startedSearchShardNodes.size();
+        return clusterState(searchRelocations, promotableRelocations, shutdowns, startedSearchShardNodes, List.of());
+    }
+
+    /// As above, with one more search replica initializing on the node, without a relocation source, per entry of
+    /// `initializingSearchShardNodes`.
+    private static ClusterState clusterState(
+        List<Relocation> searchRelocations,
+        List<Relocation> promotableRelocations,
+        Map<String, SingleNodeShutdownMetadata.Type> shutdowns,
+        List<String> startedSearchShardNodes,
+        List<String> initializingSearchShardNodes
+    ) {
+        final int numShards = searchRelocations.size() + promotableRelocations.size() + startedSearchShardNodes.size()
+            + initializingSearchShardNodes.size();
         final var index = new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE);
         final var indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
@@ -224,6 +241,16 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 .withRole(ShardRouting.Role.INDEX_ONLY)
                 .build();
             final var replica = TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, STARTED)
+                .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));
+        }
+        for (final var nodeId : initializingSearchShardNodes) {
+            final var shardId = new ShardId(index, shard++);
+            final var primary = TestShardRouting.shardRoutingBuilder(shardId, PRIMARY_NODE, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final var replica = TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, INITIALIZING)
                 .withRole(ShardRouting.Role.SEARCH_ONLY)
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));

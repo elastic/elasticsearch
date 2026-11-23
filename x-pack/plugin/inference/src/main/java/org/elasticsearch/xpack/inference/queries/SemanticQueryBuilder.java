@@ -219,6 +219,14 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         this.ccsRequest = ccsRequest;
     }
 
+    /**
+     * Returns coordinator inference results for query capture, keyed by cluster and inference endpoint.
+     * An empty map means no results are available. Consumers must treat the results as read-only.
+     */
+    public Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults() {
+        return inferenceResultsMap == null ? Map.of() : inferenceResultsMap;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

@@ -63,8 +63,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
 
             InterceptedInferenceMatchQueryBuilder intercepted = (InterceptedInferenceMatchQueryBuilder) rewritten;
             assertThat(intercepted.originalQuery, equalTo(original));
-            assertThat(intercepted.inferenceResultsMap, notNullValue());
-            assertFalse(intercepted.inferenceResultsMap.isEmpty());
+            assertThat(intercepted.getInferenceResults(), notNullValue());
+            assertFalse(intercepted.getInferenceResults().isEmpty());
         } else {
             // Rewrite using the query rewrite context to populate the inference results
             @SuppressWarnings("deprecation")

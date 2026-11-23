@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Map;
@@ -23,21 +24,24 @@ import java.util.stream.Collectors;
 public class SearchCaptureContext extends QueryCaptureContext {
     public static final String TYPE = "dsl";
     private final SearchRequest request;
+    private final @Nullable SearchSourceBuilder rewrittenSource;
     private final @Nullable SearchResponse response;
     private final NamedWriteableRegistry namedWriteableRegistry;
     // Cached index names
     private String[] indexNames = null;
 
-    private SearchCaptureContext(
+    SearchCaptureContext(
         Task task,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchRequest request,
+        @Nullable SearchSourceBuilder rewrittenSource,
         @Nullable SearchResponse response,
         long tookInNanos,
         Exception error
     ) {
         super(task, TYPE, tookInNanos, error);
         this.request = request;
+        this.rewrittenSource = rewrittenSource;
         this.response = response;
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
@@ -49,7 +53,7 @@ public class SearchCaptureContext extends QueryCaptureContext {
         long tookInNanos,
         SearchResponse response
     ) {
-        this(task, namedWriteableRegistry, request, response, tookInNanos, null);
+        this(task, namedWriteableRegistry, request, null, response, tookInNanos, null);
     }
 
     SearchCaptureContext(
@@ -59,7 +63,17 @@ public class SearchCaptureContext extends QueryCaptureContext {
         long tookInNanos,
         Exception error
     ) {
-        this(task, namedWriteableRegistry, request, null, tookInNanos, error);
+        this(task, namedWriteableRegistry, request, null, null, tookInNanos, error);
+    }
+
+    /**
+     * The source after coordinator rewrite, including inference results held by semantic query builders.
+     * This is absent when rewriting has not completed, leaves the request unchanged, or the request has no source. Consumers must treat
+     * the source and its query builders as read-only; inference results need not appear in their JSON output.
+     */
+    @Nullable
+    public SearchSourceBuilder getRewrittenSource() {
+        return rewrittenSource;
     }
 
     @Override

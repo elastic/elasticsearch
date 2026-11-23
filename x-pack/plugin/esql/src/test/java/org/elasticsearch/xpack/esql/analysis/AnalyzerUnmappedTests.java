@@ -1195,7 +1195,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         if (minimumVersion.supports(Analyzer.ESQL_LENIENT_UNION_CAST)) {
             assertThat(analyzer.statement("FROM v").resolved(), is(true));
             assertWarnings(
-                "Field [foo] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] and will be null in those indices."
+                "Field [foo] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] "
+                    + "and will be null in those indices."
             );
         } else {
             analyzer.statementError(

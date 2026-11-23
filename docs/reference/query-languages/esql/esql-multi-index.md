@@ -162,7 +162,7 @@ using the index, and analyzes `text` values with the `standard` analyzer rather 
 stack: ga 9.7
 serverless: ga
 ```
-This only applies when every node that takes part in the query supports it, including the nodes of remote clusters. During a rolling upgrade, or when the query targets an older remote cluster, the conversion function must accept all the types in the *union*, as described above.
+This only applies when every node of the local cluster, and of each remote cluster the query searches, supports it, even nodes that don't hold any of the queried indices. While any of those nodes runs an older version, for example during a rolling upgrade, the conversion function must accept all the types in the *union*, as described above.
 
 The conversion function doesn't have to accept every mapped type. Types it can convert are returned as the target type. Types it can't convert are returned as `null`, and the response includes a warning naming those types and, usually, the indices they come from.
 

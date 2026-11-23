@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
@@ -246,7 +247,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            new BatchIndexingEnabled(clusterService.getClusterSettings())
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
@@ -413,7 +415,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> queryListener) {
         ActionListener<EsqlQueryResponse> listener = computeService.coordinate(task, queryListener);
         if (request.allowPartialResults() == null) {
-            request.allowPartialResults(defaultAllowPartialResults);
+            request.defaultAllowPartialResults(defaultAllowPartialResults);
         }
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();

@@ -30,12 +30,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestResolveClusterAction extends BaseRestHandler {
 
-    private static Set<String> INDEX_OPTIONS_PARAMS = Set.of(
+    private static final Set<String> INDEX_OPTIONS_PARAMS = Set.of(
         "expand_wildcards",
         "ignore_unavailable",
         "allow_no_indices",
         "ignore_throttled"
     );
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(INDEX_OPTIONS_PARAMS, "timeout");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     @Override
     public String getName() {
@@ -49,10 +51,11 @@ public class RestResolveClusterAction extends BaseRestHandler {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        String name = request.param("name");
         String[] indexExpressions;
         boolean clusterInfoOnly;
-        if (request.hasParam("name")) {
-            indexExpressions = Strings.splitStringByCommaToArray(request.param("name"));
+        if (name != null) {
+            indexExpressions = Strings.splitStringByCommaToArray(name);
             clusterInfoOnly = false;
         } else {
             indexExpressions = new String[0];
@@ -86,4 +89,15 @@ public class RestResolveClusterAction extends BaseRestHandler {
     private static Set<String> requestIndexOptionsParams(RestRequest request) {
         return Sets.intersection(request.params().keySet(), INDEX_OPTIONS_PARAMS);
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

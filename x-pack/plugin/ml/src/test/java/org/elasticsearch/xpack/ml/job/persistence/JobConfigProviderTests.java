@@ -123,9 +123,9 @@ public class JobConfigProviderTests extends ESTestCase {
     /** Completes the {@code validateQuery} probe with {@code failure}, or successfully when it is null. */
     private void stubProbe(Exception failure) {
         doAnswer(invocation -> {
-            complete(invocation.getArgument(8), failure);
+            complete(invocation.getArgument(7), failure);
             return null;
-        }).when(queryValidator).validateQuery(any(), any(), anyString(), any(), anyString(), any(), any(), anyBoolean(), any(), any());
+        }).when(queryValidator).validateQuery(any(), any(), anyString(), any(), anyString(), any(), anyBoolean(), any(), any());
     }
 
     private static void complete(ActionListener<Boolean> listener, Exception failure) {
@@ -193,7 +193,6 @@ public class JobConfigProviderTests extends ESTestCase {
             eq(ESQL_QUERY),
             eq(null),
             eq("time"),
-            eq("@timestamp"),
             eq("c"),
             eq(false),
             any(),
@@ -252,7 +251,6 @@ public class JobConfigProviderTests extends ESTestCase {
             eq(ESQL_QUERY),
             eq(projectRouting),
             eq("time"),
-            eq("@timestamp"),
             eq("c"),
             anyBoolean(),
             any(),

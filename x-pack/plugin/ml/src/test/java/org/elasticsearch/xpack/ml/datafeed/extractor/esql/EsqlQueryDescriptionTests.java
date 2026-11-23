@@ -14,31 +14,28 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class EsqlQueryDescriptionTests extends ESTestCase {
 
-    public void testRowsShouldBeReadByColumnName() {
+    public void testRowsShouldBeReadByColumnNameInOutputOrder() {
         // columns deliberately not in the DESCRIBE order
         EsqlQueryDescription description = EsqlQueryDescription.from(
             response(
                 List.of(),
-                List.of("origin", "name", "interval", "type", "field", "role", "time_zone"),
-                List.of(Arrays.asList("computed", "ts", "1 hour", "date", null, "time", "UTC"))
+                List.of("origin", "name", "interval", "type"),
+                List.of(Arrays.asList("computed", "ts", "1 hour", "date"), Arrays.asList("mapped", "host", null, "keyword"))
             )
         );
 
-        assertThat(description.columns().size(), equalTo(1));
-        assertThat(
-            description.columns().get(0),
-            equalTo(new EsqlQueryDescription.Column("ts", "date", "time", null, "computed", "1 hour", "UTC"))
-        );
+        assertThat(description.columnTypes(), equalTo(Map.of("ts", "date", "host", "keyword")));
+        assertThat(List.copyOf(description.columnTypes().keySet()), equalTo(List.of("ts", "host")));
     }
 
     public void testExtraColumnsShouldBeIgnored() {
@@ -50,17 +47,7 @@ public class EsqlQueryDescriptionTests extends ESTestCase {
             )
         );
 
-        assertThat(description.column("host"), equalTo(new EsqlQueryDescription.Column("host", "keyword", null, null, null, null, null)));
-    }
-
-    public void testColumnLookupShouldReturnNullWhenAbsent() {
-        EsqlQueryDescription description = EsqlQueryDescription.from(
-            response(List.of(), List.of("name", "type"), List.of(List.of("a", "long"), List.of("b", "keyword")))
-        );
-
-        assertThat(description.column("b").type(), equalTo("keyword"));
-        assertThat(description.column("c"), nullValue());
-        assertThat(description.columns().size(), equalTo(2));
+        assertThat(description.columnTypes(), equalTo(Map.of("host", "keyword")));
     }
 
     public void testClustersShouldPassThrough() {

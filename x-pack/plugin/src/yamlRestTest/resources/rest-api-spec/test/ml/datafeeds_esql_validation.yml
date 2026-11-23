@@ -8,7 +8,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ describe_command, describe_time_columns, describe_interval ]
+          capabilities: [ describe_command ]
       reason: "ES|QL datafeeds validate their query with DESCRIBE"
 
   - do:
@@ -18,6 +18,8 @@ setup:
           mappings:
             properties:
               "@timestamp":
+                type: date
+              event_time:
                 type: date
               host:
                 type: keyword
@@ -73,7 +75,7 @@ setup:
   - match: { datafeed_id: "esql-feed-bucket" }
 
 ---
-"Test put ES|QL datafeed with a bucket not named after the source time field":
+"Test put ES|QL datafeed with a time column named differently from its source field":
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
@@ -90,7 +92,6 @@ setup:
             }
           }
   - do:
-      catch: /Name the bucket after its source field/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       ml.put_datafeed:
@@ -103,6 +104,39 @@ setup:
             "grouping_interval": "1h",
             "delayed_data_check_config": {"enabled": false}
           }
+  - match: { datafeed_id: "esql-feed-hour" }
+
+---
+"Test put ES|QL datafeed with a bucket of a date field other than @timestamp":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-event-time-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "event_time"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-event-time
+        body: >
+          {
+            "job_id": "esql-feed-event-time-job",
+            "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY event_time = BUCKET(event_time, 1 hour)",
+            "source_time_field": "event_time",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-feed-event-time" }
 
 ---
 "Test put ES|QL datafeed with a time column that is not a date":

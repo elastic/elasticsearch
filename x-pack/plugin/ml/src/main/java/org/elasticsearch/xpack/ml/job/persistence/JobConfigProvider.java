@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlProbePlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -785,7 +784,7 @@ public class JobConfigProvider {
      * Validates against the job and runs the ES|QL {@code DESCRIBE} probe as {@code headers} under the config's cloud credential.
      */
     public void validateDatafeedJobAndEsqlQuery(DatafeedConfig config, Map<String, String> headers, ActionListener<Boolean> listener) {
-        validateDatafeedJobAndProbes(config, headers, job -> true, listener);
+        validateDatafeedJobAndProbe(config, headers, job -> true, listener);
     }
 
     /** Validates {@code updated} against its job and runs the ES|QL probe only when its inputs differ from {@code current}. */
@@ -795,10 +794,10 @@ public class JobConfigProvider {
         Map<String, String> headers,
         ActionListener<Boolean> listener
     ) {
-        validateDatafeedJobAndProbes(updated, headers, job -> EsqlProbePlan.needsProbe(current, updated, job), listener);
+        validateDatafeedJobAndProbe(updated, headers, job -> EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, job), listener);
     }
 
-    private void validateDatafeedJobAndProbes(
+    private void validateDatafeedJobAndProbe(
         DatafeedConfig config,
         Map<String, String> headers,
         Predicate<Job> needsProbe,
@@ -808,7 +807,7 @@ public class JobConfigProvider {
             try {
                 Job job = jobBuilder.build();
                 DatafeedJobValidator.validate(config, job, xContentRegistry);
-                validateEsqlProbes(config, job, headers, needsProbe.test(job), listener);
+                validateEsqlProbe(config, job, headers, needsProbe.test(job), listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -816,7 +815,7 @@ public class JobConfigProvider {
     }
 
     /** ES|QL probe only; DSL configs complete without searching. */
-    private void validateEsqlProbes(
+    private void validateEsqlProbe(
         DatafeedConfig config,
         Job job,
         Map<String, String> headers,
@@ -839,7 +838,6 @@ public class JobConfigProvider {
             effectiveConfig.getEsqlQuery(),
             effectiveConfig.getProjectRouting(),
             job.getDataDescription().getTimeField(),
-            effectiveConfig.getSourceTimeField(),
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveConfig, job),
             DatafeedConfig.isCPSAllowed(crossProjectModeDecider),
             listener,

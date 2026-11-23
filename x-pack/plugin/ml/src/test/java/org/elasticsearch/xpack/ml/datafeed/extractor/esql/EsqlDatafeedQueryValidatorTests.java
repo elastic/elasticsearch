@@ -44,10 +44,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -64,77 +66,48 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
     public void testMappedTimeFieldShouldPassValidation() {
-        assertValidationSucceeds(harness(row("@timestamp", "date", "time", "@timestamp", "mapped")), validation());
+        assertValidationSucceeds(harness(row("@timestamp", "date")), validation());
     }
 
     public void testDateNanosTimeFieldShouldPassValidation() {
-        assertValidationSucceeds(harness(row("@timestamp", "date_nanos", "time", "@timestamp", "mapped")), validation());
+        assertValidationSucceeds(harness(row("@timestamp", "date_nanos")), validation());
     }
 
     public void testComputedBucketNamedAfterSourceFieldShouldPassValidation() {
-        ValidatorHarness harness = harness(
-            row("@timestamp", "date", "time", null, "computed", "1 hour"),
-            row(SUMMARY_COUNT_FIELD, "long", null, null, "computed")
-        );
+        ValidatorHarness harness = harness(row("@timestamp", "date"), row(SUMMARY_COUNT_FIELD, "long"));
         assertValidationSucceeds(harness, validation().summaryCountField(SUMMARY_COUNT_FIELD));
     }
 
-    public void testRenamedTimeFieldWithMatchingSourceTimeFieldShouldPassValidation() {
+    public void testComputedDateColumnWithoutTimeRoleShouldPassValidation() {
+        assertValidationSucceeds(harness(row("event.ingested", "date")), validation().timeField("event.ingested"));
+    }
+
+    public void testRemoteClusterWithoutIndexExpressionShouldNameOnlyAlias() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("east", null, EsqlClusterInfo.Status.SUCCESSFUL)
+        );
+
+        Exception failure = assertValidationFails(harness, validation());
+
+        assertThat(failure.getMessage(), containsString("reads remote cluster [east] through index expression [east]."));
+        assertThat(failure.getMessage(), not(containsString("null")));
+    }
+
+    public void testRemoteClusterSourceWithUnknownIndexShouldDeferValidation() {
         assertValidationSucceeds(
-            harness(row("ts", "date", "time", "@timestamp", "renamed")),
-            validation().timeField("ts").sourceTimeField("@timestamp")
+            new ValidatorHarness(new VerificationException("Found 1 problem\nline 1:1: Unknown index [east:logs-new]")),
+            validation().query("FROM east:logs-new")
         );
-    }
-
-    public void testRenamedTimeFieldWithMismatchingSourceTimeFieldShouldFailValidation() {
-        Exception failure = assertValidationFails(
-            harness(row("ts", "date", "time", "@timestamp", "renamed")),
-            validation().timeField("ts").sourceTimeField("other")
-        );
-        assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertThat(failure.getMessage(), containsString("source_time_field [other] does not match the source field [@timestamp]"));
-    }
-
-    public void testMappedTimeFieldWithMismatchingSourceTimeFieldShouldFailValidation() {
-        Exception failure = assertValidationFails(
-            harness(row("@timestamp", "date", "time", "@timestamp", "mapped")),
-            validation().sourceTimeField("event.created")
-        );
-        assertThat(failure.getMessage(), containsString("does not match the source field [@timestamp]"));
-    }
-
-    public void testComputedBucketNamedDifferentlyFromSourceTimeFieldShouldFailWithHint() {
-        Exception failure = assertValidationFails(
-            harness(row("hour", "date", "time", null, "computed", "1 hour")),
-            validation().timeField("hour").sourceTimeField("@timestamp")
-        );
-        assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertThat(failure.getMessage(), containsString("Name the bucket after its source field: BY @timestamp = BUCKET(@timestamp, ...)"));
-    }
-
-    public void testComputedDateWithoutIntervalShouldFailValidation() {
-        Exception failure = assertValidationFails(harness(row("@timestamp", "date", null, null, "computed")), validation());
-        assertThat(failure.getMessage(), containsString("is not a date bucket."));
-    }
-
-    public void testComputedDateWithIntervalButWithoutTimeRoleShouldFailValidation() {
-        Exception failure = assertValidationFails(harness(row("@timestamp", "date", null, null, "computed", "1 hour")), validation());
-        assertThat(failure.getMessage(), containsString("is not a date bucket."));
-    }
-
-    public void testUnsupportedTimeColumnOriginShouldFailValidation() {
-        Exception failure = assertValidationFails(harness(row("@timestamp", "date", null, null, "metadata")), validation());
-        assertThat(failure.getMessage(), containsString("has origin [metadata]"));
     }
 
     public void testNonDateTimeColumnShouldFailValidation() {
-        Exception failure = assertValidationFails(harness(row("@timestamp", "keyword", null, "@timestamp", "mapped")), validation());
+        Exception failure = assertValidationFails(harness(row("@timestamp", "keyword")), validation());
         assertThat(failure, instanceOf(IllegalArgumentException.class));
         assertThat(failure.getMessage(), containsString("time column [@timestamp] has type [keyword]. It must be date or date_nanos."));
     }
 
     public void testMissingTimeColumnShouldFailValidation() {
-        Exception failure = assertValidationFails(harness(row("other_field", "keyword", null, "other_field", "mapped")), validation());
+        Exception failure = assertValidationFails(harness(row("other_field", "keyword")), validation());
 
         assertThat(failure, instanceOf(IllegalArgumentException.class));
         assertThat(failure.getMessage(), containsString("final ES|QL output"));
@@ -142,10 +115,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testMissingSummaryCountColumnShouldFailValidation() {
-        Exception failure = assertValidationFails(
-            harness(row("@timestamp", "date", "time", "@timestamp", "mapped")),
-            validation().summaryCountField(SUMMARY_COUNT_FIELD)
-        );
+        Exception failure = assertValidationFails(harness(row("@timestamp", "date")), validation().summaryCountField(SUMMARY_COUNT_FIELD));
 
         assertThat(failure, instanceOf(IllegalArgumentException.class));
         assertThat(failure.getMessage(), containsString(SUMMARY_COUNT_FIELD));
@@ -155,14 +125,14 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     public void testNonIntegerSummaryCountColumnShouldFailValidation() {
         Exception failure = assertValidationFails(
-            harness(row("@timestamp", "date", "time", "@timestamp", "mapped"), row(SUMMARY_COUNT_FIELD, "double", null, null, "computed")),
+            harness(row("@timestamp", "date"), row(SUMMARY_COUNT_FIELD, "double")),
             validation().summaryCountField(SUMMARY_COUNT_FIELD)
         );
         assertThat(failure.getMessage(), containsString("has type [double]"));
     }
 
     public void testRemoteClusterShouldFailValidation() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped")).withClusters(
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
             new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
         );
@@ -172,19 +142,18 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure, instanceOf(ElasticsearchStatusException.class));
         assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.getMessage(), containsString("do not support remote cluster sources"));
-        assertThat(failure.getMessage(), containsString("[east:logs-*]"));
-        assertThat(failure.getMessage(), containsString("remote cluster [east]"));
+        assertThat(failure.getMessage(), containsString("reads remote cluster [east] through index expression [east:logs-*]."));
     }
 
     public void testRemoteClusterShouldBeCheckedBeforeColumns() {
-        ValidatorHarness harness = harness(row("other_field", "keyword", null, null, "mapped")).withClusters(
+        ValidatorHarness harness = harness(row("other_field", "keyword")).withClusters(
             new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
         );
         assertThat(assertValidationFails(harness, validation()), instanceOf(ElasticsearchStatusException.class));
     }
 
     public void testLocalAndOriginClustersShouldPassValidation() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped")).withClusters(
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
             new EsqlClusterInfo("_origin", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
         );
@@ -192,7 +161,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testRemoteClusterShouldPassValidationWhenCrossProjectIsEnabled() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped")).withClusters(
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("linked-project-1", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
         );
         assertValidationSucceeds(harness, validation().crossProjectEnabled(true));
@@ -235,7 +204,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testValidationQueryShouldAppendDescribeWithCcsOnlyMetadata() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped"));
+        ValidatorHarness harness = harness(row("@timestamp", "date"));
 
         assertValidationSucceeds(harness, validation());
 
@@ -246,7 +215,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testTrailingLineCommentShouldKeepDescribeOnNewLine() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped"));
+        ValidatorHarness harness = harness(row("@timestamp", "date"));
 
         assertValidationSucceeds(harness, validation().query("FROM logs | KEEP @timestamp // hourly"));
 
@@ -254,15 +223,11 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testProjectRoutingShouldReachValidationQuery() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped"));
+        ValidatorHarness harness = harness(row("@timestamp", "date"));
 
         assertValidationSucceeds(harness, validation().projectRouting("_alias:_origin"));
 
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
-    }
-
-    public void testMissingSourceTimeFieldShouldDefaultToTimeField() {
-        assertValidationSucceeds(harness(row("@timestamp", "date", "time", "@timestamp", "mapped")), validation().sourceTimeField(null));
     }
 
     public void testExtraDescribeColumnsShouldNotAffectValidation() {
@@ -665,7 +630,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testProbeSuccessShouldNotReleaseBorrowedResponse() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped"));
+        ValidatorHarness harness = harness(row("@timestamp", "date"));
 
         assertThat(harness.response.hasReferences(), is(true));
         assertValidationSucceeds(harness, validation());
@@ -673,7 +638,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testProbeFailureShouldNotReleaseBorrowedResponse() {
-        ValidatorHarness harness = harness(row("other_field", "keyword", null, null, "mapped"));
+        ValidatorHarness harness = harness(row("other_field", "keyword"));
 
         assertThat(harness.response.hasReferences(), is(true));
         assertValidationFails(harness, validation());
@@ -681,29 +646,18 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testProbeListenerThrowsShouldNotReleaseBorrowedResponse() {
-        ValidatorHarness harness = harness(row("@timestamp", "date", "time", "@timestamp", "mapped"));
+        ValidatorHarness harness = harness(row("@timestamp", "date"));
 
         assertThat(harness.response.hasReferences(), is(true));
         validation().run(harness, ActionListener.wrap(ok -> { throw new IllegalStateException("listener failure"); }, e -> {}));
         assertThat(harness.response.hasReferences(), is(false));
     }
 
-    private static final List<String> DESCRIBE_COLUMNS = List.of(
-        "name",
-        "type",
-        "role",
-        "field",
-        "origin",
-        "metric_type",
-        "unit",
-        "interval",
-        "time_zone",
-        "description"
-    );
+    private static final List<String> DESCRIBE_COLUMNS = List.of("name", "type", "role", "field", "origin");
 
-    /** A DESCRIBE row: name, type, role, field, origin and optionally interval. */
-    private static List<Object> row(String name, String type, String role, String field, String origin, String... interval) {
-        return Arrays.asList(name, type, role, field, origin, null, null, interval.length == 0 ? null : interval[0], null, null);
+    /** A DESCRIBE row: name and type are the columns the validator reads, the rest are reported but ignored. */
+    private static List<Object> row(String name, String type) {
+        return Arrays.asList(name, type, null, null, "computed");
     }
 
     @SafeVarargs
@@ -744,12 +698,11 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         return failure.get();
     }
 
-    /** Arguments of one validateQuery call; defaults describe a datafeed whose time column and source_time_field are @timestamp. */
+    /** Arguments of one validateQuery call; defaults describe a datafeed whose time column is @timestamp. */
     private static final class Validation {
         private String query = ESQL_QUERY;
         private String projectRouting;
         private String timeField = TIME_FIELD;
-        private String sourceTimeField = TIME_FIELD;
         private String summaryCountField;
         private boolean crossProjectEnabled;
 
@@ -765,11 +718,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         Validation timeField(String timeField) {
             this.timeField = timeField;
-            return this;
-        }
-
-        Validation sourceTimeField(String sourceTimeField) {
-            this.sourceTimeField = sourceTimeField;
             return this;
         }
 
@@ -790,7 +738,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 query,
                 projectRouting,
                 timeField,
-                sourceTimeField,
                 summaryCountField,
                 crossProjectEnabled,
                 listener,
@@ -902,5 +849,103 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             super.close();
             decRef();
         }
+    }
+
+    private static final String UPDATE_ESQL_QUERY = "FROM logs-* | STATS c = COUNT(*) BY time = BUCKET(@timestamp, 1h)";
+
+    private static Job jobWithSummaryField(String summaryCountField) {
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(new Detector.Builder("count", null).build())
+        );
+        analysisConfig.setSummaryCountFieldName(summaryCountField);
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+        return new Job.Builder("job").setAnalysisConfig(analysisConfig).setDataDescription(new DataDescription.Builder()).build(new Date());
+    }
+
+    private static DatafeedConfig.Builder updateDatafeed() {
+        return new DatafeedConfig.Builder("df", "job").setEsqlQuery(UPDATE_ESQL_QUERY)
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
+    }
+
+    public void testOnlyCheckWindowChangedShouldRunNoProbe() {
+        DatafeedConfig current = updateDatafeed().build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2))
+        ).build();
+        assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testDelayedDataCheckEnabledWithJobSummaryFieldShouldRunProbe() {
+        DatafeedConfig current = updateDatafeed().setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))
+        ).build();
+        assertTrue(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testDelayedDataCheckDisabledShouldRunNoProbe() {
+        DatafeedConfig current = updateDatafeed().build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.disabledDelayedDataCheckConfig()
+        ).build();
+        assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testDelayedDataCheckEnabledWithoutJobSummaryFieldShouldRunNoProbe() {
+        DatafeedConfig current = updateDatafeed().setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
+            DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))
+        ).build();
+        assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField(null)));
+    }
+
+    public void testProjectRoutingChangedShouldRunProbe() {
+        DatafeedConfig current = updateDatafeed().setProjectRouting("_alias:_origin").build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setProjectRouting("_alias:prod-*").build();
+        assertTrue(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testCredentialReplacedWithSameRoutingShouldRunProbe() {
+        DatafeedConfig current = updateDatafeed().setProjectRouting("_alias:_origin")
+            .setCloudInternalCredential(randomPersistedCloudCredential("old-key"))
+            .build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(randomPersistedCloudCredential("new-key"))
+            .build();
+        assertTrue(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testCredentialMintedFirstTimeShouldRunProbe() {
+        DatafeedConfig current = updateDatafeed().build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(randomPersistedCloudCredential("new-key"))
+            .build();
+        assertTrue(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testCredentialClearedShouldRunProbe() {
+        DatafeedConfig current = updateDatafeed().setCloudInternalCredential(randomPersistedCloudCredential("old-key")).build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(null).build();
+        assertTrue(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testHeadersChangedWithSameCredentialShouldRunNoProbe() {
+        DatafeedConfig current = updateDatafeed().setHeaders(Map.of("es-security-runas-user", "a")).build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setHeaders(Map.of("es-security-runas-user", "b")).build();
+        assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testOnlyQueryDelayChangedShouldRunNoProbe() {
+        DatafeedConfig current = updateDatafeed().build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setQueryDelay(TimeValue.timeValueSeconds(90)).build();
+        assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
+    }
+
+    public void testDslDatafeedShouldRunNoProbe() {
+        DatafeedConfig current = new DatafeedConfig.Builder("df", "job").setIndices(List.of("logs-*")).build();
+        DatafeedConfig updated = new DatafeedConfig.Builder(current).setProjectRouting("_alias:prod-*").build();
+        assertFalse(EsqlDatafeedQueryValidator.updateNeedsProbe(current, updated, jobWithSummaryField("c")));
     }
 }

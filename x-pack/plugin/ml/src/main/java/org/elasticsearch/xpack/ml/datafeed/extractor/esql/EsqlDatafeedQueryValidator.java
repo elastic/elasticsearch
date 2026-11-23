@@ -27,12 +27,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.time.DateTimeException;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
@@ -53,6 +54,8 @@ public class EsqlDatafeedQueryValidator {
 
     private static final String LIMIT_ZERO = " | LIMIT 0";
     private static final String DESCRIBE = "\n| DESCRIBE";
+    /** Under cross-project search {@code _origin} names the local project, so it is not a remote. */
+    private static final String ORIGIN_PROJECT_ALIAS = "_origin";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
@@ -95,8 +98,7 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * Runs {@code esqlQuery | DESCRIBE} with {@code _clusters} metadata and checks the facts it reports: no remote clusters
-     * (unless cross-project), the time column, the summary count column, and that {@code sourceTimeField} is what the time column
-     * is read or bucketed from. Tolerates deferred source existence.
+     * (unless cross-project), that the time column is a date, and the summary count column. Tolerates deferred source existence.
      */
     public void validateQuery(
         Client client,
@@ -104,7 +106,6 @@ public class EsqlDatafeedQueryValidator {
         String esqlQuery,
         @Nullable String projectRouting,
         String timeField,
-        @Nullable String sourceTimeField,
         @Nullable String summaryCountField,
         boolean crossProjectEnabled,
         ActionListener<Boolean> listener,
@@ -117,7 +118,6 @@ public class EsqlDatafeedQueryValidator {
                 checkDescription(
                     EsqlQueryDescription.from(response.response()),
                     timeField,
-                    sourceTimeField == null ? timeField : sourceTimeField,
                     summaryCountField,
                     crossProjectEnabled,
                     datafeedId
@@ -131,7 +131,10 @@ public class EsqlDatafeedQueryValidator {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
                 // Source may not exist yet; skip column checks (same as DSL datafeed PUT).
-                // NOTE: this also skips the _clusters remote-source check; datafeed start re-checks it (follow-up).
+                // There is no response, so there is no _clusters either: a remote source whose index does not exist yet passes PUT.
+                // MUST FIX before production: check remote sources at datafeed start. See
+                // https://github.com/elastic/elasticsearch/issues/161207
+                logger.debug(() -> "[" + datafeedId + "] ES|QL DESCRIBE probe failed with [" + cause + "]. Deferring to runtime.");
                 listener.onResponse(Boolean.TRUE);
             } else {
                 listener.onFailure(e);
@@ -153,64 +156,57 @@ public class EsqlDatafeedQueryValidator {
     private static void checkDescription(
         EsqlQueryDescription description,
         String timeField,
-        String sourceTimeField,
         @Nullable String summaryCountField,
         boolean crossProjectEnabled,
         @Nullable String datafeedId
     ) {
+        String subject = esqlDatafeedSubject(datafeedId);
         if (crossProjectEnabled == false) {
             for (EsqlClusterInfo cluster : description.clusters()) {
                 String alias = cluster.clusterAlias();
-                if (alias.isEmpty() == false && "_origin".equals(alias) == false) {
+                if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) == false && alias.equals(ORIGIN_PROJECT_ALIAS) == false) {
+                    String expression = cluster.indexExpression() == null
+                        ? alias
+                        : alias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + cluster.indexExpression();
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(
-                            Messages.DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED,
-                            alias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + cluster.indexExpression(),
-                            alias
-                        )
+                        Messages.getMessage(Messages.DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED, subject, alias, expression)
                     );
                 }
             }
         }
-        Map<String, String> types = new LinkedHashMap<>();
-        description.columns().forEach(column -> types.put(column.name(), column.type()));
-        checkRequiredColumns(types, timeField, summaryCountField, datafeedId);
-        EsqlQueryDescription.Column time = description.column(timeField);
-        String subject = esqlDatafeedSubject(datafeedId);
-        if (EsqlDatafeedColumnValues.isDateColumnType(time.type()) == false) {
+        Map<String, String> columnTypes = description.columnTypes();
+        checkRequiredColumns(columnTypes, timeField, summaryCountField, datafeedId);
+        String timeType = columnTypes.get(timeField);
+        assert timeType != null : "checkRequiredColumns accepted a missing time column [" + timeField + "]";
+        if (EsqlDatafeedColumnValues.isDateColumnType(timeType) == false) {
             throw new IllegalArgumentException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_NOT_DATE, subject, timeField, time.type())
+                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_NOT_DATE, subject, timeField, timeType)
             );
         }
-        String origin = time.origin();
-        if ("mapped".equals(origin) || "renamed".equals(origin)) {
-            if (sourceTimeField.equals(time.field()) == false) {
-                throw new IllegalArgumentException(
-                    Messages.getMessage(
-                        Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_MISMATCH,
-                        subject,
-                        sourceTimeField,
-                        time.field(),
-                        timeField
-                    )
-                );
-            }
-        } else if ("computed".equals(origin)) {
-            // DESCRIBE does not expose a computed bucket's source argument: BY @timestamp = BUCKET(other, 1 hour) passes PUT and the
-            // runtime emitted-time window check catches it.
-            if ("time".equals(time.role()) == false || time.interval() == null) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_NOT_BUCKET, subject, timeField));
-            }
-            if (sourceTimeField.equals(timeField) == false) {
-                throw new IllegalArgumentException(
-                    Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_BUCKET_NAME, subject, timeField, sourceTimeField)
-                );
-            }
-        } else {
-            throw new IllegalArgumentException(
-                Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_ORIGIN_UNSUPPORTED, subject, timeField, origin)
-            );
+    }
+
+    /**
+     * An ES|QL datafeed update needs the probe when its project routing or credential changed, or when it newly requires a summary
+     * count column. Other updates cannot change the probe outcome. A PUT always probes and does not use this method.
+     */
+    public static boolean updateNeedsProbe(DatafeedConfig current, DatafeedConfig updated, Job job) {
+        if (updated.getEsqlQuery() == null) {
+            return false;
         }
+        boolean searchScopeChanged = Objects.equals(current.getProjectRouting(), updated.getProjectRouting()) == false
+            || Objects.equals(credentialId(current), credentialId(updated)) == false;
+        if (searchScopeChanged) {
+            return true;
+        }
+        String requiredBefore = requiredSummaryCountField(current, job);
+        String requiredAfter = requiredSummaryCountField(updated, job);
+        return requiredAfter != null && Objects.equals(requiredBefore, requiredAfter) == false;
+    }
+
+    @Nullable
+    private static String credentialId(DatafeedConfig config) {
+        PersistedCloudCredential credential = config.getCloudInternalCredential();
+        return credential == null ? null : credential.id();
     }
 
     /**

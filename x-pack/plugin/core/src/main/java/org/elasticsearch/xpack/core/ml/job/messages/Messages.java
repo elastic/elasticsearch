@@ -47,17 +47,6 @@ public final class Messages {
     public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
-    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_MISMATCH =
-        "{0} source_time_field [{1}] does not match the source field [{2}] that time column [{3}] reads. Set source_time_field to [{2}].";
-    public static final String DATAFEED_ESQL_TIME_COLUMN_BUCKET_NAME =
-        "{0} time column [{1}] is a date bucket, so source_time_field [{2}] must equal the column name. "
-            + "Name the bucket after its source field: BY {2} = BUCKET({2}, ...).";
-    public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_BUCKET =
-        "{0} time column [{1}] is computed by an expression that is not a date bucket. "
-            + "Use BUCKET, TBUCKET, TSTEP or DATE_TRUNC with constant arguments on the source time field, "
-            + "or project the source time field itself.";
-    public static final String DATAFEED_ESQL_TIME_COLUMN_ORIGIN_UNSUPPORTED =
-        "{0} time column [{1}] has origin [{2}]. It must be a field of the queried source or a date bucket of the source time field.";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";
@@ -119,8 +108,8 @@ public final class Messages {
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
-        "ES|QL datafeeds currently do not support remote cluster sources, but the index expression [{0}] in the "
-            + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
+        "{0} reads remote cluster [{1}] through index expression [{2}]. "
+            + "ES|QL datafeeds do not support remote cluster sources. Remove the cluster prefix and query local indices only.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

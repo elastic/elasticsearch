@@ -739,7 +739,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     /**
-     * The ES|QL {@code LIMIT 0} probe runs inside {@code validateDatafeedJobAndEsqlQuery} and must see the caller's security headers;
+     * The ES|QL {@code DESCRIBE} probe runs inside {@code validateDatafeedJobAndEsqlQuery} and must see the caller's security headers;
      * a failing validation must stop the put before anything is persisted or a credential is minted.
      */
     @SuppressWarnings("unchecked")

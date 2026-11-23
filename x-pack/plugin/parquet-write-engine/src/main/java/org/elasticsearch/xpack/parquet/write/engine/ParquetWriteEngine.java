@@ -121,6 +121,8 @@ public class ParquetWriteEngine extends Engine {
     private final AtomicLong flushGeneration = new AtomicLong();
     private final ShardTables tables;
     private final ReentrantLock flushLock = new ReentrantLock();
+    /** The commit data of the shard, kept in memory: the engine is the only one that changes it, see {@link StoreCommitData}. */
+    private final StoreCommitData commitData = new StoreCommitData(store);
     /**
      * The flushes that were started and have not completed. The shard schedules a periodic flush and releases its own guard as soon
      * as {@code flush} returns, because the flush of the usual engine is done by then. Ours completes later, so without this the shard
@@ -693,7 +695,7 @@ public class ParquetWriteEngine extends Engine {
             if (current == null) {
                 current = new ParquetFlusher(
                     store.directory(),
-                    new StoreCommitData(store),
+                    commitData,
                     openTable(),
                     this::flushSettings,
                     tracker::getProcessedCheckpoint,
@@ -837,7 +839,7 @@ public class ParquetWriteEngine extends Engine {
                     return;
                 }
                 try {
-                    if (ShardCommitData.uploadedThroughSeqNo(new StoreCommitData(store).userData()) < 0) {
+                    if (ShardCommitData.uploadedThroughSeqNo(commitData.userData()) < 0) {
                         return;
                     }
                 } finally {
@@ -963,7 +965,7 @@ public class ParquetWriteEngine extends Engine {
      * not.
      */
     private void refreshLocalFiles() throws IOException {
-        final Map<String, String> userData = new StoreCommitData(store).userData();
+        final Map<String, String> userData = commitData.userData();
         final long uploadedThrough = ShardCommitData.uploadedThroughSeqNo(userData);
         // The write side waits for the bulks that are writing, and keeps new ones out while it lists the directory.
         localFilesLock.writeLock().lock();
@@ -1142,10 +1144,29 @@ public class ParquetWriteEngine extends Engine {
 
     // ---- commits and stats: the one empty Lucene commit is the metadata record of the shard ----
 
+    /** The last commit that was read, and the version of the commit data at the time. */
+    private record ReadCommit(long version, SegmentInfos infos) {}
+
+    private volatile ReadCommit readCommit;
+
+    /**
+     * The last commit, read again only after a commit of this engine. Reading it lists the directory twice and starts again until both
+     * lists are the same (Lucene's {@code FindSegmentsFile}), and with the files of thousands of bulks that are created and renamed while
+     * it reads that took about 20 seconds, for every call of the stats API. A commit that does not go through {@link #commitData} cannot
+     * happen while the engine is open.
+     */
     @Override
     public SegmentInfos getLastCommittedSegmentInfos() {
+        // The version is read before the commit: a commit in between makes this read newer than its version, and the next call reads again.
+        final long version = commitData.version();
+        final ReadCommit known = readCommit;
+        if (known != null && known.version() == version) {
+            return known.infos();
+        }
         try {
-            return store.readLastCommittedSegmentsInfo();
+            final ReadCommit read = new ReadCommit(version, store.readLastCommittedSegmentsInfo());
+            readCommit = read;
+            return read.infos();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

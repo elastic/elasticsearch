@@ -350,7 +350,7 @@ public final class ParquetFlusher {
         final long to = run.get(run.size() - 1).toSeqNo();
         final Settings now = settings.get();
 
-        final MessageType union = ParquetMerger.unionSchema(directory, run);
+        final MessageType union = ParquetMerger.unionSchema(directory, run, mergeExecutor, now.mergeParallelism());
         final Map<String, Integer> ids;
         synchronized (tableLock) {
             ids = table.ensureColumns(union);

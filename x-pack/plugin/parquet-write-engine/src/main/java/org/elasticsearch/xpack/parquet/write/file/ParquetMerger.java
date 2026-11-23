@@ -89,12 +89,37 @@ public final class ParquetMerger {
         return unionSchemaOf(inputsOf(directory, files));
     }
 
+    /** {@link #unionSchema} with the footers read on up to {@code parallelism} threads, see {@link #unionSchemaOf(List, Executor, int)}. */
+    public static MessageType unionSchema(Directory directory, List<LocalParquetFiles.LocalFile> files, Executor executor, int parallelism)
+        throws IOException {
+        return unionSchemaOf(inputsOf(directory, files), executor, parallelism);
+    }
+
     /** {@link #unionSchema} for any files, for example the uploaded files that a compaction merges. */
     public static MessageType unionSchemaOf(List<Input> inputs) throws IOException {
+        return unionSchemaOf(inputs, null, 1);
+    }
+
+    /**
+     * {@link #unionSchemaOf(List)} that reads the footers on the calling thread and up to {@code parallelism - 1} tasks of the executor.
+     * Every file has to be opened, because a later file can have a column that an earlier one lacks, and a run of a flush can have
+     * thousands of small files: opening one costs about 3 ms, so 6,800 files kept the flush thread busy for 20 seconds. The result is the
+     * same as the serial one, in the same order; only the reading is parallel. The executor must not be the one that the caller runs on.
+     */
+    public static MessageType unionSchemaOf(List<Input> inputs, Executor executor, int parallelism) throws IOException {
+        final MessageType[] schemas = new MessageType[inputs.size()];
+        final int workers = executor == null ? 1 : Math.min(parallelism, inputs.size() / MIN_FOOTERS_PER_WORKER);
+        if (workers < 2) {
+            for (int i = 0; i < schemas.length; i++) {
+                schemas[i] = readSchema(inputs.get(i).file());
+            }
+        } else {
+            readSchemasInParallel(inputs, schemas, executor, workers);
+        }
         final Map<String, Type> columns = new LinkedHashMap<>();
-        for (Input input : inputs) {
-            final MessageType schema = readSchema(input.file());
-            for (Type field : schema.getFields()) {
+        for (int i = 0; i < schemas.length; i++) {
+            final Input input = inputs.get(i);
+            for (Type field : schemas[i].getFields()) {
                 final Type known = columns.putIfAbsent(field.getName(), field);
                 if (known != null && sameTypeIgnoringIds(known, field) == false) {
                     throw new IllegalStateException(
@@ -116,6 +141,45 @@ public final class ParquetMerger {
             builder.addField(field);
         }
         return builder.named("doc");
+    }
+
+    /** The fewest footers for each worker: a task costs more than reading a few footers. */
+    private static final int MIN_FOOTERS_PER_WORKER = 64;
+
+    /**
+     * Fills {@code schemas} with the schema of each input: the workers take the next input until none is left. As in the merge, the
+     * first failure stops the others, and the method returns or throws only when every worker has ended.
+     */
+    private static void readSchemasInParallel(List<Input> inputs, MessageType[] schemas, Executor executor, int workers)
+        throws IOException {
+        final AtomicInteger next = new AtomicInteger();
+        final AtomicBoolean failed = new AtomicBoolean();
+        final Callable<Void> worker = () -> {
+            try {
+                int i;
+                while (failed.get() == false && (i = next.getAndIncrement()) < schemas.length) {
+                    schemas[i] = readSchema(inputs.get(i).file());
+                }
+                return null;
+            } catch (Exception | Error e) {
+                failed.set(true);
+                throw e;
+            }
+        };
+        final List<FutureTask<Void>> tasks = new ArrayList<>(workers);
+        for (int w = 1; w < workers; w++) {
+            final FutureTask<Void> task = new FutureTask<>(worker);
+            try {
+                executor.execute(task);
+                tasks.add(task);
+            } catch (RuntimeException e) {
+                break; // the executor does not take it: the workers that run read its footers
+            }
+        }
+        final FutureTask<Void> own = new FutureTask<>(worker);
+        own.run();
+        tasks.add(0, own);
+        await(tasks, failed);
     }
 
     private static boolean sameTypeIgnoringIds(Type a, Type b) {

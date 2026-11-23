@@ -45,6 +45,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -190,6 +191,95 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
                     name.startsWith(LocalParquetFiles.TEMP_PREFIX) || name.startsWith("pqmerged_")
                 );
             }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * The footers can be read on several threads, and the union is the same as the serial one and as the order in which the columns first
+     * appear in the files: the files are many and small, as the local files of a flush are, and each has some of the columns in any order.
+     */
+    public void testTheUnionOfTheSchemasIsTheSameWhenTheFootersAreReadInParallel() throws Exception {
+        final List<Col> pool = new ArrayList<>();
+        final int columns = between(3, 12);
+        for (int i = 0; i < columns; i++) {
+            pool.add(new Col("c" + i, randomFrom(Kind.values()), randomBoolean()));
+        }
+        final List<LocalParquetFiles.LocalFile> files = new ArrayList<>();
+        final List<String> expectedOrder = new ArrayList<>(); // the first appearance, computed here and not by the code under test
+        for (int f = 0; f < between(130, 300); f++) {
+            final List<Col> shuffled = new ArrayList<>(pool);
+            Collections.shuffle(shuffled, random());
+            final List<Col> columnsOfFile = shuffled.subList(0, between(1, columns));
+            for (Col col : columnsOfFile) {
+                if (expectedOrder.contains(col.name()) == false) {
+                    expectedOrder.add(col.name());
+                }
+            }
+            files.add(writeFile(columnsOfFile, f * 10L, 3));
+        }
+        final ExecutorService executor = Executors.newFixedThreadPool(between(1, 4));
+        try {
+            final MessageType serial = ParquetMerger.unionSchema(directory, files);
+
+            final MessageType parallel = ParquetMerger.unionSchema(directory, files, executor, between(2, 8));
+
+            assertThat(parallel, equalTo(serial));
+            assertThat(parallel.getFields().stream().map(Type::getName).toList(), equalTo(expectedOrder));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /** A footer that cannot be read fails the union with that failure, and no reader is left open when it returns. */
+    public void testAFooterThatFailsToOpenFailsTheParallelUnionAndLeavesNoReader() throws Exception {
+        final List<Col> pool = List.of(new Col("a", Kind.LONG, false), new Col("b", Kind.STRING, false));
+        final List<ParquetMerger.Input> inputs = new ArrayList<>();
+        final AtomicInteger opens = new AtomicInteger();
+        final AtomicInteger running = new AtomicInteger();
+        final int failingOpen = between(5, 150);
+        for (int f = 0; f < 200; f++) {
+            final LocalParquetFiles.LocalFile file = writeFile(pool, f * 10L, 3);
+            final IndexInputFile real = new IndexInputFile(directory, file.name());
+            inputs.add(new ParquetMerger.Input(file.name(), new InputFile() {
+                @Override
+                public long getLength() throws IOException {
+                    return real.getLength();
+                }
+
+                @Override
+                public SeekableInputStream newStream() throws IOException {
+                    if (opens.incrementAndGet() == failingOpen) {
+                        throw new IOException("injected");
+                    }
+                    running.incrementAndGet();
+                    final SeekableInputStream stream = real.newStream();
+                    return new DelegatingSeekableInputStream(stream) {
+                        @Override
+                        public void close() throws IOException {
+                            running.decrementAndGet();
+                            super.close();
+                        }
+
+                        @Override
+                        public long getPos() throws IOException {
+                            return stream.getPos();
+                        }
+
+                        @Override
+                        public void seek(long newPos) throws IOException {
+                            stream.seek(newPos);
+                        }
+                    };
+                }
+            }));
+        }
+        final ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            final IOException e = expectThrows(IOException.class, () -> ParquetMerger.unionSchemaOf(inputs, executor, 4));
+            assertThat(e.getMessage(), containsString("injected"));
+            assertThat("no reader is left open", running.get(), equalTo(0));
         } finally {
             terminate(executor);
         }

@@ -138,6 +138,15 @@ any of them loses no row:
 5. write the high-water mark and the row count in the commit data, and remove the marker;
 6. delete the local files.
 
+The commit data (the keys above) is read from the store once and then kept in memory (`StoreCommitData`), and so is the last commit that
+the stats API reads (`getLastCommittedSegmentInfos`, read again only after a commit of the engine). This is correct because the engine is
+the only one that changes the user data of the commit while it is open. It matters because Lucene reads a commit by listing the directory
+twice and starting again until both lists are the same, and the directory holds one file for each bulk that is not uploaded yet: in a
+benchmark with 2,000-row bulks on 32 vCPU, with tens of thousands of such files that were created and renamed while the lists were read,
+one read took about 20 seconds, 155 of the 365 busy seconds of the flush thread went to it, and a stats call blocked a management thread
+for as long. The schema of a run is the union of the schemas of all its local files, so the flush opens every file; it reads the footers
+on the threads of the merge (at least 64 for each thread), because 6,800 files took about 20 seconds on one.
+
 Steps 3 to 6 of a run go on in the background (the `parquet_upload` pool) while the next run is merged, and the periodic flush does
 not wait for the upload of its last run, so the next flush merges while that upload goes on. Only one run is announced at a time: the
 marker of a run is written after the run before it is in the table, so a crash always has one marker to finish, and the recovery is the

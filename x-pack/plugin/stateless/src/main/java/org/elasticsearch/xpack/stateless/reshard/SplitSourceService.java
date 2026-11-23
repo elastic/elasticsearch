@@ -333,8 +333,11 @@ public class SplitSourceService {
             abortSplit.set(commitService.markSplitting(sourceShardId, targetShardId));
             // Prevent copying later commits uploaded by a relocated shard
             final var latestUploadedBcc = commitService.getLatestUploadedBcc(sourceShardId);
-            // A started shard has recovered or uploaded a commit
-            assert latestUploadedBcc != null;
+            // A started shard should have recovered or uploaded a commit
+            if (latestUploadedBcc == null) {
+                l.onFailure(new IllegalStateException("no uploaded commit for source shard " + sourceShardId));
+                return;
+            }
             l.onResponse(latestUploadedBcc.primaryTermAndGeneration());
         }).<Releasable>andThen(clusterService.threadPool().generic(), null, (l, latestCommitToCopy) -> {
             objectStoreService.copyShard(task, sourceShardId, targetShardId, latestCommitToCopy);

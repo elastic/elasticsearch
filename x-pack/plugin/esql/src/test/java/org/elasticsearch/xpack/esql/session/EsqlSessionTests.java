@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -105,6 +106,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -785,6 +787,32 @@ public class EsqlSessionTests extends ESTestCase {
                 EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution),
                 equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
             );
+        }
+    }
+
+    /**
+     * The subquery of a {@code LEFT OUTER JOIN} is a separate query that the coordinator runs and replaces with its result, so
+     * a {@code LOOKUP JOIN} after the join is scoped to the clusters of the join's left input only.
+     */
+    public void testComputeLookupJoinIndexScopeLeftOuterJoinSubquery() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+
+        {
+            // LOOKUP JOIN after the JOIN: the subquery's cluster remote-2 does not feed it
+            var plan = TEST_PARSER.parseQuery("""
+                FROM remote-1:main
+                | LEFT OUTER JOIN (FROM remote-2:sub) ON x
+                | LOOKUP JOIN lookup ON x""");
+            var resolution = createIndexResolution("remote-1:main", "remote-2:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-1")));
+        }
+        {
+            // LOOKUP JOIN inside the JOIN subquery: scoped to the subquery's own cluster
+            var plan = TEST_PARSER.parseQuery("""
+                FROM remote-1:main
+                | LEFT OUTER JOIN (FROM remote-2:sub | LOOKUP JOIN lookup ON x) ON x""");
+            var resolution = createIndexResolution("remote-1:main", "remote-2:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-2")));
         }
     }
 

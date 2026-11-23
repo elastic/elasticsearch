@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
+import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures,
@@ -539,5 +543,38 @@ public class GenerativeRestTestTests extends ESTestCase {
 
     private static String unknownColumn(String query, String mention, String column) {
         return "line 1:" + (query.lastIndexOf(mention) + 1) + ": Unknown column [" + column + "]";
+    }
+
+    public void testEqlUnconvertibleFieldTypeIsAllowedUnderTheEqlFeature() {
+        assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "cartesian_point"));
+        assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "date_nanos"));
+        assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "double_range"));
+    }
+
+    public void testEqlConvertibleFieldTypeIsNotAllowed() {
+        for (DataType type : EqlRelation.CONVERTIBLE_TYPES) {
+            assertFalse(type.typeName(), allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), type.typeName()));
+        }
+    }
+
+    public void testEqlUnconvertibleFieldTypeIsNotAllowedWithoutTheEqlFeature() {
+        assertFalse(allowsEqlFieldTypeError(Set.of(), "cartesian_point"));
+    }
+
+    private static boolean allowsEqlFieldTypeError(Set<GenerativeFeature> features, String type) {
+        GenerativeRestTest runner = new GenerativeRestTest() {
+            @Override
+            protected boolean supportsSourceFieldMapping() {
+                throw new AssertionError("no cluster is started for these tests");
+            }
+
+            @Override
+            protected Set<GenerativeFeature> enabledFeatures() {
+                return features;
+            }
+        };
+        String query = "EQL k8s \"any where true\" | KEEP event_location";
+        String error = "Found 1 problem\nline 1:33: EQL command does not yet support [" + type + "] fields";
+        return runner.isAllowedFailure(new QueryExecuted(query, 0, null, null, new RuntimeException(error)), List.of(), List.of());
     }
 }

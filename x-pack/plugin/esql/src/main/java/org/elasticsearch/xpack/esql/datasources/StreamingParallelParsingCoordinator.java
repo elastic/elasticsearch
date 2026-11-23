@@ -1504,9 +1504,8 @@ public final class StreamingParallelParsingCoordinator {
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place
                 // it is visible.
                 logger.warn(
-                    () -> "could not read header columns from the first chunk of ["
-                        + (storageObject == null ? "<stream>" : ExternalFailures.redactHttpUrl(storageObject.path().toString()))
-                        + "]",
+                    "could not read header columns from the first chunk of [{}]",
+                    storageObject == null ? "<stream>" : ExternalFailures.redactHttpUrl(storageObject.path().toString()),
                     e
                 );
             }

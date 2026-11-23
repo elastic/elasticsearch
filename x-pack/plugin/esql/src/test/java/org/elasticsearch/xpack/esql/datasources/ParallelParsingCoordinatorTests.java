@@ -3380,7 +3380,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            // No location in the message: the warning attaches this throwable in full.
+            // No location in the message: the warning attaches this throwable in full, so a path added here
+            // would carry past the redaction.
             throw new IOException("this store cannot close");
         }
     }

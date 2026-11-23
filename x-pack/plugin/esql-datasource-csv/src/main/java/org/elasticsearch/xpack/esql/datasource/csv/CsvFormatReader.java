@@ -4390,7 +4390,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * whole-file path. Snapshotted at close alongside {@link #columnStats} — its superset wins per column.
          */
         private ColumnStatsAccumulator allFileColumnStats;
-        /** True when the direct path feeds {@link #columnStats} inline (gridless PROJECTED read, tracked columns). */
+        /** True when the direct path feeds {@link #columnStats} inline (gridless PROJECTED cacheable read, tracked columns). */
         private boolean accumulateDirectStats;
         /** True when the most recent batch already accumulated stats inline, so {@link #captureBlockStats} must skip it. */
         private boolean lastBatchAccumulatedStats;

@@ -218,6 +218,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
+        return readAllPinned(reader, null);
+    }
+
+    /** As above, over a given file, so a header read that fails names a location in the log. */
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader, @Nullable StorageObject file) throws Exception {
         InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
         List<Attribute> pinned = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
@@ -227,7 +232,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
                 reader,
                 stream,
-                null,
+                file,
                 List.of("line"),
                 50,
                 4,
@@ -549,8 +554,51 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            // No location in the message: the warning attaches this throwable in full.
+            // No location in the message: the warning attaches this throwable in full, so a path added here
+            // would carry past the redaction.
             throw new IOException("this stream cannot be released");
+        }
+    }
+
+    /**
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. A header read that throws is what fires it, and that needs no stream or abort.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the header-read failure is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedHeaderReadDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of("line");
+        reader.headerFailure = new IllegalStateException("cannot read the header");
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the header-read warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*could not read header columns from the first chunk of [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            // The read itself may or may not survive a missing header; the warning is what this pins.
+            try {
+                readAllPinned(reader, new TestFileStorageObject(path, MTIME_PROBE_INSTANT));
+            } catch (Exception e) {
+                // The header failure is the point; how far the drain got afterwards is not.
+            }
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1361,8 +1409,16 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * {@code abortStream} throwing a RuntimeException after the streamClosed CAS must not skip
      * drain / breaker refund. ParallelParsingCoordinator already catches Exception around abort.
+     * <p>
+     * The signed path also pins the abort-transport warning's redaction: that catch is the only caller of
+     * {@code abortStream}, so this throw is the one way to reach the line.
      */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the abort give-up is a warning, and this asserts its location carries no signature"
+    )
     public void testCloseSurvivesAbortStreamRuntimeException() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         CountDownLatch parked = new CountDownLatch(1);
         CountDownLatch resume = new CountDownLatch(1);
         StorageObject boom = new AbstractTestStorageObject() {
@@ -1399,7 +1455,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("mem://abort-boom");
+                return StoragePath.of("https://bucket.s3.example.com/data/abort-boom.csv?" + signature);
             }
         };
         InputStream stream = new InputStream() {
@@ -1429,7 +1485,24 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         };
         PeakTrackingBreaker breaker = new PeakTrackingBreaker();
         ExecutorService executor = Executors.newFixedThreadPool(4);
-        try {
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the abort warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to abort transport for [https://bucket.s3.example.com/data/abort-boom.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
             CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
                 new LineFormatReader(512),
                 stream,
@@ -1473,6 +1546,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertNull("abortStream RuntimeException must not escape close()", closeFailure.get());
             assertNull(iter.tryAdvance());
             assertEquals(0L, breaker.getUsed());
+            mockLog.assertAllExpectationsMatched();
         } finally {
             resume.countDown();
             executor.shutdownNow();
@@ -5869,6 +5943,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final List<FormatReadContext> seenContexts;
         /** What {@link #fileHeaderColumns} answers; {@code null} makes this a reader without a header line. */
         volatile List<String> headerColumns;
+        /** When set, {@link #fileHeaderColumns} throws this instead of answering. */
+        volatile RuntimeException headerFailure;
 
         LineFormatReader(long minSegment) {
             this(
@@ -5937,6 +6013,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public List<String> fileHeaderColumns(StorageObject file) {
+            if (headerFailure != null) {
+                throw headerFailure;
+            }
             return headerColumns;
         }
 

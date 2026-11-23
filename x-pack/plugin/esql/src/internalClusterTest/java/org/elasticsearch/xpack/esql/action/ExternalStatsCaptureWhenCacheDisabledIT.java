@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * A disabled external-source cache must leave no statistics machinery on the read path.
  *
- * <p>Statistics are harvested for that cache and nothing else: with it disabled,
+ * <p>Statistics are harvested to populate that cache: with it disabled,
  * {@code ExternalSourceCacheService.reconcileSourceStatsFromContributions} returns on its first line, so every
  * contribution a scan produces is discarded on the coordinator.
  *

@@ -365,21 +365,25 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return 0;
         }
         final long now = relativeTimeInNanos();
-        final long legacyHeap = validLegacyIndexingHeap(now);
-        final Long operationSize = validLargestOperationSize(now);
+        // This is the legacy mechanism of indexing nodes computing the heap locally and then sending it to the master
+        // This will be removed in a follow-up PR to (#166669)
+        final long heapSizeComputedLocally = readHeapSizeComputedLocallyOnOtherIndexingNodes(now);
+        // This is the new mechanism of indexing nodes computing the largest operation size on each node and then sending
+        // this to the master, so that the master can compute the heap size required
+        final Long operationSize = largestOperationSize(now);
+        // We're on an old node during a rolling upgrade so default to the legacy behaviour
         if (operationSize == null) {
-            return legacyHeap;
+            return heapSizeComputedLocally;
         }
-        return Math.max(legacyHeap, heapRequiredForOperation(clusterService.getSettings(), operationSize));
+        // This node is both a master, and a new node during a rolling upgrade. We compute the new heap requirement here,
+        // but just as a sanity check use Math.max as we do not want a mixed-version cluster scaling down just because one of the
+        // two calculations is smaller.
+        return Math.max(heapSizeComputedLocally, heapRequiredForOperation(clusterService.getSettings(), operationSize));
     }
 
     /**
      * Heap an indexing node needs in order to accept an operation of {@code operationSizeInBytes} under this node's
      * {@link IndexingPressure#MAX_OPERATION_SIZE}.
-     * <p>
-     * A percentage limit does not depend on which JVM evaluates it: {@code ceil(operationSize / (percent / 100))}.
-     * The default 10% is ten times the operation size. An absolute byte limit accepts or rejects the operation on its
-     * own, so it is not turned into a heap requirement from this node's JVM heap.
      */
     static long heapRequiredForOperation(Settings nodeSettings, long operationSizeInBytes) {
         final String configured = nodeSettings.get(IndexingPressure.MAX_OPERATION_SIZE.getKey());
@@ -394,7 +398,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return (long) Math.ceil(operationSizeInBytes * 100.0d / percent);
     }
 
-    private long validLegacyIndexingHeap(long now) {
+    private long readHeapSizeComputedLocallyOnOtherIndexingNodes(long now) {
         var indexingHeapMemoryRequirements = indexingOperationsHeapMemoryRequirementsRef.get();
         if (indexingHeapMemoryRequirements == null || indexingHeapMemoryRequirements.validUntil() < now) {
             // Try to clear the memory once the results are stale
@@ -404,7 +408,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return indexingHeapMemoryRequirements.minimumRequiredHeapInBytes();
     }
 
-    private Long validLargestOperationSize(long now) {
+    private Long largestOperationSize(long now) {
         var largestOperation = largestIndexingOperationRef.get();
         if (largestOperation == null || largestOperation.validUntil() < now) {
             largestIndexingOperationRef.compareAndSet(largestOperation, null);

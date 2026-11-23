@@ -14,7 +14,8 @@ import java.time.Clock;
 
 /**
  * One factory method per piece of the collector, so that the changes that implement the pieces in parallel each replace the body
- * of one method and do not conflict. Until then every method returns the no-op or simple implementation: nothing is reported.
+ * of one method and do not conflict. Until a piece is implemented its method returns the no-op or simple implementation, so
+ * nothing is reported until the accumulator, the record builder and the publisher are real.
  */
 public final class UsageComponents {
 
@@ -46,6 +47,6 @@ public final class UsageComponents {
         ThreadPool threadPool,
         Clock clock
     ) {
-        return NoopUsageReporter.INSTANCE;
+        return new ScheduledUsageReporter(settings, accumulator, builder, store, publisher, identity, threadPool, clock);
     }
 }

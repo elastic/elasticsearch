@@ -385,7 +385,7 @@ version-specific rules for nested branching and
 ## Data Federation limitations [esql-limitations-data-federation]
 ```{applies_to}
 stack: preview 9.6+, experimental =9.5
-serverless: unavailable
+serverless: preview
 ```
 
 [Datasets](/reference/query-languages/esql/esql-data-federation-datasets.md) created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) don't support every operation that works on an {{es}} index. For example, a dataset can't be the lookup target of `LOOKUP JOIN` or the source of `TS`. For the full list, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#limitations).

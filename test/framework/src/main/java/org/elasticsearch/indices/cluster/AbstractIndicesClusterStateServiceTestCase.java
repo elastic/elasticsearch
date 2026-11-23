@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -108,15 +109,26 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 IndexMetadata indexMetadata = state.metadata().getProject().getIndexSafe(index);
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
-                final var failedShard = pendingAllocationStates.get(
-                    IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting)
-                ) instanceof IndicesClusterStateService.PendingAllocationState.FailureReported reported ? reported : null;
+                final var failedShard = failedShardFor(pendingAllocationStates, shardRouting.shardId());
+                final boolean isAwaitingRetry = pendingAllocationStates.get(
+                    ShardAllocationId.fromRouting(shardRouting)
+                ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
 
                 if (state.blocks().disableStatePersistence()) {
                     if (shard != null) {
                         fail("Shard with id " + shardRouting + " should be removed from indicesService due to disabled state persistence");
                     }
                 } else {
+                    if (failedShard != null && failedShard.routing().isSameAllocation(shardRouting) == false) {
+                        fail(
+                            "Shard cache has not been properly cleaned. Cached allocation id ["
+                                + failedShard.routing().allocationId()
+                                + "] does not match current allocation id ["
+                                + shardRouting.allocationId()
+                                + "] for "
+                                + failedShard
+                        );
+                    }
                     if (failedShard != null && failedShard.primaryTerm() < indexMetadata.primaryTerm(shardRouting.id())) {
                         fail(
                             "Shard cache has not been properly cleaned. Cached primary term ["
@@ -127,12 +139,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                 + failedShard
                         );
                     }
-                    if (shard == null && failedShard == null) {
-                        // shard must either be there or there must be a failure
+                    if (shard == null && failedShard == null && isAwaitingRetry == false) {
+                        // shard must either be there, have failed, or be waiting to retry locally
                         fail("Shard with id " + shardRouting + " expected but missing in indicesService and pendingAllocationStates");
                     }
                     if (enableRandomFailures == false) {
-                        if (shard == null && shardRouting.initializing() && failedShard.routing() == shardRouting) {
+                        if (shard == null
+                            && isAwaitingRetry == false
+                            && shardRouting.initializing()
+                            && failedShard.routing() == shardRouting) {
                             // initializing a shard should succeed when enableRandomFailures is disabled
                             fail("Shard with id " + shardRouting + " expected but missing in indicesService " + failedShard);
                         }
@@ -196,12 +211,26 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
 
             if (shardsFound == false) {
-                // check if we have a FailureReported entry for that index
+                // check if we have shards of that index in pendingAllocationStates
                 // if yes, we might not have cleaned the index as pendingAllocationStates can be populated by another thread
                 assertFalse(pendingAllocationStates.keySet().stream().noneMatch(key -> key.shardId().getIndex().equals(index)));
             }
 
         }
+    }
+
+    @Nullable
+    private static IndicesClusterStateService.PendingAllocationState.FailureReported failedShardFor(
+        Map<ShardAllocationId, IndicesClusterStateService.PendingAllocationState> pendingAllocationStates,
+        ShardId shardId
+    ) {
+        for (final var entry : pendingAllocationStates.entrySet()) {
+            if (entry.getKey().shardId().equals(shardId)
+                && entry.getValue() instanceof IndicesClusterStateService.PendingAllocationState.FailureReported failureReported) {
+                return failureReported;
+            }
+        }
+        return null;
     }
 
     /**

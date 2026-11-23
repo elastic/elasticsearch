@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Wraps a {@link StorageObject} and decompresses its stream via a {@link DecompressionCodec}.
@@ -61,6 +62,10 @@ final class DecompressingStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final DecompressionCodec codec;
+    /** Raw GET opened by {@link #newStream} before the decompressed wrapper is returned. */
+    private final AtomicReference<InputStream> inFlightRaw = new AtomicReference<>();
+    /** Set by {@link #close()}; a racing {@link #newStream} must drop the raw GET. */
+    private final AtomicBoolean closed = new AtomicBoolean();
     @Nullable
     private final CircuitBreaker breaker;
     private final int maxDecompressionRatio;
@@ -93,6 +98,16 @@ final class DecompressingStorageObject implements StorageObject {
             return splittable.decompressRange(range.rawDelegate(), range.offset(), range.offset() + range.length());
         }
         InputStream raw = delegate.newStream();
+        inFlightRaw.set(raw);
+        if (closed.get()) {
+            inFlightRaw.compareAndSet(raw, null);
+            try {
+                raw.close();
+            } catch (IOException e) {
+                throw new IOException("read cancelled", e);
+            }
+            throw new IOException("read cancelled");
+        }
         try {
             // Wrap raw in an uncloseable filter before handing it to the codec. The decompressor
             // (e.g. GZIPInputStream) cascades close() to the underlying stream; on providers like
@@ -114,12 +129,13 @@ final class DecompressingStorageObject implements StorageObject {
             return new DecompressedStream(guarded, raw, delegate, codec.name());
         } catch (IOException | RuntimeException e) {
             try {
-                // Abort rather than close so providers like S3 skip the draining connection teardown.
-                delegate.abortStream(raw);
+                raw.close();
             } catch (IOException suppressed) {
                 e.addSuppressed(suppressed);
             }
             throw e;
+        } finally {
+            inFlightRaw.compareAndSet(raw, null);
         }
     }
 
@@ -209,28 +225,55 @@ final class DecompressingStorageObject implements StorageObject {
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        if (stream instanceof DecompressedStream ds) {
-            // Close the decompressor first to release its small in-memory buffers (Inflater
-            // for gzip, ZstdInputStream native handle, etc.). Because the codec was given an
-            // UncloseableInputStream over raw, this close does not propagate to raw — so the
-            // subsequent delegate.abortStream(raw) can take the abort path (e.g. S3
-            // ResponseInputStream.abort()) instead of a draining close().
-            ds.releaseRaw(delegate);
+    public void close() throws IOException {
+        closed.set(true);
+        // Abort the GET first. gzip header init can be parked in raw.read() with leftover
+        // ≤64 KiB; closing that body would drain the stalled socket and delay the abort.
+        try {
+            delegate.close();
+        } finally {
+            InputStream raw = inFlightRaw.getAndSet(null);
+            if (raw != null) {
+                raw.close();
+            }
+        }
+    }
+
+    /**
+     * Aborts the raw GET without closing the decoder. Parse close runs on a different thread
+     * than the segmentator {@code read()}; closing gzip/zstd from that thread is a use-after-free.
+     * The segmentator's {@code close()}/{@link #abortStream} then releases the decoder on the
+     * thread that owns it. Does not claim {@link DecompressedStream}'s closed CAS.
+     */
+    void abortTransport(InputStream stream) throws IOException {
+        if (isDecompressedStream(stream)) {
+            abortRawTransport(stream);
             return;
         }
-        // Streams produced by splittable/indexed codecs (via decompressRange/decompressFrame)
-        // are opaque to us; their close() already releases whatever the codec opened internally.
-        // Splittable reads are bounded ranges, so drain-on-close is naturally bounded.
-        stream.close();
+        abortStream(stream);
+    }
+
+    /** True when {@code stream} is this class's decoder wrapper. Parse close must not {@code close()} it. */
+    static boolean isDecompressedStream(InputStream stream) {
+        return stream instanceof DecompressedStream;
+    }
+
+    /**
+     * Abort the raw GET of a {@link DecompressedStream} without closing the decoder. No-op when
+     * {@code stream} is not that wrapper. Safe when parse close has no {@link StorageObject}: the
+     * wrapper still owns the raw stream.
+     */
+    static void abortRawTransport(InputStream stream) throws IOException {
+        if (stream instanceof DecompressedStream ds) {
+            ds.abortRawOnly();
+        }
     }
 
     /**
      * Bundles the decompressed stream with the raw delegate stream it was built from so
-     * {@link #abortStream(InputStream)} can route the abort to the raw stream — which is where
-     * providers like S3 perform the connection-discard via {@code Abortable.abort()}.
+     * {@link #close()} can close the raw stream — the leaf decides drain vs drop.
      * <p>
-     * Release always ends with an abort of the raw GET, but what that abort does depends on how the
+     * Release always ends with close of the raw GET, but what that close does depends on how the
      * read ended:
      * <ul>
      *   <li>Stopped early (LIMIT, cancellation, schema sample, error): the raw body still has unread
@@ -244,7 +287,7 @@ final class DecompressingStorageObject implements StorageObject {
      *   pool and turns the abort into a no-op for any decoder, so do not drop it because the gzip and zstd tests
      *   pass without it.</li>
      * </ul>
-     * Idempotent with {@link DecompressingStorageObject#abortStream(InputStream)}.
+     * Idempotent with {@link DecompressedStream#close()}.
      */
     private static final class DecompressedStream extends FilterInputStream {
         private final InputStream raw;
@@ -297,6 +340,14 @@ final class DecompressingStorageObject implements StorageObject {
         }
 
         /**
+         * Aborts the raw GET without closing the decoder or claiming {@link #closed}. Safe to
+         * call from parse close while the segmentator is still in {@code in.read()}.
+         */
+        void abortRawOnly() throws IOException {
+            rawOwner.abortStream(raw);
+        }
+
+        /**
          * Closes the codec then aborts {@code raw} through {@code owner}. No-op after the first
          * successful call so {@code close()} and {@code abortStream} are interchangeable.
          */
@@ -318,7 +369,7 @@ final class DecompressingStorageObject implements StorageObject {
             try {
                 // Unconditional: after a drain that reached the end of the body the provider has already
                 // pooled the connection and this is a no-op; otherwise it discards the connection.
-                owner.abortStream(raw);
+                raw.close();
             } catch (Exception e) {
                 if (primary == null) {
                     if (e instanceof IOException ioe) {
@@ -375,7 +426,7 @@ final class DecompressingStorageObject implements StorageObject {
                 // The drain is best effort, but an Error must not skip the abort: the raw stream would never be
                 // closed and its concurrency permit would never be released.
                 try {
-                    owner.abortStream(raw);
+                    raw.close();
                 } catch (Exception abortFailure) {
                     e.addSuppressed(abortFailure);
                 }
@@ -503,7 +554,7 @@ final class DecompressingStorageObject implements StorageObject {
      * {@code InflaterInputStream.close()} ends the {@code Inflater} and only then calls
      * {@code in.close()}. Because the underlying {@code close()} here is a no-op, codec
      * cleanup still runs; only connection release is deferred to the owner via
-     * {@link DecompressingStorageObject#abortStream(InputStream)} or {@link DecompressedStream#close()}.
+     * {@link DecompressedStream#close()}.
      * <p>
      * Also counts the compressed bytes the codec consumes, which {@link LimitGuardInputStream}
      * uses when the object's size is not known up front.

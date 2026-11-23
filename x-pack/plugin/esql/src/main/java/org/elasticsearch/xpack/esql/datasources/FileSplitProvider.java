@@ -272,10 +272,14 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * How many survivors get a footer/probe plan under a filtered LIMIT. The rest become whole-file
      * splits with no object-store I/O. Wave size is {@code taskConcurrency}: that is how many
-     * drivers the planner will start, so extra footers would not add parallelism.
+     * drivers the planner will start, so extra footers would not add parallelism. Text formats have
+     * no footer, so the wave only collapsed range splits; they keep the full survivor count.
      */
-    static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount) {
+    static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount, FormatReader reader) {
         if (context.filteredLimit() == false || survivorCount <= 0) {
+            return survivorCount;
+        }
+        if (reader instanceof RangeAwareFormatReader == false) {
             return survivorCount;
         }
         return Math.min(survivorCount, Math.max(1, context.taskConcurrency()));
@@ -1058,8 +1062,9 @@ public class FileSplitProvider implements SplitProvider {
             int survivorCount = batch.size();
             // A file is planned only while the rows already covered fall short of what the query asked for; see
             // RowBudget for the three ways that arithmetic fails closed.
-            RowBudget budget = RowBudget.of(context, resolveConfiguredReader(fileList.path(0), config));
-            int planWave = filteredLimitPlanWave(context, survivorCount);
+            FormatReader reader = resolveConfiguredReader(fileList.path(0), config);
+            RowBudget budget = RowBudget.of(context, reader);
+            int planWave = filteredLimitPlanWave(context, survivorCount, reader);
             try {
                 if (executor != null && survivorCount > 1) {
                     planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
@@ -2038,7 +2043,8 @@ public class FileSplitProvider implements SplitProvider {
             int[] missCount = new int[1];
             FileList fileList = batch.context().fileList();
             Map<String, Object> config = batch.context().config();
-            int planWave = filteredLimitPlanWave(batch.context(), n);
+            FormatReader reader = fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), config) : null;
+            int planWave = filteredLimitPlanWave(batch.context(), n, reader);
             runRecordingDiscoveryCpu(() -> {
                 for (int i = 0; i < n; i++) {
                     if (isCancelled.getAsBoolean()) {
@@ -2060,10 +2066,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
             });
             // Cached ranges cost nothing to plan, so they count towards the demand before any file is opened.
-            RowBudget budget = RowBudget.of(
-                batch.context(),
-                fileList.fileCount() > 0 ? resolveConfiguredReader(fileList.path(0), config) : null
-            );
+            RowBudget budget = RowBudget.of(batch.context(), reader);
             for (int i = 0; i < n; i++) {
                 if (slots[i] != null) {
                     budget.account(slots[i]);

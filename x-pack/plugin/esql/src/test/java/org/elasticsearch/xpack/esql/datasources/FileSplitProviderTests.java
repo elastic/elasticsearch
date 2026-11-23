@@ -8569,6 +8569,113 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Text has no footer, so the filtered-LIMIT plan wave must not collapse files past
+     * {@code taskConcurrency} into whole-file splits. Each CSV file large enough to range-split
+     * still produces record-aligned macro splits.
+     */
+    public void testFilteredLimitDoesNotApplyPlanWaveToText() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        byte[] payload = delimitedPayload("a,b,c\n");
+        Map<String, byte[]> payloads = new LinkedHashMap<>();
+        for (int i = 0; i < files; i++) {
+            payloads.put("f" + i + ".csv", payload);
+        }
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "csv",
+            (s, bf) -> new CsvFormatReader(bf, CsvFormatOptions.DEFAULT, "csv", List.of(".csv")),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".csv", "csv");
+        formatRegistry.byName("csv");
+
+        FileSplitProvider provider = new FileSplitProvider(
+            CSV_MIN_SEGMENT_BYTES,
+            new DecompressionCodecRegistry(),
+            createMultiFileStorageRegistry(payloads, null),
+            formatRegistry,
+            Settings.EMPTY,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        List<StorageEntry> entries = new ArrayList<>();
+        for (String objectName : payloads.keySet()) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/" + objectName), payloads.get(objectName).length, Instant.EPOCH));
+        }
+        SplitDiscoveryContext base = new SplitDiscoveryContext(
+            null,
+            GlobExpander.fileListOf(entries, "s3://b/*.csv"),
+            Map.of(),
+            Map.of("mode", "plain"),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            base.metadata(),
+            base.fileList(),
+            base.schemaMap(),
+            base.config(),
+            base.partitionInfo(),
+            base.filterHints(),
+            base.querySchema(),
+            base.unifiedSchema(),
+            base.maxRecordBytes(),
+            base.isCancelled(),
+            base.declaredReadSpec(),
+            base.metadataColumnNames(),
+            base.retainedPartitionKeys(),
+            FormatReader.NO_LIMIT,
+            null,
+            taskConcurrency,
+            TransportVersion.current(),
+            true
+        );
+
+        SplitDiscoveryResult result = provider.discoverSplits(ctx);
+
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".csv";
+            List<FileSplit> fileSplits = byFile.get(name);
+            assertThat(
+                "file " + name + " must range-split, not collapse to a whole-file split past the first wave",
+                fileSplits.size(),
+                greaterThan(1)
+            );
+            for (FileSplit fs : fileSplits) {
+                assertEquals("true", fs.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            }
+        }
+    }
+
+    /**
+     * The wave helper itself: Parquet (a {@link RangeAwareFormatReader}) is capped at
+     * {@code taskConcurrency}; CSV is not.
+     */
+    public void testFilteredLimitPlanWaveAppliesOnlyToRangeAwareReaders() {
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(8, 2);
+        RangeAwareFormatReader parquet = countingRowCountReader(new AtomicInteger(), 10);
+        CsvFormatReader csv = new CsvFormatReader(
+            BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build()
+        );
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, parquet));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, csv));
+    }
+
+    /**
      * A unit that cannot say how many records it holds makes the running total a floor rather than a count, so the
      * budget gives up and every file is planned. The reader here reports ranges without statistics, which is what
      * every format that is not row-group or stripe based does.

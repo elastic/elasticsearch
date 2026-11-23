@@ -33,7 +33,7 @@ null
 null
 null
 'fork'
-null
+'let'
 'fuse'
 'highlight'
 'inline'
@@ -232,7 +232,7 @@ TS
 DEV_EXTERNAL
 DEV_EQL
 FORK
-DEV_LET
+LET
 FUSE
 HIGHLIGHT
 INLINE

@@ -168,6 +168,15 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         this(source, field, lower, upper, null);
     }
 
+    /** The half-open range {@code [lower, upper)}: inclusive lower bound, exclusive upper bound. */
+    public static MvInRange halfOpen(Source source, Expression field, Expression lower, Expression upper) {
+        Expression options = new MapExpression(
+            source,
+            List.of(Literal.keyword(source, INCLUDE_UPPER), new Literal(source, false, DataType.BOOLEAN))
+        );
+        return new MvInRange(source, field, lower, upper, options);
+    }
+
     private MvInRange(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),

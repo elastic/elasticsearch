@@ -165,6 +165,27 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | DROP salary");
     }
 
+    /**
+     * METRICS_INFO and TS_INFO replace the columns of their input, like STATS, so nothing downstream asks for the unmapped fields and the
+     * relation is not given an {@code UnmappedFieldsAttribute}, which would make the shards read the whole {@code _source}. Nothing
+     * follows them here, so only the command itself can be the reason.
+     */
+    public void testMetricsInfoOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttributeOnTimeSeries("TS test | METRICS_INFO");
+    }
+
+    public void testTsInfoOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttributeOnTimeSeries("TS test | TS_INFO");
+    }
+
+    public void testTimeSeriesRowsKeepUnmappedFieldsAttribute() {
+        // The control for the two above: the same relation is given the attribute when the query returns its rows.
+        LogicalPlan plan = timeSeriesTest().statement(setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        assertThat(unmappedFieldsAttributes(relation), hasSize(1));
+    }
+
     public void testStatsOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*)");
     }
@@ -1059,6 +1080,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {
         for (String name : names) {
             assertThat("expected [" + name + "] to be kept", pattern.matches(name), is(true));
+        }
+    }
+
+    private TestAnalyzer timeSeriesTest() {
+        return test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
+    }
+
+    private void assertNoUnmappedFieldsAttributeOnTimeSeries(String query) {
+        LogicalPlan plan = timeSeriesTest().statement(setUnmappedLoadAll(query));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
         }
     }
 

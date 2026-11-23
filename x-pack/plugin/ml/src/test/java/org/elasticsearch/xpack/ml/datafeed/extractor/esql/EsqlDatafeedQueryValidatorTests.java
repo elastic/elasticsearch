@@ -258,6 +258,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     public void testDescribeFilterShouldEscapeColumnNames() {
         assertThat(EsqlDatafeedQueryValidator.esqlString("@timestamp"), equalTo("\"@timestamp\""));
         assertThat(EsqlDatafeedQueryValidator.esqlString("a\"b\\c"), equalTo("\"a\\\"b\\\\c\""));
+        assertThat(EsqlDatafeedQueryValidator.esqlString("a\nb\rc\td"), equalTo("\"a\\nb\\rc\\td\""));
     }
 
     public void testTrailingLineCommentShouldKeepDescribeOnNewLine() {

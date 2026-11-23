@@ -187,9 +187,10 @@ public class EsqlDatafeedQueryValidator {
         }
     }
 
-    /** An ES|QL double-quoted string literal for {@code value}. */
+    /** An ES|QL double-quoted string literal for {@code value}, escaping every character the ES|QL lexer cannot take raw. */
     static String esqlString(String value) {
-        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        String escaped = value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+        return "\"" + escaped + "\"";
     }
 
     private static void checkDescription(

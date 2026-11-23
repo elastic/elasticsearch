@@ -8433,7 +8433,6 @@ null
 loadAllSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
-required_capability: optional_fields_load_all_sibling_column_from_source
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;

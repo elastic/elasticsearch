@@ -7274,6 +7274,7 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_disabled, unmapped_source_excludes, unmapped_source_includes
 | WHERE id::long == 1 OR id::long == 5
 | KEEP id, a.b*, arr*
+| SORT id::long
 | DEDUP
 | INLINE STATS c = COUNT(*)
 | SORT id::long

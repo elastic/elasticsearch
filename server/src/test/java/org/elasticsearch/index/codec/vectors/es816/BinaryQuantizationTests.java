@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
+import java.util.Arrays;
 import java.util.Random;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
@@ -103,6 +104,15 @@ public class BinaryQuantizationTests extends LuceneTestCase {
             VectorUtil.l2normalize(vector);
             VectorUtil.l2normalize(centroid);
         }
+        assertFalse(
+            "vector and centroid are identical, which is expected to be very very unlikely with at least "
+                + DenseVectorFieldMapper.BBQ_MIN_DIMS
+                + " random dimensions; dims="
+                + dimensions
+                + " similarity="
+                + similarityFunction,
+            Arrays.equals(vector, centroid)
+        );
         float cDotC = VectorUtil.dotProduct(centroid, centroid);
         byte[] destination = new byte[discretizedDimensions / 8 * BinaryQuantizer.B_QUERY];
         BinaryQuantizer.QueryFactors corrections = quantizer.quantizeForQuery(vector, destination, centroid);

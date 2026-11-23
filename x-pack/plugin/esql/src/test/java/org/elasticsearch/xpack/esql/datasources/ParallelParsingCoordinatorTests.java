@@ -687,11 +687,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * The close warning names the object too, and WARN is on by default, so an unredacted location would put a
-     * pre-signed URL's signature where an operator is already reading. An early close -- the LIMIT or cancel
-     * shape -- is what closes the storage object here, so a store whose close fails fires the line on an
-     * otherwise ordinary read. The expectation reads the formatted message, which is what this call site
-     * builds; the throwable it attaches is the store's own and is not redacted here.
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. An early close -- the LIMIT or cancel shape -- is what closes the storage object here.
      */
     @TestLogging(
         value = "org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator:WARN",
@@ -3366,10 +3363,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Path + a {@code close()} that fails. An early close is what closes the storage object on this path, so
-     * this makes the close warning fire on a read that is otherwise unremarkable.
-     */
+    /** Path + a {@code close()} that fails, so the close warning fires on an otherwise ordinary read. */
     private static final class FailingCloseStorageObject extends InMemoryStorageObject {
         private final StoragePath path;
 
@@ -3385,8 +3379,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            // Carries no location: the warning attaches this throwable in full, so a signature in its message
-            // would be the store's own leak rather than the call site's.
+            // No location in the message: the warning attaches this throwable in full.
             throw new IOException("this store cannot close");
         }
     }

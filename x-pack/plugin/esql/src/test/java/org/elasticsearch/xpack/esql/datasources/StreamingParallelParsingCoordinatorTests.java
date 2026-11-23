@@ -468,10 +468,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * The close warning names the object too, and WARN is on by default, so an unredacted location would put a
-     * pre-signed URL's signature where an operator is already reading. A failing {@code close()} fires the line
-     * on an ordinary read. The expectation reads the formatted message, which is what this call site builds;
-     * the throwable it attaches is the store's own and is not redacted here.
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. The expectation reads the formatted message; the throwable it attaches is the store's own.
      */
     @TestLogging(
         value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",

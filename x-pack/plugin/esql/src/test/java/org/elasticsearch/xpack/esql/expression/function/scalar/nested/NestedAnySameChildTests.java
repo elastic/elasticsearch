@@ -18,6 +18,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -156,6 +159,49 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         assertThat(loaded, equalTo(List.of(row(0, 1L, 10L), row(1, 10L, 20L), row(2, 10L, null))));
         assertThat(matched, equalTo(new boolean[] { false, true, false }));
+    }
+
+    public void testPredicateEvaluatesTheResidualOnlyOnMatchingChildren() throws IOException {
+        index(parentWithSplitChildren(), parentWithMatchOnTheNextPage(), parentWithNullPrice());
+        FieldAttribute qty = field("qty");
+        FieldAttribute price = field("price");
+        var product = new GreaterThan(
+            Source.EMPTY,
+            new Mul(Source.EMPTY, qty, price),
+            new Literal(Source.EMPTY, 100L, DataType.LONG),
+            null
+        );
+        NestedPredicate predicate = new NestedPredicate(
+            Source.EMPTY,
+            "items",
+            product,
+            List.of(qty, price),
+            List.of("qty", "price"),
+            null,
+            QueryBuilders.termQuery("items.sku", "a"),
+            EsqlTestUtils.TEST_CFG
+        );
+        Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE)).build();
+        var blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (
+            var evaluator = EvalMapper.toEvaluator(
+                FoldContext.small(),
+                predicate,
+                layout,
+                new IndexedByShardIdFromSingleton<>(shard),
+                null,
+                PlannerSettings.DEFAULTS
+            ).get(driverContext);
+            Page page = new Page(parents(parentDocs));
+            Block result = evaluator.eval(page)
+        ) {
+            BooleanBlock flags = (BooleanBlock) result;
+            assertThat(flags.getBoolean(flags.getFirstValueIndex(0)), equalTo(false));
+            assertThat(flags.getBoolean(flags.getFirstValueIndex(1)), equalTo(true));
+            assertThat(flags.getBoolean(flags.getFirstValueIndex(2)), equalTo(false));
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     /** One child matches the sku and another, different, child is the expensive product. */

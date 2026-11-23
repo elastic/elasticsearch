@@ -41,6 +41,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             randomInputs(size),
             randomRelativePaths(size),
             null,
+            null,
             configuration()
         );
     }
@@ -63,7 +64,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             case 4 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, instance.configuration());
+        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, null, instance.configuration());
     }
 
     public void testWriteToRefusesNodesWithoutNestedPredicates() throws IOException {

@@ -58,7 +58,7 @@ abstract class NestedPredicateOperatorTestCase extends NestedIndexOperatorTestCa
     }
 
     static NestedPredicate nested(Expression body, QueryBuilder query) {
-        return new NestedPredicate(Source.EMPTY, "items", body, List.of(PRICE), List.of("price"), query, EsqlTestUtils.TEST_CFG);
+        return new NestedPredicate(Source.EMPTY, "items", body, List.of(PRICE), List.of("price"), query, null, EsqlTestUtils.TEST_CFG);
     }
 
     @Override

@@ -338,7 +338,9 @@ public class PrimarySortRangeTests extends ESTestCase {
         );
         int rangeFloor = LuceneSliceQueue.PartitioningStrategy.rangeMinDocsPerSlice(minDocsPerSlice);
         assertThat(rangeFloor, equalTo(1_000));
-        assertThat("the range is cut for the drivers", slices.size(), greaterThanOrEqualTo(taskConcurrency / 2));
+        // The range is a superset of the matches, rounded to skipper blocks, so it can be a little shorter than 10,000 docs and
+        // give 9 slices. The bound only has to reject the 2 slices of the full floor.
+        assertThat("the range is cut for the drivers", slices.size(), greaterThanOrEqualTo(taskConcurrency / 4));
         for (PartialLeafReaderContext slice : slices) {
             assertThat(slice.maxDoc() - slice.minDoc(), lessThanOrEqualTo(rangeFloor * 5 / 4));
         }

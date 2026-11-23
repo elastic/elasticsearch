@@ -187,6 +187,19 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
     }
 
+    public void testEsqlRemoteIndexExpressionsShouldResolveToRegisteredClusterAliases() {
+        List<String> remoteIndexExpressions = List.of("east:logs-*", "west:*");
+
+        assertThat(
+            RemoteClusterLicenseChecker.remoteClusterAliases(Set.of("east", "west", "other"), remoteIndexExpressions),
+            equalTo(List.of("east", "west"))
+        );
+        expectThrows(
+            NoSuchRemoteClusterException.class,
+            () -> RemoteClusterLicenseChecker.remoteClusterAliases(Set.of("east"), remoteIndexExpressions)
+        );
+    }
+
     public void testStartEsqlDatafeedWithCrossProjectEnabledSkipsIndicesOptions() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 

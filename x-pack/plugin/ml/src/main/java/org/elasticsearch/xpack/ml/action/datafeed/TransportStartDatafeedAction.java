@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -46,7 +44,6 @@ import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -81,15 +78,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TRANSPORT_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -233,6 +225,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 }
             };
 
+        // There is no remote transport version check: the remote never sees esql_query, and ES|QL checks remote compatibility itself.
         // Verify data extractor factory can be created, then start persistent task
         BiConsumer<Job, List<String>> checkRemoteSourcesAndCreateExtractor = (job, remoteIndices) -> {
             if (remoteIndices.isEmpty() == false) {
@@ -262,17 +255,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
                 if (isCpsMode) {
                     // Skip license check for CPS - all projects share the same highest license
-                    // Still do version check
-                    final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                    List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                        remoteClusterService.getRegisteredRemoteClusterNames(),
-                        remoteIndices
-                    );
-                    checkRemoteConfigVersions(
-                        effectiveDatafeed,
-                        remoteAliases,
-                        (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
-                    );
                     createDataExtractor(task, job, effectiveDatafeed, params, waitForTaskListener);
                 } else {
                     // Traditional remote cluster search - check licenses
@@ -289,16 +271,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             if (response.isSuccess() == false) {
                                 responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
                             } else {
-                                final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                                List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                                    remoteClusterService.getRegisteredRemoteClusterNames(),
-                                    remoteIndices
-                                );
-                                checkRemoteConfigVersions(
-                                    datafeedConfigHolder.get(),
-                                    remoteAliases,
-                                    (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
-                                );
                                 createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                             }
                         },
@@ -395,7 +367,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             .toList();
     }
 
-    static boolean isCrossProjectMode(DatafeedConfig datafeed) {
+    public static boolean isCrossProjectMode(DatafeedConfig datafeed) {
         return datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
     }
 
@@ -403,35 +375,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         if (datafeed.getIndicesOptions() != null) {
             params.setIndicesOptions(datafeed.getIndicesOptions());
         }
-    }
-
-    static void checkRemoteConfigVersions(
-        DatafeedConfig config,
-        List<String> remoteClusters,
-        Function<String, TransportVersion> transportVersionSupplier
-    ) {
-        Optional<Tuple<TransportVersion, String>> minVersionAndReason = config.minRequiredTransportVersion();
-        if (minVersionAndReason.isPresent() == false) {
-            return;
-        }
-        final String reason = minVersionAndReason.get().v2();
-        final TransportVersion minVersion = minVersionAndReason.get().v1();
-
-        List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> transportVersionSupplier.apply(cn).supports(minVersion) == false)
-            .collect(Collectors.toList());
-        if (clustersTooOld.isEmpty()) {
-            return;
-        }
-
-        throw ExceptionsHelper.badRequestException(
-            Messages.getMessage(
-                REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
-                minVersion.toReleaseVersion(),
-                reason,
-                Strings.collectionToCommaDelimitedString(clustersTooOld)
-            )
-        );
     }
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */

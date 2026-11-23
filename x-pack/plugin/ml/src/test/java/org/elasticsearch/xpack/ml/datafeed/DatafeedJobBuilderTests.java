@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -47,17 +48,23 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -429,6 +436,99 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         doReturn(null).when(datafeedWithoutIndices).getIndices();
 
         datafeedJobBuilder.checkRemoteIndicesAreAvailable(datafeedWithoutIndices);
+    }
+
+    public void testBuildGivenEsqlRemoteSourceAndNoRemoteSearchingShouldFail() throws Exception {
+        EsqlDatafeedQueryValidator validator = validatorReportingRemotes(List.of("east:logs-*"));
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode(), validator);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1"),
+            newEsqlContext(),
+            ActionListener.wrap(datafeedJob -> fail("expected the build to fail"), failure::set)
+        );
+
+        assertBusy(() -> assertThat(failure.get(), notNullValue()));
+        assertThat(
+            failure.get().getMessage(),
+            equalTo(Messages.getMessage(Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH, "datafeed1", "[east:logs-*]", "test_node"))
+        );
+    }
+
+    public void testBuildGivenEsqlLocalSourceAndNoRemoteSearchingShouldSucceed() throws Exception {
+        EsqlDatafeedQueryValidator validator = validatorReportingRemotes(List.of());
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode(), validator);
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1"),
+            newEsqlContext(),
+            ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
+        );
+
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenEsqlDatafeedAndRemoteSearchingShouldNotProbe() throws Exception {
+        EsqlDatafeedQueryValidator validator = validatorReportingRemotes(List.of("east:logs-*"));
+        datafeedJobBuilder = newBuilder(Settings.EMPTY, validator);
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1"),
+            newEsqlContext(),
+            ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
+        );
+
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+        verifyNoInteractions(validator);
+    }
+
+    private DatafeedJobBuilder newBuilder(Settings settings, EsqlDatafeedQueryValidator validator) {
+        return new DatafeedJobBuilder(
+            client,
+            xContentRegistry(),
+            auditor,
+            annotationPersister,
+            System::currentTimeMillis,
+            jobResultsPersister,
+            settings,
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP,
+            validator
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static EsqlDatafeedQueryValidator validatorReportingRemotes(List<String> remotes) {
+        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        doAnswer(invocation -> {
+            ((ActionListener<List<String>>) invocation.getArgument(4)).onResponse(remotes);
+            return null;
+        }).when(validator).remoteIndexExpressions(any(), any(), any(), any(), any(), any());
+        return validator;
+    }
+
+    private static DatafeedContext newEsqlContext() {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery("FROM east:logs-*");
+        datafeed.setSourceTimeField("@timestamp");
+        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        return new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166942
+summary: Narrow an external dataset's listing by an OR over partition columns
+type: bug

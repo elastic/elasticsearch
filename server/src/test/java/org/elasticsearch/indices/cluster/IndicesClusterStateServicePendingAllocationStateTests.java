@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -95,7 +96,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/// Unit tests for the unified pending-allocation-state bookkeeping ([IndicesClusterStateService.ShardAllocationKey],
+/// Unit tests for the unified pending-allocation-state bookkeeping ([ShardAllocationId],
 /// [IndicesClusterStateService.PendingAllocationState]) and the ticket lifecycle built on top of it: claiming
 /// ownership of a shard-creation attempt, holding it through the whole recovery (not just construction), the
 /// cluster-state sweep that evicts stale tickets, the shard-lock-retry continuation re-resolving routing and
@@ -432,7 +433,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertNotNull(supersededListener);
         MockIndexShard supersededShard = indicesService.getShardOrNull(shardRouting.shardId());
         assertNotNull(supersededShard);
-        RecoveryState supersededRecoveryState = supersededShard.recoveryState();
 
         // A primary term bump for this same allocation (e.g. a batched cluster-state application
         // that goes straight from initializing(term1) to initializing(term2)) evicts the old ticket
@@ -443,8 +443,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // The superseded attempt's own recovery listener aborts late. It must be a no-op: the new
         // ticket survives untouched, and master is never notified (ABORT's whole point).
         supersededListener.onRecoveryFailure(
-            supersededRecoveryState,
-            new RecoveryFailedException(supersededRecoveryState, "simulated", new Exception("simulated")),
+            new RecoveryFailedException(supersededShard.recoveryState(), "simulated", new Exception("simulated")),
             ABORT
         );
 
@@ -1030,11 +1029,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         final var replacementTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(replacement));
         assertThat(replacementTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry.class));
 
-        oldListener.onRecoveryFailure(
-            oldRecoveryState,
-            new RecoveryFailedException(oldRecoveryState, "late failure", new IOException("old attempt")),
-            RETRY
-        );
+        oldListener.onRecoveryFailure(new RecoveryFailedException(oldRecoveryState, "late failure", new IOException("old attempt")), RETRY);
         // The stale call must not touch replacement's ticket, nor resurrect an entry for the
         // now-evicted old allocation.
         assertSame(replacementTicket, indicesClusterStateService.pendingAllocationStates.get(allocationKey(replacement)));
@@ -1372,8 +1367,8 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         return shardRouting;
     }
 
-    private static IndicesClusterStateService.ShardAllocationKey allocationKey(ShardRouting routing) {
-        return IndicesClusterStateService.ShardAllocationKey.fromRouting(routing);
+    private static ShardAllocationId allocationKey(ShardRouting routing) {
+        return ShardAllocationId.fromRouting(routing);
     }
 
     private IndicesClusterStateService.PendingAllocationState.InFlight currentInFlight(ShardRouting routing) {
@@ -1593,7 +1588,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             assertNotNull(shard);
             RecoveryState recoveryState = shard.recoveryState();
             lastRecoveryListener.onRecoveryFailure(
-                recoveryState,
                 new RecoveryFailedException(recoveryState, "simulated", new Exception("simulated")),
                 failureStrategy
             );

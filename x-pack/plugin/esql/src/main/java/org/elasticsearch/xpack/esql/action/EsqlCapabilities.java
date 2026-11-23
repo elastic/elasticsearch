@@ -1594,8 +1594,9 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * A FORK may follow a subquery, a view or a LET binding that itself contains a FORK. Each of them is its own FORK scope, so the
-         * two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still rejected while parsing.
+         * A FORK may follow a subquery, a view or a LET named subquery that itself contains a FORK. Each of them is its own FORK
+         * scope, so the two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still
+         * rejected while parsing.
          */
         ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
@@ -3189,6 +3190,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10, with a warning when
+         * used) and {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -3853,6 +3860,25 @@ public class EsqlCapabilities {
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162506.
          */
         OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, only {@code KEEP} and {@code DROP} decide which keys {@code _unmapped_fields} holds.
+         * A column is a name of its own and leaves the keys as they are, whether it is a mapped field, a field that the query names, or
+         * a column that a command adds or shadows (an {@code EVAL} or {@code RENAME} target, a {@code LOOKUP JOIN} or {@code ENRICH}
+         * field, a {@code GROK} output). Those used to take the key of the same name out of it. {@code DROP} removes what it matches
+         * everywhere, columns and keys, and an exact name as well as a wildcard.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST} is available. See
+         * <a href="https://github.com/elastic/esql-planning/issues/2536">esql-planning#2536</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ONLY_KEEP_AND_DROP_REACH_KEYS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * {@code unmapped_fields="LOAD_ALL"} works with the {@code TS} source command, and with {@code METRICS_INFO} and {@code TS_INFO}.
+         * A time-series aggregation drops the {@code _unmapped_fields} column like any {@code STATS}, and a {@code TS} query without
+         * one returns it like a {@code FROM} does. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
@@ -4654,13 +4680,13 @@ public class EsqlCapabilities {
          * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.
          */
-        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET,
 
         /**
-         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
-         * binding name, instead of {@code null} for both.
+         * {@code METADATA _class, _name} on a {@code LET} named subquery referenced in {@code FROM} answers {@code subquery} and the
+         * subquery name, instead of {@code null} for both.
          */
-        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
@@ -5004,11 +5030,22 @@ public class EsqlCapabilities {
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
 
         /**
+         * A filter with should clauses still requires one of them when other filters are pushed next to it.
+         */
+        FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER,
+
+        /**
          * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
          * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
          * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
          */
         FIX_TS_FIRST_LAST_SAMPLES,
+
+        /**
+         * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
+         * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
+         */
+        UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

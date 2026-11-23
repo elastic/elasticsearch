@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -121,7 +121,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (blobName.startsWith(BatchedCompoundCommit.PREFIX)) {
+                if (blobName.startsWith(BccBlob.PREFIX)) {
                     int n = bccUploadCount.incrementAndGet();
                     if (n == 1) {
                         firstUploadStarted.countDown();
@@ -196,7 +196,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (blobName.startsWith(BatchedCompoundCommit.PREFIX) && bccUploadCount.incrementAndGet() == 1) {
+                if (blobName.startsWith(BccBlob.PREFIX) && bccUploadCount.incrementAndGet() == 1) {
                     firstUploadStarted.countDown();
                     safeAwait(unblockFirstUpload);
                 }
@@ -274,7 +274,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (blobName.startsWith(BatchedCompoundCommit.PREFIX)) {
+                if (blobName.startsWith(BccBlob.PREFIX)) {
                     int n = bccUploadCount.incrementAndGet();
                     if (n == 1) {
                         firstUploadStarted.countDown();
@@ -361,7 +361,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                if (blobName.startsWith(BatchedCompoundCommit.PREFIX)) {
+                if (blobName.startsWith(BccBlob.PREFIX)) {
                     uploadedBccNames.add(blobName);
                 }
                 super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);

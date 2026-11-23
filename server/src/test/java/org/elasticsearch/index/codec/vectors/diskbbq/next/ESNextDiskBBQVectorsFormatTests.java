@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -471,7 +472,7 @@ public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                         collector = new TopKnnCollector(
                             random().nextInt(2 * matchingDocs, 3 * matchingDocs),
                             Integer.MAX_VALUE,
-                            new IVFKnnSearchStrategy(0.25f, 10, 10, null)
+                            new IVFKnnSearchStrategy(0.25f, 10, 10, null, QueryTransformCache.NONE)
                         );
                     }
                     if (leafReader.postings(new Term("k", new BytesRef("B"))) == null) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -18,8 +17,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlAsyncGetResultsAction;
@@ -134,7 +132,11 @@ public class AsyncSqlRelayCircuitBreakerIT extends AbstractSqlIntegTestCase {
         MockTransportService ownerTransport = MockTransportService.getInstance(owner);
         ownerTransport.addRequestHandlingBehavior(
             SqlAsyncGetResultsAction.NAME,
-            (handler, request, channel, task) -> handler.messageReceived(request, capturingBreaker(channel, replyBreaker), task)
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                TestTransportChannels.capturingResponseBreaker(channel, replyBreaker::set),
+                task
+            )
         );
         try {
             assertThat(getThrough(relay, id).rows().size(), equalTo(HELD_DOCS));
@@ -163,36 +165,5 @@ public class AsyncSqlRelayCircuitBreakerIT extends AbstractSqlIntegTestCase {
         assertFalse(response.isRunning());
         assertThat(response.rows().size(), equalTo(size));
         return response.id();
-    }
-
-    /** Records the breaker the handler passes for its reply. */
-    private static TransportChannel capturingBreaker(TransportChannel channel, AtomicReference<CircuitBreaker> breaker) {
-        return new TransportChannel() {
-            @Override
-            public String getProfileName() {
-                return channel.getProfileName();
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) {
-                channel.sendResponse(response);
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response, CircuitBreaker circuitBreaker) {
-                breaker.set(circuitBreaker);
-                channel.sendResponse(response, circuitBreaker);
-            }
-
-            @Override
-            public void sendResponse(Exception exception) {
-                channel.sendResponse(exception);
-            }
-
-            @Override
-            public TransportVersion getVersion() {
-                return channel.getVersion();
-            }
-        };
     }
 }

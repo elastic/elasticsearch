@@ -10,10 +10,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.function.Consumer;
 
 public class TestTransportChannels {
 
@@ -41,5 +44,39 @@ public class TestTransportChannels {
             false,
             () -> {}
         );
+    }
+
+    /**
+     * Wraps {@code channel} so that {@code breakerConsumer} gets the breaker a response is sent with, before the response is sent.
+     * A test can then read it as soon as the response arrives. The consumer isn't called for a response sent without a breaker.
+     */
+    public static TransportChannel capturingResponseBreaker(TransportChannel channel, Consumer<CircuitBreaker> breakerConsumer) {
+        return new TransportChannel() {
+            @Override
+            public String getProfileName() {
+                return channel.getProfileName();
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response) {
+                channel.sendResponse(response);
+            }
+
+            @Override
+            public void sendResponse(TransportResponse response, CircuitBreaker circuitBreaker) {
+                breakerConsumer.accept(circuitBreaker);
+                channel.sendResponse(response, circuitBreaker);
+            }
+
+            @Override
+            public void sendResponse(Exception exception) {
+                channel.sendResponse(exception);
+            }
+
+            @Override
+            public TransportVersion getVersion() {
+                return channel.getVersion();
+            }
+        };
     }
 }

@@ -23,7 +23,8 @@ import java.util.stream.Stream;
 
 /**
  * Internal function that keeps selected dimension names of a keyword {@code _timeseries} metadata container, or with {@code exclude}
- * removes them, giving the canonical label container. Naming an absent dimension changes nothing.
+ * removes them. Objects keep their nesting, and an object left with no dimension is left out, as in the source of a series without
+ * it. Naming an absent dimension changes nothing.
  */
 public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

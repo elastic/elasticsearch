@@ -42,19 +42,16 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
     ) throws IOException {
         if (labels != null) {
             try (XContentParser parser = parser(labels)) {
-                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                    boolean match = parser.currentName().equals(label);
-                    XContentParser.Token token = parser.nextToken();
-                    if (match == false) {
-                        parser.skipChildren();
-                    } else if (token == XContentParser.Token.START_ARRAY) {
+                if (find(parser, "", label)) {
+                    if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                         result.beginPositionEntry();
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             result.appendBytesRef(new BytesRef(parser.text()));
                         }
                         result.endPositionEntry();
                         return;
-                    } else {
+                    }
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
                         result.appendBytesRef(new BytesRef(parser.text()));
                         return;
                     }

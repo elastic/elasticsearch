@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,22 +58,30 @@ final class TimeSeriesMetadataFilterEvaluator extends AbstractTimeSeriesMetadata
             builder.startObject();
             if (container != null) {
                 try (XContentParser parser = parser(container)) {
-                    while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                        String label = parser.currentName();
-                        parser.nextToken();
-                        if (labels.contains(label) != exclude) {
-                            builder.field(label);
-                            builder.copyCurrentStructure(parser);
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
+                    copy(parser, "", new LabelWriter(builder));
                     end(parser);
                 }
             }
             builder.endObject();
         }
         result.appendBytesRef(scratch.bytesRefView());
+    }
+
+    /** Copies the object {@code parser} is in, at {@code prefix}, with the labels this filter keeps. */
+    private void copy(XContentParser parser, String prefix, LabelWriter writer) throws IOException {
+        while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+            String name = parser.currentName();
+            String field = prefix + name;
+            if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                writer.startObject(name);
+                copy(parser, field + ".", writer);
+                writer.endObject();
+            } else if (labels.contains(PromqlLabels.labelName(field)) != exclude) {
+                writer.field(name).copyCurrentStructure(parser);
+            } else {
+                parser.skipChildren();
+            }
+        }
     }
 
     @Override

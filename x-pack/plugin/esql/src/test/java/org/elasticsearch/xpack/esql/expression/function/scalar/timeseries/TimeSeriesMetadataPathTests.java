@@ -62,10 +62,10 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
                 )
             );
         }
-        // The label container is the source document: nested, prefixed and in any order, read into the canonical form.
-        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"},\"k8s\":{\"node\":[\"n\",\"\",\"m\"]}}";
+        // The label container is the source document: objects nest as in the mapping, and a label is named by its field path.
+        String source = "{\"k8s\":{\"node\":[\"m\",\"n\"]},\"labels\":{\"job\":\"api\"},\"pod\":\"a\"}";
         suppliers.add(read("prefixed label", DataType.KEYWORD, source, "job", equalTo(new BytesRef("api"))));
-        suppliers.add(read("nested label", DataType.KEYWORD, source, "k8s.node", equalTo(List.of(new BytesRef("n"), new BytesRef("m")))));
+        suppliers.add(read("nested label", DataType.KEYWORD, source, "k8s.node", equalTo(List.of(new BytesRef("m"), new BytesRef("n")))));
         suppliers.add(read("prefix is not a label", DataType.KEYWORD, source, "labels.job", nullValue()));
         return parameterSuppliersFromTypedData(suppliers);
     }

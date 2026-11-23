@@ -26,7 +26,7 @@ public class TimeSeriesMetadataSetErrorTests extends ErrorsForCasesWithoutExampl
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataSet(source, args.get(0), args.get(1), args.get(2));
+        return TimeSeriesMetadataSetTests.set(source, args);
     }
 
     @Override

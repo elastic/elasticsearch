@@ -8,23 +8,22 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
-import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
@@ -51,7 +50,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
@@ -272,11 +273,8 @@ public final class NestedChildren implements Releasable {
         int[] docs = new int[PAGE_SIZE];
         int[] positions = new int[PAGE_SIZE];
         int count = 0;
-        ExpressionEvaluator matches = null;
+        ChildSelector matches = matchingChildren == null ? null : new ChildSelector(matchingChildren, shards);
         try {
-            if (matchingChildren != null) {
-                matches = new LuceneQueryExpressionEvaluator.Factory(childQuery(matchingChildren)).get(context);
-            }
             for (int p = 0; p < parents.getPositionCount(); p++) {
                 if (included.test(p) == false) {
                     continue;
@@ -312,14 +310,72 @@ public final class NestedChildren implements Releasable {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        } finally {
-            Releasables.close(matches);
         }
     }
 
-    /** One searcher per shard, so the child query is scored against the reader that holds those children. */
-    private IndexedByShardId<LuceneQueryEvaluator.ShardConfig> childQuery(Query query) {
-        return shards.map(shard -> new LuceneQueryEvaluator.ShardConfig(query, new IndexSearcher(shard.reader())));
+    /**
+     * Scores an already enumerated child batch against one query, compacting the shard, segment, doc, and parent-position
+     * buffers together. A weight is built once per shard and advanced through each segment's doc ids.
+     */
+    private static final class ChildSelector {
+        private final Query query;
+        private final IndexedByShardId<Shard> shards;
+        private final Map<Integer, Weight> weights = new HashMap<>();
+
+        private ChildSelector(Query query, IndexedByShardId<Shard> shards) {
+            this.query = query;
+            this.shards = shards;
+        }
+
+        /** Keeps the matching prefix of the buffers and returns how many children remain. */
+        private int retain(int[] shardIds, int[] segments, int[] docs, int[] positions, int count) throws IOException {
+            int write = 0;
+            int start = 0;
+            while (start < count) {
+                int shardId = shardIds[start];
+                int segment = segments[start];
+                int end = start + 1;
+                while (end < count && shardIds[end] == shardId && segments[end] == segment) {
+                    end++;
+                }
+                write = retainSegment(shardIds, segments, docs, positions, start, end, write);
+                start = end;
+            }
+            return write;
+        }
+
+        private int retainSegment(int[] shardIds, int[] segments, int[] docs, int[] positions, int start, int end, int write)
+            throws IOException {
+            Weight weight = weight(shardIds[start]);
+            LeafReaderContext leaf = shards.get(shardIds[start]).reader().leaves().get(segments[start]);
+            Scorer scorer = weight.scorer(leaf);
+            DocIdSetIterator iterator = scorer == null ? null : scorer.iterator();
+            for (int i = start; i < end; i++) {
+                int doc = docs[i];
+                if (iterator != null && iterator.docID() > doc) {
+                    scorer = weight.scorer(leaf);
+                    iterator = scorer == null ? null : scorer.iterator();
+                }
+                if (iterator != null && (iterator.docID() == doc || iterator.advance(doc) == doc)) {
+                    shardIds[write] = shardIds[i];
+                    segments[write] = segments[i];
+                    docs[write] = doc;
+                    positions[write] = positions[i];
+                    write++;
+                }
+            }
+            return write;
+        }
+
+        private Weight weight(int shardId) throws IOException {
+            Weight weight = weights.get(shardId);
+            if (weight == null) {
+                IndexSearcher searcher = new IndexSearcher(shards.get(shardId).reader());
+                weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                weights.put(shardId, weight);
+            }
+            return weight;
+        }
     }
 
     private void emit(
@@ -329,9 +385,15 @@ public final class NestedChildren implements Releasable {
         int[] positions,
         int count,
         boolean mayContainDuplicates,
-        @Nullable ExpressionEvaluator matchingChildren,
+        @Nullable ChildSelector matchingChildren,
         Consumer<Page> consumer
-    ) {
+    ) throws IOException {
+        if (matchingChildren != null) {
+            count = matchingChildren.retain(shardIds, segments, docs, positions, count);
+            if (count == 0) {
+                return;
+            }
+        }
         context.checkForEarlyTermination();
         BlockFactory blockFactory = context.blockFactory();
         IntVector shardVector = null;
@@ -357,12 +419,6 @@ public final class NestedChildren implements Releasable {
             Page input = new Page(children.asBlock(), positionVector.asBlock());
             children = null;
             positionVector = null;
-            if (matchingChildren != null) {
-                input = selectMatching(input, matchingChildren, mayContainDuplicates);
-                if (input == null) {
-                    return;
-                }
-            }
             if (reader == null) {
                 Page counted;
                 try {
@@ -385,39 +441,6 @@ public final class NestedChildren implements Releasable {
             }
         } finally {
             Releasables.closeExpectNoException(shardVector, segmentVector, docVector, positionVector, children);
-        }
-    }
-
-    /**
-     * A page of the children that match {@code matches}, with the parent-position block filtered by the same positions.
-     * Returns {@code null} when none match, and then {@code input} has been released.
-     */
-    private static Page selectMatching(Page input, ExpressionEvaluator matches, boolean mayContainDuplicates) {
-        int count = input.getPositionCount();
-        int[] selected = new int[count];
-        int matched = 0;
-        Block flags = matches.eval(input);
-        try {
-            BooleanBlock booleans = (BooleanBlock) flags;
-            for (int i = 0; i < count; i++) {
-                if (booleans.getValueCount(i) == 1 && booleans.isNull(i) == false && booleans.getBoolean(booleans.getFirstValueIndex(i))) {
-                    selected[matched++] = i;
-                }
-            }
-        } finally {
-            flags.close();
-        }
-        if (matched == count) {
-            return input;
-        }
-        if (matched == 0) {
-            input.releaseBlocks();
-            return null;
-        }
-        try {
-            return input.filter(mayContainDuplicates, selected, 0, matched);
-        } finally {
-            input.releaseBlocks();
         }
     }
 

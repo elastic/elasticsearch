@@ -116,16 +116,12 @@ $endif$
 $if(BytesRef)$
         assert estimatedBytes == 0;
         if (valueCount == 1) {
-            vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
             /*
-             * Update the breaker with the actual bytes used.
-             * We pass false below even though we've used the bytes. That's weird,
-             * but if we break here we will throw away the used memory, letting
-             * it be deallocated. The exception will bubble up and the builder will
-             * still technically be open, meaning the calling code should close it
-             * which will return all used memory to the breaker.
+             * The factory reserves the copy with the breaker before making it, so a value
+             * too big to copy trips the breaker instead of being allocated first. If it
+             * does trip, the builder is still open and closing it returns its memory.
              */
-            blockFactory.adjustBreaker(vector.ramBytesUsed());
+            vector = blockFactory.newConstantBytesRefVector(values.get(0, new PagedBytesCursor()), 1);
             Releasables.closeExpectNoException(values);
         } else {
             vector = new $Type$ArrayVector(values, valueCount, blockFactory);

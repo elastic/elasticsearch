@@ -283,16 +283,13 @@ $if(BytesRef)$
         assert estimatedBytes == 0 || firstValueIndexes != null;
         final $Type$Block theBlock;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
             /*
-             * Update the breaker with the actual bytes used.
-             * We pass false below even though we've used the bytes. That's weird,
-             * but if we break here we will throw away the used memory, letting
-             * it be deallocated. The exception will bubble up and the builder will
-             * still technically be open, meaning the calling code should close it
-             * which will return all used memory to the breaker.
+             * The factory reserves the copy with the breaker before making it, so a value
+             * too big to copy trips the breaker instead of being allocated first. If it
+             * does trip, build closes the builder, which returns its memory.
              */
-            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
+            theBlock = blockFactory.newConstantBytesRefVector(values.get(0, new PagedBytesCursor()), 1).asBlock();
+            blockFactory.adjustBreaker(-estimatedBytes);
             Releasables.closeExpectNoException(values);
         } else {
             if (isDense() && singleValued()) {

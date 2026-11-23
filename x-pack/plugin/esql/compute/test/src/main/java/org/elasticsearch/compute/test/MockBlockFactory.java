@@ -11,6 +11,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
@@ -496,6 +497,13 @@ public class MockBlockFactory extends BlockFactory {
 
     @Override
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
+        var v = super.newConstantBytesRefVector(value, positions);
+        track(v, trackDetail());
+        return v;
+    }
+
+    @Override
+    public BytesRefVector newConstantBytesRefVector(PagedBytesCursor value, int positions) {
         var v = super.newConstantBytesRefVector(value, positions);
         track(v, trackDetail());
         return v;

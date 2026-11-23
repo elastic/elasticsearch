@@ -29,7 +29,7 @@ public final class UsageComponents {
     }
 
     public static PendingStore newPendingStore(UsageReportingSettings settings) {
-        return new UnboundedPendingStore();
+        return new BoundedPendingStore(settings.pendingMax());
     }
 
     public static UsagePublisher newPublisher(UsageReportingSettings settings, SslProfile sslProfile) {

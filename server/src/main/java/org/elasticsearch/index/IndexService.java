@@ -38,6 +38,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -434,10 +436,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }))) {
                 final Set<Integer> shardIds = shardIds();
                 for (final int shardId : shardIds) {
-                    ActionListener.run(refs.acquireListener().delegateResponse((l, e) -> {
+                    final var onShardClosed = Releasables.releaseOnce(refs.acquire());
+                    try {
+                        removeShard(shardId, reason, shardCloseExecutor, onShardClosed);
+                    } catch (Exception e) {
                         logger.warn("failed to close shard", e);
-                        l.onResponse(null);
-                    }), l -> removeShard(shardId, reason, shardCloseExecutor, l));
+                        onShardClosed.close();
+                    }
                 }
             }
         } else {
@@ -646,7 +651,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         finalStore,
                         eventListener,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE /* closing a shard that failed to start up should be fast enough */,
-                        l
+                        () -> l.onResponse(null)
                     )
                 );
             }
@@ -654,16 +659,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, ActionListener<Void> closeListener) {
+    public synchronized void removeShard(int shardId, String reason, Executor closeExecutor, Releasable onClosed) {
         final IndexShard indexShard = shards.get(shardId);
         if (indexShard == null) {
-            closeListener.onResponse(null);
+            onClosed.close();
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        final var wrappedListener = logger.isDebugEnabled()
-            ? ActionListener.runBefore(closeListener, () -> logger.debug("[{}] closed (reason: [{}])", shardId, reason))
-            : closeListener;
+        final var wrappedOnClosed = logger.isDebugEnabled()
+            ? Releasables.wrap(() -> logger.debug("[{}] closed (reason: [{}])", shardId, reason), onClosed)
+            : onClosed;
 
         shards = Maps.copyMapWithRemovedEntry(shards, shardId);
         closeShard(
@@ -673,7 +678,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexShard.store(),
             indexShard.getIndexEventListener(),
             closeExecutor,
-            wrappedListener
+            wrappedOnClosed
         );
         logger.debug("[{}] removed (reason: [{}])", shardId, reason);
     }
@@ -685,7 +690,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Store store,
         IndexEventListener listener,
         Executor closeExecutor,
-        ActionListener<Void> closeListener
+        Releasable onClosed
     ) {
         final int shardId = sId.id();
         final Settings indexSettings = this.getIndexSettings().getSettings();
@@ -699,7 +704,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard == null) {
-                    closeListener.onResponse(null);
+                    onClosed.close();
                 } else {
                     // only flush if we are closed (closed index or shutdown) and if we are not deleted
                     final boolean flushEngine = deleted.get() == false && closed.get();
@@ -718,7 +723,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                         store.decRef();
                                     }
                                 } finally {
-                                    closeListener.onResponse(null);
+                                    onClosed.close();
                                 }
                             }
                         }

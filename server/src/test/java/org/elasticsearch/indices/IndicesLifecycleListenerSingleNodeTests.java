@@ -112,7 +112,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 counter.incrementAndGet();
             }
         };
-        indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
         try {
             IndexService index = indicesService.createIndex(metadata, Arrays.asList(countingListener), false);
             assertEquals(3, counter.get());
@@ -142,7 +142,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         } catch (Exception ex) {
             logger.warn("unexpected exception", ex);
         } finally {
-            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
         }
         assertEquals(10, counter.get());
     }
@@ -167,7 +167,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 listener.onResponse(null);
             }
         };
-        indicesService.removeIndex(idx, DELETED, "delete", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        indicesService.removeIndex(idx, DELETED, "delete", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
         try {
             IndexService index = indicesService.createIndex(metadata, Arrays.asList(recoveryListener), false);
             idx = index.index();
@@ -195,7 +195,59 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             recoveryTriggered.actionGet();
             assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.STARTED)));
         } finally {
-            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
+        }
+    }
+
+    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosingThrows() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
+        ensureGreen();
+        Index idx = resolveIndex("test");
+        IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
+        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
+        final AtomicInteger hookCalls = new AtomicInteger();
+        IndexEventListener throwingListener = new IndexEventListener() {
+            @Override
+            public void afterIndexShardClosing(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+                hookCalls.incrementAndGet();
+                throw new IllegalStateException("simulated failure in afterIndexShardClosing");
+            }
+        };
+        indicesService.removeIndex(idx, DELETED, "delete", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
+        try {
+            IndexService index = indicesService.createIndex(metadata, Arrays.asList(throwingListener), false);
+            idx = index.index();
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
+            ShardRouting newRouting = ShardRoutingHelper.initialize(
+                shardRouting.moveToUnassigned(unassignedInfo, RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
+                    .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE),
+                shardRouting.currentNodeId()
+            );
+            IndexShard shard = index.createShard(
+                newRouting,
+                getInstanceFromNode(ClusterService.class).localNode(),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                0
+            );
+
+            // The shard is closed (and so the reference to it released) before the hook throws; releasing it again when handling the
+            // exception must not complete the index close a second time.
+            final AtomicInteger indexClosed = new AtomicInteger();
+            index.close(
+                "test",
+                false,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ActionListener.wrap(ignored -> indexClosed.incrementAndGet(), e -> fail(e, "index close should succeed"))
+            );
+
+            assertThat(hookCalls.get(), equalTo(1));
+            assertThat(shard.state(), equalTo(IndexShardState.CLOSED));
+            assertThat(indexClosed.get(), equalTo(1));
+        } finally {
+            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
         }
     }
 }

@@ -8580,6 +8580,19 @@ null
 # ROW: no _source, so it adds no unmapped fields    #
 #####################################################
 
+// A ROW has no _source, so a column of it named like the one of unmapped fields hides nothing, and there is no warning to rename it.
+rowColumnNamedLikeUnmappedFieldsHasNoWarning
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_row
+
+SET unmapped_fields="LOAD_ALL"\;
+ROW _unmapped_fields = "mine"
+;
+
+_unmapped_fields:keyword
+mine
+;
+
 rowAlone
 required_capability: optional_fields_load_all_row
 

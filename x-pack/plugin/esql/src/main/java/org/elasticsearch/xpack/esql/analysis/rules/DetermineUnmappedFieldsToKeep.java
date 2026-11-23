@@ -56,7 +56,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExist
  *
  * <p>The rule also leaves the plan untouched when the query has a column named {@code _unmapped_fields} of its own, at any
  * node: a mapped or demand-loaded field, an {@code EVAL} or {@code RENAME} target, an {@code ENRICH} or {@code LOOKUP JOIN}
- * field. The query's column wins, and a warning says so. Adding the
+ * field. The query's column wins, and a warning says so, unless the query has no relation that reads {@code _source}, as a lone
+ * {@code ROW}, where renaming the column would not get any unmapped field. Adding the
  * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
  * their columns up by name.
  *
@@ -96,8 +97,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         if (hasColumnNamedLikeUnmappedFields(plan)) {
             // Warn even if no unmapped field could have been returned anyway, e.g. after an exact KEEP: the column of that name is
-            // then the query's own, which is not what a user reading its name expects.
-            context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            // then the query's own, which is not what a user reading its name expects. But not for a query with no relation that reads
+            // _source, as a lone ROW: the warning says to rename the column to get the unmapped fields, and there are none to get.
+            if (hasRelationThatReadsSource(plan)) {
+                context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            }
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
@@ -151,6 +155,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * Whether the query has a column named like {@code _unmapped_fields} of its own, at any node. A view contributes the column it
      * outputs, not whatever its body had along the way.
      */
+    /** Whether the query has an index that could supply unmapped fields: not a lookup index, nor a view, which has no {@code _source}. */
+    private static boolean hasRelationThatReadsSource(LogicalPlan plan) {
+        return ViewUtils.anyMatchOutsideViews(plan, p -> p instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP);
+    }
+
     private static boolean hasColumnNamedLikeUnmappedFields(LogicalPlan plan) {
         return ViewUtils.anyMatchOutsideViews(
             plan,

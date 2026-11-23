@@ -718,6 +718,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
     }
 
+    /**
+     * A {@code ROW} has no {@code _source}, so a column of it named like the one of unmapped fields hides nothing, and the warning to
+     * rename it to get the unmapped fields would be wrong: there is none, and the query gets no warning. Next to an index that could
+     * have supplied them the warning stays, as in the tests above.
+     */
+    public void testRowColumnNamedUnmappedFieldsHasNoWarning() {
+        var plan = test().statement(setUnmappedLoadAll("ROW _unmapped_fields = \"mine\""));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        assertThat(Expressions.names(plan.output()), equalTo(List.of(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        ensureNoWarnings();
+    }
+
     /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */
     public void testLookupJoinFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
         var plan = test().addLookupIndex("colliding_lookup", lookupIndexWithUnmappedFieldsField())

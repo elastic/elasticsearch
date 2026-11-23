@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -290,6 +291,21 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> open(contexts, 0));
         assertThat(e.getMessage(), equalTo("opened a fetch context after the request ended"));
+        assertAllFreed();
+    }
+
+    /**
+     * The drivers of a request finish before it ends, so no block of documents goes to the sink after that. A discard
+     * after the request ended relies on it to decide on a count that only goes down.
+     */
+    public void testABlockAfterTheRequestEndedTrips() throws Exception {
+        createIndexWithDocs();
+        NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
+        SearchContext searchContext = open(contexts, 0);
+        endRequest(contexts);
+
+        AssertionError e = expectThrows(AssertionError.class, () -> contexts.originOf(searchContext));
+        assertThat(e.getMessage(), containsString("a block of documents went to the sink after the request ended"));
         assertAllFreed();
     }
 

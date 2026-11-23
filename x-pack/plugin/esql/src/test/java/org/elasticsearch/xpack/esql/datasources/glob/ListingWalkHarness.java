@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -42,7 +45,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
+import java.util.function.LongSupplier;
 
 /**
  * Counting in-memory store for listing-walk tests. {@link #listObjects} pages at {@link #LIST_PAGE_SIZE}
@@ -70,7 +76,7 @@ public final class ListingWalkHarness implements StorageProvider {
     public static final String PADDED_PREFIX = "s3://bucket/padded";
     public static final String PADDED_GLOB = "s3://bucket/padded/year=*/*/*/*.parquet";
     public static final String MIXED_PREFIX = "s3://bucket/mixed";
-    /** Keyed {@code month=*} so {@code month == 6} splices and misses padded siblings. */
+    /** Keyed {@code month=*} so integer {@code month == 6} stays {@code *} and the typed filter keeps every spelling. */
     public static final String MIXED_GLOB = "s3://bucket/mixed/year=*/month=*/*.parquet";
 
     /**
@@ -92,31 +98,31 @@ public final class ListingWalkHarness implements StorageProvider {
      * 1 July folders exist so the walk has something to prune.
      */
     public static final int WIDE_HIVE_ONE_DAY_FILES = WIDE_HIVE_PREFIXES * WIDE_HIVE_HOURS * WIDE_HIVE_FILES_PER_LEAF;
+    /** One finish {@code listObjects} page per matching day directory when the 1-day walk completes. */
+    public static final int WIDE_HIVE_ONE_DAY_FINISH_PAGES = WIDE_HIVE_PREFIXES;
     /**
-     * Derived {@code listChildren} to reach matching day directories on {@link #wideHiveTree()} with a
+     * Observed {@code listChildren} to reach matching day directories on {@link #wideHiveTree()} with a
      * 1-day filter: root + accounts + services + regions + years + matching months + July peeks.
-     * Formula, not an observed complete walk — today's cap aborts at
-     * {@link #WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}. The {@code 4 × prefixes} term is regions, years,
-     * June months, and July peeks; without July peeks the count is 725. Do not treat this as a measured
-     * walk until a raised ceiling observes {@code listChildrenRequests()}.
+     * Formula {@code 1 + 2*accounts + 4*prefixes} = 879. The {@code 4 × prefixes} term is regions, years,
+     * June months, and July peeks; without July peeks the count is 725. Peeks are in this number.
      */
     public static final int WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES = 1 + 2 * WIDE_HIVE_ACCOUNTS + 4 * WIDE_HIVE_PREFIXES;
     /**
-     * {@code listChildren} issued before the 512 cap trips at region→year
+     * {@code listChildren} issued before a 512 cap trips at region→year
      * ({@code listings + dirs = 417 + 154 = 571}): root + accounts + services + regions.
      */
     public static final int WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN = 1 + 2 * WIDE_HIVE_ACCOUNTS + WIDE_HIVE_PREFIXES;
     /** Matching June days in {@link #wideHiveSevenDayTree()}. The builder also adds 1 July as a prune sibling. */
     public static final int WIDE_HIVE_SEVEN_DAYS = 7;
     public static final Instant WIDE_HIVE_SEVEN_DAY_END = Instant.parse("2026-06-08T00:00:00Z");
-    /** Kept files for a 7-day window and {@code hour == 0}: prefixes × days × filesPerLeaf. */
-    public static final int WIDE_HIVE_SEVEN_DAY_HOUR_FILES = WIDE_HIVE_PREFIXES * WIDE_HIVE_SEVEN_DAYS * WIDE_HIVE_FILES_PER_LEAF;
+    public static final int WIDE_HIVE_SEVEN_DAY_HOUR_FILES = WIDE_HIVE_PREFIXES * WIDE_HIVE_SEVEN_DAYS * WIDE_HIVE_HOURS
+        * WIDE_HIVE_FILES_PER_LEAF;
     /**
-     * Derived {@code listChildren} to reach matching hour directories on {@link #wideHiveSevenDayTree()}
-     * with a 7-day window and an hour filter: the 1-day day-grain formula plus one listing per matching
-     * day. Not observed under today's 512 cap. Without July peeks: 725 + 7×154 = 1803.
+     * Hour-grain 7-day walk on {@link #wideHiveSevenDayTree()}: 1-day day-grain (879, including July
+     * month peeks) plus one listing per matching June day ({@code 7 × prefixes}) plus July day peeks
+     * ({@code prefixes}) because {@code hour} is still pending. Measured 2111.
      */
-    public static final int WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES = WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES + WIDE_HIVE_SEVEN_DAYS
+    public static final int WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES = WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES + (WIDE_HIVE_SEVEN_DAYS + 1)
         * WIDE_HIVE_PREFIXES;
 
     private static final String[] WIDE_HIVE_REGIONS = {
@@ -151,6 +157,9 @@ public final class ListingWalkHarness implements StorageProvider {
     /** Empty settings: AUTO detection, which still runs Hive on {@code key=value} paths. */
     public static final Map<String, Object> HIVE_ON = Map.of();
     public static final PartitionSpec DAY_SPEC = PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)");
+    public static final PartitionSpec HOUR_SPEC = PartitionSpec.parse(
+        "year(@timestamp), month(@timestamp), day(@timestamp), hour(@timestamp)"
+    );
     public static final Set<String> HIVE_KEYS = Set.of("year", "month", "day");
 
     private final List<StorageEntry> allEntries;
@@ -160,7 +169,16 @@ public final class ListingWalkHarness implements StorageProvider {
     final Map<String, Integer> keysPulled = Collections.synchronizedMap(new LinkedHashMap<>());
     final AtomicInteger listObjectPages = new AtomicInteger();
     final AtomicInteger listChildrenRequests = new AtomicInteger();
+    final AtomicInteger listChildrenInFlight = new AtomicInteger();
+    final AtomicInteger maxListChildrenInFlight = new AtomicInteger();
+    volatile LongSupplier listChildrenDelayNanos = () -> 0L;
+    volatile String failListChildrenContaining;
+    volatile boolean failListChildrenUnavailable;
+    volatile boolean failListChildrenRuntime;
+    /** Return {@code null} from {@link #listChildren} after this many successful calls. {@code -1} disables. */
+    volatile int nullListChildrenAfter = -1;
     boolean childrenUnsupported;
+    boolean listsInKeyOrder = true;
 
     public ListingWalkHarness(List<StorageEntry> allEntries) {
         List<StorageEntry> sorted = new ArrayList<>(allEntries);
@@ -178,6 +196,22 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public int listChildrenRequests() {
         return listChildrenRequests.get();
+    }
+
+    public int maxListChildrenInFlight() {
+        return maxListChildrenInFlight.get();
+    }
+
+    public int listChildrenInFlight() {
+        return listChildrenInFlight.get();
+    }
+
+    public void setListChildrenDelayNanos(long nanos) {
+        this.listChildrenDelayNanos = () -> nanos;
+    }
+
+    public void setListChildrenDelayNanos(LongSupplier delay) {
+        this.listChildrenDelayNanos = delay == null ? () -> 0L : delay;
     }
 
     /** Snapshot of recursive {@code listObjects} prefixes, in call order. */
@@ -200,6 +234,29 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public void setChildrenUnsupported(boolean childrenUnsupported) {
         this.childrenUnsupported = childrenUnsupported;
+    }
+
+    /** Throws from {@link #listChildren} when the prefix contains this fragment. */
+    public void setFailListChildrenContaining(String fragment) {
+        this.failListChildrenContaining = fragment;
+    }
+
+    /** {@link #setFailListChildrenContaining} throws 503-class {@code ExternalUnavailableException}. */
+    public void setFailListChildrenUnavailable(boolean unavailable) {
+        this.failListChildrenUnavailable = unavailable;
+    }
+
+    /** {@link #setFailListChildrenContaining} throws a {@link RuntimeException}, not {@link IOException}. */
+    public void setFailListChildrenRuntime(boolean runtime) {
+        this.failListChildrenRuntime = runtime;
+    }
+
+    public void setNullListChildrenAfter(int successfulBeforeNull) {
+        this.nullListChildrenAfter = successfulBeforeNull;
+    }
+
+    public void setListsInKeyOrder(boolean listsInKeyOrder) {
+        this.listsInKeyOrder = listsInKeyOrder;
     }
 
     /** LIST pages a recursive {@code listObjects} of {@code objects} keys costs. An empty listing is still one page. */
@@ -529,7 +586,72 @@ public final class ListingWalkHarness implements StorageProvider {
         @Nullable Map<String, Object> config,
         @Nullable FolderRangePredicate folderRange
     ) throws IOException {
-        return GlobExpander.expand(glob, provider, hints, config, maxDiscoveredFiles, Integer.MAX_VALUE, folderRange);
+        return expand(provider, glob, hints, maxDiscoveredFiles, config, folderRange, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS);
+    }
+
+    public static FileList expand(
+        ListingWalkHarness provider,
+        String glob,
+        @Nullable List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        @Nullable Map<String, Object> config,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) throws IOException {
+        return GlobExpander.expand(
+            glob,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            () -> false,
+            folderRange,
+            maxDirectoryListings
+        );
+    }
+
+    public static FileList expand(
+        ListingWalkHarness provider,
+        String glob,
+        @Nullable List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) throws IOException {
+        return expand(provider, glob, hints, maxDiscoveredFiles, HIVE_ON, folderRange, maxDirectoryListings);
+    }
+
+    public static void expandAsync(
+        ListingWalkHarness provider,
+        String glob,
+        @Nullable List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        @Nullable FolderRangePredicate folderRange,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener
+    ) {
+        GlobExpander.expandAsync(
+            glob,
+            provider,
+            hints,
+            HIVE_ON,
+            maxDiscoveredFiles,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            concurrency,
+            () -> false,
+            executor,
+            listener,
+            folderRange,
+            PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
     }
 
     /** TEMPORAL extract as a folder-range predicate. Null when the spec is empty or has no usable bound. */
@@ -620,7 +742,7 @@ public final class ListingWalkHarness implements StorageProvider {
 
     @Override
     public boolean listsInKeyOrder() {
-        return true;
+        return listsInKeyOrder;
     }
 
     /** Prefix listing is always recursive, like S3; {@code recursive} is ignored. */
@@ -674,37 +796,59 @@ public final class ListingWalkHarness implements StorageProvider {
     }
 
     @Override
-    public StorageChildren listChildren(StoragePath prefix, int limit) {
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
         if (childrenUnsupported) {
             return null;
         }
         String p = withTrailingSlash(prefix.toString());
+        if (failListChildrenContaining != null && p.contains(failListChildrenContaining)) {
+            if (failListChildrenUnavailable) {
+                throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
+            }
+            if (failListChildrenRuntime) {
+                throw new RuntimeException("injected listing failure");
+            }
+            throw new IOException("injected listing failure");
+        }
         childListedPrefixes.add(p);
         listChildrenRequests.incrementAndGet();
-        List<StorageEntry> files = new ArrayList<>();
-        Set<String> dirs = new LinkedHashSet<>();
-        for (StorageEntry e : allEntries) {
-            String path = e.path().toString();
-            if (path.startsWith(p) == false) {
-                continue;
-            }
-            String rest = path.substring(p.length());
-            int slash = rest.indexOf('/');
-            if (slash < 0) {
-                files.add(e);
-                enumeratedFiles.add(path);
-            } else {
-                dirs.add(p + rest.substring(0, slash));
-            }
-            if (files.size() + dirs.size() > limit) {
+        int inFlight = listChildrenInFlight.incrementAndGet();
+        maxListChildrenInFlight.accumulateAndGet(inFlight, Math::max);
+        try {
+            if (nullListChildrenAfter >= 0 && listChildrenRequests.get() > nullListChildrenAfter) {
                 return null;
             }
+            long delay = listChildrenDelayNanos.getAsLong();
+            if (delay > 0) {
+                LockSupport.parkNanos(delay);
+            }
+            List<StorageEntry> files = new ArrayList<>();
+            Set<String> dirs = new LinkedHashSet<>();
+            for (StorageEntry e : allEntries) {
+                String path = e.path().toString();
+                if (path.startsWith(p) == false) {
+                    continue;
+                }
+                String rest = path.substring(p.length());
+                int slash = rest.indexOf('/');
+                if (slash < 0) {
+                    files.add(e);
+                    enumeratedFiles.add(path);
+                } else {
+                    dirs.add(p + rest.substring(0, slash));
+                }
+                if (files.size() + dirs.size() > limit) {
+                    return null;
+                }
+            }
+            List<StoragePath> dirPaths = new ArrayList<>(dirs.size());
+            for (String dir : dirs) {
+                dirPaths.add(StoragePath.of(dir));
+            }
+            return new StorageChildren(files, dirPaths);
+        } finally {
+            listChildrenInFlight.decrementAndGet();
         }
-        List<StoragePath> dirPaths = new ArrayList<>(dirs.size());
-        for (String dir : dirs) {
-            dirPaths.add(StoragePath.of(dir));
-        }
-        return new StorageChildren(files, dirPaths);
     }
 
     @Override

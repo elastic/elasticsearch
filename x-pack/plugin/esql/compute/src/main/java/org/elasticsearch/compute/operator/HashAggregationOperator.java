@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupRuns;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -565,6 +566,20 @@ public class HashAggregationOperator implements Operator {
                     assert assertGroupAssignments(page, positionOffset, groupIds);
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
+                    }
+                    end();
+                }
+
+                /**
+                 * The sort-aware hash calls this instead of {@link #add(int, IntVector)} when it split its group ids into
+                 * runs. Every aggregator gets the same ids either way: the ones that can combine a run at a time do, and
+                 * the rest expand the runs.
+                 */
+                @Override
+                public void addRuns(int positionOffset, GroupRuns runs) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.addRuns(positionOffset, runs);
                     }
                     end();
                 }

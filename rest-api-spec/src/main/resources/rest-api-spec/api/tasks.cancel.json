@@ -50,6 +50,16 @@
         "type": "boolean",
         "default": false,
         "description": "Should the request block until the cancellation of the task and its descendant tasks is completed. Defaults to false"
+      },
+      "group_by": {
+        "type": "enum",
+        "description": "Group tasks by nodes or parent/child relationships",
+        "options": [
+          "nodes",
+          "parents",
+          "none"
+        ],
+        "default": "nodes"
       }
     }
   }

@@ -22,8 +22,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,11 +72,11 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         // Columnar index modes preserve array order via offsets recorded on the keyword parent. The text subfield delegates its block
         // loader to that parent, so the index must actually be built in columnar mode for the offsets to exist - otherwise the delegate
         // falls back to sorted ordinal order and no longer matches the arrival-order expectation.
-//        if (params.indexMode().isColumnar()) {
-//            return createMapperServiceWithParams(BlockLoaderTestCase.getSettingsForParams(params).build(), mapping);
-//        }
-//        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-//        return params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
+        // if (params.indexMode().isColumnar()) {
+        // return createMapperServiceWithParams(BlockLoaderTestCase.getSettingsForParams(params).build(), mapping);
+        // }
+        // var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+        // return params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
 
         return createMapperServiceWithParams(BlockLoaderTestCase.getSettingsForParams(params).build(), mapping);
     }

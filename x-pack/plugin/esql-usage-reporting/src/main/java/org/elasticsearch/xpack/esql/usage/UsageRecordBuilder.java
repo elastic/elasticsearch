@@ -19,5 +19,11 @@ import java.util.List;
  */
 public interface UsageRecordBuilder {
 
+    /**
+     * @param period the span of time that the snapshot covers, ending at its drain time: the caller passes the real window (the time
+     *               since the previous drain, or since the start for the first one), not the configured interval. The records are
+     *               stamped with the start of that window and carry its length, so a partial drain, such as the final one on shutdown,
+     *               is not attributed to a day or month before the one its usage was collected in.
+     */
     List<UsageRecord> build(UsageSnapshot snapshot, SourceIdentity identity, Duration period, Instant creationTime);
 }

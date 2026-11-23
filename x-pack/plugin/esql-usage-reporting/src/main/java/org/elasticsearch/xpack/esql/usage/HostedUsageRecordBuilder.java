@@ -35,9 +35,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * with billed usage, since a record has a single exemption flag. The quantity is the whole milliseconds of the sum, and the remainder
  * is dropped rather than rounded up: when in doubt the customer is under-billed, never over-billed.
  * <p>
- * The {@code period} is the nominal reporting interval: the first drain after a start, or a late tick, covers less or more time than it
- * says, an error of at most one period. Usage drained for an identity that is not complete is dropped, not kept: nothing can be
- * attributed to it, and the settings check keeps a node with an incomplete identity from reporting at all.
+ * The {@code period} argument is the span that the snapshot really covers, not the configured interval: it gives
+ * {@code usage_timestamp} (drain time minus period) and {@code period_seconds}, so the caller passes the time since the previous
+ * drain, which for the first drain after a start, a late tick or the final drain on shutdown is not the nominal interval. Usage
+ * drained for an identity that is not complete is dropped, not kept: nothing can be attributed to it, and the settings check keeps a
+ * node with an incomplete identity from reporting at all.
  */
 public final class HostedUsageRecordBuilder implements UsageRecordBuilder {
 

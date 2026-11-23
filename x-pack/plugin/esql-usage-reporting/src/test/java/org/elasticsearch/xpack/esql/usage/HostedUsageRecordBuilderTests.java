@@ -98,6 +98,16 @@ public class HostedUsageRecordBuilderTests extends ESTestCase {
         assertThat(record.id(), equalTo("es-node-1_es_esql_external_sources_cpu_2026-11-24T00:00:00.000Z"));
     }
 
+    public void testPartialWindowIsStampedWithItsOwnStartAndLength() {
+        // a final drain a minute after a drain at midnight on the first of the month: nothing of it belongs to the previous month
+        Instant drainTime = Instant.parse("2026-12-01T00:01:00Z");
+        UsageSnapshot snapshot = new UsageSnapshot(drainTime, Map.of(Outcome.SUCCESS, execution(5_000_000)));
+        UsageRecord record = builder.build(snapshot, IDENTITY, Duration.ofMinutes(1), CREATION_TIME).get(0);
+        assertThat(record.usageTimestamp(), equalTo(Instant.parse("2026-12-01T00:00:00Z")));
+        assertThat(record.periodSeconds(), equalTo(60L));
+        assertThat(record.id(), equalTo("es-node-1_es_esql_external_sources_cpu_2026-12-01T00:01:00.000Z"));
+    }
+
     public void testQuantityDropsTheRemainder() {
         assertThat(build(Map.of(Outcome.SUCCESS, execution(1_999_999))).get(0).quantityMillis(), equalTo(1L));
         assertThat(build(Map.of(Outcome.SUCCESS, execution(2_000_000))).get(0).quantityMillis(), equalTo(2L));

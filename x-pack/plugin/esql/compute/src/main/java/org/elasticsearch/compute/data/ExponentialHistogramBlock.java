@@ -18,6 +18,17 @@ import org.elasticsearch.index.mapper.BlockLoader;
 public sealed interface ExponentialHistogramBlock extends HistogramBlock permits ConstantNullBlock, ExponentialHistogramArrayBlock {
 
     /**
+     * {@inheritDoc}
+     * <p>
+     * Counts are doubles even though at the time of writing they are always integral: we plan on eventually supporting
+     * extrapolation and rate (interpolation), which will make counts fractional. Storing them as doubles right away avoids
+     * a breaking change later.
+     * </p>
+     */
+    @Override
+    DoubleBlock getCountBlock();
+
+    /**
      * Returns the {@link ExponentialHistogram} value at the given index.
      * In order to be allocation free, this method requires a scratch object to be passed in,
      * whose memory will be used to hold the state of the returned histogram.

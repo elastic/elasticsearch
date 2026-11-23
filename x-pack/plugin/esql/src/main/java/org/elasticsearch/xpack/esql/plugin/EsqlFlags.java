@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -51,11 +52,37 @@ public class EsqlFlags {
     );
 
     /**
-     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code LIMIT} or
-     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. Nothing can
-     * run such a plan yet, so only tests turn it on.
+     * Builds that carry the fetch phase. It is on in snapshot builds and off in release builds unless the
+     * {@code es.esql_fetch_phase_feature_flag_enabled} system property turns it on. It decides whether
+     * {@link #ESQL_FETCH_PHASE} and the {@code fetch_phase} pragma can take effect, and the default of the setting.
+     */
+    public static final FeatureFlag FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("esql_fetch_phase");
+
+    /**
+     * Lets the coordinator load the columns a query only needs after a {@code TopN} for the rows that survive it, instead
+     * of loading them on every data node for every candidate row, when that is likely faster. See
+     * {@link FetchPhaseMode#AUTO}. Read on the coordinator when it plans a query, the plan carries the decision to the
+     * data nodes. The {@code fetch_phase} pragma overrides it for one query.
+     * <p>
+     * The default follows {@link #FETCH_PHASE_FEATURE_FLAG}, so builds with the fetch phase, such as the snapshot builds of
+     * the nightly benchmarks, run it without any configuration. A release build without the flag reports {@code false},
+     * which matches what it does.
+     */
+    public static final Setting<Boolean> ESQL_FETCH_PHASE = Setting.boolSetting(
+        "esql.query.fetch_phase.enabled",
+        FETCH_PHASE_FEATURE_FLAG.isEnabled(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code TopN} for the
+     * rows that survive it, instead of on every data node for every candidate row. The build and the cluster setting
+     * decide the mode of the cluster. The {@code fetch_phase} pragma of a query overrides it, except {@link #UNAVAILABLE}.
      */
     public enum FetchPhaseMode {
+        /** The build does not carry the fetch phase. Nothing turns it on, not even the {@code fetch_phase} pragma. */
+        UNAVAILABLE,
         /** Every plan loads its columns eagerly. */
         DISABLED,
         /** The fetch phase for the plans that can use it and are likely faster with it. */
@@ -161,6 +188,43 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Cluster-wide cap on the binary operators in one expression, i.e. between two consecutive separators of a query. A comma separates
+     * at any nesting level, a pipe or the semicolon that ends a {@code SET} or {@code LET} statement only outside parentheses, so a
+     * nested pipe, e.g. in a subquery, cannot be used to reset the count of the enclosing expression. A flat chain such as
+     * {@code 0+0+0+...} or a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit but makes ANTLR
+     * allocate a very large parse tree, so such queries are rejected from the token stream before parsing starts. The check is
+     * syntax-blind: unary {@code +}/{@code -} are conservatively counted too, and so is the {@code *} in {@code COUNT(*)}. Commas
+     * separate independent expressions (fields of an {@code EVAL}, arguments of a function), so wide but shallow queries such as an
+     * {@code EVAL} with thousands of fields are not affected. Raise it only if legitimate queries are rejected.
+     */
+    public static final Setting<Integer> ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION = Setting.intSetting(
+        "esql.query.max_binary_operators_per_expression",
+        1000,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Cluster-wide cap on the parentheses of one top level item of a query, which are the ones of function calls, subqueries and
+     * parenthesized expressions. Unlike the binary operators, they are not reset inside parentheses, only by a comma, a pipe or a
+     * statement semicolon outside of any parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function
+     * calls such as {@code max(max(0,0),max(0,0))} contains no binary operators, so the binary operator limit does not see it, but its
+     * prediction cost in ANTLR grows with the number of the nested calls, and a few thousand characters can take gigabytes of heap.
+     * The check runs on the token stream before the query is parsed. The setting counts the opening and the closing parentheses, and
+     * the parser compares the opening ones, which are half of them in a valid query, with half of the value (rounded down), so the
+     * default of 1000 allows 500 function calls and the like. Raise it only if legitimate queries are rejected.
+     */
+    public static final Setting<Integer> ESQL_MAX_PARENTHESES_COUNT = Setting.intSetting(
+        "esql.query.max_parentheses_count",
+        1000,
+        // at least one opening parenthesis, so that a function call is possible
+        2,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
@@ -171,7 +235,10 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
         ESQL_MAX_FILLNULL_FIELDS,
         ESQL_METRICS_INFO_MAX_TIME_RANGE,
-        ESQL_TIME_SERIES_REDUCE_PER_INDEX
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+        ESQL_FETCH_PHASE,
+        ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
+        ESQL_MAX_PARENTHESES_COUNT
     );
 
     /**
@@ -188,7 +255,9 @@ public class EsqlFlags {
         ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
         ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
         ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
-        FetchPhaseMode.DISABLED
+        fetchPhaseMode(FETCH_PHASE_FEATURE_FLAG.isEnabled(), ESQL_FETCH_PHASE.getDefault(Settings.EMPTY)),
+        ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getDefault(Settings.EMPTY),
+        ESQL_MAX_PARENTHESES_COUNT.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
@@ -210,6 +279,10 @@ public class EsqlFlags {
     private final boolean timeSeriesReducePerIndex;
 
     private final FetchPhaseMode fetchPhaseMode;
+
+    private final int maxBinaryOperatorsPerExpression;
+
+    private final int maxParenthesesCount;
 
     /**
      * Constructor for tests.
@@ -339,7 +412,7 @@ public class EsqlFlags {
             maxCommandCount,
             metricsInfoMaxTimeRange,
             ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
-            FetchPhaseMode.DISABLED
+            DEFAULTS.fetchPhaseMode
         );
     }
 
@@ -355,6 +428,36 @@ public class EsqlFlags {
         boolean timeSeriesReducePerIndex,
         FetchPhaseMode fetchPhaseMode
     ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            metricsInfoMaxTimeRange,
+            timeSeriesReducePerIndex,
+            fetchPhaseMode,
+            ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getDefault(Settings.EMPTY),
+            ESQL_MAX_PARENTHESES_COUNT.getDefault(Settings.EMPTY)
+        );
+    }
+
+    public EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge,
+        int maxFillNullFields,
+        int maxCommandCount,
+        TimeValue metricsInfoMaxTimeRange,
+        boolean timeSeriesReducePerIndex,
+        FetchPhaseMode fetchPhaseMode,
+        int maxBinaryOperatorsPerExpression,
+        int maxParenthesesCount
+    ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.maxBranchCount = maxBranchCount;
@@ -365,6 +468,8 @@ public class EsqlFlags {
         this.metricsInfoMaxTimeRange = metricsInfoMaxTimeRange;
         this.timeSeriesReducePerIndex = timeSeriesReducePerIndex;
         this.fetchPhaseMode = fetchPhaseMode;
+        this.maxBinaryOperatorsPerExpression = maxBinaryOperatorsPerExpression;
+        this.maxParenthesesCount = maxParenthesesCount;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -378,7 +483,29 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_COMMAND_COUNT),
             settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
             settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX),
-            FetchPhaseMode.DISABLED
+            fetchPhaseMode(FETCH_PHASE_FEATURE_FLAG.isEnabled(), settings.get(ESQL_FETCH_PHASE)),
+            settings.get(ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION),
+            settings.get(ESQL_MAX_PARENTHESES_COUNT)
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withParserLimits(int maxBinaryOperatorsPerExpression, int maxParenthesesCount) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+            DEFAULTS.fetchPhaseMode,
+            maxBinaryOperatorsPerExpression,
+            maxParenthesesCount
         );
     }
 
@@ -396,12 +523,13 @@ public class EsqlFlags {
             ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
             ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
             enabled,
-            FetchPhaseMode.DISABLED
+            DEFAULTS.fetchPhaseMode
         );
     }
 
     /**
-     * Test helper that leaves the other flags at their defaults.
+     * Test helper that leaves the other flags at their defaults. It sets the mode whatever the feature flag of the test
+     * JVM says, so planner tests behave the same on release builds.
      */
     public static EsqlFlags withFetchPhase(FetchPhaseMode fetchPhaseMode) {
         return new EsqlFlags(
@@ -460,10 +588,30 @@ public class EsqlFlags {
     }
 
     /**
-     * Whether the coordinator may plan the fetch phase. See {@link FetchPhaseMode}.
+     * The only place the feature flag is read for planning. A build without the flag ignores the setting. The setting
+     * turns on {@link FetchPhaseMode#AUTO}: a cluster plans the fetch phase only where it is likely faster.
+     */
+    static FetchPhaseMode fetchPhaseMode(boolean featureFlagEnabled, boolean settingEnabled) {
+        if (featureFlagEnabled == false) {
+            return FetchPhaseMode.UNAVAILABLE;
+        }
+        return settingEnabled ? FetchPhaseMode.AUTO : FetchPhaseMode.DISABLED;
+    }
+
+    /**
+     * Whether the coordinator may plan the fetch phase, as far as the build and the cluster setting are concerned. The
+     * {@code fetch_phase} pragma of a query can override it. See {@link FetchPhaseMode}.
      */
     public FetchPhaseMode fetchPhaseMode() {
         return fetchPhaseMode;
+    }
+
+    public int maxBinaryOperatorsPerExpression() {
+        return maxBinaryOperatorsPerExpression;
+    }
+
+    public int maxParenthesesCount() {
+        return maxParenthesesCount;
     }
 
     @Override
@@ -480,7 +628,9 @@ public class EsqlFlags {
             && maxCommandCount == that.maxCommandCount
             && timeSeriesReducePerIndex == that.timeSeriesReducePerIndex
             && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange)
-            && fetchPhaseMode == that.fetchPhaseMode;
+            && fetchPhaseMode == that.fetchPhaseMode
+            && maxBinaryOperatorsPerExpression == that.maxBinaryOperatorsPerExpression
+            && maxParenthesesCount == that.maxParenthesesCount;
     }
 
     @Override
@@ -495,7 +645,9 @@ public class EsqlFlags {
             maxCommandCount,
             metricsInfoMaxTimeRange,
             timeSeriesReducePerIndex,
-            fetchPhaseMode
+            fetchPhaseMode,
+            maxBinaryOperatorsPerExpression,
+            maxParenthesesCount
         );
     }
 
@@ -521,6 +673,10 @@ public class EsqlFlags {
             + timeSeriesReducePerIndex
             + ", fetchPhaseMode="
             + fetchPhaseMode
+            + ", maxBinaryOperatorsPerExpression="
+            + maxBinaryOperatorsPerExpression
+            + ", maxParenthesesCount="
+            + maxParenthesesCount
             + ']';
     }
 }

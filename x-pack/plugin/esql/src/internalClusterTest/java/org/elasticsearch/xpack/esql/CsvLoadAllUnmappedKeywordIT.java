@@ -311,6 +311,13 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return command;
     }
 
+    /** Does the query assign to a column of this name, as {@code EVAL name = ...} or {@code RENAME x AS name} do? */
+    private static boolean definesColumn(String query, String name) {
+        String quoted = Pattern.quote(name);
+        return Pattern.compile("(?<![\\w.])" + quoted + "\\s*=(?!=)").matcher(query).find()
+            || Pattern.compile("(?i)\\bAS\\s+" + quoted + "(?![\\w.*])").matcher(query).find();
+    }
+
     private static boolean projectsColumns(String query) {
         return PROJECTING_COMMAND_PATTERN.matcher(query).find();
     }
@@ -546,8 +553,12 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 }
                 // And the other way round: the key must still be there, with the value of the column. The object is not stripped when it
                 // differs, so a key that wrongly disappears fails the comparison with the expected results instead of passing unnoticed.
-                // Not for a query that projects, since a KEEP reaches the keys with its patterns only, and an exact name does not.
-                if (expectedColumn && alreadyAColumn && projectsColumns(testCase.query) == false) {
+                // Not for a query that projects, since a KEEP reaches the keys with its patterns only, and an exact name does not, and not
+                // for one that defines a column of that name (an EVAL or a RENAME), whose values are not those of the key.
+                if (expectedColumn
+                    && alreadyAColumn
+                    && projectsColumns(testCase.query) == false
+                    && definesColumn(testCase.query, removedField) == false) {
                     int column = names.indexOf(removedField);
                     for (int i = 0; i < rows.size(); i++) {
                         if (sortedDistinctValues(rows.get(i).get(column)).equals(sortedDistinctValues(removedValues.get(i))) == false) {

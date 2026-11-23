@@ -70,7 +70,7 @@ public class RelocationOtherNodeShutdownTimeouts {
             return fallbackTimeout();
         }
         final var deadlineShares = deadlineShares(state, targetNodeId);
-        if (deadlineShares.stream().allMatch(DeadlineShare::fits)) {
+        if (deadlineShares.stream().allMatch(DeadlineShare::hasSlotForEachCompetingShard)) {
             // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
             // not a shutting-down node
             return new SearchRecoveryTimeout(
@@ -180,7 +180,7 @@ public class RelocationOtherNodeShutdownTimeouts {
         }
 
         /// Whether the shards competing before this deadline get a slot each, so nobody queues behind anybody.
-        boolean fits() {
+        boolean hasSlotForEachCompetingShard() {
             return slotShare >= shardsCompetingForTarget;
         }
     }

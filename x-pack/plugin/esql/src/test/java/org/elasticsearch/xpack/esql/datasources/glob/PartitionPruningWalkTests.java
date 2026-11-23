@@ -230,6 +230,30 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    public void testAsyncWalkThrowingCancelCheckCompletesListener() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveTree());
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);
+        int throwAfter = randomBoolean() ? 0 : 1;
+        AtomicInteger checks = new AtomicInteger();
+        BooleanSupplier boom = () -> {
+            if (checks.getAndIncrement() >= throwAfter) {
+                throw new RuntimeException("cancel check");
+            }
+            return false;
+        };
+        int concurrency = 4;
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<PartitionPruningWalk.WalkResult> future = new PlainActionFuture<>();
+            startWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, boom, concurrency, threadPool.generic(), future);
+            RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
+            assertEquals("cancel check", e.getMessage());
+            assertEquals("throwing cancel must still release ThrottledIterator slots", 0, provider.listChildrenInFlight());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testParallelWalkFailedChildFailsClosed() throws Exception {
         List<StorageEntry> tree = fieldShapedTree();
         List<Expression> filters = List.of(window(LAST_DAY, NOW));

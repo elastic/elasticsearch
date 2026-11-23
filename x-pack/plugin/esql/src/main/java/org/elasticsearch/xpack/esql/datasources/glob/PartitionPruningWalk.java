@@ -623,38 +623,44 @@ final class PartitionPruningWalk {
         AtomicReferenceArray<StorageChildren> results = new AtomicReferenceArray<>(size);
         AtomicReference<Exception> failure = new AtomicReference<>();
         ThrottledIterator.run(indexIterator(size), (Releasable releasable, Integer i) -> {
-            if (failure.get() != null || cancelled.getAsBoolean()) {
-                failure.compareAndSet(null, new TaskCancelledException("listing cancelled"));
-                releasable.close();
-                return;
-            }
-            Runnable list = () -> {
-                try {
-                    if (failure.get() == null && cancelled.getAsBoolean() == false) {
-                        issued.incrementAndGet();
-                        StorageChildren children = provider.listChildren(dirs.get(i), MAX_LISTED_CHILDREN);
-                        if (children == null) {
-                            // Same as sequential: a null child withdraws the walk. Treat as failure so
-                            // unstarted siblings skip and LIST count stays close to sequential.
-                            failure.compareAndSet(null, new IOException("listChildren unsupported or too wide"));
-                        } else {
-                            results.set(i, children);
-                        }
-                    } else {
-                        failure.compareAndSet(null, new TaskCancelledException("listing cancelled"));
-                    }
-                } catch (Exception e) {
-                    failure.compareAndSet(null, e);
-                } finally {
-                    releasable.close();
-                }
-            };
+            boolean submitted = false;
             try {
+                Exception cancelledNow = cancellationFailure(cancelled);
+                if (failure.get() != null || cancelledNow != null) {
+                    failure.compareAndSet(null, cancelledNow != null ? cancelledNow : new TaskCancelledException("listing cancelled"));
+                    return;
+                }
+                Runnable list = () -> {
+                    try {
+                        Exception cancelledInSlot = cancellationFailure(cancelled);
+                        if (failure.get() == null && cancelledInSlot == null) {
+                            issued.incrementAndGet();
+                            StorageChildren children = provider.listChildren(dirs.get(i), MAX_LISTED_CHILDREN);
+                            if (children == null) {
+                                // Same as sequential: a null child withdraws the walk. Treat as failure so
+                                // unstarted siblings skip and LIST count stays close to sequential.
+                                failure.compareAndSet(null, new IOException("listChildren unsupported or too wide"));
+                            } else {
+                                results.set(i, children);
+                            }
+                        } else {
+                            failure.compareAndSet(
+                                null,
+                                cancelledInSlot != null ? cancelledInSlot : new TaskCancelledException("listing cancelled")
+                            );
+                        }
+                    } catch (Exception e) {
+                        failure.compareAndSet(null, e);
+                    } finally {
+                        releasable.close();
+                    }
+                };
                 executor.execute(list);
+                submitted = true;
             } catch (Exception submitEx) {
-                try {
-                    failure.compareAndSet(null, submitEx);
-                } finally {
+                failure.compareAndSet(null, submitEx);
+            } finally {
+                if (submitted == false) {
                     releasable.close();
                 }
             }
@@ -668,9 +674,10 @@ final class PartitionPruningWalk {
             for (int i = 0; i < size; i++) {
                 StorageChildren slot = results.get(i);
                 if (slot == null) {
+                    Exception cancelledNow = cancellationFailure(cancelled);
                     listener.onFailure(
-                        cancelled.getAsBoolean()
-                            ? new TaskCancelledException("listing cancelled")
+                        cancelledNow != null
+                            ? cancelledNow
                             : new IllegalStateException("walk listing ended without a result for directory slot [" + i + "]")
                     );
                     return;
@@ -683,6 +690,19 @@ final class PartitionPruningWalk {
                 logger.debug("Additional failure during partition-walk listChildren (suppressed by first failure)", e);
             }
         });
+    }
+
+    /**
+     * Evaluates {@code cancelled} without throwing. {@code null} means continue; otherwise the walk must stop
+     * and complete the listener with this exception (cancelled, or the check itself failed).
+     */
+    @Nullable
+    private static Exception cancellationFailure(BooleanSupplier cancelled) {
+        try {
+            return cancelled.getAsBoolean() ? new TaskCancelledException("listing cancelled") : null;
+        } catch (Exception e) {
+            return e;
+        }
     }
 
     private static Iterator<Integer> indexIterator(int count) {
@@ -812,8 +832,9 @@ final class PartitionPruningWalk {
         }
 
         private void advanceAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
-            if (cancelled.getAsBoolean()) {
-                listener.onFailure(new TaskCancelledException("listing cancelled"));
+            Exception cancelledNow = cancellationFailure(cancelled);
+            if (cancelledNow != null) {
+                listener.onFailure(cancelledNow);
                 return;
             }
             if (dirs.isEmpty() == false && pending.isEmpty() == false && listings.get() + dirs.size() <= maxDirectoryListings) {

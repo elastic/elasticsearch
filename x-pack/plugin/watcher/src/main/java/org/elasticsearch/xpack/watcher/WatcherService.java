@@ -216,10 +216,11 @@ public class WatcherService implements WatcherEventConsumer {
         // thread
         //
         // this method itself is called by the cluster state listener, so will never be called in parallel
-        // the cluster state version is only updated if the reload succeeds
+        // the cluster state version is only updated if the reload succeeds.
+        // use monotonic max to ensure reloads never overwrite a newer invalidation version
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, reason, false)) {
-                processedClusterStateVersion.set(state.getVersion());
+                processedClusterStateVersion.updateAndGet(current -> Math.max(current, state.getVersion()));
             }
         }, e -> {
             logger.error("error reloading watcher", e);
@@ -236,7 +237,7 @@ public class WatcherService implements WatcherEventConsumer {
     public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
-                processedClusterStateVersion.set(state.getVersion());
+                processedClusterStateVersion.updateAndGet(current -> Math.max(current, state.getVersion()));
                 postWatchesLoadedCallback.run();
             }
         }, e -> {
@@ -278,10 +279,34 @@ public class WatcherService implements WatcherEventConsumer {
             triggeredWatchesPending.set(true);
         }
 
-        Collection<Watch> watches = loadWatches(state);
+        Collection<Watch> watches;
         Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
-        if (loadTriggeredWatchesActual) {
-            triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
+        try {
+            watches = loadWatches(state);
+            if (loadTriggeredWatchesActual) {
+                triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
+            }
+        } catch (Exception e) {
+            logger.error("error reloading watcher", e);
+            // Pause trigger execution even when loading fails to ensure a clean state
+            triggerService.pauseExecution();
+            int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
+            logger.info("paused watcher after reload failure, cancelled [{}] queued tasks", cancelledTaskCount);
+            throw e;
+        }
+
+        // Check version again after loading watches - a pause may have set a newer version
+        // during loadWatches(). If so, skip applying this stale state.
+        currentVersion = processedClusterStateVersion.get();
+        if (state.getVersion() < currentVersion) {
+            logger.debug(
+                "watch service reload aborted after loadWatches for state [{}], newer state [{}] processed during load",
+                state.getVersion(),
+                currentVersion
+            );
+            // Do not clear triggeredWatchesPending - the pending requirement is preserved
+            // for the subsequent reload with the newer version.
+            return false;
         }
 
         // Pause trigger execution and clear the execution queue after loading watches.
@@ -291,7 +316,7 @@ public class WatcherService implements WatcherEventConsumer {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        // Apply the loaded state - we already verified the version is still current
+        // Apply the loaded state - we verified the version is still current after loadWatches
         executionService.unPause();
         triggerService.start(watches);
         addPendingWatches(state);
@@ -336,9 +361,9 @@ public class WatcherService implements WatcherEventConsumer {
             if (processedClusterStateVersion.get() == invalidatingStateVersion) {
                 triggerService.pauseExecution();
                 int cancelledTaskCount = executionService.pause(() -> {});
-                // Clear the pending triggered watches flag when pausing, as the subsequent
-                // reload will load triggered watches again when execution resumes.
-                triggeredWatchesPending.set(false);
+                // Do NOT clear triggeredWatchesPending here. The pending flag should only be cleared
+                // after a successful reload with triggered watches. If a pause invalidates a reload
+                // that was loading triggered watches, the requirement persists for the subsequent reload.
                 logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
             } else {
                 logger.debug(

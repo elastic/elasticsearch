@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.NotMultiProjectCapable;
@@ -66,7 +67,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -680,11 +680,17 @@ public class WatcherServiceTests extends ESTestCase {
     /**
      * Regression test for #161574: Watcher keeps scheduling watches after the local .watches shard leaves during reload.
      *
-     * This test verifies that when pauseExecution() is called with a newer cluster-state version
-     * during a reload, the reload is invalidated and does not restart trigger execution.
+     * This test uses DeterministicTaskQueue to reproduce the race where:
+     * 1. A reload for version N starts executing loadWatches()
+     * 2. While loadWatches() is running, pauseExecution() publishes a newer version N+1
+     * 3. The original reload should check the version after loadWatches() and abort if stale
+     * 4. The pause task should then execute on the lifecycle executor
+     * 5. A subsequent valid reload should work correctly
      */
-    @Test
     public void testPauseDuringLoadWatchesDoesNotRestartTriggers() {
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        var threadPool = deterministicTaskQueue.getThreadPool();
+
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
@@ -697,7 +703,7 @@ public class WatcherServiceTests extends ESTestCase {
             executionService,
             parser,
             client,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor("watcher-lifecycle")
         ) {
             @Override
             void stopExecutor() {}
@@ -707,26 +713,42 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState stateV200 = new ClusterState.Builder(new ClusterName("_name")).version(200).build();
 
         // Start a reload with version 100 (loadTriggeredWatches=true)
+        // This will enqueue a task on the lifecycle executor
         service.start(stateV100, () -> {}, e -> {});
+
+        // Run the lifecycle executor task for version 100
+        deterministicTaskQueue.runAllTasks();
 
         // Verify that triggerService.start() was called for version 100
         verify(triggerService).start(any());
 
-        // Now call pauseExecution with a newer version (200)
-        // This invalidates the in-flight reload
-        service.pauseExecution("shard departed", 200);
-
         // Reset the mock to verify subsequent calls
         Mockito.reset(triggerService);
 
+        // Now call pauseExecution with a newer version (200)
+        // This publishes version 200 immediately and enqueues pause work
+        service.pauseExecution("shard departed", 200);
+
+        // Run the pause task on the lifecycle executor
+        deterministicTaskQueue.runAllTasks();
+
+        // Verify that pause was applied
+        verify(triggerService).pauseExecution();
+
         // Try to start with an older version (150) - should be rejected
         service.start(new ClusterState.Builder(new ClusterName("_name")).version(150).build(), () -> {}, e -> {});
+
+        // Run the lifecycle executor task for version 150
+        deterministicTaskQueue.runAllTasks();
 
         // Verify that triggerService.start() was NOT called because version 150 < 200
         verify(triggerService, never()).start(any());
 
         // Now start with the current version (200) - should succeed
         service.start(stateV200, () -> {}, e -> {});
+
+        // Run the lifecycle executor task for version 200
+        deterministicTaskQueue.runAllTasks();
 
         // Verify that triggerService.start() was called for version 200
         verify(triggerService).start(any());
@@ -737,8 +759,10 @@ public class WatcherServiceTests extends ESTestCase {
      * that is superseded by a pause preserves the requirement to load triggered watches
      * in the subsequent reload.
      */
-    @Test
     public void testSupersededReloadPreservesTriggeredWatchesPending() {
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        var threadPool = deterministicTaskQueue.getThreadPool();
+
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
@@ -751,7 +775,7 @@ public class WatcherServiceTests extends ESTestCase {
             executionService,
             parser,
             client,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor("watcher-lifecycle")
         ) {
             @Override
             void stopExecutor() {}
@@ -763,8 +787,14 @@ public class WatcherServiceTests extends ESTestCase {
         // Start a reload with loadTriggeredWatches=true (version 100)
         service.start(stateV100, () -> {}, e -> {});
 
+        // Run the lifecycle executor task for version 100
+        deterministicTaskQueue.runAllTasks();
+
         // Call pauseExecution with version 200
         service.pauseExecution("shard departed", 200);
+
+        // Run the pause task on the lifecycle executor
+        deterministicTaskQueue.runAllTasks();
 
         // Reset the mock to verify subsequent calls
         Mockito.reset(triggeredWatchStore);
@@ -772,6 +802,9 @@ public class WatcherServiceTests extends ESTestCase {
         // Now trigger a new start (version 200)
         // This should load triggered watches because the pending flag is still set
         service.start(stateV200, () -> {}, e -> {});
+
+        // Run the lifecycle executor task for version 200
+        deterministicTaskQueue.runAllTasks();
 
         // Verify that the reload loaded triggered watches
         // (it should have called triggeredWatchStore.findTriggeredWatches)

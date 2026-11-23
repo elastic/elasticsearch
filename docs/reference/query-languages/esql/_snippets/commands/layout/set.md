@@ -21,7 +21,7 @@ Besides the `SET` directive, a query setting can come from the request body, fro
 :::{include} ../../generated/x-pack-esql/commands/settings/surfaces.md
 :::
 
-{applies_to}`stack: ga 9.7+` The `unmapped_fields` setting can be set in the request body. Its `LOAD_ALL` value is in technical preview.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The `unmapped_fields` setting can be set in the request body. Its `LOAD_ALL` value is in technical preview.
 
 When the same setting is set in more than one place, the most specific one wins. From lowest to highest precedence:
 
@@ -32,7 +32,7 @@ When the same setting is set in more than one place, the most specific one wins.
 
 The `approximation` setting is the exception: when it is set as a map in more than one place, the maps are combined key by key, and the more specific place wins for a key that is set in both.
 
-{applies_to}`stack: ga 9.6+` A view definition can use `SET` for the settings marked in the table. These settings apply only inside that view. For these settings, a value from the calling query or the request body doesn't enter the view, but the cluster setting applies both inside and outside views. For details, refer to [Settings across view boundaries](/reference/query-languages/esql/esql-views.md#settings-across-view-boundaries).
+{applies_to}`stack: ga 9.6+` A view definition can use `SET` for the settings marked in the table, except that `unmapped_fields` can't be `LOAD_ALL`. These settings apply only inside that view. For these settings, a value from the calling query or the request body doesn't enter the view, but the cluster setting applies both inside and outside views. For details, refer to [Settings across view boundaries](/reference/query-languages/esql/esql-views.md#settings-across-view-boundaries).
 
 ## Allowed settings
 

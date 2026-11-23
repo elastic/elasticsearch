@@ -305,8 +305,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // persian and romanian fold the pre/post Lucene 10 chain split into their keys.
         analyzers.get("persian").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
         analyzers.get("romanian").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
-        // thai folds the pre/post Lucene 10.6 chain split into its key.
-        analyzers.get("thai").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        // thai folds the pre/post Lucene 10.6 chain split into its key. The default stop words also change at that gate and
+        // would separate the two sides on their own, so the gate is probed again with the same explicit stop words on both sides.
+        analyzers.get("thai")
+            .gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_6_0)
+            .alsoWith(settings(Map.of("stopwords", List.of("bar"))).gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_6_0));
         analyzers.put(
             "fingerprint",
             settings().affects("separator", "+")

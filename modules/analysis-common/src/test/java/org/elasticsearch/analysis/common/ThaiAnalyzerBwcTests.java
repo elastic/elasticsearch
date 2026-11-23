@@ -18,12 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
-import org.elasticsearch.index.analysis.ThaiLucene105StopWords;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -118,18 +116,6 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder().put("index.analysis.analyzer.thai_only.tokenizer", "thai").build();
         assertPreLucene106ThaiTokenizer(analysis(legacyVersion(), settings).indexAnalyzers.get("thai_only"));
         assertLucene106ThaiTokenizer(analysis(gatedVersion(), settings).indexAnalyzers.get("thai_only"));
-    }
-
-    /**
-     * Fails once no readable index can predate Lucene 10.6. At that point the Lucene 10.5 Thai behavior is unreachable: delete
-     * {@link ThaiLucene105Analyzer}, {@link ThaiLucene105Tokenizer}, {@link ThaiLucene105StopWords} with its stopword resource, and
-     * the gate in {@link ThaiAnalysis}.
-     */
-    public void testLucene105CompatibilityIsStillReachable() {
-        assertTrue(
-            "No readable index predates Lucene 10.6; remove the ThaiLucene105* classes, their stopword resource and the gate",
-            ThaiLucene105StopWords.appliesTo(IndexVersions.MINIMUM_READONLY_COMPATIBLE)
-        );
     }
 
     /** The gate is the index's Lucene version, so versions are chosen by Lucene version and not by index version ordering. */

@@ -116,10 +116,7 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
     if (vVector.getClass() == IntArrayVector.class) {
       IntArrayVector specialized = (IntArrayVector) vVector;
       state.seen(true);
-      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
-        int vValue = specialized.getInt(valuesPosition);
-        state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
-      }
+      state.longValue(SumIntAggregator.combineBulk(state.longValue(), specialized));
       return;
     }
     if (vVector.getClass() == IntArrowBufVector.class) {

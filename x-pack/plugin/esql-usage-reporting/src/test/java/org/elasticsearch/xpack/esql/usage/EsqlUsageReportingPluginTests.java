@@ -55,6 +55,12 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         SslProfile sslProfile() {
             return null;
         }
+
+        /** There is no SSL profile here, and these tests are not about sending: the real publisher needs a profile. */
+        @Override
+        UsagePublisher buildPublisher(UsageReportingSettings settings) {
+            return NoopUsagePublisher.INSTANCE;
+        }
     }
 
     /**

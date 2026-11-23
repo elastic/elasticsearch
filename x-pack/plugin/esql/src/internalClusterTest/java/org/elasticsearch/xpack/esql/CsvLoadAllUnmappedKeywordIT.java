@@ -317,10 +317,13 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return Pattern.compile("(?i)\\bRENAME\\b[^|]*(?<![\\w.*])" + Pattern.quote(name) + "(?![\\w.*])").matcher(query).find();
     }
 
-    private static final Pattern COMMAND_PATTERN = Pattern.compile("\\|\\s*(\\w+)");
+    private static final Pattern COMMAND_PATTERN = Pattern.compile("\\|\\s*([^\\s|]+)");
     private static final Set<String> FILTERING_COMMANDS = Set.of("WHERE", "SORT", "LIMIT");
 
-    /** Does the query use no command but {@code WHERE}, {@code SORT} and {@code LIMIT}, in the query or in a subquery? */
+    /**
+     * Does the query use no command but {@code WHERE}, {@code SORT} and {@code LIMIT}, in the query or in a subquery? The token after a
+     * pipe is the command, so a comment there, which is not one of them, makes the answer no.
+     */
     private static boolean onlyFiltersSortsAndLimits(String query) {
         Matcher command = COMMAND_PATTERN.matcher(query);
         while (command.find()) {

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceResidualFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -98,13 +100,15 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * Using ESQL's epoch millis directly against non-millis statistics would cause incorrect
  * row group skipping — a correctness issue, not just suboptimal performance.
  */
-final class ParquetPushedExpressions {
+final class ParquetPushedExpressions implements SourceResidualFilter {
 
     private static final Logger logger = LogManager.getLogger(ParquetPushedExpressions.class);
 
     static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     private final List<Expression> expressions;
+    /** Exact comparisons the parquet filter cannot represent. Evaluated on the page after native selection. */
+    private final List<Expression> sourceResidual;
     /**
      * Cache of compiled {@link CompiledWildcard} forms per {@link WildcardLike} expression.
      * Building a {@link ByteRunAutomaton} from a wildcard pattern (in particular the determinize
@@ -156,11 +160,46 @@ final class ParquetPushedExpressions {
      *                    at the {@link ParquetFilterPushdownSupport#pushFilters} entry point (or by tests)
      */
     ParquetPushedExpressions(List<Expression> expressions) {
+        this(expressions, List.of());
+    }
+
+    ParquetPushedExpressions(List<Expression> expressions, List<Expression> sourceResidual) {
         this.expressions = expressions;
+        this.sourceResidual = List.copyOf(sourceResidual);
     }
 
     List<Expression> expressions() {
         return expressions;
+    }
+
+    @Override
+    public List<Expression> sourceResidual() {
+        return sourceResidual;
+    }
+
+    @Override
+    public Object withoutSourceResidual(Collection<Expression> heldBack) {
+        if (heldBack.isEmpty() || sourceResidual.isEmpty()) {
+            return this;
+        }
+        List<Expression> kept = new ArrayList<>();
+        for (Expression residual : sourceResidual) {
+            if (heldBack.contains(residual) == false) {
+                kept.add(residual);
+            }
+        }
+        return new ParquetPushedExpressions(expressions, kept);
+    }
+
+    /** Columns the residual reads. These stay projection columns, so late materialization decodes them for survivors. */
+    Set<String> residualColumnNames() {
+        Set<String> names = new HashSet<>();
+        for (Expression residual : sourceResidual) {
+            for (Attribute attribute : residual.references()) {
+                names.add(attribute.name());
+            }
+        }
+        return names;
     }
 
     @Override
@@ -169,19 +208,19 @@ final class ParquetPushedExpressions {
             return true;
         }
         if (o instanceof ParquetPushedExpressions other) {
-            return Objects.equals(expressions, other.expressions);
+            return Objects.equals(expressions, other.expressions) && Objects.equals(sourceResidual, other.sourceResidual);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(expressions);
+        return Objects.hash(expressions, sourceResidual);
     }
 
     @Override
     public String toString() {
-        return "ParquetPushedExpressions[expressions=" + expressions + "]";
+        return "ParquetPushedExpressions[expressions=" + expressions + ", sourceResidual=" + sourceResidual + "]";
     }
 
     /**

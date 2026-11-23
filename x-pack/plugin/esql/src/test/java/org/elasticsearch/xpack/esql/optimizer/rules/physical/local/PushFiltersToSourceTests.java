@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceResidualFilter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -45,7 +46,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
@@ -55,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -155,6 +159,48 @@ public class PushFiltersToSourceTests extends ESTestCase {
         ExternalSourceExec pushed = (ExternalSourceExec) kept.child();
         assertNotNull("the conjunct is still pushed for the files that store the column as a string", pushed.pushedFilter());
         assertEquals(List.of(like), pushed.pushedExpressions());
+    }
+
+    /**
+     * {@code sku == "a"} stays in {@code FilterExec} because the source only rechecks it. {@code qty * price > 100}
+     * is exact on the source page, so it leaves {@code FilterExec}.
+     */
+    public void testASourceResidualLeavesTheRecheckInFilterExec() {
+        FieldAttribute sku = fieldAttr("sku", DataType.KEYWORD);
+        FieldAttribute qty = fieldAttr("qty", DataType.LONG);
+        FieldAttribute price = fieldAttr("price", DataType.LONG);
+        Expression skuEquals = new Equals(SRC, sku, new Literal(SRC, new BytesRef("a"), DataType.KEYWORD), null);
+        Expression product = new GreaterThan(SRC, new Mul(SRC, qty, price), new Literal(SRC, 100L, DataType.LONG), null);
+        FilterExec filterExec = new FilterExec(SRC, externalSource(sku, qty, price), new And(SRC, skuEquals, product));
+
+        FilterExec kept = as(applyRule(filterExec, residualRegistry()), FilterExec.class);
+
+        assertEquals(skuEquals, kept.condition());
+        SourceResidualFilter filter = as(((ExternalSourceExec) kept.child()).pushedFilter(), SourceResidualFilter.class);
+        assertEquals(List.of(product), filter.sourceResidual());
+    }
+
+    /**
+     * A widened column is cast after the read. The residual would see the file's type, so it stays in {@code FilterExec}
+     * and the source does not evaluate it.
+     */
+    public void testASourceResidualOnAWidenedColumnStaysInFilterExec() {
+        FieldAttribute sku = fieldAttr("sku", DataType.KEYWORD);
+        FieldAttribute qty = fieldAttr("qty", DataType.LONG);
+        FieldAttribute price = fieldAttr("price", DataType.LONG);
+        Expression skuEquals = new Equals(SRC, sku, new Literal(SRC, new BytesRef("a"), DataType.KEYWORD), null);
+        Expression product = new GreaterThan(SRC, new Mul(SRC, qty, price), new Literal(SRC, 100L, DataType.LONG), null);
+        FilterExec filterExec = new FilterExec(
+            SRC,
+            parquetSourceWithSplits(List.of(sku, qty, price), splitReading("n.parquet", "price", DataType.INTEGER)),
+            new And(SRC, skuEquals, product)
+        );
+
+        FilterExec kept = as(applyRule(filterExec, residualRegistry()), FilterExec.class);
+
+        assertEquals(Set.copyOf(List.of(skuEquals, product)), Set.copyOf(Predicates.splitAnd(kept.condition())));
+        SourceResidualFilter filter = as(((ExternalSourceExec) kept.child()).pushedFilter(), SourceResidualFilter.class);
+        assertEquals(List.of(), filter.sourceResidual());
     }
 
     /** Every file stores {@code c} at the query's type: the YES conjunct drops the FilterExec, as before. */
@@ -613,6 +659,13 @@ public class PushFiltersToSourceTests extends ESTestCase {
         return new PushFiltersToSource().apply(filterExec, ctx);
     }
 
+    /** Equals stays a recheck. A greater-than is a source residual, the shape parquet gives {@code qty * price > 100}. */
+    private static FormatReaderRegistry residualRegistry() {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        registry.registerLazy("parquet", (settings, blockFactory) -> new ResidualStubReader(), null, null);
+        return registry;
+    }
+
     private static FormatReaderRegistry registry(boolean dropsRowsUnderPushedFilter) {
         FormatReaderRegistry registry = new FormatReaderRegistry(null);
         FormatReader parquet = dropsRowsUnderPushedFilter ? new DroppingStubReader() : new StubReader();
@@ -663,6 +716,42 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static class ResidualStubReader extends StubReader {
+        @Override
+        public FilterPushdownSupport filterPushdownSupport() {
+            return filters -> {
+                List<Expression> pushed = new ArrayList<>();
+                List<Expression> remainder = new ArrayList<>();
+                List<Expression> residual = new ArrayList<>();
+                for (Expression filter : filters) {
+                    if (filter instanceof GreaterThan) {
+                        residual.add(filter);
+                    } else {
+                        pushed.add(filter);
+                        remainder.add(filter);
+                    }
+                }
+                if (pushed.isEmpty()) {
+                    return FilterPushdownSupport.PushdownResult.none(filters);
+                }
+                return new FilterPushdownSupport.PushdownResult(new HoldingResidual(residual), pushed, remainder);
+            };
+        }
+    }
+
+    private record HoldingResidual(List<Expression> sourceResidual) implements SourceResidualFilter {
+        @Override
+        public Object withoutSourceResidual(Collection<Expression> heldBack) {
+            List<Expression> kept = new ArrayList<>();
+            for (Expression residual : sourceResidual) {
+                if (heldBack.contains(residual) == false) {
+                    kept.add(residual);
+                }
+            }
+            return new HoldingResidual(kept);
+        }
     }
 
     /** The opt-in half: a reader that does declare the row-drop on its filtered path, as ORC does. */

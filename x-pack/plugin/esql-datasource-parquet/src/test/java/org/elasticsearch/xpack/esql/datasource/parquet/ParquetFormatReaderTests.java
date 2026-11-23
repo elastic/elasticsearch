@@ -73,6 +73,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -107,7 +108,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -277,6 +280,63 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         assertEquals("active", attributes.get(3).name());
         assertEquals(DataType.BOOLEAN, attributes.get(3).dataType());
+    }
+
+    /**
+     * {@code sku == "a"} is a recheck the reader pushes. {@code qty * price > 100} runs on the page the reader emits.
+     * A null price and a cheap matching sku stay out, and a different sku stays out. The surviving id is the one the
+     * compute-only predicate keeps.
+     */
+    public void testAProductResidualKeepsTheSameRowAsTheComputePredicate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("sku")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("qty")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("price")
+            .named("products");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group cheap = factory.newGroup();
+            cheap.add("id", 1L);
+            cheap.add("sku", "a");
+            cheap.add("qty", 1L);
+            cheap.add("price", 10L);
+            Group otherSku = factory.newGroup();
+            otherSku.add("id", 2L);
+            otherSku.add("sku", "b");
+            otherSku.add("qty", 50L);
+            otherSku.add("price", 50L);
+            Group match = factory.newGroup();
+            match.add("id", 3L);
+            match.add("sku", "a");
+            match.add("qty", 10L);
+            match.add("price", 20L);
+            Group nullPrice = factory.newGroup();
+            nullPrice.add("id", 4L);
+            nullPrice.add("sku", "a");
+            nullPrice.add("qty", 10L);
+            return List.of(cheap, otherSku, match, nullPrice);
+        });
+
+        Attribute sku = new ReferenceAttribute(Source.EMPTY, "sku", DataType.KEYWORD);
+        Attribute qty = new ReferenceAttribute(Source.EMPTY, "qty", DataType.LONG);
+        Attribute price = new ReferenceAttribute(Source.EMPTY, "price", DataType.LONG);
+        Expression skuEquals = new Equals(Source.EMPTY, sku, new Literal(Source.EMPTY, new BytesRef("a"), DataType.KEYWORD), null);
+        Expression product = new GreaterThan(
+            Source.EMPTY,
+            new Mul(Source.EMPTY, qty, price),
+            new Literal(Source.EMPTY, 100L, DataType.LONG),
+            null
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(skuEquals), List.of(product));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+
+        assertEquals(List.of(3L), ids(reader, parquetData));
+        assertEquals(List.of(1L, 2L, 3L, 4L), ids(new ParquetFormatReader(blockFactory), parquetData));
     }
 
     /**
@@ -9234,6 +9294,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
         return outputStream.toByteArray();
+    }
+
+    private List<Long> ids(ParquetFormatReader reader, byte[] parquetData) throws IOException {
+        List<Long> ids = new ArrayList<>();
+        try (CloseableIterator<Page> pages = reader.read(createStorageObject(parquetData), FormatReadContext.of(null, 10))) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock idsBlock = (LongBlock) page.getBlock(0);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        ids.add(idsBlock.getLong(idsBlock.getFirstValueIndex(i)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        return ids;
     }
 
     private byte[] createParquetFile(MessageType schema, GroupCreator groupCreator) throws IOException {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceResidualFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -378,9 +379,26 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             : pushdownSupport.pushFilters(mintInputWithBounds);
 
         if (result.hasPushedFilter()) {
+            // A residual over a column some file stores at another type would see the file's block, not the cast
+            // page FilterExec reads. Hold that residual back. The cast loop below puts it in the FilterExec.
+            Object pushedFilter = result.pushedFilter();
+            if (pushedFilter instanceof SourceResidualFilter residual && castColumnNames.isEmpty() == false) {
+                List<Expression> heldBack = new ArrayList<>();
+                for (Expression expression : residual.sourceResidual()) {
+                    if (referencesAnyColumn(
+                        PhysicalNames.translateExpressionNames(List.of(expression), toLogical).getFirst(),
+                        castColumnNames
+                    )) {
+                        heldBack.add(expression);
+                    }
+                }
+                if (heldBack.isEmpty() == false) {
+                    pushedFilter = residual.withoutSourceResidual(heldBack);
+                }
+            }
             // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
             ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
-                result.pushedFilter(),
+                pushedFilter,
                 PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 

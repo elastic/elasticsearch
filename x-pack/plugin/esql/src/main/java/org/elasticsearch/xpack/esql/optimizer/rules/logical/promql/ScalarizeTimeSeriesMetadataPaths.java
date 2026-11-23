@@ -135,7 +135,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
         private void follow(LogicalPlan node) {
             for (Expression expression : node.expressions()) {
                 expression.forEachDown(TimeSeriesMetadataPath.class, read -> {
-                    String label = name(read.labels().getFirst());
+                    String label = name(read.keys().getFirst());
                     if (label == null) {
                         return;
                     }
@@ -157,7 +157,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
         private Expression valueOf(Expression container, String label, LogicalPlan scope) {
             switch (container) {
                 case TimeSeriesMetadataSet set -> {
-                    String written = name(set.label());
+                    String written = name(set.key());
                     if (written == null) {
                         // a label named by anything but a literal may be this one
                         return null;
@@ -168,7 +168,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                     Expression value = set.value();
                     if (value instanceof TimeSeriesMetadataPath read) {
                         // a label copied from another container is that container's label
-                        String copied = name(read.labels().getFirst());
+                        String copied = name(read.keys().getFirst());
                         return copied == null ? null : valueOf(read.children().getFirst(), copied, scope);
                     }
                     if (value instanceof Literal literal) {
@@ -189,10 +189,10 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                     return null;
                 }
                 case TimeSeriesMetadataFilter filter -> {
-                    if (filter.labels().stream().anyMatch(l -> name(l) == null)) {
+                    if (filter.keys().stream().anyMatch(l -> name(l) == null)) {
                         return null;
                     }
-                    boolean named = filter.labels().stream().anyMatch(l -> label.equals(name(l)));
+                    boolean named = filter.keys().stream().anyMatch(l -> label.equals(name(l)));
                     return named == filter.exclude() ? nothing(container) : valueOf(filter.children().getFirst(), label, scope);
                 }
                 case Literal literal when literal.value() instanceof BytesRef bytes && bytes.utf8ToString().equals("{}") -> {

@@ -69,6 +69,16 @@ public interface LucenePushdownPredicates {
      */
     boolean isQueryable(FieldAttribute attr);
 
+    /** Whether a floating-point predicate can compare the values as read by ES|QL. */
+    default boolean hasExactFloatingPointMapping(FieldAttribute field) {
+        // The planner widens float-family mappings to double. Without mapping information,
+        // a double attribute does not prove that Lucene compares at double precision.
+        return switch (field.dataType()) {
+            case DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> false;
+            default -> true;
+        };
+    }
+
     /**
      * For pushing down filters when multi-value results are allowed (spatial functions like ST_INTERSECTS),
      * we only need to know if the field is indexed.
@@ -103,6 +113,11 @@ public interface LucenePushdownPredicates {
             public boolean isQueryable(FieldAttribute attr) {
                 boolean readItself = attr.getExactInfo().hasExact() && attr.exactAttribute() == attr;
                 return (readItself && attr.field() instanceof UnionTypeEsField == false) || predicates.isQueryable(attr);
+            }
+
+            @Override
+            public boolean hasExactFloatingPointMapping(FieldAttribute field) {
+                return predicates.hasExactFloatingPointMapping(field);
             }
 
             @Override
@@ -330,6 +345,15 @@ public interface LucenePushdownPredicates {
                     return stats.isIndexed(name) && stats.hasDocValues(name);
                 }
                 return stats.isQueryable(attr.fieldName(), attr.dataType(), attr.isPotentiallyUnmapped());
+            }
+
+            @Override
+            public boolean hasExactFloatingPointMapping(FieldAttribute field) {
+                if (field.dataType() == DataType.DOUBLE) {
+                    MappedFieldType mapping = stats.fieldType(field.fieldName());
+                    return mapping != null && DataType.DOUBLE.esType().equals(mapping.typeName());
+                }
+                return LucenePushdownPredicates.super.hasExactFloatingPointMapping(field);
             }
 
             @Override

@@ -382,6 +382,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             if (left().dataType() == DataType.DATE_RANGE || left().dataType() == DataType.DOUBLE_RANGE) {
                 return Translatable.NO;
             }
+            if (left() instanceof FieldAttribute field && pushdownPredicates.hasExactFloatingPointMapping(field) == false) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }

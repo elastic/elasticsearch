@@ -134,7 +134,7 @@ public class BoundedPendingStoreTests extends ESTestCase {
         assertThat(store.size(), equalTo(4));
     }
 
-    public void testSameIdWithDifferentContentKeepsTheFirstAndWarns() {
+    public void testSameIdWithDifferentContentKeepsTheFirstAndLogsTheLoss() {
         BoundedPendingStore store = new BoundedPendingStore(10);
         store.add(List.of(record(1)));
         UsageRecord different = new UsageRecord(
@@ -154,22 +154,23 @@ public class BoundedPendingStoreTests extends ESTestCase {
             new MockLog.SeenEventExpectation(
                 "conflict",
                 LOGGER_NAME,
-                Level.WARN,
-                "ignoring usage record [id-1] of type [" + UsageTypes.EXTERNAL_SOURCES_CPU + "] with quantity [42] ms: *"
+                Level.ERROR,
+                "dropping usage record [id-1] of type [" + UsageTypes.EXTERNAL_SOURCES_CPU + "] with quantity [42] ms: *"
             )
         );
         assertThat(store.next(10), contains(record(1)));
-        assertThat(store.droppedCount(), equalTo(0L));
+        assertThat(store.droppedCount(), equalTo(1L));
     }
 
-    public void testSameIdWithSameContentDoesNotWarn() {
+    public void testSameIdWithSameContentIsNotALoss() {
         BoundedPendingStore store = new BoundedPendingStore(10);
         store.add(List.of(record(1)));
         MockLog.assertThatLogger(
             () -> store.add(List.of(record(1))),
             BoundedPendingStore.class,
-            new MockLog.UnseenEventExpectation("no warning", LOGGER_NAME, Level.WARN, "*")
+            new MockLog.UnseenEventExpectation("no loss", LOGGER_NAME, Level.ERROR, "*")
         );
+        assertThat(store.droppedCount(), equalTo(0L));
     }
 
     public void testReAddingDoesNotRefreshAgeSoItIsDroppedFirst() {

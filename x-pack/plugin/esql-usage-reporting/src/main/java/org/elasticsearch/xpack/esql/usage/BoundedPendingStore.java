@@ -29,8 +29,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * to keep the audited path simple.
  * <p>
  * A record whose id is already pending is not added again: a retry carries the same id and must never be counted twice. If the
- * record with that id differs from the pending one, which would be a bug in the producer of the ids, a WARN is logged and the pending
- * copy is kept.
+ * record with that id differs from the pending one, which would be a bug in the producer of the ids, the pending copy is kept and the
+ * new record is lost like any other: logged at ERROR and counted.
  */
 public final class BoundedPendingStore implements PendingStore {
 
@@ -55,9 +55,12 @@ public final class BoundedPendingStore implements PendingStore {
     public synchronized void add(List<UsageRecord> toAdd) {
         for (UsageRecord record : toAdd) {
             UsageRecord existing = records.putIfAbsent(record.id(), record);
-            if (existing != null && existing.equals(record) == false) {
-                logger.warn(
-                    "ignoring usage record [{}] of type [{}] with quantity [{}] ms: a different record with the same id is pending "
+            if (existing == null) {
+                evictOldestBeyondTheBound();
+            } else if (existing.equals(record) == false) {
+                dropped.incrementAndGet();
+                logger.error(
+                    "dropping usage record [{}] of type [{}] with quantity [{}] ms: a different record with the same id is pending "
                         + "(type [{}], quantity [{}] ms); ids must identify one record",
                     record.id(),
                     record.usageType(),
@@ -67,8 +70,12 @@ public final class BoundedPendingStore implements PendingStore {
                 );
             }
         }
-        Iterator<UsageRecord> oldest = records.values().iterator();
+    }
+
+    /** Evicts while inserting, so that even a batch larger than the bound never holds more than {@code maxSize + 1} records. */
+    private void evictOldestBeyondTheBound() {
         while (records.size() > maxSize) {
+            Iterator<UsageRecord> oldest = records.values().iterator();
             UsageRecord record = oldest.next();
             oldest.remove();
             logLoss(record, fullReason);

@@ -10,6 +10,9 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.6.0 [elasticsearch-9.6.0-known-issues]
 
+:::{include} _snippets/s3-compatible-storage-known-issues.md
+:::
+
 * A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
 
   * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
@@ -36,6 +39,9 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
 
+:::{include} _snippets/s3-compatible-storage-known-issues.md
+:::
+
 * A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
 
   * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
@@ -59,6 +65,9 @@ Known issues are significant defects or limitations that may impact your impleme
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
 ## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+:::{include} _snippets/s3-compatible-storage-known-issues.md
+:::
 
 * A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
 
@@ -94,6 +103,9 @@ Known issues are significant defects or limitations that may impact your impleme
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
 ## 9.5.0 [elasticsearch-9.5.0-known-issues]
+
+:::{include} _snippets/s3-compatible-storage-known-issues.md
+:::
 
 * A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
 

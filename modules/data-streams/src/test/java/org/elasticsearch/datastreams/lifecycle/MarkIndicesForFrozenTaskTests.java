@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +24,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +38,7 @@ public class MarkIndicesForFrozenTaskTests extends ESTestCase {
     final ProjectId PROJECT_ID = randomProjectIdOrDefault();
     final String REPO = randomAlphaOfLength(10);
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle.MarkIndicesForFrozenTask:INFO", reason = "asserts the success log")
     public void testMarkIndicesForFrozen() throws Exception {
         IndexMetadata vanilla = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("vanilla", 1))
             .settings(settings(IndexVersion.current()))
@@ -100,9 +104,30 @@ public class MarkIndicesForFrozenTaskTests extends ESTestCase {
         MarkIndicesForFrozenTask task = new MarkIndicesForFrozenTask(PROJECT_ID, allIndices, nodeRepository, ActionListener.noop());
 
         ClusterState newState = task.execute(state);
+        String successLogMessage = "DLM successfully marked * indices as ready to be frozen: *";
         if (effectiveRepository.isEmpty()) {
             assertThat(newState, sameInstance(state));
+            MockLog.assertThatLogger(
+                task::onPublicationSuccess,
+                MarkIndicesForFrozenTask.class,
+                new MockLog.UnseenEventExpectation(
+                    "no success log",
+                    MarkIndicesForFrozenTask.class.getName(),
+                    Level.INFO,
+                    successLogMessage
+                )
+            );
         } else {
+            MockLog.assertThatLogger(
+                task::onPublicationSuccess,
+                MarkIndicesForFrozenTask.class,
+                new MockLog.SeenEventExpectation(
+                    "success log lists only newly marked indices",
+                    MarkIndicesForFrozenTask.class.getName(),
+                    Level.INFO,
+                    "DLM successfully marked 3 indices as ready to be frozen: *"
+                )
+            );
             assertIndexMarked(newState, vanilla.getIndex().getName());
             assertIndexMarked(newState, withOtherCustom.getIndex().getName());
             assertIndexMarked(newState, alreadyMarkedDifferentRepo.getIndex().getName());

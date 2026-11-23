@@ -720,11 +720,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 indicesForFrozenConversion,
                 RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(settings),
                 ActionListener.wrap(
-                    ackedResponse -> logger.info(
-                        "DLM successfully marked {} indices as ready to be frozen: {}",
-                        indicesForFrozenConversion.size(),
-                        indicesForFrozenConversion.stream().map(Index::getName).toList()
-                    ),
+                    ackedResponse -> {},
                     exception -> logger.warn(
                         Strings.format(
                             "DLM was unable to mark %s indices as ready to be frozen, it will be retried",
@@ -2050,7 +2046,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 try {
                     final MarkIndicesForFrozenTask task = taskContext.getTask();
                     state = task.execute(state);
-                    taskContext.success(task);
+                    taskContext.success(task::onPublicationSuccess, task);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }

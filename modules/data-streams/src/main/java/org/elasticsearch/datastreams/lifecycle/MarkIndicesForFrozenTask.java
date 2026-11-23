@@ -25,7 +25,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,6 +46,7 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
     private final Set<Index> indicesToMarkForFrozen;
     private final ProjectId projectId;
     private final String nodeDefaultRepository;
+    private List<String> markedIndexNames = List.of();
 
     public MarkIndicesForFrozenTask(
         ProjectId projectId,
@@ -72,7 +75,7 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
         }
 
         final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectMetadata);
-        boolean changed = false;
+        final List<String> newlyMarkedIndexNames = new ArrayList<>();
         for (Index index : indicesToMarkForFrozen) {
             final IndexMetadata indexMetadata = projectMetadata.index(index);
             if (indexMetadata == null) {
@@ -101,14 +104,25 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
                 .build();
 
             projectBuilder.put(updatedMetadata, true);
-            changed = true;
+            newlyMarkedIndexNames.add(index.getName());
         }
 
-        if (changed) {
+        if (newlyMarkedIndexNames.isEmpty() == false) {
+            markedIndexNames = newlyMarkedIndexNames;
             return ClusterState.builder(currentState).putProjectMetadata(projectBuilder.build()).build();
         } else {
             logger.debug("DLM marking {} indices as ready for frozen ended in a no-op", indicesToMarkForFrozen.size());
             return currentState;
+        }
+    }
+
+    /**
+     * Logs the indices that this task marked. Called after the cluster state update is published, so that a skipped or no-op
+     * update does not log a success.
+     */
+    void onPublicationSuccess() {
+        if (markedIndexNames.isEmpty() == false) {
+            logger.info("DLM successfully marked {} indices as ready to be frozen: {}", markedIndexNames.size(), markedIndexNames);
         }
     }
 }

@@ -19,12 +19,11 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
@@ -40,10 +39,14 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
-    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
-        "task_concurrency",
-        ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
-    );
+    /**
+     * Cap on scan driver instances for this query. The Setting default is baked from
+     * {@link Settings#EMPTY} at class-load (host JVM) because a {@link Setting} cannot see node
+     * settings then. Production must call {@link #taskConcurrency(Settings)}, which uses this node's
+     * allocated processors via the same {@code 1.5P+1} formula as {@code esql_worker}. An explicit
+     * pragma still wins.
+     */
+    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting("task_concurrency", defaultTaskConcurrency(Settings.EMPTY));
 
     /**
      * How to cut {@link LuceneSliceQueue slices} to cut each shard into. Is parsed to
@@ -197,7 +200,9 @@ public final class QueryPragmas implements Writeable {
 
     /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
-     * Defaults to allocated processors. Set to 1 to disable parallel parsing.
+     * The Setting default is baked from {@link Settings#EMPTY} at class-load (host JVM). Production
+     * must call {@link #parsingParallelism(Settings)}, which uses this node's allocated processors.
+     * Set to 1 to disable parallel parsing. An explicit pragma still wins.
      */
     public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
         "external_parsing_parallelism",
@@ -214,30 +219,24 @@ public final class QueryPragmas implements Writeable {
      * not {@code external_parsing_parallelism}: a file is already split into about
      * {@code external_parsing_parallelism} segments and many files read concurrently, so aligning this with the
      * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
-     * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
+     * A small default (4) bounds that fan-out independent of file count/length. Safeguard in the spirit of
      * {@link #BRANCH_PARALLEL_DEGREE}.
      * <p>
      * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
      * {@code (data-node driver instances) × external_max_concurrent_open_segments × (files open per driver)} — tune
-     * with that product in mind, not this value alone. The default is sourced from
-     * {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
+     * with that product in mind, not this value alone.
      */
-    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting(
-        "external_max_concurrent_open_segments",
-        SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
-        1
-    );
+    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting("external_max_concurrent_open_segments", 4, 1);
 
     /**
      * Bytes the streaming external-source parser may buffer for a single record before failing the query
      * — guards against a scanner that never finds a boundary reading the input without bound. Defaults to
-     * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}. Bounded to {@code [1, Integer.MAX_VALUE]}
-     * bytes: the cap is held as an {@code int} downstream, so an out-of-range value is rejected at parse
-     * time rather than overflowing later.
+     * 64 MiB. Bounded to {@code [1, Integer.MAX_VALUE]} bytes: the cap is held as an {@code int} downstream,
+     * so an out-of-range value is rejected at parse time rather than overflowing later.
      */
     public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
         "external_max_record_size",
-        ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+        ByteSizeValue.ofMb(64),
         ByteSizeValue.ofBytes(1),
         ByteSizeValue.ofBytes(Integer.MAX_VALUE)
     );
@@ -259,6 +258,12 @@ public final class QueryPragmas implements Writeable {
      * it lets such tests exercise the multi-slice partitioning paths.
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
+
+    /**
+     * Turns the fetch phase on or off for one query, whatever {@code esql.query.fetch_phase.enabled} says. A build
+     * without the fetch phase ignores it. Without the pragma the cluster setting decides.
+     */
+    public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -292,7 +297,8 @@ public final class QueryPragmas implements Writeable {
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS,
         TIME_SERIES_SINGLE_PASS,
-        TIME_SERIES_REDUCE_PER_INDEX
+        TIME_SERIES_REDUCE_PER_INDEX,
+        FETCH_PHASE
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -337,8 +343,25 @@ public final class QueryPragmas implements Writeable {
         return DataPartitioning.valueOf(partitioning.toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * Driver concurrency for this query against {@link Settings#EMPTY} (host JVM). Tests only.
+     * Production must use {@link #taskConcurrency(Settings)}.
+     */
     public int taskConcurrency() {
         return TASK_CONCURRENCY.get(settings);
+    }
+
+    /**
+     * Driver concurrency for this query. An explicit {@link #TASK_CONCURRENCY} pragma wins; otherwise
+     * the search-thread-pool formula ({@code 1.5P+1}) on {@code nodeSettings}.
+     */
+    public int taskConcurrency(Settings nodeSettings) {
+        return settings.hasValue(TASK_CONCURRENCY.getKey()) ? TASK_CONCURRENCY.get(settings) : defaultTaskConcurrency(nodeSettings);
+    }
+
+    /** Same formula as {@code esql_worker}: {@code ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors)}. */
+    private static int defaultTaskConcurrency(Settings nodeSettings) {
+        return ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(nodeSettings));
     }
 
     /**
@@ -450,8 +473,22 @@ public final class QueryPragmas implements Writeable {
         return EXTERNAL_DISTRIBUTION.get(settings);
     }
 
+    /**
+     * Parser threads for this query against {@link Settings#EMPTY} (host JVM). Tests only.
+     * Production must use {@link #parsingParallelism(Settings)}.
+     */
     public int parsingParallelism() {
         return PARSING_PARALLELISM.get(settings);
+    }
+
+    /**
+     * Parser threads for this query. An explicit {@link #PARSING_PARALLELISM} pragma wins; otherwise
+     * this node's allocated processors.
+     */
+    public int parsingParallelism(Settings nodeSettings) {
+        return settings.hasValue(PARSING_PARALLELISM.getKey())
+            ? PARSING_PARALLELISM.get(settings)
+            : Math.max(1, EsExecutors.allocatedProcessors(nodeSettings));
     }
 
     public int maxConcurrentOpenSegments() {
@@ -599,6 +636,14 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it and the cluster setting decides.
+     */
+    @Nullable
+    public Boolean fetchPhase() {
+        return settings.hasValue(FETCH_PHASE.getKey()) ? FETCH_PHASE.get(settings) : null;
     }
 
     public boolean isEmpty() {

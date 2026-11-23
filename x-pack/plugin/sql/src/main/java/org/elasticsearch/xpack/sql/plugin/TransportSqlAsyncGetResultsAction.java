@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -21,6 +22,9 @@ import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 
 public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncGetResultsAction<SqlQueryResponse, SqlQueryTask> {
 
+    /** Breaker label for a relayed get async SQL response. */
+    public static final String RELAYED_RESPONSE_BREAKER_LABEL = "<async_sql_response>";
+
     @Inject
     public TransportSqlAsyncGetResultsAction(
         TransportService transportService,
@@ -29,7 +33,8 @@ public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncG
         NamedWriteableRegistry registry,
         Client client,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(
             SqlAsyncGetResultsAction.NAME,
@@ -40,6 +45,7 @@ public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncG
             client,
             threadPool,
             bigArrays,
+            circuitBreakerService,
             SqlQueryTask.class
         );
     }
@@ -47,5 +53,10 @@ public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncG
     @Override
     public Writeable.Reader<SqlQueryResponse> responseReader() {
         return SqlQueryResponse::new;
+    }
+
+    @Override
+    protected String relayedResponseBreakerLabel() {
+        return RELAYED_RESPONSE_BREAKER_LABEL;
     }
 }

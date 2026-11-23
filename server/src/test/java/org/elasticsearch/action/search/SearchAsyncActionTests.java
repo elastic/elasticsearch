@@ -857,6 +857,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0,
                 0L,
                 List.of(),
+                List.of(),
                 Clusters.EMPTY,
                 null,
                 null,

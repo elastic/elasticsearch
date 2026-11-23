@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -25,6 +26,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
@@ -143,6 +145,37 @@ public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedG
         long[] second = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(between(1, 100)).toArray();
         long[] both = LongStream.concat(Arrays.stream(first), Arrays.stream(second)).toArray();
         assertThat(sumOfConstantGroupPages(first, second), equalTo(exactSum(both, 0, both.length)));
+    }
+
+    /**
+     * A group id that only has a null must not make the state grow to it: a sparse field with many new group ids would
+     * allocate for all of them. Growing to a group id of a million takes about 16 MB, the two arrays of the state together.
+     */
+    public void testNullOnlyGroupDoesNotGrowTheState() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        int highGroup = 1_000_000;
+        try (
+            GroupingAggregatorFunction agg = aggregatorFunction().groupingAggregator(driverContext, List.of(0));
+            LongBlock values = blockFactory.newLongBlockBuilder(2).appendLong(5).appendNull().build();
+            IntVector groups = blockFactory.newIntArrayVector(new int[] { 0, highGroup }, 2);
+            IntVector selected = blockFactory.newIntArrayVector(new int[] { 0 }, 1);
+            GroupingAggregatorEvaluationContext evalContext = new GroupingAggregatorEvaluationContext(driverContext)
+        ) {
+            Page page = new Page(values);
+            long before = driverContext.breaker().getUsed();
+            try (GroupingAggregatorFunction.AddInput add = agg.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)) {
+                add.add(0, groups);
+            }
+            assertThat(driverContext.breaker().getUsed() - before, lessThan(1_000_000L));
+            Block[] blocks = new Block[1];
+            try (GroupingAggregatorFunction.PreparedForEvaluation prepared = agg.prepareEvaluateFinal(selected, evalContext)) {
+                prepared.evaluate(blocks, 0, selected);
+            }
+            try (DoubleBlock result = (DoubleBlock) blocks[0]) {
+                assertThat(result.getDouble(0), equalTo(5.0));
+            }
+        }
     }
 
     /** Adds each page to group {@code 0} with a constant vector of group ids and returns the sum of the group. */

@@ -1639,7 +1639,8 @@ public class LocalExecutionPlanner {
                 field.child(),
                 layout,
                 context.shardContexts,
-                context.analysisRegistry()
+                context.analysisRegistry(),
+                context.plannerSettings
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
@@ -2773,7 +2774,14 @@ public class LocalExecutionPlanner {
         // TODO: should this be extracted into a separate eval block?
         return source.with(
             new FilterOperatorFactory(
-                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
+                EvalMapper.toEvaluator(
+                    context.foldCtx(),
+                    condition,
+                    source.layout,
+                    context.shardContexts,
+                    context.analysisRegistry(),
+                    context.plannerSettings
+                )
             ),
             source.layout
         );

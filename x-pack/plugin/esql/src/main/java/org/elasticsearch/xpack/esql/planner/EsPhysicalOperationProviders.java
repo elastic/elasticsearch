@@ -923,6 +923,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ctx;
         }
 
+        /**
+         * Whether queries on this shard are restricted by an index alias filter. The filter is added when a query is built, so the
+         * segments of {@link #executionContext()} still hold the documents it hides.
+         */
+        public boolean hasAliasFilter() {
+            return aliasFilter != AliasFilter.EMPTY;
+        }
+
         /** Whether this shard reads the field {@code name} from {@code _source}, as it maps no field and keeps no key of that name. */
         boolean readsFromSource(String name) {
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(name);

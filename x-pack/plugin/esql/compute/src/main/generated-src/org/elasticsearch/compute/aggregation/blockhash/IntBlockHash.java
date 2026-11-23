@@ -147,8 +147,10 @@ final class IntBlockHash extends PartitionedBlockHash {
      * only the cost differs.
      * <p>
      *     The search stops, and the page is hashed row by row, as soon as the completed runs average fewer than
-     *     {@link #MIN_AVERAGE_RUN_LENGTH} rows, after at least {@link #PROBE_ROWS} rows. So a page of unique keys costs a
-     *     few hundred comparisons, not a whole scan. The choice is made for every page on its own.
+     *     {@link #MIN_AVERAGE_RUN_LENGTH} rows after at least {@link #PROBE_ROWS} rows, or as soon as the page cannot reach
+     *     that average any more even if every remaining row extended the open run. So a page of unique keys costs a few
+     *     hundred comparisons, and a short page with no repeated keys costs a fraction of a scan, not a whole one. The choice
+     *     is made for every page on its own.
      * </p>
      */
     private void addRuns(IntVector vector, GroupingAggregatorFunction.AddInput addInput) {
@@ -162,7 +164,12 @@ final class IntBlockHash extends PartitionedBlockHash {
             int v = vector.getInt(i);
             if (v != prev) {
                 runs.appendRunEnd(i);
-                if (i >= PROBE_ROWS && (long) runs.runCount() * MIN_AVERAGE_RUN_LENGTH > i) {
+                final int completedRuns = runs.runCount();
+                // The run that starts at i is open, so even if every remaining row extends it the page ends with at least one
+                // more run than the completed ones. If that already misses the minimum average the page cannot take the runs path.
+                final boolean cannotReachTheAverage = (long) (completedRuns + 1) * MIN_AVERAGE_RUN_LENGTH > positions;
+                final boolean sparseSoFar = i >= PROBE_ROWS && (long) completedRuns * MIN_AVERAGE_RUN_LENGTH > i;
+                if (cannotReachTheAverage || sparseSoFar) {
                     addRowByRow(vector, addInput);
                     return;
                 }

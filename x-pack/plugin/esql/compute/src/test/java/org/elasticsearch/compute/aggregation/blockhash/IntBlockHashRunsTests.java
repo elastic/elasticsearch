@@ -184,6 +184,27 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * A short page whose adjacent keys never repeat, like the page a selective filter leaves, is hashed row by row. It is
+     * shorter than the probe, so only the bound on the runs the page can still reach lets the scan stop before the end.
+     */
+    public void testShortPagesOfAlternatingKeysAreHashedRowByRow() {
+        for (int positions : new int[] { 5, 40, 100, 255 }) {
+            int[] keys = new int[positions];
+            int[] expected = new int[positions];
+            for (int i = 0; i < positions; i++) {
+                keys[i] = i % 2;
+                expected[i] = i % 2 + 1;
+            }
+            try (BlockHash hash = new IntBlockHash(0, blockFactory())) {
+                Seen seen = add(hash, keys);
+                assertThat("positions " + positions, seen.how, equalTo("vector"));
+                assertThat("positions " + positions, seen.groupIds, equalTo(expected));
+                assertThat(hash.toString(), containsString("runPages=0, rowByRowPages=1"));
+            }
+        }
+    }
+
     /** A page of one row has no repeated key to gain from. */
     public void testAOneRowPageIsHashedRowByRow() {
         try (BlockHash hash = new IntBlockHash(0, blockFactory())) {

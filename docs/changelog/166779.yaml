@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163217
+pr: 166779
+summary: FLS test coverage for FILLNULL
+type: enhancement

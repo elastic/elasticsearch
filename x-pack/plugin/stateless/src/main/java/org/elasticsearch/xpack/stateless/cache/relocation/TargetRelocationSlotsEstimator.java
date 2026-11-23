@@ -36,7 +36,7 @@ public class TargetRelocationSlotsEstimator {
         -1
     );
 
-    private volatile IncomingRecoveryLimits incomingRecoveryLimits;
+    private volatile int maxConcurrentNonCriticalRecoveries;
     private volatile boolean masterThrottlingDisabled;
 
     public TargetRelocationSlotsEstimator(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
@@ -44,7 +44,7 @@ public class TargetRelocationSlotsEstimator {
             clusterSettings,
             nodeSettings,
             maxHeap,
-            limits -> this.incomingRecoveryLimits = limits
+            limits -> this.maxConcurrentNonCriticalRecoveries = limits.maxConcurrentNonCriticalRecoveries()
         );
         this.masterThrottlingDisabled = masterThrottlingDisabled(clusterSettings::get);
         clusterSettings.addSettingsUpdateConsumer(
@@ -62,7 +62,7 @@ public class TargetRelocationSlotsEstimator {
     /// the relocations of a shutting-down node at once. So the settings are trusted only when the cluster state agrees, see
     /// [SearchShardRelocations#hasPendingRelocationsOnShuttingDownNodes].
     public int knownAvailableSlots(final ClusterState state, final int relocationsInFlight) {
-        final int maxRecoveries = incomingRecoveryLimits.maxConcurrentNonCriticalRecoveries();
+        final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
         return dataNodeRecoveryThrottlingEnabled(maxRecoveries)
             && SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state) == false
                 ? maxRecoveries
@@ -73,7 +73,7 @@ public class TargetRelocationSlotsEstimator {
     /// very large when the data nodes have no limit. The critical recoveries are not taken into account, as they have slots of their own
     /// above this limit, and only take the non-critical ones when they exceed those, which is rare and short-lived.
     public int slotsForNonCriticalRecoveries() {
-        return incomingRecoveryLimits.maxConcurrentNonCriticalRecoveries();
+        return maxConcurrentNonCriticalRecoveries;
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not

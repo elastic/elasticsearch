@@ -381,6 +381,17 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
+     * Returns a helper that applies {@code ignore_malformed} to {@code fieldPath} as the row path does. The caller must
+     * {@link BatchMalformedValues#emit} and close it.
+     *
+     * @param ignoreMalformed the field's {@code ignore_malformed} setting
+     * @param storeMalformed  whether the field's row path stores malformed values so synthetic source can restore them
+     */
+    public BatchMalformedValues malformedValues(String fieldPath, boolean ignoreMalformed, boolean storeMalformed) {
+        return new BatchMalformedValues(this, fieldPath, ignoreMalformed, storeMalformed);
+    }
+
+    /**
      * Whether {@code _source} is reconstructed from doc values.
      */
     public boolean isSourceSynthetic() {

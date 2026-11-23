@@ -133,16 +133,19 @@ public class AtomicUsageAccumulatorTests extends ESTestCase {
         }
 
         CountDownLatch start = new CountDownLatch(1);
-        // The writers wait for the first drain, so that drains really overlap with the writes.
-        CountDownLatch firstDrainDone = new CountDownLatch(1);
+        // Each writer pauses halfway until a drain has returned something: that drain necessarily ran while every writer still had
+        // half of its records to add, so the test cannot pass with the whole workload drained only after the writers are done.
+        CountDownLatch drainedDuringWrites = new CountDownLatch(1);
         AtomicBoolean writersDone = new AtomicBoolean();
         List<Thread> writerThreads = new ArrayList<>();
         for (int w = 0; w < writers; w++) {
             int writer = w;
             Thread thread = new Thread(() -> {
                 safeAwait(start);
-                safeAwait(firstDrainDone);
                 for (int i = 0; i < recordsPerWriter; i++) {
+                    if (i == recordsPerWriter / 2) {
+                        safeAwait(drainedDuringWrites);
+                    }
                     CpuComponents c = components(writer, i);
                     accumulator.record(
                         outcomes[i % outcomes.length],
@@ -158,17 +161,24 @@ public class AtomicUsageAccumulatorTests extends ESTestCase {
         Thread drainer = new Thread(() -> {
             safeAwait(start);
             do {
-                accumulate(drained, accumulator.drain(NOW));
-                firstDrainDone.countDown();
+                UsageSnapshot snapshot = accumulator.drain(NOW);
+                accumulate(drained, snapshot);
+                if (snapshot.isEmpty() == false) {
+                    drainedDuringWrites.countDown();
+                }
             } while (writersDone.get() == false);
         }, "drainer");
         drainer.start();
 
         start.countDown();
-        for (Thread thread : writerThreads) {
-            thread.join();
+        try {
+            for (Thread thread : writerThreads) {
+                thread.join();
+            }
+        } finally {
+            // Also when the wait is interrupted, so that the drainer never spins on after the test.
+            writersDone.set(true);
         }
-        writersDone.set(true);
         drainer.join();
         accumulate(drained, accumulator.drain(NOW));
 

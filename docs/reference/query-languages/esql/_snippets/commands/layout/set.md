@@ -21,7 +21,7 @@ Besides the `SET` directive, a query setting can come from the request body, fro
 :::{include} ../../generated/x-pack-esql/commands/settings/surfaces.md
 :::
 
-{applies_to}`stack: ga 9.7+` The `unmapped_fields` setting can be set in the request body.
+{applies_to}`stack: ga 9.7+` The `unmapped_fields` setting can be set in the request body. Its `LOAD_ALL` value is in technical preview.
 
 When the same setting is set in more than one place, the most specific one wins. From lowest to highest precedence:
 

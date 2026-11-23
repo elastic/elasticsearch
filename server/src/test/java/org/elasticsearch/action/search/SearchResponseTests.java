@@ -156,7 +156,8 @@ public class SearchResponseTests extends ESTestCase {
     public void testWithAdditionalPhaseFailuresReleasesIndependentlyOfTheOriginal() {
         CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
         long bytes = 4096L;
-        breaker.addWithoutBreaking(bytes);
+        long aggregationBytes = 1024L;
+        breaker.addWithoutBreaking(bytes + aggregationBytes);
 
         TotalHits totalHits = new TotalHits(1, TotalHits.Relation.EQUAL_TO);
         SearchHits mainHits = new SearchHits(new SearchHit[] { new SearchHit(0, "main") }, totalHits, 1.0f);
@@ -202,6 +203,7 @@ public class SearchResponseTests extends ESTestCase {
         // the original now owns the references the hits were created with
         mainHits.decRef();
         original.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
+        original.adoptAggregationCharge(() -> breaker.addWithoutBreaking(-aggregationBytes));
         long storeBytesRead = randomNonNegativeLong();
         original.setDirectoryMetrics(storeMetrics(storeBytesRead));
         long aggregationBreakerBytes = randomLongBetween(1, 1000);
@@ -217,13 +219,15 @@ public class SearchResponseTests extends ESTestCase {
         assertThat(copy.getDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead(), equalTo(storeBytesRead));
         assertFalse(original.hasCoordinatorFetchCharge());
         assertTrue(copy.hasCoordinatorFetchCharge());
+        assertFalse(original.hasAggregationCharge());
+        assertTrue(copy.hasAggregationCharge());
 
         // the copy keeps everything alive and charged after the original has gone
         original.decRef();
         assertTrue(mainHits.hasReferences());
         assertTrue(topHits.hasReferences());
         assertTrue(completionHit.hasReferences());
-        assertThat(breaker.getUsed(), equalTo(bytes));
+        assertThat(breaker.getUsed(), equalTo(bytes + aggregationBytes));
 
         copy.decRef();
         assertFalse(mainHits.hasReferences());

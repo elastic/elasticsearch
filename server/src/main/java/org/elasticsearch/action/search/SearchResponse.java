@@ -460,8 +460,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * Returns a copy of this response with additional phase failures, for failures from phases that ran before this search, as part of its
-     * rewrite. The copy takes its own references on everything this response releases, and the coordinator fetch charge moves to it, so
-     * the caller must release this response and the copy independently.
+     * rewrite. The copy takes its own references on everything this response releases, and the coordinator fetch charge and the
+     * aggregation charge move to it, so the caller must release this response and the copy independently.
      */
     SearchResponse withAdditionalPhaseFailures(List<SearchPhaseFailure> additionalFailures) {
         topHitsToRelease.forEach(SearchHits::incRef);
@@ -491,6 +491,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         copy.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
         copy.serializedAggregationsBytes = serializedAggregationsBytes;
         copy.coordinatorFetchCharge = transferCoordinatorFetchCharge();
+        copy.aggregationCharge = transferAggregationCharge();
         return copy;
     }
 
@@ -622,6 +623,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     Releasable transferCoordinatorFetchCharge() {
         Releasable charge = coordinatorFetchCharge;
         coordinatorFetchCharge = null;
+        return charge;
+    }
+
+    /**
+     * Hands the charge for the reduced aggregations to a response that keeps the aggregations alive past this response.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    private Releasable transferAggregationCharge() {
+        Releasable charge = aggregationCharge;
+        aggregationCharge = null;
         return charge;
     }
 

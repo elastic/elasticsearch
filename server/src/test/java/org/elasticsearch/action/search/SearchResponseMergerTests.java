@@ -1743,7 +1743,7 @@ public class SearchResponseMergerTests extends ESTestCase {
      * Records the label of every charge and release. A test double, because {@link LimitedBreaker} ignores labels, and checking the
      * per-category metric of a real breaker would need a meter registry.
      */
-    private static final class LabelRecordingBreaker extends NoopCircuitBreaker {
+    static final class LabelRecordingBreaker extends NoopCircuitBreaker {
         final List<String> charged = new ArrayList<>();
         final List<String> released = new ArrayList<>();
 

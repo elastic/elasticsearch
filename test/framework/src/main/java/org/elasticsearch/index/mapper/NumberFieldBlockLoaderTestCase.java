@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -209,7 +208,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
         runner.document(document);
         runner.fieldName("field");
-        runner.mapperService(createMapperService(getSettingsForParams().build(), XContentFactory.jsonBuilder().map(mapping)));
+        runner.mapperService(createMapperServiceWithParams(getSettingsForParams().build(), mapping));
         runner.run(expected);
     }
 
@@ -250,7 +249,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(expected);
     }
 
@@ -277,7 +276,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(expected);
     }
 }

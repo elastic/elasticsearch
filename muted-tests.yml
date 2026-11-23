@@ -694,16 +694,6 @@ tests:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
-- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithOnlyEmptyStringsIsIgnored
-  issue: https://github.com/elastic/elasticsearch/issues/166431
-- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueIsIgnored
-  issue: https://github.com/elastic/elasticsearch/issues/166429
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   tasks:
   - :x-pack:plugin:async-search:internalClusterTest

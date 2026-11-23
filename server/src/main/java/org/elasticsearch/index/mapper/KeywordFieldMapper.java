@@ -1684,6 +1684,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || fieldType().nullValue != null);
     }
 
+    /** A {@code null} element is a value only when {@code null_value} replaces it. */
+    @Override
+    protected boolean nullCountsAsValueBatch() {
+        return fieldType().nullValue != null;
+    }
+
     @Override
     protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return docValuesParameters.onFailure();

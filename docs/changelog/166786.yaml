@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 165753
 pr: 166786
-summary: Resolve a grouping that an unmapped field shadows to the last one of its name
+summary: Resolve a reference to a repeated STATS grouping alias to the last grouping of that name, also when that grouping is an unmapped field
 type: bug

@@ -1163,27 +1163,47 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     /**
      * A cast that rewrites a node rebuilds the nodes above it, and the cast above must still use the view's mode. Under load,
-     * TO_DEGREES of the partially unmapped [foo] is rejected; the caller's default mode would convert it.
+     * [foo] also has the keyword leg loaded from _source, which TO_DEGREES cannot convert. Where the cast is lenient that leg
+     * becomes null with a warning; on older nodes the cast is rejected. The caller's default mode would not load that leg, so
+     * it would neither warn nor fail.
      */
     public void testUnionTypeCastAboveRewrittenNodeInsideLoadViewUsesTheViewsMode() {
-        partiallyUnmappedFoo().addView("v", """
+        TestAnalyzer analyzer = partiallyUnmappedFoo().addView("v", """
             SET unmapped_fields="load";
             FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo)
-            """).statementError("FROM v", allOf(containsString("line 2:59 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+            """);
+        assertCastOnLoadedKeywordLeg(analyzer, "line 2:59 (in view [v])");
     }
 
     /**
      * The view's load mode reaches the subquery side of an IN inside the view, even when casts on both sides rebuild the join
-     * and the subquery nodes above them.
+     * and the subquery nodes above them. The subquery's cast sees the keyword leg of [foo], as above.
      */
     public void testUnionTypeCastInInSubqueryInsideLoadViewUsesTheViewsMode() {
-        partiallyUnmappedFoo().addView("v", """
+        TestAnalyzer analyzer = partiallyUnmappedFoo().addView("v", """
             SET unmapped_fields="load";
             FROM idx* | EVAL s = TO_STRING(foo) | WHERE k IN (FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo) | KEEP k)
-            """).statementError("FROM v", allOf(containsString("line 2:109 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+            """);
+        assertCastOnLoadedKeywordLeg(analyzer, "line 2:109 (in view [v])");
     }
 
-    private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
+    /**
+     * Querying {@code FROM v} must see the keyword leg of [foo] that the view's load mode adds: a lenient cast turns it into
+     * null with a warning, while on older nodes the cast is rejected as ambiguous.
+     */
+    private void assertCastOnLoadedKeywordLeg(TestAnalyzer analyzer, String errorLocation) {
+        if (minimumVersion.supports(Analyzer.ESQL_LENIENT_UNION_CAST)) {
+            assertThat(analyzer.statement("FROM v").resolved(), is(true));
+            assertWarnings(
+                "Field [foo] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] and will be null in those indices."
+            );
+        } else {
+            analyzer.statementError(
+                "FROM v",
+                allOf(containsString(errorLocation), containsString("Cannot use field [foo] due to ambiguities"))
+            );
+        }
+    }
 
     /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
     private TestAnalyzer partiallyUnmappedFoo() {

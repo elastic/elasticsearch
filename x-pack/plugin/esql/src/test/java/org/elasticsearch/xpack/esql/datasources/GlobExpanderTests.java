@@ -8073,10 +8073,11 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Cancellation must abort a flat listing that keeps nothing. The walk checks cancel beside the keep-path
-     * reserve, so a glob whose remaining keys do not match ({@code *.parquet} over {@code .json}) used to
-     * drain the prefix — up to {@code max_listed_objects} — before {@code finishListing} noticed the query
-     * was gone. Cancel after the first key, so this cannot pass by refusing to start.
+     * Cancellation must abort a flat listing that keeps nothing. The drain tests cancel before
+     * {@code hasNext()} so a glob whose remaining keys do not match ({@code *.parquet} over {@code .json})
+     * does not fetch the next LIST page. {@code hasNextCalls() == 1} pins that order: cancel-after-hasNext
+     * would still pull one key but would already have a second page in flight. Cancel after the first key,
+     * so this cannot pass by refusing to start.
      */
     public void testACancelledListingStopsWalkingNonMatchingKeys() {
         List<StorageEntry> jsonOnly = new ArrayList<>(5000);
@@ -8106,6 +8107,8 @@ public class GlobExpanderTests extends ESTestCase {
             provider.keysPulled(),
             lessThan(10)
         );
+        assertEquals(1, provider.keysPulled());
+        assertEquals("cancel must be tested before hasNext(), or the next LIST page is already in flight", 1, provider.hasNextCalls());
     }
 
     /**

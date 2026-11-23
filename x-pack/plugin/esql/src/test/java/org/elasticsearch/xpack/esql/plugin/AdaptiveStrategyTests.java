@@ -21,9 +21,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -104,6 +108,126 @@ public class AdaptiveStrategyTests extends ESTestCase {
         ExternalDistributionPlan plan = strategy.planDistribution(context);
 
         assertFalse(plan.distributed());
+    }
+
+    public void testFilteredLimitWithManySplitsDistributes() {
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, createExternalSourceExec(), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, filtered, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), createNodes(3), QueryPragmas.EMPTY)
+        );
+
+        assertTrue(distribution.distributed());
+        assertEquals(3, distribution.nodeAssignments().size());
+        assertEquals(10, totalAssigned(distribution));
+    }
+
+    /**
+     * The shape the Mapper produces for {@code FROM ds | WHERE ... | LIMIT n}: the filter is still a logical
+     * node inside the fragment under the exchange.
+     */
+    public void testFilteredLimitInsideFragmentWithManySplitsDistributes() {
+        Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        LogicalPlan fragment = new Limit(Source.EMPTY, limitExpr, new Filter(Source.EMPTY, EsqlTestUtils.emptySource(), Literal.TRUE));
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, new ExchangeExec(Source.EMPTY, new FragmentExec(fragment)), limitExpr, null);
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), createNodes(3), QueryPragmas.EMPTY)
+        );
+
+        assertTrue(distribution.distributed());
+        assertEquals(3, distribution.nodeAssignments().size());
+    }
+
+    public void testFilteredLimitWithFewSplitsStaysLocal() {
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, createExternalSourceExec(), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, filtered, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(2), createNodes(3), QueryPragmas.EMPTY)
+        );
+
+        assertFalse(distribution.distributed());
+    }
+
+    /**
+     * On a one-node cluster the coordinator is the only eligible node, so distributing a filtered LIMIT would
+     * only add an exchange in front of the same scan.
+     */
+    public void testFilteredLimitWithOnlyCoordinatorEligibleStaysLocal() {
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, createExternalSourceExec(), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, filtered, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+        DiscoveryNode local = DiscoveryNodeUtils.builder("node-0").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(local).localNodeId(local.getId()).build();
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertFalse(distribution.distributed());
+    }
+
+    /**
+     * A coordinator that is not itself eligible (an index node, say) still ships a filtered LIMIT to the one
+     * eligible worker.
+     */
+    public void testFilteredLimitWithOneRemoteEligibleNodeDistributes() {
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, createExternalSourceExec(), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, filtered, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
+        DiscoveryNode coordinator = DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(coordinator)
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .localNodeId(coordinator.getId())
+            .build();
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertTrue(distribution.distributed());
+        assertEquals(Set.of("search-1"), assignedNodeIds(distribution));
+    }
+
+    /** The coordinator-only guard is for filtered LIMIT plans; a plain scan keeps the existing split-count rule. */
+    public void testPlainScanWithOnlyCoordinatorEligibleStillDistributes() {
+        DiscoveryNode local = DiscoveryNodeUtils.builder("node-0").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(local).localNodeId(local.getId()).build();
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(createExternalSourceExec(), createSplits(10), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertTrue(distribution.distributed());
+    }
+
+    /**
+     * {@code FROM ds | LIMIT 100 | WHERE ...}: the filter only sees the rows the inner limit let through,
+     * so the read is still bounded by that limit and stays on the coordinator.
+     */
+    public void testFilterAboveLimitStaysLocal() {
+        Literal limitExpr = new Literal(Source.EMPTY, 100, DataType.INTEGER);
+        PhysicalPlan innerLimit = new LimitExec(Source.EMPTY, createExternalSourceExec(), limitExpr, null);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, new FilterExec(Source.EMPTY, innerLimit, Literal.TRUE), limitExpr, null);
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), createNodes(3), QueryPragmas.EMPTY)
+        );
+
+        assertFalse(distribution.distributed());
+    }
+
+    public void testFilterAboveLimitInsideFragmentStaysLocal() {
+        Literal limitExpr = new Literal(Source.EMPTY, 100, DataType.INTEGER);
+        LogicalPlan fragment = new Filter(Source.EMPTY, new Limit(Source.EMPTY, limitExpr, EsqlTestUtils.emptySource()), Literal.TRUE);
+        PhysicalPlan plan = new LimitExec(Source.EMPTY, new ExchangeExec(Source.EMPTY, new FragmentExec(fragment)), limitExpr, null);
+
+        ExternalDistributionPlan distribution = strategy.planDistribution(
+            new ExternalDistributionContext(plan, createSplits(10), createNodes(3), QueryPragmas.EMPTY)
+        );
+
+        assertFalse(distribution.distributed());
     }
 
     public void testTopNWithMultipleSplitsDistributes() {

@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.IN_FLIGHT;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
@@ -198,7 +199,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testBackpressureAtInFlightByteLimit() {
-        int pages = IntoPageWriter.POLICY.maxBulksInFlight() + 1;
+        int pages = IN_FLIGHT + 1;
         for (int i = 0; i < pages; i++) {
             assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
             writer.consume(widePage());
@@ -293,15 +294,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testCloseWithoutFinishDropsRowsThatWereNotSent() {
-        int inFlight = IntoPageWriter.POLICY.maxBulksInFlight();
-        for (int i = 0; i < inFlight + 1; i++) {
+        for (int i = 0; i < IN_FLIGHT + 1; i++) {
             writer.consume(widePage());
         }
-        assertThat(client.bulks, hasSize(inFlight));
+        assertThat(client.bulks, hasSize(IN_FLIGHT));
 
         // A cancelled or failed driver closes without finish(): the page held back for lack of capacity must not be written afterwards.
         writer.close();
-        for (int i = 0; i < inFlight; i++) {
+        for (int i = 0; i < IN_FLIGHT; i++) {
             client.answer(CREATED);
         }
         assertThat(client.bulks, empty());
@@ -496,7 +496,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testWritersShareCapacity() {
         IntoPageWriter writerB = sink.create(driverContext);
 
-        for (int i = 0; i < IntoPageWriter.POLICY.maxBulksInFlight() + 1; i++) {
+        for (int i = 0; i < IN_FLIGHT + 1; i++) {
             writer.consume(widePage());
         }
         assertFalse(writer.isBlocked().listener().isDone());
@@ -505,9 +505,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client.answer(CREATED);
         assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
         assertThat(writerB.isBlocked(), equalTo(Operator.NOT_BLOCKED));
-        client.answer(CREATED);
-        client.answer(CREATED);
-        client.answer(CREATED);
+        while (client.bulks.isEmpty() == false) {
+            client.answer(CREATED);
+        }
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 

@@ -11,18 +11,18 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
- * A single {@code LET name = (subquery)} binding produced by parsing one {@code LET} prefix statement. A query may have several
- * {@code LET} statements, each declaring exactly one binding.
+ * A single {@code LET name = (subquery)} named subquery produced by parsing one {@code LET} prefix statement. A query may have several
+ * {@code LET} statements, each declaring exactly one named subquery.
  * <p>
- * Bindings are evaluated in declaration order: binding <em>N</em> may reference bindings
+ * Named subqueries are evaluated in declaration order: named subquery <em>N</em> may reference named subqueries
  * <em>1..N-1</em> by name. The plans held here are unresolved — they contain
  * {@link org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation} nodes for any
  * referenced names, which {@link org.elasticsearch.xpack.esql.analysis.LetResolver}
  * replaces before view resolution begins.
  * </p>
  *
- * @param source the source location of the binding in the query text
- * @param name   the identifier used to reference this binding in the main query
- * @param plan   the unresolved logical plan of the binding's subquery
+ * @param source the source location of the named subquery in the query text
+ * @param name   the identifier used to reference this named subquery in the main query
+ * @param plan   the unresolved logical plan of the subquery body
  */
 public record LetBinding(Source source, String name, LogicalPlan plan) {}

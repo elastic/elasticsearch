@@ -2713,18 +2713,19 @@ required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) / ((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) + (last_over_time(network.eth0.rx[5m]) or last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
+| EVAL result = ROUND(result, 6), _timeseries = _timeseries
 | SORT _timeseries;
 
-result:double       | _timeseries:keyword
-0.4817432273262662  | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-0.4945205479452055  | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-0.6520787746170679  | "{""labels"":{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-0.3821752265861027  | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
-0.4859086491739553  | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
-0.5942408376963351  | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
-0.48732394366197185 | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-0.5358851674641149  | "{""labels"":{""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-0.4390697674418605  | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
+result:double | _timeseries:keyword
+0.481743      | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
+0.494521      | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
+0.652079      | "{""labels"":{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+0.382175      | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
+0.485909      | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
+0.594241      | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
+0.487324      | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
+0.535885      | "{""labels"":{""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
+0.43907       | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
 ;
 
 // or on() adds its right operand only at steps where the left one has no series; as a divisor it joins on the step.

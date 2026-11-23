@@ -770,11 +770,6 @@ tests:
   - :server:test
   method: testSnapshotDeleteWithMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/166596
-- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testClosingNodeShouldWaitForOngoingMerge
-  issue: https://github.com/elastic/elasticsearch/issues/166623
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

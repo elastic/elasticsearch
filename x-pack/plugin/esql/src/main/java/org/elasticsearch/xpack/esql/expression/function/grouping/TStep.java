@@ -341,6 +341,18 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         return configuration;
     }
 
+    public Expression stepOrBuckets() {
+        return stepOrBuckets;
+    }
+
+    public Expression from() {
+        return from;
+    }
+
+    public Expression to() {
+        return to;
+    }
+
     @Override
     public Expression timestamp() {
         return timestamp;

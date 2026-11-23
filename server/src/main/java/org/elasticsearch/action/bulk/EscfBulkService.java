@@ -27,6 +27,7 @@ public final class EscfBulkService {
     private final IndexingPressure indexingPressure;
     private final Executor executor;
     private final Recycler<BytesRef> recycler;
+    private final EscfBulkWriter.Policy defaultPolicy;
 
     /**
      * @param executor settles the bulks and calls the writers back, off the threads that complete the bulks
@@ -35,6 +36,12 @@ public final class EscfBulkService {
         this.indexingPressure = indexingPressure;
         this.executor = executor;
         this.recycler = recycler;
+        this.defaultPolicy = EscfBulkWriter.Policy.fromIndexingPressure(indexingPressure);
+    }
+
+    /** This node's {@link EscfBulkWriter.Policy#fromIndexingPressure} policy. */
+    public EscfBulkWriter.Policy defaultPolicy() {
+        return defaultPolicy;
     }
 
     /**

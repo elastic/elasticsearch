@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -212,6 +213,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(indexDoc);
     }
 
+    private void indexMinMaxDocument(int id, int n, String org) throws IOException {
+        Request indexDoc = new Request("PUT", "min-max-dls/_doc/" + id);
+        indexDoc.setJsonEntity("{\"n\":" + n + ",\"org\":\"" + org + "\"}");
+        client().performRequest(indexDoc);
+    }
+
     /**
      * Indexes a document with the shared FLS-test shape into either {@link #INDEX_PARTIAL_MAPPING} (where most fields
      * end up unmapped via {@code dynamic:false}) or {@link #INDEX_FULL_MAPPING} (where every field is mapped with its
@@ -334,6 +341,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
+
+        String minMaxMapping = """
+            "properties":{"n": {"type": "integer"}, "org": {"type": "keyword"}}
+            """;
+        createIndex("min-max-dls", indexSettings(), mappingPrefix() + minMaxMapping);
+        indexMinMaxDocument(1, 5, "marketing");
+        indexMinMaxDocument(2, 100, "sales");
+        indexMinMaxDocument(3, 1, "sales");
+        refresh("min-max-dls");
 
         createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
@@ -607,6 +623,77 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
             assertMap(responseMap, matcher);
         }
+    }
+
+    /**
+     * With the fetch phase, a {@code TopN} loads the columns its sort doesn't need through fetch requests. Security
+     * authorizes those on their own, with the index expressions of the query, and they must return what the query returns
+     * without the fetch phase: the documents that document level security lets through, the fields that field level
+     * security grants, and an index that the role reads only through a filtered alias, matched with a wildcard. The
+     * cluster has one node, so every fetch request goes through the local transport.
+     */
+    public void testFetchPhaseReadsWhatTheQueryReads() throws Exception {
+        assumeTrue("the fetch_phase pragma needs a snapshot build", Build.current().isSnapshot());
+
+        // user3 reads the sales documents of index only
+        EsqlResult dls = assertFetchPhaseMatchesEager("user3", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(dls.values("org"), equalTo(List.of("sales")));
+
+        // fls_user reads value and partial of index, but not org. The values of partial depend on the index mode: synthetic
+        // source loads them from partial.keyword, which the role doesn't grant.
+        EsqlResult fls = assertFetchPhaseMatchesEager("fls_user", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(fls.columnNames(), not(hasItem("org")));
+        assertThat(fls.columnNames(), hasItem("partial"));
+
+        // alias_user1 reads index-user1 only through first-alias, whose filter keeps its sales documents
+        EsqlResult alias = assertFetchPhaseMatchesEager("alias_user1", "FROM first-*,index-* | SORT value DESC | LIMIT 10");
+        assertThat(alias.values("value"), equalTo(List.of(31.0d)));
+        assertThat(alias.values("org"), equalTo(List.of("sales")));
+    }
+
+    /**
+     * Runs {@code query} as {@code user} with the fetch phase and without it. Checks that both return the same columns and
+     * rows, and that the fetch phase fetched documents.
+     */
+    private EsqlResult assertFetchPhaseMatchesEager(String user, String query) throws IOException {
+        Map<String, Object> eager = entityAsMap(runWithFetchPhase(user, query, false));
+        Map<String, Object> fetched = entityAsMap(runWithFetchPhase(user, query, true));
+        assertThat(fetched.get("columns"), equalTo(eager.get("columns")));
+        assertThat(fetched.get("values"), equalTo(eager.get("values")));
+        assertThat("documents fetched by [" + query + "] as [" + user + "]", fetchedDocuments(fetched), greaterThan(0));
+        return EsqlResult.of(fetched);
+    }
+
+    /**
+     * Runs a profiled query that sets the {@code fetch_phase} pragma, and no other pragma.
+     */
+    private Response runWithFetchPhase(String user, String query, boolean fetchPhase) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder().startObject();
+        json.field("query", query);
+        json.field("profile", true);
+        json.startObject("pragma").field("fetch_phase", fetchPhase).endObject();
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.setOptions(runAsUserOptions(user, null));
+        request.addParameter("error_trace", "true");
+        return client().performRequest(request);
+    }
+
+    /**
+     * The documents that the fetch operators of a profiled query fetched.
+     */
+    @SuppressWarnings("unchecked")
+    private static int fetchedDocuments(Map<String, Object> result) {
+        int documents = 0;
+        for (Map<String, Object> driver : (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers")) {
+            for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
+                if (((String) operator.get("operator")).startsWith("FetchOperator")) {
+                    documents += ((Number) ((Map<String, Object>) operator.get("status")).get("documents")).intValue();
+                }
+            }
+        }
+        return documents;
     }
 
     public void testUnauthorizedIndices() throws IOException {
@@ -980,12 +1067,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         refresh("eql-events");
 
         // DLS lets eql_dls_user see only the process events, and the delegated EQL search honors that filter.
-        Response process = runESQLCommand("eql_dls_user", "EQL eql-events \"process where true\" | KEEP message | SORT message");
+        Response process = runESQLCommand(
+            "eql_dls_user",
+            "EQL eql-events \"process where true\" WITH {\"size\": 100} | KEEP message | SORT message"
+        );
         assertOK(process);
         assertThat(entityAsMap(process).get("values"), equalTo(List.of(List.of("a"), List.of("b"))));
 
         // The network event exists but is hidden by DLS, so querying for it returns nothing rather than leaking the row.
-        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" | KEEP message");
+        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" WITH {\"size\": 100} | KEEP message");
         assertOK(network);
         assertThat(entityAsMap(network).get("values"), equalTo(List.of()));
 
@@ -1023,7 +1113,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         // The delegated EQL search fetches _source, which security filters, so the hidden message field must be absent
         // from every converted row while the granted fields remain.
-        Response resp = runESQLCommand("eql_fls_user", "EQL eql-events-fls \"process where true\" METADATA _source | KEEP _source");
+        Response resp = runESQLCommand(
+            "eql_fls_user",
+            "EQL eql-events-fls \"process where true\" METADATA _source WITH {\"size\": 100} | KEEP _source"
+        );
         assertOK(resp);
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
@@ -1351,9 +1444,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     /**
      * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: only {@code salary} is
-     * referenced, so every other unmapped {@code _source} key lands in the {@code _unmapped_fields} object. An FLS-denied field must
-     * not be one of them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither
-     * may show up, while the admin running the same query sees both.
+     * referenced, so it is a column, and every unmapped {@code _source} key, {@code salary} included, lands in the
+     * {@code _unmapped_fields} object. An FLS-denied field must not be one of them. {@code fls_deny_value_org_user} is denied the mapped
+     * {@code value} and the unmapped {@code org}, so neither may show up, while the admin running the same query sees both.
      */
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
         assumeUnmappedFieldsLoadAll();
@@ -1372,8 +1465,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry(
                     "values",
                     List.of(
-                        List.of(10.0, "100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales")),
-                        List.of(20.0, "200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering"))
+                        List.of(10.0, "100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales", "salary", 100000)),
+                        List.of(
+                            20.0,
+                            "200000",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
                     )
                 )
         );
@@ -1387,11 +1484,100 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry(
                     "values",
                     List.of(
-                        List.of("100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1")),
-                        List.of("200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2"))
+                        List.of("100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "salary", 100000)),
+                        List.of("200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000))
                     )
                 )
         );
+    }
+
+    /**
+     * Naming an FLS-denied field does not make its key reappear. A named field keeps its key in {@code _unmapped_fields}, as any column
+     * does, so the denial is what has to keep it out: {@code fls_deny_value_org_user} gets {@code org} as a column of nulls, and no
+     * {@code org} key, while the admin gets both. A regression would be silent here, since naming the field used to hide its key.
+     */
+    public void testFieldLevelSecurityFieldDeniedAndNamedWithUnmappedFieldsLoadAll() throws Exception {
+        // The query filters on unmapped fields, so there are no rows where they are not stored (columnar logsdb).
+        assumeUnmappedFieldsLoadAllDiscoverable();
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | WHERE org == \"sales\" OR org == \"engineering\" OR salary IS NOT NULL | EVAL named = org | SORT salary | LIMIT 10"
+            + dropModeSpecificColumns();
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        column("value", "double"),
+                        column("org", "keyword"),
+                        column("salary", "keyword"),
+                        column("named", "keyword"),
+                        unmappedFieldsColumn()
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(
+                            10.0,
+                            "sales",
+                            "100000",
+                            "sales",
+                            Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales", "salary", 100000)
+                        ),
+                        List.of(
+                            20.0,
+                            "engineering",
+                            "200000",
+                            "engineering",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(column("org", "keyword"), column("salary", "keyword"), column("named", "keyword"), unmappedFieldsColumn())
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        Arrays.asList(null, "100000", null, Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "salary", 100000)),
+                        Arrays.asList(null, "200000", null, Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000))
+                    )
+                )
+        );
+    }
+
+    /**
+     * An ungrouped {@code MIN}/{@code MAX} over an integer field can be answered from segment metadata, which spans every document
+     * of the segment. Document-level security hides documents without deleting them from the segment, so the answer must still
+     * come from the documents the role may see.
+     */
+    public void testDLS_MinMaxIgnoresFilteredDocuments() throws Exception {
+        String query = "FROM min-max-dls | STATS min_n = MIN(n), max_n = MAX(n)";
+        List<MapMatcher> expectedColumns = List.of(column("min_n", "integer"), column("max_n", "integer"));
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(1, 100)))
+        );
+
+        Response dlsResp = runESQLCommand("dls_user", query);
+        assertOK(dlsResp);
+        assertMap(entityAsMap(dlsResp), matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(5, 5))));
     }
 
     public void testDLS_DoesNotExposeFilteredDocuments_WithUnmappedFieldsLoadAll() throws Exception {
@@ -1461,7 +1647,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry("columns", List.of(column("value", "double"), column("org", "keyword"), unmappedFieldsColumn()))
                 .entry(
                     "values",
-                    List.of(List.of(20.0, "engineering", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000)))
+                    List.of(
+                        List.of(
+                            20.0,
+                            "engineering",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
+                    )
                 )
         );
 
@@ -1684,7 +1876,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             adminResult.columnNames(),
             containsInAnyOrder("_index", "value", "org", "salary", "hire_date", "ip_addr", "_unmapped_fields")
         );
-        assertThat(adminResult.unmappedFieldNames(), equalTo(Set.of("profile.public_id", "profile.ssn", "secret_note", "tags")));
+        // org is mapped on the full-mapping index only, so the unmapped index keeps its key.
+        assertThat(adminResult.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
 
         Response resp = runESQLCommand("fls_unmapped_load_all_per_index_access_user", query);
         assertOK(resp);
@@ -1753,9 +1946,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
             result.values("_unmapped_fields"),
             equalTo(
                 List.of(
-                    Map.of("profile.ssn", "111-11-1111", "tags", List.of("red", "blue")),
-                    Map.of("profile.ssn", "222-22-2222", "secret_note", "quarterly-forecast", "tags", "green"),
-                    Map.of("profile.ssn", "333-33-3333", "tags", "yellow")
+                    Map.of("org", "sales", "profile.public_id", "p1", "profile.ssn", "111-11-1111", "tags", List.of("red", "blue")),
+                    Map.of(
+                        "org",
+                        "engineering",
+                        "profile.public_id",
+                        "p2",
+                        "profile.ssn",
+                        "222-22-2222",
+                        "secret_note",
+                        "quarterly-forecast",
+                        "tags",
+                        "green"
+                    ),
+                    Map.of("org", "marketing", "profile.public_id", "p3", "profile.ssn", "333-33-3333", "tags", "yellow")
                 )
             )
         );
@@ -1893,7 +2097,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertOK(resp);
             EsqlResult result = esqlResult(resp);
             assertThat(result.columnNames(), containsInAnyOrder("value", "org", "_unmapped_fields"));
-            assertThat(result.unmappedFieldNames(), equalTo(Set.of("profile.public_id", "profile.ssn", "secret_note", "tags")));
+            // org is the join key, which the query names, and it keeps its key.
+            assertThat(result.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
         }
     }
 

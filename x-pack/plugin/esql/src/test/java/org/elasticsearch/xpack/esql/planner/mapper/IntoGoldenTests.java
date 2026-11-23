@@ -15,16 +15,28 @@ import java.util.EnumSet;
 public class IntoGoldenTests extends GoldenTestCase {
     public void testFromInto() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
-        // Verification rejects FROM as an INTO source. The node-reduce plan is where a second write would show up.
-        builder("FROM employees | KEEP emp_no | INTO dst").withoutVerification()
-            .stages(EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION, Stage.NODE_REDUCE))
-            .run();
+        builder("FROM employees | KEEP emp_no | INTO dst").stages(
+            EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION, Stage.NODE_REDUCE)
+        ).run();
+    }
+
+    public void testFromStatsInto() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        builder("FROM employees | STATS c = COUNT(*) BY gender | INTO dst").stages(
+            EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION, Stage.NODE_REDUCE)
+        ).run();
+    }
+
+    public void testFromSortLimitInto() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        builder("FROM employees | KEEP emp_no | SORT emp_no | LIMIT 10 | INTO dst").stages(
+            EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION, Stage.NODE_REDUCE)
+        ).run();
     }
 
     public void testFromWhereFalseInto() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
-        builder("FROM employees | WHERE false | INTO dst").withoutVerification()
-            .stages(EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION))
+        builder("FROM employees | WHERE false | INTO dst").stages(EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION))
             .run();
     }
 }

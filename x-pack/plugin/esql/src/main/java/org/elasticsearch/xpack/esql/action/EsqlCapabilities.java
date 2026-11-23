@@ -3862,6 +3862,25 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, only {@code KEEP} and {@code DROP} decide which keys {@code _unmapped_fields} holds.
+         * A column is a name of its own and leaves the keys as they are, whether it is a mapped field, a field that the query names, or
+         * a column that a command adds or shadows (an {@code EVAL} or {@code RENAME} target, a {@code LOOKUP JOIN} or {@code ENRICH}
+         * field, a {@code GROK} output). Those used to take the key of the same name out of it. {@code DROP} removes what it matches
+         * everywhere, columns and keys, and an exact name as well as a wildcard.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST} is available. See
+         * <a href="https://github.com/elastic/esql-planning/issues/2536">esql-planning#2536</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ONLY_KEEP_AND_DROP_REACH_KEYS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * {@code unmapped_fields="LOAD_ALL"} works with the {@code TS} source command, and with {@code METRICS_INFO} and {@code TS_INFO}.
+         * A time-series aggregation drops the {@code _unmapped_fields} column like any {@code STATS}, and a {@code TS} query without
+         * one returns it like a {@code FROM} does. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4670,10 +4689,9 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
-         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
-         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type and unit.
          */
-        DESCRIBE_COMMAND(Build.current().isSnapshot()),
+        DESCRIBE_COMMAND,
 
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
@@ -4935,25 +4953,25 @@ public class EsqlCapabilities {
          * {@code DESCRIBE} and {@code column_metadata} keep the field semantics and units that merged branches agree on,
          * for views next to indices, {@code FORK} and subqueries.
          */
-        COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+        COLUMN_METADATA_MERGED_BRANCHES,
 
         /**
          * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
          * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
          * they merge indices.
          */
-        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+        COLUMN_METADATA_LISTED_UNITS,
 
         /**
          * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
          * that is rounded or converted to another date type.
          */
-        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+        DESCRIBE_TIME_COLUMNS,
 
         /**
          * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
          */
-        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+        DESCRIBE_INTERVAL,
 
         /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
@@ -5021,6 +5039,12 @@ public class EsqlCapabilities {
          * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
          */
         FIX_TS_FIRST_LAST_SAMPLES,
+
+        /**
+         * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
+         * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
+         */
+        UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

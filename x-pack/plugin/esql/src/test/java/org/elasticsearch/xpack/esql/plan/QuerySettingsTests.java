@@ -586,6 +586,28 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved, is(nullValue()));
     }
 
+    public void testResolveApproximationFalseDiscardsLessSpecificValues() {
+        // The cluster default sets rows, the request body disables approximation, and SET enables it again. Disabling
+        // discards the rows of the cluster default, so the query ends up with the system default, not 20000. The
+        // approximation documentation states this, so a change of this behavior must change that text too.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.APPROXIMATION, ApproximationSettings.EXPLICIT_NULL);
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "approximation", Literal.fromBoolean(Source.EMPTY, true))
+        );
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.APPROXIMATION, "{\"rows\": 20000}"),
+            Settings.EMPTY,
+            requestParams,
+            new EsqlStatement(null, List.of(set)),
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        ApproximationSettings approximation = QuerySettings.APPROXIMATION.get(resolved);
+        assertThat(approximation.rows(), is(nullValue()));
+        assertThat(approximation.confidenceLevel(), equalTo(0.9));
+    }
+
     private static ApproximationSettings resolveApproximation(ApproximationSettings requestValue, Expression querySetExpr) {
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         if (requestValue != null) {

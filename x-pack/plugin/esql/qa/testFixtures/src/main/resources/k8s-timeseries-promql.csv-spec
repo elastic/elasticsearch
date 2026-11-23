@@ -1039,7 +1039,8 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_time
 required_capability: fix_promql_drop_stored_metric_name
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost)
-| SORT _timeseries;
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
+| SORT _timeseries, step;
 
 result:double    | step:datetime            | _timeseries:keyword
 1.715302792125E9 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportChannel;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
 public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase {
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -560,9 +562,57 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
         }
     }
 
+    public void testConsistency() {
+        int docsTest1 = 50;
+        int localShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        populateDateIndex("with-field", "logs-with-field", localShards, docsTest1, "2023-11-26");
+
+        var filter = new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now");
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "from logs-1,logs-with-field | EVAL t = COALESCE(`tag-with-field`, \"default\")",
+                randomBoolean(),
+                filter
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(docsTest1));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::name).toList(),
+                hasItems("@timestamp", "tag-local", "tag-with-field", "t")
+            );
+        }
+
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "from logs-1,logs-with-field | EVAL t = COALESCE(`tag-local`, \"default\")",
+                randomBoolean(),
+                filter
+            )
+        ) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(docsTest1));
+
+            // This fails:
+            // Expected: (a collection containing "@timestamp" and a collection containing "tag-local" and a collection containing
+            // "tag-with-field" and a collection containing "t")
+            // but: a collection containing "tag--with-field" mismatches were: [was "@timestamp", was "const", was "id", was "tag-local",
+            // was "v", was "t"]
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::name).toList(),
+                hasItems("@timestamp", "tag-local", "tag-with-field", "t")
+            );
+        }
+
+    }
+
     protected void populateDateIndex(String clusterAlias, String indexName, int numShards, int numDocs, String date) {
-        Client client = client(clusterAlias);
         String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        if (clusterAlias.startsWith("with")) {
+            clusterAlias = LOCAL_CLUSTER;
+        }
+        Client client = client(clusterAlias);
         assertAcked(
             client.admin()
                 .indices()

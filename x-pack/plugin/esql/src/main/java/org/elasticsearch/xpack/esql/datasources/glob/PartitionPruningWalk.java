@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -102,6 +103,9 @@ final class PartitionPruningWalk {
      * over ~27 years of days); anything wider is the many-children shape where lazy flat listing is the right tool.
      */
     static final int MAX_LISTED_CHILDREN = 10_000;
+
+    /** Occupies a completed peek slot after folder values are consumed so the payload can be dropped. */
+    private static final StorageChildren SLOT_DONE = new StorageChildren(List.of(), List.of());
 
     /**
      * LIST page size used by {@link #cheaperToFinish}. S3 ListObjectsV2's default; {@link StorageProvider} does
@@ -506,9 +510,10 @@ final class PartitionPruningWalk {
 
     /**
      * Lists the direct children of each pruned dir in {@code peeks}, adding any {@code key=value} directory
-     * entries to {@code seenValues} as shadow values for type-divergence detection. Returns {@code false}
-     * when a peek could not complete (budget exhausted or directory too wide to buffer) — the caller
-     * should return {@code null} (fall back to flat listing) in that case. Issues at most the remaining
+     * entries to {@code seenValues} as shadow values for type-divergence detection. Each LIST is consumed as
+     * it returns so the walk retains folder values, not the full {@link StorageChildren} payload. Returns
+     * {@code false} when a peek could not complete (budget exhausted or directory too wide to buffer) — the
+     * caller should return {@code null} (fall back to flat listing) in that case. Issues at most the remaining
      * listing budget, matching the sequential walk's greedy ceiling.
      */
     private static boolean processPendingPeeks(
@@ -528,11 +533,20 @@ final class PartitionPruningWalk {
         if (toPeek == null) {
             return false;
         }
-        StorageChildren[] listed = listChildrenSequential(provider, toPeek, listings, cancelled);
-        if (listed == null) {
-            return false;
+        for (StoragePath dir : toPeek) {
+            if (cancelled.getAsBoolean()) {
+                throw new TaskCancelledException("listing cancelled");
+            }
+            listings.incrementAndGet();
+            StorageChildren children = provider.listChildren(dir, MAX_LISTED_CHILDREN);
+            if (cancelled.getAsBoolean()) {
+                throw new TaskCancelledException("listing cancelled");
+            }
+            if (children == null) {
+                return false;
+            }
+            applyPeekChildren(children, seenValues, templateLayout, walkLevel);
         }
-        applyPeekResults(listed, seenValues, templateLayout, walkLevel);
         return toPeek.size() == peeks.size();
     }
 
@@ -550,17 +564,6 @@ final class PartitionPruningWalk {
             return peeks.subList(0, remaining);
         }
         return peeks;
-    }
-
-    private static void applyPeekResults(
-        StorageChildren[] listed,
-        Map<String, List<String>> seenValues,
-        @Nullable WalkLayout templateLayout,
-        int walkLevel
-    ) {
-        for (StorageChildren children : listed) {
-            applyPeekChildren(children, seenValues, templateLayout, walkLevel);
-        }
     }
 
     private static void applyPeekChildren(
@@ -701,18 +704,34 @@ final class PartitionPruningWalk {
         AtomicInteger issued,
         BooleanSupplier cancelled
     ) throws IOException {
+        return listChildrenSequential(provider, dirs, issued, cancelled, null);
+    }
+
+    private static StorageChildren[] listChildrenSequential(
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        AtomicInteger issued,
+        BooleanSupplier cancelled,
+        @Nullable Consumer<StorageChildren> consumeListed
+    ) throws IOException {
         StorageChildren[] listed = new StorageChildren[dirs.size()];
         for (int i = 0; i < dirs.size(); i++) {
             if (cancelled.getAsBoolean()) {
                 throw new TaskCancelledException("listing cancelled");
             }
             issued.incrementAndGet();
-            listed[i] = provider.listChildren(dirs.get(i), MAX_LISTED_CHILDREN);
+            StorageChildren children = provider.listChildren(dirs.get(i), MAX_LISTED_CHILDREN);
             if (cancelled.getAsBoolean()) {
                 throw new TaskCancelledException("listing cancelled");
             }
-            if (listed[i] == null) {
+            if (children == null) {
                 return null;
+            }
+            if (consumeListed != null) {
+                consumeListed.accept(children);
+                listed[i] = SLOT_DONE;
+            } else {
+                listed[i] = children;
             }
         }
         return listed;
@@ -722,7 +741,9 @@ final class PartitionPruningWalk {
      * Level-parallel {@code listChildren}: {@link ThrottledIterator} on {@code executor}, results merged in
      * directory-slot order. A failed, cancelled, or {@code null} child fails the level (same as sequential:
      * {@code null} withdraws the walk); unstarted slots are skipped and do not increment {@code issued}.
-     * The listener fires on an executor thread. Does not block the caller.
+     * A store failure replaces a sibling withdraw so a retryable 503 is not flattened away. Slot payloads
+     * are detached once on cancel or fail, not rescanned per skipped index. The listener fires on an executor
+     * thread. Does not block the caller.
      */
     static void listChildrenParallel(
         StorageProvider provider,
@@ -733,6 +754,24 @@ final class PartitionPruningWalk {
         BooleanSupplier cancelled,
         ActionListener<StorageChildren[]> listener
     ) {
+        listChildrenParallel(provider, dirs, concurrency, executor, issued, cancelled, null, listener);
+    }
+
+    /**
+     * @param consumeListed if non-null, each successful listing is consumed immediately and the slot keeps
+     *                      only {@link #SLOT_DONE} so peek folder values need not retain full children until
+     *                      the batch merges
+     */
+    private static void listChildrenParallel(
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        int concurrency,
+        Executor executor,
+        AtomicInteger issued,
+        BooleanSupplier cancelled,
+        @Nullable Consumer<StorageChildren> consumeListed,
+        ActionListener<StorageChildren[]> listener
+    ) {
         int size = dirs.size();
         if (size == 0) {
             listener.onResponse(new StorageChildren[0]);
@@ -741,7 +780,7 @@ final class PartitionPruningWalk {
         if (concurrency <= 1 || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             StorageChildren[] listed;
             try {
-                listed = listChildrenSequential(provider, dirs, issued, cancelled);
+                listed = listChildrenSequential(provider, dirs, issued, cancelled, consumeListed);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -749,15 +788,17 @@ final class PartitionPruningWalk {
             listener.onResponse(listed);
             return;
         }
-        AtomicReferenceArray<StorageChildren> results = new AtomicReferenceArray<>(size);
+        AtomicReference<AtomicReferenceArray<StorageChildren>> liveSlots = new AtomicReference<>(new AtomicReferenceArray<>(size));
         AtomicReference<Exception> failure = new AtomicReference<>();
         ThrottledIterator.run(indexIterator(size), (Releasable releasable, Integer i) -> {
             boolean submitted = false;
             try {
                 Exception cancelledNow = cancellationFailure(cancelled);
                 if (failure.get() != null || cancelledNow != null) {
-                    failure.compareAndSet(null, cancelledNow != null ? cancelledNow : new TaskCancelledException("listing cancelled"));
-                    discardSlotResults(results);
+                    if (cancelledNow != null) {
+                        recordBatchFailure(failure, cancelledNow);
+                    }
+                    discardSlotResults(liveSlots);
                     return;
                 }
                 Runnable list = () -> {
@@ -770,37 +811,39 @@ final class PartitionPruningWalk {
                             if (cancelledAfter != null || failure.get() != null) {
                                 // Sync listChildren cannot abort mid-call. Drop this payload and any
                                 // already-ordered sibling slots; the batch will not merge them.
-                                failure.compareAndSet(
-                                    null,
-                                    cancelledAfter != null ? cancelledAfter : new TaskCancelledException("listing cancelled")
-                                );
-                                discardSlotResults(results);
+                                if (cancelledAfter != null) {
+                                    recordBatchFailure(failure, cancelledAfter);
+                                }
+                                discardSlotResults(liveSlots);
                             } else if (children == null) {
                                 // Same as sequential: a null child withdraws the walk. Signal so
-                                // unstarted siblings skip; completion maps this to onResponse(null).
-                                failure.compareAndSet(null, new ListChildrenUnsupported());
-                                discardSlotResults(results);
+                                // unstarted siblings skip; completion maps this to onResponse(null)
+                                // unless a sibling store failure wins.
+                                recordBatchFailure(failure, new ListChildrenUnsupported());
+                                discardSlotResults(liveSlots);
                             } else {
-                                results.set(i, children);
+                                if (consumeListed != null) {
+                                    consumeListed.accept(children);
+                                    children = SLOT_DONE;
+                                }
+                                storeSlot(liveSlots, i, children);
                                 cancelledAfter = cancellationFailure(cancelled);
                                 if (cancelledAfter != null || failure.get() != null) {
-                                    failure.compareAndSet(
-                                        null,
-                                        cancelledAfter != null ? cancelledAfter : new TaskCancelledException("listing cancelled")
-                                    );
-                                    discardSlotResults(results);
+                                    if (cancelledAfter != null) {
+                                        recordBatchFailure(failure, cancelledAfter);
+                                    }
+                                    discardSlotResults(liveSlots);
                                 }
                             }
                         } else {
-                            failure.compareAndSet(
-                                null,
-                                cancelledInSlot != null ? cancelledInSlot : new TaskCancelledException("listing cancelled")
-                            );
-                            discardSlotResults(results);
+                            if (cancelledInSlot != null) {
+                                recordBatchFailure(failure, cancelledInSlot);
+                            }
+                            discardSlotResults(liveSlots);
                         }
                     } catch (Exception e) {
-                        failure.compareAndSet(null, e);
-                        discardSlotResults(results);
+                        recordBatchFailure(failure, e);
+                        discardSlotResults(liveSlots);
                     } finally {
                         releasable.close();
                     }
@@ -808,8 +851,8 @@ final class PartitionPruningWalk {
                 executor.execute(list);
                 submitted = true;
             } catch (Exception submitEx) {
-                failure.compareAndSet(null, submitEx);
-                discardSlotResults(results);
+                recordBatchFailure(failure, submitEx);
+                discardSlotResults(liveSlots);
             } finally {
                 if (submitted == false) {
                     releasable.close();
@@ -818,25 +861,34 @@ final class PartitionPruningWalk {
         }, Math.max(1, concurrency), () -> {
             Exception cancelledNow = cancellationFailure(cancelled);
             if (cancelledNow != null) {
-                discardSlotResults(results);
+                discardSlotResults(liveSlots);
                 listener.onFailure(cancelledNow);
                 return;
             }
             Exception e = failure.get();
             if (e instanceof ListChildrenUnsupported) {
+                discardSlotResults(liveSlots);
                 listener.onResponse(null);
                 return;
             }
             if (e != null) {
-                discardSlotResults(results);
+                discardSlotResults(liveSlots);
                 listener.onFailure(e);
+                return;
+            }
+            AtomicReferenceArray<StorageChildren> results = liveSlots.get();
+            if (results == null) {
+                cancelledNow = cancellationFailure(cancelled);
+                listener.onFailure(
+                    cancelledNow != null ? cancelledNow : new IllegalStateException("walk listing ended without slot results")
+                );
                 return;
             }
             StorageChildren[] listed = new StorageChildren[size];
             for (int i = 0; i < size; i++) {
                 StorageChildren slot = results.get(i);
                 if (slot == null) {
-                    discardSlotResults(results);
+                    discardSlotResults(liveSlots);
                     cancelledNow = cancellationFailure(cancelled);
                     listener.onFailure(
                         cancelledNow != null
@@ -847,7 +899,7 @@ final class PartitionPruningWalk {
                 }
                 listed[i] = slot;
             }
-            discardSlotResults(results);
+            discardSlotResults(liveSlots);
             cancelledNow = cancellationFailure(cancelled);
             if (cancelledNow != null) {
                 listener.onFailure(cancelledNow);
@@ -855,10 +907,10 @@ final class PartitionPruningWalk {
             }
             listener.onResponse(listed);
         }, executor, e -> {
-            if (failure.compareAndSet(null, e) == false) {
+            if (recordBatchFailure(failure, e) == false) {
                 logger.debug("Additional failure during partition-walk listChildren (suppressed by first failure)", e);
             }
-            discardSlotResults(results);
+            discardSlotResults(liveSlots);
         });
     }
 
@@ -875,8 +927,42 @@ final class PartitionPruningWalk {
         }
     }
 
-    /** Drop ordered-slot payloads so a cancelled or failed batch does not retain listed children. */
-    private static void discardSlotResults(AtomicReferenceArray<StorageChildren> results) {
+    /**
+     * First-wins, except a store failure or cancellation replaces a withdraw
+     * ({@link ListChildrenUnsupported}) so a retryable 503 is not flattened away.
+     */
+    private static boolean recordBatchFailure(AtomicReference<Exception> failure, Exception e) {
+        while (true) {
+            Exception current = failure.get();
+            if (current == null) {
+                if (failure.compareAndSet(null, e)) {
+                    return true;
+                }
+                continue;
+            }
+            if (current instanceof ListChildrenUnsupported && (e instanceof ListChildrenUnsupported) == false) {
+                if (failure.compareAndSet(current, e)) {
+                    return true;
+                }
+                continue;
+            }
+            return false;
+        }
+    }
+
+    private static void storeSlot(AtomicReference<AtomicReferenceArray<StorageChildren>> liveSlots, int i, StorageChildren children) {
+        AtomicReferenceArray<StorageChildren> results = liveSlots.get();
+        if (results != null) {
+            results.set(i, children);
+        }
+    }
+
+    /** Detach and null the slot array once. Later stores see a null live buffer and drop the payload. */
+    private static void discardSlotResults(AtomicReference<AtomicReferenceArray<StorageChildren>> liveSlots) {
+        AtomicReferenceArray<StorageChildren> results = liveSlots.getAndSet(null);
+        if (results == null) {
+            return;
+        }
         for (int i = 0; i < results.length(); i++) {
             results.set(i, null);
         }
@@ -1145,7 +1231,11 @@ final class PartitionPruningWalk {
                 return;
             }
             boolean truncated = toPeek.size() < pendingPeeks.size();
-            listChildrenParallel(provider, toPeek, concurrency, executor, listings, cancelled, new ActionListener<>() {
+            listChildrenParallel(provider, toPeek, concurrency, executor, listings, cancelled, children -> {
+                synchronized (seenValues) {
+                    applyPeekChildren(children, seenValues, templateLayout, walkLevel);
+                }
+            }, new ActionListener<>() {
                 @Override
                 public void onResponse(StorageChildren[] listed) {
                     Exception cancelledNow = cancellationFailure(cancelled);
@@ -1153,20 +1243,13 @@ final class PartitionPruningWalk {
                         listener.onFailure(cancelledNow);
                         return;
                     }
-                    boolean ok;
-                    try {
-                        if (listed == null) {
-                            ok = false;
-                        } else {
-                            applyPeekResults(listed, seenValues, templateLayout, walkLevel);
-                            ok = truncated == false;
-                            if (ok) {
-                                pendingPeeks = List.of();
-                            }
-                        }
-                    } catch (Exception e) {
-                        listener.onFailure(e);
+                    if (listed == null) {
+                        listener.onResponse(false);
                         return;
+                    }
+                    boolean ok = truncated == false;
+                    if (ok) {
+                        pendingPeeks = List.of();
                     }
                     listener.onResponse(ok);
                 }

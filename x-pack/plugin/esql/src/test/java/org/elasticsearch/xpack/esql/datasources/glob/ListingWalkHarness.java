@@ -187,6 +187,8 @@ public final class ListingWalkHarness implements StorageProvider {
     volatile boolean failListChildrenRuntime;
     /** Return {@code null} from {@link #listChildren} after this many successful calls. {@code -1} disables. */
     volatile int nullListChildrenAfter = -1;
+    /** Return {@code null} from {@link #listChildren} when the prefix contains this fragment. */
+    volatile String nullListChildrenContaining;
     boolean childrenUnsupported;
     boolean listsInKeyOrder = true;
 
@@ -268,6 +270,10 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public void setNullListChildrenAfter(int successfulBeforeNull) {
         this.nullListChildrenAfter = successfulBeforeNull;
+    }
+
+    public void setNullListChildrenContaining(String fragment) {
+        this.nullListChildrenContaining = fragment;
     }
 
     public void setListsInKeyOrder(boolean listsInKeyOrder) {
@@ -817,6 +823,7 @@ public final class ListingWalkHarness implements StorageProvider {
         }
         String p = withTrailingSlash(prefix.toString());
         if (failListChildrenContaining != null && p.contains(failListChildrenContaining)) {
+            delayListChildren(p, true);
             if (failListChildrenUnavailable) {
                 throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
             }
@@ -824,6 +831,18 @@ public final class ListingWalkHarness implements StorageProvider {
                 throw new RuntimeException("injected listing failure");
             }
             throw new IOException("injected listing failure");
+        }
+        if (nullListChildrenContaining != null && p.contains(nullListChildrenContaining)) {
+            childListedPrefixes.add(p);
+            listChildrenRequests.incrementAndGet();
+            int inFlight = listChildrenInFlight.incrementAndGet();
+            maxListChildrenInFlight.accumulateAndGet(inFlight, Math::max);
+            try {
+                delayListChildren(p, false);
+                return null;
+            } finally {
+                listChildrenInFlight.decrementAndGet();
+            }
         }
         childListedPrefixes.add(p);
         listChildrenRequests.incrementAndGet();
@@ -833,12 +852,7 @@ public final class ListingWalkHarness implements StorageProvider {
             if (nullListChildrenAfter >= 0 && listChildrenRequests.get() > nullListChildrenAfter) {
                 return null;
             }
-            if (delayListChildrenContaining == null || p.contains(delayListChildrenContaining)) {
-                long delay = listChildrenDelayNanos.getAsLong();
-                if (delay > 0) {
-                    LockSupport.parkNanos(delay);
-                }
-            }
+            delayListChildren(p, false);
             List<StorageEntry> files = new ArrayList<>();
             Set<String> dirs = new LinkedHashSet<>();
             for (StorageEntry e : allEntries) {
@@ -865,6 +879,24 @@ public final class ListingWalkHarness implements StorageProvider {
             return new StorageChildren(files, dirPaths);
         } finally {
             listChildrenInFlight.decrementAndGet();
+        }
+    }
+
+    /**
+     * @param matchingFragmentOnly when {@code true}, delay only if {@link #delayListChildrenContaining} is set
+     *                             and matches — injected failures stay instant unless a test names that prefix
+     */
+    private void delayListChildren(String prefix, boolean matchingFragmentOnly) {
+        if (matchingFragmentOnly) {
+            if (delayListChildrenContaining == null || prefix.contains(delayListChildrenContaining) == false) {
+                return;
+            }
+        } else if (delayListChildrenContaining != null && prefix.contains(delayListChildrenContaining) == false) {
+            return;
+        }
+        long delay = listChildrenDelayNanos.getAsLong();
+        if (delay > 0) {
+            LockSupport.parkNanos(delay);
         }
     }
 

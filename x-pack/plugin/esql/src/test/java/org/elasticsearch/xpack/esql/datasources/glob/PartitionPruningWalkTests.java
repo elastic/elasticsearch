@@ -612,10 +612,20 @@ public class PartitionPruningWalkTests extends ESTestCase {
     public void testParallelPeeksInFlightNeverExceedsConcurrency() throws Exception {
         ListingWalkHarness provider = new ListingWalkHarness(wideHiveSevenDayTree());
         provider.setDelayListChildrenContaining("/month=07/day=");
-        provider.setListChildrenDelayNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        CountDownLatch overlapped = new CountDownLatch(2);
+        provider.setListChildrenDelayNanos(() -> {
+            overlapped.countDown();
+            try {
+                overlapped.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return 0L;
+        });
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
         int concurrency = 4;
-        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        int poolSize = concurrency * 2;
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
         try {
             PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
                 PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
@@ -624,6 +634,11 @@ public class PartitionPruningWalkTests extends ESTestCase {
             assertNotNull(result);
             assertEquals(WIDE_HIVE_PREFIXES, julyDayPeekCount(provider));
             assertThat(provider.maxListChildrenInFlight(), lessThanOrEqualTo(concurrency));
+            assertThat(
+                "peek LISTs must overlap when the pool is larger than concurrency",
+                provider.maxListChildrenInFlight(),
+                greaterThan(1)
+            );
             assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES, provider.listChildrenRequests());
             assertEquals(0, provider.listChildrenInFlight());
         } finally {
@@ -701,20 +716,62 @@ public class PartitionPruningWalkTests extends ESTestCase {
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveSevenDayTree());
         sequential.setFailListChildrenContaining("/month=07/day=");
-        assertNull(tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false));
+        assertInjectedListingFailureWithoutFlatListing(() -> tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false), sequential);
         assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, sequential.listChildrenRequests());
         assertEquals(0, julyDayPeekCount(sequential));
-        assertEquals(0, sequential.listObjectPages());
 
         ListingWalkHarness parallel = new ListingWalkHarness(wideHiveSevenDayTree());
         parallel.setFailListChildrenContaining("/month=07/day=");
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
-            assertNull(tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor));
+            assertInjectedListingFailureWithoutFlatListing(
+                () -> tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor),
+                parallel
+            );
             assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, parallel.listChildrenRequests());
             assertEquals(0, julyDayPeekCount(parallel));
-            assertEquals(0, parallel.listObjectPages());
         } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testListChildrenParallelPrefersUnavailableOverNullChild() throws Exception {
+        assertPrefersUnavailableOverNullChild(true);
+        assertPrefersUnavailableOverNullChild(false);
+    }
+
+    private void assertPrefersUnavailableOverNullChild(boolean delayUnavailable) throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(ListingWalkHarness.entry("s3://bucket/a/f.parquet"), ListingWalkHarness.entry("s3://bucket/b/f.parquet"))
+        );
+        provider.setFailListChildrenContaining("/a");
+        provider.setFailListChildrenUnavailable(true);
+        provider.setNullListChildrenContaining("/b");
+        CountDownLatch startedSlow = new CountDownLatch(1);
+        CountDownLatch releaseSlow = new CountDownLatch(1);
+        provider.setDelayListChildrenContaining(delayUnavailable ? "/a" : "/b");
+        provider.setListChildrenDelayNanos(() -> {
+            startedSlow.countDown();
+            awaitQuietly(releaseSlow);
+            return 0L;
+        });
+        AtomicInteger issued = new AtomicInteger();
+        List<StoragePath> dirs = List.of(StoragePath.of("s3://bucket/a"), StoragePath.of("s3://bucket/b"));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            PlainActionFuture<StorageChildren[]> future = new PlainActionFuture<>();
+            PartitionPruningWalk.listChildrenParallel(provider, dirs, 2, executor, issued, () -> false, future);
+            assertTrue(startedSlow.await(30, TimeUnit.SECONDS));
+            if (delayUnavailable) {
+                assertBusy(() -> assertTrue(provider.childListedPrefixes().stream().anyMatch(p -> p.contains("/b"))));
+            } else {
+                assertBusy(() -> assertThat(issued.get(), greaterThan(1)));
+            }
+            releaseSlow.countDown();
+            expectThrows(ExternalUnavailableException.class, future::actionGet);
+            assertEquals(0, provider.listObjectPages());
+        } finally {
+            releaseSlow.countDown();
             terminate(executor);
         }
     }

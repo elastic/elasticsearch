@@ -94,7 +94,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -1709,7 +1708,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // so discarding the connection here is acceptable. The abort is wrapped in a Closeable
         // so try-with-resources attaches any abort-time error as a suppressed exception on the
         // primary failure rather than replacing it.
-        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+        try (stream) {
             CsvLogicalRecordReader recordReader = openLeadingRecords(stream);
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(recordReader, sourceLocation, warningSink, widenedColumnSink);
@@ -2545,7 +2544,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 leadingColumns = leadingColumns(leading);
                 leadingBytes = leading.bytesRead();
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
         }
@@ -2593,7 +2592,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingContentRows(recordReader, options.skipRows(), options.commentPrefix());
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
         }
@@ -2629,7 +2628,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // An inferred headerless schema binds positionally, as does an inferred headered one under
                 // headerBindingByProvenance: no binding, rows bounded by the schema's width.
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
             if (headeredByName && context.firstSplit() == false && context.fileHeaderColumns() != null) {
@@ -2637,7 +2636,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // The file has no header record anywhere, so it has no rows to bind and this split holds only the
                     // comment, blank or skipped lines that precede one. Reading them positionally would emit them as rows.
                     try {
-                        object.abortStream(rawStream);
+                        rawStream.close();
                     } catch (IOException e) {
                         logger.debug("failed to abort the stream of a split of a file without columns", e);
                     }
@@ -2680,7 +2679,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             try {
                 skipLeadingPartialRecord(recordReader, effective);
             } catch (Exception e) {
-                abortRead(object, rawStream, e);
+                abortRead(rawStream, e);
                 throw e;
             }
             effectiveSchema = resolvedSchema;
@@ -2882,13 +2881,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Releases a read's stream after it failed before the returned iterator took ownership of it. Aborts rather than
-     * closes: a provider that drains on close would transfer the rest of a multi-GB file to reuse the connection, for a
-     * failure that is already decided.
+     * Releases a read's stream after it failed before the returned iterator took ownership of it.
+     * Does not close the file-level {@link StorageObject}: a split parse error must not cancel
+     * sibling GETs. The leaf decides drain vs drop on stream close.
      */
-    private static void abortRead(StorageObject object, InputStream rawStream, Exception cause) {
+    private static void abortRead(InputStream rawStream, Exception cause) {
         try {
-            object.abortStream(rawStream);
+            rawStream.close();
         } catch (IOException suppressed) {
             cause.addSuppressed(suppressed);
         }
@@ -2948,7 +2947,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return null;
         }
         InputStream stream = file.newStream();
-        try (Closeable abortOnExit = () -> file.abortStream(stream)) {
+        try (stream) {
             CsvLogicalRecordReader leading = openLeadingRecords(stream);
             List<String> columns = leadingColumns(leading);
             return columns.isEmpty() || leading.lastRecordTerminated() ? columns : List.of();
@@ -6684,8 +6683,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case DOUBLE -> {
                     // Parse the double straight from the record's char range, skipping the substring.
                     // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
-                    // inputs; on rejection we fall back to the shared conversion path, which itself
-                    // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
+                    // inputs. Text outside the plain number grammar (type suffix, hex float, non-ASCII) and any
+                    // rejection go to the shared conversion path, which refuses or parses it by the same rule.
+                    if (DeclaredTypeCoercions.isPlainNumberText(buf, start, len) == false) {
+                        return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
+                    }
                     try {
                         stageDoubleValue(bufIdx, NumberInput.parseDouble(buf, start, len, true));
                         return true;
@@ -7509,7 +7511,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // stringToDouble (StringUtils.parseDouble) rejects NaN/Infinity that the direct-block fast path
             // (NumberInput.parseDouble) accepts - routing here would break the direct-block parity contract.
             try {
-                return Double.parseDouble(value);
+                return DeclaredTypeCoercions.parseDoubleText(value);
             } catch (NumberFormatException e) {
                 lastFieldError = cannotRead(value, DataType.DOUBLE);
                 return null;

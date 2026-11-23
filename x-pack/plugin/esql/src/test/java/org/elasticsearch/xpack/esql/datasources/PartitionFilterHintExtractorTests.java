@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -178,6 +181,164 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(Operator.EQUALS, pathHints.get(0).operator());
         assertEquals("month", pathHints.get(1).columnName());
         assertEquals(Operator.IN, pathHints.get(1).operator());
+    }
+
+    public void testOrOnOneColumnBecomesIn() {
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7));
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))), hintsOf(condition));
+    }
+
+    /**
+     * Two hours on two different days, the shape ES|QL can only write as an {@code OR}. Each column gets the union of
+     * the values its branches name: a superset of the two hours, but four folders rather than the whole dataset.
+     */
+    public void testOrAcrossColumnsBecomesOneInPerColumn() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), unresolvedEquals("hour", 23)),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 0))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(23, 0))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    public void testOrWithOneValueAcrossBranchesKeepsEquals() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 5)),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 7))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.EQUALS, List.of(18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that leaves {@code hour} open can match any hour, so only {@code day} may narrow the listing. */
+    public void testOrColumnOpenInOneBranchGetsNoHint() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), unresolvedEquals("hour", 23)),
+            unresolvedEquals("day", 18)
+        );
+        assertEquals(List.of(new PartitionFilterHint("day", Operator.IN, List.of(17, 18))), hintsOf(condition));
+    }
+
+    /** No column is pinned by both branches, so nothing may narrow the listing. */
+    public void testOrWithBranchesOnDifferentColumnsEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("year", 2025), unresolvedEquals("id", 20240101));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A range is not a finite set of folders, so a branch that uses one leaves its column open. */
+    public void testOrWithARangeBranchEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), new GreaterThan(SRC, unresolved("hour"), intLiteral(20)));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    public void testOrMergesInValuesWithoutDuplicates() {
+        Expression condition = new Or(
+            SRC,
+            new Or(SRC, new In(SRC, unresolved("hour"), List.of(intLiteral(1), intLiteral(2))), unresolvedEquals("hour", 2)),
+            unresolvedEquals("hour", 3)
+        );
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(1, 2, 3))), hintsOf(condition));
+    }
+
+    /** A branch is read like a whole condition, so an {@code OR} nested inside a branch contributes its own values. */
+    public void testOrNestedInsideABranch() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("day", 17), new Or(SRC, unresolvedEquals("hour", 1), unresolvedEquals("hour", 2))),
+            new And(SRC, unresolvedEquals("day", 18), unresolvedEquals("hour", 3))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(1, 2, 3))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    public void testOrNextToOtherConjuncts() {
+        Expression condition = new And(
+            SRC,
+            unresolvedEquals("year", 2026),
+            new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("year", Operator.EQUALS, List.of(2026)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))
+            ),
+            hintsOf(condition)
+        );
+    }
+
+    /** A branch that pins a column twice contributes the smaller of its two sets; each one covers the branch. */
+    public void testOrBranchPinningAColumnTwiceKeepsTheSmallerSet() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, new In(SRC, unresolved("hour"), List.of(intLiteral(5), intLiteral(6))), unresolvedEquals("hour", 6)),
+            unresolvedEquals("hour", 7)
+        );
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(6, 7))), hintsOf(condition));
+    }
+
+    /**
+     * {@code year == 2025 AND year == 2025.0} matches the {@code year=2025} folder, but {@code Integer 2025} and
+     * {@code Double 2025.0} are not {@code equals}. Intersecting them would empty the branch and list only 2024.
+     */
+    public void testOrBranchPinningAColumnWithTwoNumericSpellingsKeepsItsValue() {
+        Expression condition = new Or(
+            SRC,
+            new And(SRC, unresolvedEquals("year", 2025), new Equals(SRC, unresolved("year"), new Literal(SRC, 2025.0, DataType.DOUBLE))),
+            unresolvedEquals("year", 2024)
+        );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.IN, List.of(2025, 2024))), hintsOf(condition));
+    }
+
+    /** A {@code == null} compares unknown against every row: it names no folder, and must not fail the query. */
+    public void testNullComparisonEmitsNothing() {
+        Expression condition = new Equals(SRC, unresolved("year"), Literal.NULL);
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A branch that compares with {@code null} pins nothing, so the {@code OR} leaves the column open. */
+    public void testOrWithANullBranchEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("year", 2025), new Equals(SRC, unresolved("year"), Literal.NULL));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A null item never makes an {@code IN} true, so the hint keeps the other items. */
+    public void testOrWithANullInsideInDropsTheNull() {
+        Expression condition = new Or(
+            SRC,
+            new In(SRC, unresolved("year"), List.of(intLiteral(2025), Literal.NULL)),
+            unresolvedEquals("year", 2024)
+        );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.IN, List.of(2025, 2024))), hintsOf(condition));
+    }
+
+    /** The same {@code OR} yields the same hint in every occurrence, so {@code FORK} branches that share it keep it. */
+    public void testForkBranchesWithTheSameOrKeepTheHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        Expression condition = new Or(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 7));
+        LogicalPlan fork = new Fork(SRC, List.of(new Filter(SRC, rel, condition), new Filter(SRC, rel, condition)), List.of());
+
+        assertEquals(
+            List.of(new PartitionFilterHint("hour", Operator.IN, List.of(5, 7))),
+            PartitionFilterHintExtractor.extract(fork).get(PATH)
+        );
     }
 
     public void testNoFilterReturnsEmpty() {
@@ -856,6 +1017,25 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
+    /** The listing reads a bare number as milliseconds, so a bound in nanoseconds must not reach it after analysis either. */
+    public void testResolvedNanosecondBoundOnFileModifiedEmitsNothing() {
+        Literal nanos = new Literal(SRC, 1_700_000_000_123_456_789L, DataType.DATE_NANOS);
+        Set<String> requested = Set.of(FileMetadataColumns.MODIFIED);
+        Expression modified = new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME);
+
+        Expression nanosBound = new GreaterThanOrEqual(SRC, modified, nanos);
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound), requested, Set.of()).isEmpty());
+        Expression nanosIn = new In(SRC, modified, List.of(nanos, new Literal(SRC, 1_700_000_001_000_000_000L, DataType.DATE_NANOS)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosIn), requested, Set.of()).isEmpty());
+
+        // A bound in milliseconds beside it is still a hint.
+        Expression millisBound = new LessThan(SRC, modified, datetimeLiteral(2L));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.MODIFIED, Operator.LESS_THAN, List.of(2L))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound, millisBound), requested, Set.of())
+        );
+    }
+
     public void testUnresolvedEqualsIsEmptyOnResolvedFromConjuncts() {
         assertTrue(
             PartitionFilterHintExtractor.fromConjuncts(
@@ -866,19 +1046,11 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
-    public void testResolvedStartsWithFileNameEmitsRange() {
+    public void testResolvedStartsWithFileNameEmitsLike() {
         Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("2024-03-15"));
-        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
-            List.of(filter),
-            Set.of(FileMetadataColumns.NAME),
-            Set.of()
-        );
         assertEquals(
-            List.of(
-                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.GREATER_THAN_OR_EQUAL, List.of("2024-03-15")),
-                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LESS_THAN, List.of("2024-03-16"))
-            ),
-            hints
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("2024-03-15*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
         );
     }
 
@@ -922,21 +1094,115 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
     }
 
-    public void testResolvedWildcardLikePrefixEmitsRange() {
+    public void testResolvedWildcardLikePrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedStartsWithAndLikeDropsSubsumedPrefix() {
+        Expression filter = new And(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-")),
+            new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*z"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedStartsWithMetacharLiteralNotDroppedByUnrelatedLike() {
+        Expression filter = new And(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a*")),
+            new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a*z"))
+        );
         List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
             List.of(filter),
             Set.of(FileMetadataColumns.NAME),
             Set.of()
         );
-        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
-        assertEquals("a-", hints.get(0).values().get(0));
-        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
+        assertEquals(2, hints.size());
+        assertEquals(Operator.LIKE, hints.get(0).operator());
+        assertEquals(Operator.LIKE, hints.get(1).operator());
+        assertEquals("a\\**", hints.get(0).values().get(0));
+        assertEquals("a*z", hints.get(1).values().get(0));
     }
 
-    public void testResolvedWildcardLikeNonPrefixEmitsNothing() {
+    public void testExtractFileNameLikeRequiresMetadataClause() {
+        Expression like = new WildcardLike(SRC, unresolved(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(like, PATH)).isEmpty());
+
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.NAME);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan plan = new Filter(SRC, rel, like);
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.NAME, hints.get(0).columnName());
+        assertEquals(Operator.LIKE, hints.get(0).operator());
+        assertEquals("*_20261118T14*", hints.get(0).values().get(0));
+    }
+
+    public void testResolvedWildcardLikeNonPrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"));
-        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*z"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeContainsTimestampEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*_20261118T14*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeEscapeEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("file\\*.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("file\\*.parquet"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeSingleCharWildcardEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("file?.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("file?.parquet"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeOnFilePathEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.PATH), new WildcardPattern("*/2026/11/18/*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.PATH, Operator.LIKE, List.of("*/2026/11/18/*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.PATH), Set.of())
+        );
+    }
+
+    public void testUnrequestedFileNameLikeEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testResolvedWildcardLikeNonPrefixOnPartitionKeyEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, keywordField("year"), new WildcardPattern("*24"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedWildcardLikePrefixOnPartitionKeyEmitsRange() {
+        Expression filter = new WildcardLike(SRC, keywordField("year"), new WildcardPattern("2024*"));
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year"));
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
+        assertEquals("2024", hints.get(0).values().get(0));
+        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
     }
 
     public void testResolvedEqualsOnAliasEmitsNothing() {
@@ -947,6 +1213,40 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     public void testResolvedEmptyPrefixEmitsNothing() {
         Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(""));
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedOrAcrossPartitionKeysBecomesOneInPerColumn() {
+        Expression filter = new Or(
+            SRC,
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("hour"), intLiteral(23))),
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(18)), new Equals(SRC, intField("hour"), intLiteral(0)))
+        );
+        assertEquals(
+            List.of(
+                new PartitionFilterHint("day", Operator.IN, List.of(17, 18)),
+                new PartitionFilterHint("hour", Operator.IN, List.of(23, 0))
+            ),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day", "hour"))
+        );
+    }
+
+    /** A data column is not a listing key, so inside a branch it is ignored and the partition key still narrows. */
+    public void testResolvedOrIgnoresDataColumnsInsideBranches() {
+        Expression filter = new Or(
+            SRC,
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1))),
+            new And(SRC, new Equals(SRC, intField("day"), intLiteral(18)), new Equals(SRC, intField("id"), intLiteral(2)))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHint("day", Operator.IN, List.of(17, 18))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day"))
+        );
+    }
+
+    /** A branch on a data column alone can match any file, so the {@code OR} must not narrow the listing. */
+    public void testResolvedOrWithADataColumnBranchEmitsNothing() {
+        Expression filter = new Or(SRC, new Equals(SRC, intField("day"), intLiteral(17)), new Equals(SRC, intField("id"), intLiteral(1)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("day")).isEmpty());
     }
 
     public void testResolvedOrOfTwoPrefixesEmitsNothing() {
@@ -964,6 +1264,61 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
     }
 
+    public void testResolvedNotLikeEmitsNothing() {
+        Expression filter = new Not(SRC, new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*")));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedContainsFileNameEmitsLike() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("_20261118T14"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*_20261118T14*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedContainsEscapesWildcardMetacharacters() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("file*.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*file\\*.parquet*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedEndsWithFileNameEmitsLike() {
+        Expression filter = new EndsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(".log.gz"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*.log.gz"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testUnrequestedContainsFileNameEmitsNothing() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("_20261118T14"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testTimeRangeDoesNotInventFileNameLike() {
+        Expression filter = new Range(
+            SRC,
+            datetimeField(MetadataAttribute.TIMESTAMP_FIELD),
+            datetimeLiteral(1L),
+            true,
+            datetimeLiteral(2L),
+            false,
+            ZoneOffset.UTC
+        );
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        for (PartitionFilterHint hint : hints) {
+            assertNotEquals(FileMetadataColumns.NAME, hint.columnName());
+            assertNotEquals(Operator.LIKE, hint.operator());
+        }
+    }
+
     public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {
         UnresolvedFunction trunc = new UnresolvedFunction(
             SRC,
@@ -974,6 +1329,65 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
         assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), hints);
+    }
+
+    /**
+     * A partition picked relative to the time of the query, the way a dashboard asks for the current year. {@code NOW()}
+     * and the time span taken from it fold to the date that the query runs with, so the comparison becomes a hint that
+     * narrows the listing.
+     */
+    public void testPreprocessorFoldsDatesRelativeToNow() {
+        UnresolvedFunction now = new UnresolvedFunction(SRC, "NOW", List.of());
+        long thisYear = TEST_CFG.now().atZone(ZoneOffset.UTC).getYear();
+
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(now)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(thisYear))), extractFolded(plan).get(PATH));
+
+        Expression lastYear = new Sub(SRC, now, new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD), TEST_CFG);
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(lastYear)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(thisYear - 1))), extractFolded(plan).get(PATH));
+    }
+
+    /** A date that is parsed with a pattern, or given as milliseconds since the epoch, is a constant like any other. */
+    public void testPreprocessorFoldsParsedAndNumericDates() {
+        UnresolvedFunction parsed = new UnresolvedFunction(
+            SRC,
+            "DATE_PARSE",
+            List.of(keywordLiteral("yyyy/MM/dd"), keywordLiteral("2026/07/13"))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("month"), monthFn(parsed)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(7L))), extractFolded(plan).get(PATH));
+
+        UnresolvedFunction epochMillis = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(new Literal(SRC, DASHBOARD_TS, DataType.LONG)));
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(epochMillis)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
+    }
+
+    /**
+     * A hint carries a bare number that the listing reads as milliseconds, so a constant in nanoseconds must not
+     * become one: it would stand for a time a million times later and prune every file that matches.
+     */
+    public void testPreprocessorKeepsNanosecondDatesOutOfHints() {
+        Literal day = keywordLiteral("2026-07-13T00:00:00Z");
+        UnresolvedFunction nanos = new UnresolvedFunction(SRC, "TO_DATE_NANOS", List.of(day));
+        UnresolvedFunction millis = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(day));
+
+        LogicalPlan plan = filterAboveExternal(new GreaterThanOrEqual(SRC, unresolved("modified"), millis), PATH);
+        assertEquals(
+            List.of(new PartitionFilterHint("modified", Operator.GREATER_THAN_OR_EQUAL, List.of(DASHBOARD_TS))),
+            extractFolded(plan).get(PATH)
+        );
+
+        plan = filterAboveExternal(new GreaterThanOrEqual(SRC, unresolved("modified"), nanos), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+        plan = filterAboveExternal(new LessThan(SRC, nanos, unresolved("modified")), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+        plan = filterAboveExternal(new In(SRC, unresolved("modified"), List.of(millis, nanos)), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+
+        // The year of a nanosecond date is a plain number, and still a hint.
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(nanos)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
     }
 
     private static final String PATH = "s3://bucket/data/*.parquet";
@@ -991,6 +1405,15 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedAttribute unresolved(String name) {
         return new UnresolvedAttribute(SRC, name);
+    }
+
+    private static Expression unresolvedEquals(String column, int value) {
+        return new Equals(SRC, unresolved(column), intLiteral(value));
+    }
+
+    /** The hints a single filter over {@link #PATH} yields. */
+    private static List<PartitionFilterHint> hintsOf(Expression condition) {
+        return PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).get(PATH);
     }
 
     private static FieldAttribute intField(String name) {

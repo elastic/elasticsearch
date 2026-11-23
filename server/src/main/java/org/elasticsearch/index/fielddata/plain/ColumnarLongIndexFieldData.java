@@ -14,18 +14,22 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
+import org.elasticsearch.columnar.numeric.NumericBinaryValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -109,6 +113,17 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
         return indexType;
     }
 
+    /** Lucene's native numeric sort can't sort an index by these fields, so they sort it with a {@link ColumnarNumericSortField}. */
+    @Override
+    public SortField indexSort(IndexVersion indexCreatedVersion, Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        assert sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX : "an index sorts by a field's min or max";
+        Object missing = new LongValuesComparatorSource(this, missingValue, sortMode, null, NumericType.LONG).missingObject(
+            missingValue,
+            reverse
+        );
+        return new ColumnarNumericSortField(getFieldName(), SortField.Type.LONG, reverse, sortMode == MultiValueMode.MAX, missing);
+    }
+
     @Override
     public LeafNumericFieldData load(LeafReaderContext context) {
         return new LeafLongFieldData(0L) {
@@ -142,56 +157,37 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
         if (binary == null) {
             return SortedNumericLongValues.EMPTY;
         }
-        if (binary instanceof ColumnarNumericBinaryDocValues columnar) {
-            return columnar.isSingleValued() ? singleValued(columnar) : multiValued(columnar);
-        }
-        // Payloads that haven't been through the codec, such as a document an index-time script reads as it is indexed.
-        return fromPayloads(binary);
+        // The payloads may not have been through the codec, such as a document an index-time script reads as it is indexed.
+        final NumericBinaryValues values = NumericBinaryValues.of(binary);
+        return values.isSingleValued() ? singleValued(values) : multiValued(values);
     }
 
-    private static SortedNumericLongValues singleValued(ColumnarNumericBinaryDocValues columnar) {
+    private static SortedNumericLongValues singleValued(NumericBinaryValues in) {
         return SortedNumericLongValues.singleton(new LongValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                return columnar.advanceExact(doc);
+                return in.advanceExact(doc);
             }
 
             @Override
             public long longValue() throws IOException {
-                return columnar.valueAt(0);
+                return in.valueAt(0);
             }
-        }, columnar);
+        }, in);
     }
 
-    private static SortedNumericLongValues multiValued(ColumnarNumericBinaryDocValues columnar) {
-        return new SortedValues(columnar) {
+    private static SortedNumericLongValues multiValued(NumericBinaryValues in) {
+        return new SortedValues(in) {
             @Override
             public boolean advanceExact(int target) throws IOException {
-                if (columnar.advanceExact(target) == false) {
+                if (in.advanceExact(target) == false) {
                     return false;
                 }
-                final int count = columnar.docValueCount();
+                final int count = in.docValueCount();
                 final long[] values = grow(count);
                 for (int i = 0; i < count; i++) {
-                    values[i] = columnar.valueAt(i);
+                    values[i] = in.valueAt(i);
                 }
-                sort(count);
-                return true;
-            }
-        };
-    }
-
-    private static SortedNumericLongValues fromPayloads(BinaryDocValues binary) {
-        final long[][] decoded = { new long[8] };
-        return new SortedValues(binary) {
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                if (binary.advanceExact(target) == false) {
-                    return false;
-                }
-                final int count = NumericBinaryPayload.decode(binary.binaryValue(), decoded);
-                final long[] values = grow(count);
-                System.arraycopy(decoded[0], 0, values, 0, count);
                 sort(count);
                 return true;
             }
@@ -200,7 +196,7 @@ public class ColumnarLongIndexFieldData extends IndexNumericFieldData {
 
     /** One document's values, sorted, read out of a buffer that {@link #advanceExact} fills. */
     private abstract static class SortedValues extends SortedNumericLongValues {
-        private long[] values = new long[1];
+        private long[] values = new long[NumericBinaryValues.INITIAL_DECODE_CAPACITY];
         private int count;
         private int upto;
 

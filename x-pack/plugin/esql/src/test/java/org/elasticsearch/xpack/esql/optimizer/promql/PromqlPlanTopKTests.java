@@ -137,20 +137,26 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
     }
 
-    public void testTopkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("topk"));
+    /** A {@code without} partition is a packing derived after the per-series aggregate, which takes the container functions. */
+    public void testTopkWithoutGrouping() {
+        String query = "PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) without (pod))";
+        if (containerFunctions()) {
+            planPromql(query);
+        } else {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("topk"));
+        }
     }
 
-    public void testBottomkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("bottomk"));
+    /** A {@code without} partition is a packing derived after the per-series aggregate, which takes the container functions. */
+    public void testBottomkWithoutGrouping() {
+        String query = "PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) without (pod))";
+        if (containerFunctions()) {
+            planPromql(query);
+        } else {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("bottomk"));
+        }
     }
 
     /**
@@ -224,14 +230,15 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(topNBy.groupings().stream().map(g -> g instanceof Attribute a ? a.name() : g.toString()).toList(), hasItem("pod"));
     }
 
-    public void testLimitkWithoutGroupingNotYetSupported() {
-        assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
-
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("limitk"));
+    /** A {@code without} partition is a packing derived after the per-series aggregate, which takes the container functions. */
+    public void testLimitkWithoutGrouping() {
+        String query = "PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) without (pod))";
+        if (containerFunctions()) {
+            planPromql(query);
+        } else {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("limitk"));
+        }
     }
 
     public void testLimitkOverSumByWrapsPassthroughInValues() {

@@ -26,6 +26,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
 
@@ -46,15 +49,21 @@ public abstract class GenerateTransportVersionManifestTask extends DefaultTask {
     public void generateTransportVersionManifest() throws IOException {
         Path definitionsDir = getDefinitionsDirectory();
         Path manifestFile = getManifestFile().get().getAsFile().toPath();
+        List<String> subPaths = new ArrayList<>();
+        Files.walkFileTree(definitionsDir, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) {
+                subPaths.add(definitionsDir.relativize(path).toString().replace('\\', '/'));
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        // Directory iteration order depends on the filesystem (e.g. hash-ordered on ext4), so sort to make the
+        // manifest, and the jar it ends up in, byte-identical across machines. Readers do not rely on the order.
+        Collections.sort(subPaths);
         try (var writer = Files.newBufferedWriter(manifestFile)) {
-            Files.walkFileTree(definitionsDir, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
-                    String subPath = definitionsDir.relativize(path).toString().replace('\\', '/');
-                    writer.write(subPath + "\n");
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+            for (String subPath : subPaths) {
+                writer.write(subPath + "\n");
+            }
         }
     }
 }

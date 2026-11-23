@@ -631,3 +631,22 @@ fls_flattened_except_key:
       field_security:
         grant: [ '*' ]
         except: [ 'attrs.bar' ]
+
+# INTO destination authorization: holds read on the destination but cannot write to it
+into_read_only:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: ['into-existing']
+      privileges:
+        - read
+
+# Can write to the destination, and so may be told things about it that a bulk would also reveal
+into_writer:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: ['into-existing', 'into-missing']
+      privileges:
+        - create_doc
+        - auto_configure

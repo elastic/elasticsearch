@@ -2089,6 +2089,39 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource, equalTo("{\"field\":{\"a_unmapped\":\"val_a\",\"e_unmapped\":\"val_e\",\"c_mapped\":\"val_c\"}}"));
     }
 
+    /**
+     * Mapped sub-fields that keep their values in stored fields must load them whether or not the flattened root has its own
+     * {@code ignore_above}, which decides if the root has an ignored-values stored field.
+     */
+    public void testSyntheticSourceMappedSubFieldStoredValues() throws IOException {
+        boolean rootIgnoreAbove = randomBoolean();
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "flattened");
+                if (rootIgnoreAbove) {
+                    b.field("ignore_above", 100);
+                }
+                b.startObject("properties");
+                {
+                    b.startObject("name").field("type", "keyword").field("ignore_above", 3).endObject();
+                    b.startObject("desc").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("field").field("name", "too_long").endObject()),
+            equalTo("{\"field\":{\"name\":\"too_long\"}}")
+        );
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("field").field("desc", "some text").endObject()),
+            equalTo("{\"field\":{\"desc\":\"some text\"}}")
+        );
+    }
+
     private static final String TIMESTAMP = "2024-01-01T00:00:00.000Z";
 
     private MapperService createMappedSubFieldMapperService(IndexMode mode, String type) throws IOException {

@@ -150,3 +150,4 @@ setup:
           {
             "query": { "kql": { "query": "integer_field:foo*", "case_insensitive": true } }
           }
+  - match: { error.root_cause.0.type: "query_shard_exception" }

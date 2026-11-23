@@ -292,6 +292,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             } else if (hasWildcard) {
                 fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true))
                     .field(fieldName)
+                    // null keeps the index.query.query_string.lenient default
                     .lenient(lenient ? true : null);
             } else if (isDateField(mappedFieldType)) {
                 RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 166532
+pr: 166778
+summary: FILLNULL unmarks a null-only FORK column
+type: enhancement

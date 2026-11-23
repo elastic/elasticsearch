@@ -45,7 +45,7 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.isColumnarStored();
         if (hasDocValues && useDocValues) {
             // Columnar index modes preserve arrival order via offsets; other modes return sorted, deduplicated doc values.
-            boolean preserveOrder = params.indexMode().isColumnar();
+            boolean preserveOrder = params.indexMode().isStrictColumnar();
             var stream = ((List<String>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull);
             var resultList = preserveOrder ? stream.toList() : stream.distinct().sorted().toList();
             return maybeFoldList(resultList);

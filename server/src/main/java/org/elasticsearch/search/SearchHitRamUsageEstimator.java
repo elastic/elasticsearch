@@ -9,12 +9,16 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.xcontent.Text;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Map;
 
 /**
@@ -27,19 +31,71 @@ public final class SearchHitRamUsageEstimator {
     private static final long SEARCH_HITS_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SearchHits.class);
     private static final long HIGHLIGHT_FIELD_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HighlightField.class);
     private static final long TEXT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Text.class);
-    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    );
+    private static final long EXPLANATION_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Explanation.class);
+    private static final long FLOAT_SHALLOW_SIZE = RamUsageEstimates.FLOAT_SHALLOW_SIZE;
+    private static final long BYTES_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimates.HASH_MAP_NODE_SIZE;
+    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimates.LINKED_HASH_MAP_NODE_SIZE;
+
+    /**
+     * Bounds the per-hit walk of an explanation tree, which runs on the fetch thread. Past this the walk stops and the
+     * result becomes a floor rather than an upper bound. Nothing keeps a tree under it:
+     * {@code indices.query.bool.max_clause_count} is capped only by {@link Integer#MAX_VALUE}, and nested bool queries
+     * multiply clauses up to {@code indices.query.bool.max_nested_depth}. Sub-explanations shared across branches reach
+     * it far sooner, being visited once per path while retained heap does not grow.
+     */
+    static final int MAX_EXPLANATION_NODES = 100_000;
+
+    /**
+     * Charged for whatever {@link #MAX_EXPLANATION_NODES} left unvisited. A placeholder, not a measurement: it
+     * over-estimates a shared tree, whose nodes are already counted once per path, and under-estimates a huge distinct one.
+     */
+    static final long EXPLANATION_NODE_CAP_PENALTY_BYTES = 1L << 20;
 
     static final long RAM_BYTES_FLOOR = 512L;
 
+    /**
+     * The part of {@link #estimate} that every hit costs whatever it holds: the hit itself and the small objects it always has,
+     * like its id. {@code FetchPhase} charges the rest, so a caller that keeps the hits a fetch built charges this for each of them.
+     */
+    public static final long BASE_BYTES = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR;
+
     private SearchHitRamUsageEstimator() {}
 
-    public static long estimate(SearchHit hit) {
-        long size = SEARCH_HIT_SHALLOW_SIZE + RAM_BYTES_FLOOR + hit.rawSourceLength();
-        size += estimateFields(hit.getDocumentFields());
+    /**
+     * Returns the estimated retained heap of everything the fetch sub-phases attach to {@code hit}: the
+     * {@link SearchHit#getDocumentFields() document} and {@link SearchHit#getMetadataFields() metadata} fields, the
+     * {@link SearchHit#getHighlightFields() highlight} fragments, the {@link SearchHit#getExplanation() explanation}
+     * tree, and the {@link SearchHit#getMatchedQueriesAndScores() matched queries}.
+     * <p>
+     * Both exclusions avoid double-counting: {@code FetchPhase} charges the source against its own buffer, and inner
+     * hits are charged by the nested fetch and transferred to the parent context by {@code InnerHitsPhase}.
+     */
+    public static long estimateSubPhaseOutput(SearchHit hit) {
+        long size = estimateFields(hit.getDocumentFields());
         size += estimateFields(hit.getMetadataFields());
         size += estimateHighlightFields(hit.getHighlightFields());
+        size += estimateExplanation(hit.getExplanation());
+        size += estimateMatchedQueries(hit.getMatchedQueriesAndScores());
+        return size;
+    }
+
+    public static long estimate(SearchHit hit) {
+        return estimate(hit, true);
+    }
+
+    /**
+     * Like {@link #estimate}, but leaves out the source of {@code hit} and of its inner hits at every level, for a hit read from a
+     * buffer whose size the caller already charges.
+     */
+    public static long estimateWithoutSources(SearchHit hit) {
+        return estimate(hit, false);
+    }
+
+    private static long estimate(SearchHit hit, boolean withSources) {
+        long size = BASE_BYTES + (withSources ? hit.rawSourceLength() : 0);
+        size += estimateSubPhaseOutput(hit);
+        size += estimateSortValues(hit.getSortValues()) + estimateSortValues(hit.getRawSortValues());
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
             size += RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size()
@@ -50,7 +106,7 @@ public final class SearchHitRamUsageEstimator {
                 size += SEARCH_HITS_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHitsArray.length
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
                 for (SearchHit innerHit : innerHitsArray) {
-                    size += estimate(innerHit);
+                    size += estimate(innerHit, withSources);
                 }
             }
         }
@@ -98,6 +154,69 @@ public final class SearchHitRamUsageEstimator {
         }
         if (fragment.hasString()) {
             size += RamUsageEstimator.sizeOf(fragment.string());
+        }
+        return size;
+    }
+
+    /**
+     * Walks the tree iteratively: it mirrors the query, so its depth grows with clause nesting and recursion would risk
+     * a stack overflow on the fetch thread.
+     */
+    private static long estimateExplanation(Explanation explanation) {
+        if (explanation == null) {
+            return 0L;
+        }
+        long size = 0L;
+        int visited = 0;
+        Deque<Explanation> pending = new ArrayDeque<>();
+        pending.push(explanation);
+        while (pending.isEmpty() == false) {
+            if (visited == MAX_EXPLANATION_NODES) {
+                return size + EXPLANATION_NODE_CAP_PENALTY_BYTES;
+            }
+            Explanation node = pending.pop();
+            visited++;
+            size += EXPLANATION_SHALLOW_SIZE;
+            size += RamUsageEstimator.sizeOf(node.getDescription());
+            size += RamUsageEstimates.shallowSizeOf(node.getValue());
+            // An unmodifiable view over an exactly sized ArrayList, both allocated even when empty.
+            size += RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
+            // getDetails() copies into a fresh array per call, so ask once and size the retained list instead.
+            Explanation[] details = node.getDetails();
+            if (details.length > 0) {
+                size += RamUsageEstimator.alignObjectSize(
+                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) details.length * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                );
+                for (Explanation detail : details) {
+                    pending.push(detail);
+                }
+            }
+        }
+        return size;
+    }
+
+    private static long estimateMatchedQueries(Map<String, Float> matchedQueries) {
+        if (matchedQueries.isEmpty()) {
+            return 0L;
+        }
+        long size = RamUsageEstimates.LINKED_HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) matchedQueries.size()
+            * (LINKED_HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        for (String name : matchedQueries.keySet()) {
+            size += RamUsageEstimator.sizeOf(name) + FLOAT_SHALLOW_SIZE;
+        }
+        return size;
+    }
+
+    private static long estimateSortValues(Object[] sortValues) {
+        if (sortValues.length == 0) {
+            return 0L;
+        }
+        long size = RamUsageEstimator.shallowSizeOf(sortValues);
+        for (Object value : sortValues) {
+            // RamUsageEstimator.sizeOfObject bills a BytesRef at its unknown object default, whatever its length
+            size += value instanceof BytesRef bytesRef
+                ? BYTES_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytesRef.bytes)
+                : RamUsageEstimator.sizeOfObject(value);
         }
         return size;
     }

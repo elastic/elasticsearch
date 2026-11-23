@@ -244,7 +244,9 @@ public class GcsStorageProvider implements StorageProvider {
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException(
+            // Operator misconfiguration, not a broken invariant: the data source asked for federated
+            // identity on a node where the feature is off.
+            throw new IllegalArgumentException(
                 "GCS federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }
@@ -281,6 +283,16 @@ public class GcsStorageProvider implements StorageProvider {
         String bucket = path.host();
         String objectName = extractObjectName(path);
         return new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        validateGcsScheme(path);
+        String bucket = path.host();
+        String objectName = extractObjectName(path);
+        GcsStorageObject object = new GcsStorageObject(storageIdentity, storage(), bucket, objectName, path, length, lastModified);
+        object.seedVersion(version);
+        return object;
     }
 
     @Override
@@ -348,7 +360,13 @@ public class GcsStorageProvider implements StorageProvider {
     /** One conversion from an SDK blob to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(Blob blob, String pathPrefix) {
         Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
-        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified);
+        String generation = blob.getGeneration() != null ? Long.toString(blob.getGeneration()) : null;
+        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified, generation);
+    }
+
+    @Override
+    public boolean listsInKeyOrder() {
+        return true;
     }
 
     @Override

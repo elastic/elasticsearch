@@ -44,9 +44,11 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.time.DateMathParser;
@@ -222,15 +224,11 @@ public class WildcardFieldMapper extends FieldMapper {
         );
     }
 
-    private static WildcardFieldMapper toType(FieldMapper in) {
-        return (WildcardFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         final int ignoreAboveDefault;
         final Parameter<Integer> ignoreAbove;
-        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -267,7 +265,7 @@ public class WildcardFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
             this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
-            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), ignoreAboveDefault);
+            this.ignoreAbove = Parameter.ignoreAboveParam(ignoreAboveDefault);
         }
 
         @Override
@@ -397,7 +395,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     name(),
                     wildcardPattern,
                     caseInsensitive,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             } else {
                 return BinaryDvConfirmedQuery.fromWildcardQuery(
@@ -405,9 +404,15 @@ public class WildcardFieldMapper extends FieldMapper {
                     name(),
                     wildcardPattern,
                     caseInsensitive,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             }
+        }
+
+        /** Callers such as the field type tests build queries without a context, and so without a breaker. */
+        private static CircuitBreaker breakerOf(@Nullable SearchExecutionContext context) {
+            return context == null ? null : context.getCircuitBreaker();
         }
 
         private Integer getApproxWildCardQuery(String wildcardPattern, BooleanQuery.Builder rewritten) {
@@ -494,7 +499,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 name(),
                 automatonSupplier,
                 description,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -512,9 +518,13 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             // Check for simple "match all expressions e.g. .*
-            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
-            Automaton a = regExp.toAutomaton();
-            a = Operations.determinize(a, maxDeterminizedStates);
+            Automaton a = AutomatonQueries.toRegexpAutomaton(
+                new Term(name(), value),
+                syntaxFlags,
+                matchFlags,
+                maxDeterminizedStates,
+                breakerOf(context)
+            );
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
             }
@@ -532,7 +542,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 syntaxFlags,
                 matchFlags,
                 maxDeterminizedStates,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -871,7 +882,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     upper,
                     includeLower,
                     includeUpper,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             }
             return BinaryDvConfirmedQuery.fromRangeQuery(
@@ -881,7 +893,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 upper,
                 includeLower,
                 includeUpper,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -970,10 +983,11 @@ public class WildcardFieldMapper extends FieldMapper {
                         name(),
                         searchTerm,
                         fq,
-                        arrayOrderBinaryDocValues
+                        arrayOrderBinaryDocValues,
+                        breakerOf(context)
                     );
                 }
-                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues);
+                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues, breakerOf(context));
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -1082,6 +1096,10 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
+            // an empty pattern builds an automaton that matches nothing, but an empty string has no case to fold
+            if (searchTerm.isEmpty()) {
+                return termQuery(value, context);
+            }
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
@@ -1149,7 +1167,6 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final IndexMode indexMode;
     private final IndexVersion indexVersionCreated;
-    private final int ignoreAboveDefault;
     private final IgnoreAbove ignoreAbove;
     private final boolean storeIgnored;
     private final String originalName;
@@ -1167,7 +1184,6 @@ public class WildcardFieldMapper extends FieldMapper {
         this.storeIgnored = storeIgnored;
         this.indexMode = builder.indexMode;
         this.indexVersionCreated = builder.indexCreatedVersion;
-        this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
         this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
@@ -1263,11 +1279,6 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated, storeIgnoredFieldsInBinaryDocValues).init(this);
     }
 
     @Override

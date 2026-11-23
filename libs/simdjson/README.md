@@ -42,8 +42,7 @@ libs/simdjson/
 │   │   ├── es_simdjson.cpp           #   Elasticsearch stage 1 FFI surface
 │   │   ├── simdjson.cpp              #   Vendored simdjson amalgamation
 │   │   └── simdjson.h
-│   ├── Makefile                      #   Cross-compilation build (all platforms)
-│   └── publish_simdjson_binaries.sh  #   Build + Artifactory upload
+│   └── Makefile                      #   Cross-compilation build (all platforms)
 ├── licenses/                         # Vendored simdjson C++ notices
 └── build.gradle
 ```
@@ -54,8 +53,8 @@ libs/simdjson/
   - `org.elasticsearch.escf.EscfDocumentHandler` — `JsonDocumentHandler` implementation
   - `org.elasticsearch.escf.EscfEncoder` — feature flag, simdjson vs Jackson encode path; resolves
     its thread's `JsonDocumentParser` once at construction
-- **`libs/native/libraries`** — downloads `org.elasticsearch:libsimdjson` native zips at
-     build time.
+- **`distribution`** — the `:distribution:archives` and `:distribution:packages` projects copy the built
+  (or published) libsimdjson into `lib/platform`, with the other native libraries.
 
 ## Parsing pipeline
 
@@ -81,17 +80,14 @@ available). Windows x64 and Intel macOS are excluded at the FFM binding layer.
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For cross-compilation
-of all three platform binaries (darwin-aarch64, linux-aarch64, linux-x64), use the
-shared Docker-based toolchain image (`es-native-cross-toolchain`, shared with
-`libs/simdvec`):
+of all four platform binaries (darwin-aarch64, linux-aarch64, linux-x64, windows-x64), use the
+shared Docker-based toolchain image (`es-native-cross-toolchain`, see
+[`libs/native-toolchain`](../native-toolchain/README.md)).
 
-```bash
-# Build the cross-compilation toolchain image (from libs/simdvec/native)
-../../simdvec/native/build_cross_toolchain_image.sh
-
-# Build and publish binaries
-./publish_simdjson_binaries.sh
-```
+Gradle fetches the binaries published for the current sources, and builds them only when there are
+none. CI publishes the binaries for new sources on its own. To publish from your machine, or to
+build every platform even though the binaries are already published, see *Publish a library* in
+[`libs/native-toolchain`](../native-toolchain/README.md#publish-a-library).
 
 For local development on the current platform:
 
@@ -115,9 +111,6 @@ SIMDJSON_NATIVE_BUILD=docker ./gradlew :libs:simdjson:buildNativeLibrary
 
 When `SIMDJSON_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is
 resolved from Artifactory like other elasticsearch-native artifacts.
-
-`make install` (without Gradle) still copies a locally built library into
-`libs/native/libraries/build/platform/<os>-<arch>/` for ad-hoc workflows.
 
 Inside the cross-compilation container, run `make verify-linux-abi` after `make all`
 to confirm Linux `.so` files meet the RHEL 8 baseline (GLIBCXX ≤ 3.4.25, GLIBC ≤ 2.28).

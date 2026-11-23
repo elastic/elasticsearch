@@ -41,6 +41,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedStreamingProcessor.SYNTHESIZED_TOOL_CALL_ID_SEPARATOR;
 
 public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
     private static final String CONTENTS = "contents";
@@ -389,8 +390,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             builder.startObject(FUNCTION_CALL);
             builder.field(FUNCTION_CALL_NAME, toolCall.function().name());
             builder.field(FUNCTION_CALL_ARGS, jsonStringToMap(toolCall.function().arguments()));
-            // Only echo an id the model actually issued. When the id equals the function name it was
-            // synthesized from that name because the response carried none.
+            // Only echo an id the model actually issued. An id built from the function name was
+            // synthesized because the response carried none.
             if (isModelIssuedId(toolCall.id(), toolCall.function().name())) {
                 builder.field(FUNCTION_CALL_ID, toolCall.id());
             }
@@ -406,7 +407,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
      * Emits one {@code functionResponse} part for a tool message. When multiple tool messages answer a parallel
      * function call turn they are all written inside the same {@code parts} array, with one call to this method per
      * message. Google requires the function name, which the unified tool message does not carry, so it is looked up
-     * in the pre-built {@code functionNameById} map. When no entry is found the id is itself the function name
+     * in the pre-built {@code functionNameById} map. When no entry is found the name is recovered from the id
      * (the response path synthesises an id from the name when the model returns none).
      */
     private void buildFunctionResponsePart(XContentBuilder builder, Message message, Map<String, String> functionNameById)
@@ -419,14 +420,17 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             );
         }
 
-        var functionName = functionNameById.getOrDefault(toolCallId, toolCallId);
+        var functionName = functionNameById.computeIfAbsent(
+            toolCallId,
+            GoogleVertexAiUnifiedChatCompletionRequestEntity::functionNameFromId
+        );
 
         builder.startObject();
         {
             builder.startObject(FUNCTION_RESPONSE);
             builder.field(FUNCTION_NAME, functionName);
-            // Only echo an id the model actually issued. When the id equals the resolved function name it was
-            // synthesized from that name because the response carried none, so there is no real id to send back.
+            // Only echo an id the model actually issued. An id built from the resolved function name was
+            // synthesized because the response carried none, so there is no real id to send back.
             if (isModelIssuedId(toolCallId, functionName)) {
                 builder.field(FUNCTION_CALL_ID, toolCallId);
             }
@@ -456,11 +460,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     /**
      * Returns {@code true} when {@code id} is a real model-issued identifier rather than one synthesized from the
-     * function name. The response parser falls back to the function name as the id when the model returns no id, so
-     * an id that equals the name has no independent value and should not be echoed back.
+     * function name. The response parser synthesizes {@code <name>#<random>} when the model returns no id (older
+     * releases used the bare name), so such an id has no independent value and should not be echoed back.
      */
     private static boolean isModelIssuedId(@Nullable String id, String functionName) {
-        return id != null && id.equals(functionName) == false;
+        return id != null && id.equals(functionName) == false && id.startsWith(functionName + SYNTHESIZED_TOOL_CALL_ID_SEPARATOR) == false;
+    }
+
+    private static String functionNameFromId(String id) {
+        var separatorIndex = id.lastIndexOf(SYNTHESIZED_TOOL_CALL_ID_SEPARATOR);
+        return separatorIndex >= 0 ? id.substring(0, separatorIndex) : id;
     }
 
     private void buildTools(XContentBuilder builder) throws IOException {

@@ -52,6 +52,7 @@ setup:
               instance: "localhost:9100"
             exemplar_labels:
               trace_id: "0af7651916cd43dd8448eb211c80319c"
+              span_id: "b7ad6b7169203331"
             value: 42.0
   - is_false: errors
   - do:
@@ -69,9 +70,25 @@ setup:
   - match: { .$idx0name.mappings.properties.labels.properties.__name__.time_series_dimension: true }
   - match: { .$idx0name.mappings.properties.exemplar_labels.type: "passthrough" }
   - is_false: .$idx0name.mappings.properties.exemplar_labels.time_series_dimension
+  # Dynamically mapped exemplar labels must be plain keywords, not text with a .keyword multi-field
+  - match: { .$idx0name.mappings.properties.exemplar_labels.properties.trace_id.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.exemplar_labels.properties.trace_id.ignore_above: 1024 }
+  - is_false: .$idx0name.mappings.properties.exemplar_labels.properties.trace_id.fields
+  - match: { .$idx0name.mappings.properties.exemplar_labels.properties.span_id.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.exemplar_labels.properties.span_id.ignore_above: 1024 }
+  - is_false: .$idx0name.mappings.properties.exemplar_labels.properties.span_id.fields
   - match: { .$idx0name.mappings.properties.metric_name.type: "alias" }
   - match: { .$idx0name.mappings.properties.metric_name.path: "labels.__name__" }
   - match: { .$idx0name.mappings.properties.value.type: "double" }
+  # Exact-match queries on exemplar labels work without a .keyword suffix
+  - do:
+      search:
+        index: exemplars-generic.prometheus-default
+        body:
+          query:
+            term:
+              exemplar_labels.trace_id: "0af7651916cd43dd8448eb211c80319c"
+  - length: { hits.hits: 1 }
 ---
 "Test bulk ingest and query":
   - do:
@@ -277,3 +294,43 @@ setup:
             exists:
               field: foo.bar
   - length: { hits.hits: 1 }
+---
+"Metrics and exemplars data streams hash the scrape target labels into the tsid":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create: { _index: metrics-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:00"
+            labels:
+              __name__: "node_cpu_seconds_total"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            metrics:
+              node_cpu_seconds_total: 42.0
+          - create: { _index: exemplars-generic.prometheus-default }
+          - "@timestamp": "2026-01-01T00:00:00"
+            labels:
+              __name__: "node_cpu_seconds_total"
+              job: "node_exporter"
+              instance: "localhost:9100"
+            exemplar_labels:
+              trace_id: "0af7651916cd43dd8448eb211c80319c"
+            value: 42.0
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: metrics_index }
+  - do:
+      indices.get_settings:
+        index: $metrics_index
+  - match: { .$metrics_index.settings.index.time_series.tsid_prefixed_dimensions: ["labels.job", "labels.instance"] }
+  - do:
+      indices.get_data_stream:
+        name: exemplars-generic.prometheus-default
+  - set: { data_streams.0.indices.0.index_name: exemplars_index }
+  - do:
+      indices.get_settings:
+        index: $exemplars_index
+  - match: { .$exemplars_index.settings.index.time_series.tsid_prefixed_dimensions: ["labels.job", "labels.instance"] }

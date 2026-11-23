@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.TruncatedAppender;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +21,11 @@ import java.io.IOException;
 
 public abstract class AbstractBulkIndexByPaginatedSearchRequest<Self extends AbstractBulkIndexByPaginatedSearchRequest<Self>> extends
     AbstractBulkByPaginatedSearchRequest<Self> {
+    /**
+     * The most characters of the script params that are included in the task description.
+     */
+    static final int MAX_DESCRIPTION_PARAMS_LENGTH = 1024;
+
     /**
      * Script to modify the documents before they are processed.
      */
@@ -73,7 +79,28 @@ public abstract class AbstractBulkIndexByPaginatedSearchRequest<Self extends Abs
     protected void searchToString(StringBuilder b) {
         super.searchToString(b);
         if (script != null) {
-            b.append(" updated with ").append(script);
+            b.append(" updated with ");
+            appendScript(b, script);
         }
+    }
+
+    /**
+     * Appends the same text as {@link Script#toString()}, but cuts the params after {@link #MAX_DESCRIPTION_PARAMS_LENGTH} characters.
+     * Unlike the script source, the params are unbounded, and the task description is kept for the life of the task.
+     */
+    private static void appendScript(StringBuilder b, Script script) {
+        b.append("Script{type=")
+            .append(script.getType())
+            .append(", lang='")
+            .append(script.getLang())
+            .append("', idOrCode='")
+            .append(script.getIdOrCode())
+            .append("', options=")
+            .append(script.getOptions())
+            .append(", params=");
+        if (TruncatedAppender.append(b, script.getParams(), MAX_DESCRIPTION_PARAMS_LENGTH) == false) {
+            b.append("...");
+        }
+        b.append('}');
     }
 }

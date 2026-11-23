@@ -1,0 +1,3 @@
+    FROM employees
+    | KEEP emp_no
+    | WHERE emp_no NOT IN (10001, null)

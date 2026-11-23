@@ -507,6 +507,7 @@ FROM airports
 ;
 warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
 warningRegex:.*max y cannot be less than min y.*
+warningRegex:Line \d+:\d+: Expression \[ST_INTERSECTS\(location, TO_GEOSHAPE\("BBOX\(0\.0, 12\.0, 30\.0, 60\.0\)"\)\)\] always evaluates to NULL\.
 
 count:long
 0

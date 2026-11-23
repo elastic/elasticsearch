@@ -63,6 +63,10 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
     }
 
     public MockSearchDfsQueryThenFetchAsyncAction(int numShards, SearchRequest searchRequest) {
+        this(numShards, searchRequest, NoopCircuitBreaker.INSTANCE);
+    }
+
+    public MockSearchDfsQueryThenFetchAsyncAction(int numShards, SearchRequest searchRequest, CircuitBreaker circuitBreaker) {
         super(
             logger,
             new NamedWriteableRegistry(List.of()),
@@ -73,7 +77,7 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
             Map.of(),
             Runnable::run,
             null,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            circuitBreaker,
             searchRequest,
             ActionListener.noop(),
             createShardIterators(numShards),

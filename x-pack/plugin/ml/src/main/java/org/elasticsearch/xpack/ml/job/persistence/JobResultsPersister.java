@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
@@ -293,12 +294,20 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, items.size());
-            resultsPersisterService.bulkIndexWithRetry(
-                buildBulkRequest(),
-                jobId,
-                shouldRetry,
-                retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
-            );
+            try {
+                resultsPersisterService.bulkIndexWithRetry(
+                    buildBulkRequest(),
+                    jobId,
+                    shouldRetry,
+                    retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
+                );
+            } catch (ResultsPersisterService.IrrecoverableException e) {
+                // Documents the index permanently rejected must not be kept: they would be resubmitted, and fail again, with every
+                // later bulk. All other items stay queued so that failures that may heal (e.g. a missing index) are retried by the
+                // next call.
+                items.keySet().removeAll(e.rejectedDocIds());
+                throw e;
+            }
             clear();
         }
 
@@ -515,6 +524,39 @@ public class JobResultsPersister {
         );
         persistable.setRefreshPolicy(refreshPolicy);
         persistable.persist(() -> true, true, listener);
+    }
+
+    /** Writes the checkpoint through the job results write alias. */
+    public void persistEsqlDatafeedSourceCheckpoint(
+        EsqlDatafeedSourceCheckpoint checkpoint,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActionListener<BulkResponse> listener
+    ) {
+        String jobId = checkpoint.getJobId();
+        logger.trace("[{}] Persisting ES|QL datafeed source checkpoint at [{}]", jobId, checkpoint.getSourceEndMs());
+        Persistable persistable = new Persistable(
+            AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+            jobId,
+            checkpoint,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            EsqlDatafeedSourceCheckpoint.documentId(jobId)
+        );
+        persistable.setRefreshPolicy(refreshPolicy);
+        persistable.persist(() -> true, true, listener);
+    }
+
+    public void persistEsqlDatafeedSourceCheckpoint(EsqlDatafeedSourceCheckpoint checkpoint) {
+        // Load uses a realtime GET, so this write stays visible without a refresh on every cycle.
+        persistEsqlDatafeedSourceCheckpoint(checkpoint, WriteRequest.RefreshPolicy.NONE).actionGet();
+    }
+
+    public PlainActionFuture<BulkResponse> persistEsqlDatafeedSourceCheckpoint(
+        EsqlDatafeedSourceCheckpoint checkpoint,
+        WriteRequest.RefreshPolicy refreshPolicy
+    ) {
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        persistEsqlDatafeedSourceCheckpoint(checkpoint, refreshPolicy, future);
+        return future;
     }
 
     private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {

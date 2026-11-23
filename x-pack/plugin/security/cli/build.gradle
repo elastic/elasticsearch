@@ -16,9 +16,7 @@ base {
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+  implementation project(path: "bc", configuration: 'shadow')
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"
@@ -26,10 +24,10 @@ dependencies {
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
-}
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
+  testImplementation "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
 }
 
 tasks.named("forbiddenPatterns").configure {

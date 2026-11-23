@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     private final int estimatedRowSize;
 
     /**
-     * Coordinator-only flag: {@code true} when this fragment originates from a view branch inside a {@code ViewUnionAll}.
+     * Coordinator-only flag: {@code true} when this fragment originates from a view branch inside a {@code BranchPlan}.
      * View-branch fragments must NOT receive the raw DSL {@code request.filter()} as a Lucene query (via
      * {@code PlannerUtils.integrateEsFilterIntoFragment}), because the filter has already been applied as a logical
      * {@code Filter} above the view's output boundary. Pushing it into the Lucene scan would apply it before any
@@ -104,6 +105,15 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         return fragment;
     }
 
+    /**
+     * {@link #children()} is empty because this is a {@link LeafExec}, but the fragment is the plan
+     * that actually runs on the data node. JSON renders it as the sole child instead of an ASCII blob.
+     */
+    @Override
+    public List<? extends QueryPlan<?>> jsonChildren() {
+        return List.of(fragment);
+    }
+
     public QueryBuilder esFilter() {
         return esFilter;
     }
@@ -129,7 +139,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     /** Returns a copy of this fragment marked as originating from a view branch (see {@link #fromViewBranch}). */
     public FragmentExec asFromViewBranch() {
-        return fromViewBranch ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true);
+        return fromViewBranch ? this : passIdentityTo(new FragmentExec(source(), fragment, esFilter, estimatedRowSize, true));
     }
 
     @Override
@@ -137,19 +147,19 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         int estimatedRowSize = state.consumeAllFields(false);
         return Objects.equals(estimatedRowSize, this.estimatedRowSize)
             ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+            : passIdentityTo(new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch));
     }
 
     public FragmentExec withFragment(LogicalPlan fragment) {
         return Objects.equals(fragment, this.fragment)
             ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch);
+            : passIdentityTo(new FragmentExec(source(), fragment, esFilter, estimatedRowSize, fromViewBranch));
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {
         return Objects.equals(filter, this.esFilter)
             ? this
-            : new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch);
+            : passIdentityTo(new FragmentExec(source(), fragment, filter, estimatedRowSize, fromViewBranch));
     }
 
     @Override

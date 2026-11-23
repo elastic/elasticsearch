@@ -195,3 +195,72 @@ FROM employees_multifile_split
 avg_salary:double | total:long
 48248.55          | 4824855
 ;
+
+// ===== A BOUNDED LISTING ALONGSIDE AN UNBOUNDED ONE =====
+// partition_sample_size is small enough to truncate this three-file glob, so schema resolution holds a prefix
+// of the dataset while the query reading rows needs all of it. How far a listing was asked to run is part of
+// the listing cache's address, so the prefix is addressed as a prefix and the query that asked for the whole
+// glob cannot be served it.
+//
+// Two of the four run the bounded rail: ffwSampleOneSeesEveryFile and ffwSampleTwoSameAnswer, which set
+// first_file_wins and read rows with SORT. The other two reach resolution UNBOUNDED and pin that rail instead -
+// ffwSampleOneCount because an ungrouped COUNT(*) wants dataset-wide statistics, omittedSampleOneSeesEveryFile
+// because omitting schema_resolution hydrates union_by_name, whose file order is not the default. All four stay
+// green either way: they pin the crossover rather than demonstrate it, and break if the extent leaves the key.
+
+ffwSampleOneSeesEveryFile
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: external_source_partition_sample_size
+dataset: employees_multifile_split_ffw_sample1: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "partition_sample_size": 1}
+
+FROM employees_multifile_split_ffw_sample1
+| SORT emp_no DESC
+| LIMIT 1
+| KEEP emp_no;
+
+emp_no:integer
+10100
+;
+
+ffwSampleOneCount
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: external_source_partition_sample_size
+dataset: employees_multifile_split_ffw_sample1: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "partition_sample_size": 1}
+
+FROM employees_multifile_split_ffw_sample1
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ffwSampleTwoSameAnswer
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: external_source_partition_sample_size
+dataset: employees_multifile_split_ffw_sample2: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "partition_sample_size": 2}
+
+FROM employees_multifile_split_ffw_sample2
+| SORT emp_no ASC
+| LIMIT 1
+| KEEP emp_no;
+
+emp_no:integer
+10001
+;
+
+omittedSampleOneSeesEveryFile
+required_capability: dataset_in_from_command
+required_capability: external_source_partition_sample_size
+dataset: employees_multifile_split_sample1: "{{employees_multifile_split}}" WITH {"partition_sample_size": 1}
+
+FROM employees_multifile_split_sample1
+| SORT emp_no DESC
+| LIMIT 1
+| KEEP emp_no;
+
+emp_no:integer
+10100
+;

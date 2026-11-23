@@ -13,10 +13,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Round-trips the monotonic table that every offset structure in the format is built on — block offsets,
@@ -125,7 +127,11 @@ public class MonotonicTableTests extends ESTestCase {
                     written[t] = writers[t].finish();
                 }
             }
-            assertArrayEquals("nothing is written but the file the tables were given", new String[] { "tables.bin" }, dir.listAll());
+            assertArrayEquals(
+                "nothing is written but the file the tables were given",
+                new String[] { "tables.bin" },
+                Arrays.stream(dir.listAll()).filter(name -> ExtrasFS.isExtra(name) == false).toArray(String[]::new)
+            );
             try (IndexInput in = dir.openInput("tables.bin", IOContext.DEFAULT)) {
                 for (int t = 0; t < tables; t++) {
                     final MonotonicWriter.Table table = written[t];

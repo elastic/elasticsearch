@@ -24,6 +24,7 @@ import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
@@ -83,6 +84,13 @@ public final class MlRecoverableErrorClassifier {
         // SearchContextMissingException: expired/relocated scroll (or PIT) context — transient under load.
         // Overrides NOT_FOUND; shortened DBQ keepalive (JobDataDeleter) can expire during bulk rejection backoff (#153260).
         if (ExceptionsHelper.unwrap(e, SearchContextMissingException.class) != null) {
+            return true;
+        }
+
+        // ShardRestoringException: shard is being restored from a snapshot – transient; restores are expected to be short.
+        // Overrides FORBIDDEN status. Walks the whole cause chain because search reports it as the cause of a
+        // SearchPhaseExecutionException, which takes its 403 status from it.
+        if (ExceptionsHelper.unwrap(e, ShardRestoringException.class) != null) {
             return true;
         }
 

@@ -16,8 +16,11 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -132,6 +135,36 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                                                     builder.field("attributes", segment.attributes);
                                                 }
+                                                if (segment.autoCalibrationParams != null
+                                                    && segment.autoCalibrationParams.isEmpty() == false) {
+                                                    builder.startObject("auto_calibration");
+                                                    for (Map.Entry<
+                                                        String,
+                                                        SegmentCalibrationParameters> entry : segment.autoCalibrationParams.entrySet()) {
+                                                        builder.startObject(entry.getKey());
+                                                        builder.field("calibrated", entry.getValue().calibrated());
+                                                        builder.field("type", entry.getValue().type());
+                                                        long count = segment.autoCalibrationVectorCounts != null
+                                                            ? segment.autoCalibrationVectorCounts.getOrDefault(entry.getKey(), 0L)
+                                                            : 0L;
+                                                        builder.field("number_of_vectors", count);
+                                                        long sizeBytes = segment.autoCalibrationSizeBytes != null
+                                                            ? segment.autoCalibrationSizeBytes.getOrDefault(entry.getKey(), 0L)
+                                                            : 0L;
+                                                        builder.humanReadableField(
+                                                            "size_in_bytes",
+                                                            "size",
+                                                            ByteSizeValue.ofBytes(sizeBytes)
+                                                        );
+                                                        if (entry.getValue().calibrated()) {
+                                                            builder.startObject("parameters");
+                                                            entry.getValue().toXContent(builder);
+                                                            builder.endObject();
+                                                        }
+                                                        builder.endObject();
+                                                    }
+                                                    builder.endObject();
+                                                }
                                                 builder.endObject();
                                                 return builder;
                                             })
@@ -158,6 +191,8 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
             builder.field("field", field.getField());
             if (field instanceof SortedNumericSortField sortedNumericSortField) {
                 builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+            } else if (field instanceof ColumnarNumericSortField columnar) {
+                builder.field("mode", columnar.maxMode() ? "max" : "min");
             } else if (field instanceof SortedSetSortField sortedSetSortField) {
                 builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
             }

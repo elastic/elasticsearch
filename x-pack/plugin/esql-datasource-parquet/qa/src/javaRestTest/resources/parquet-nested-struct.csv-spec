@@ -1,7 +1,7 @@
 // Nested STRUCT subfield projection for external Parquet (Java) and ORC sources.
 // Tracking issues:
-//   - elastic/esql-planning#435 (this work)
-//   - elastic/esql-planning#320 (correctness gap addressed here too)
+// - (this work)
+// - (correctness gap addressed here too)
 // Out of scope for this PR (no tracking issue yet — file follow-ups if pursued):
 //   - ORC nested column pruning specifically (subsumed by issue #320 for parquet,
 //     no equivalent ORC issue exists at the time of writing — please file one
@@ -173,7 +173,7 @@ id:integer | event.outcome:keyword
 4          | null
 ;
 
-// ===== LIST-under-STRUCT (elastic/esql-planning#1055) =====
+// ===== LIST-under-STRUCT =====
 // event.tags is a struct<list<keyword>> leaf: a LIST reached through the `event` STRUCT. These
 // leaves used to bind to no column descriptor and read as all-null (silent data loss). The tests
 // below assert the multivalues now round-trip. event.tags ground truth (from nested_events.csv):

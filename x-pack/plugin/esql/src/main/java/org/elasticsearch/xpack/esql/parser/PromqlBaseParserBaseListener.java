@@ -277,6 +277,30 @@ public class PromqlBaseParserBaseListener implements PromqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMetricName(PromqlBaseParser.MetricNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMetricName(PromqlBaseParser.MetricNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitGroupingLabel(PromqlBaseParser.GroupingLabelContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterEvaluation(PromqlBaseParser.EvaluationContext ctx) { }
   /**
    * {@inheritDoc}

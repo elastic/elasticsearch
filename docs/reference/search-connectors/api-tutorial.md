@@ -40,8 +40,9 @@ docker run -p 9200:9200 -d --name elasticsearch \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}}
+  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}} <1>
 ```
+1. Replace {{version.stack}} with the version of {{es}} you want to use.
 
 ::::{warning}
 This {{es}} setup is for development purposes only. Never use this configuration in production. Refer to [Set up {{es}}](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md) for production-grade installation instructions, including Docker.
@@ -253,10 +254,11 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \ <1>
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
+1. Replace {{version.stack}} with the version of {{es}} you want to use.
 
 Verify your connector is connected by getting the connector status (should be `needs_configuration`) and `last_seen` field (note that time is reported in UTC). The `last_seen` field indicates that the connector successfully connected to {{es}}.
 

@@ -14,19 +14,19 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctLongGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new CountDistinctLongAggregatorFunctionSupplier(40000);
+        return new CountDistinctLongAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
     }
 
     @Override
@@ -44,12 +44,35 @@ public class CountDistinctLongGroupingAggregatorFunctionTests extends Partitione
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        long expected = input.stream().flatMapToLong(p -> allLongs(p, group)).distinct().count();
-        long count = ((LongBlock) result).getLong(position);
-        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        assertThat((double) count, closeTo(expected, expected * 0.1));
+        CountDistinctTestUtils.assertCount(
+            ((LongBlock) result).getLong(position),
+            input.stream().flatMapToLong(p -> allLongs(p, group)).distinct().map(CountDistinctTestUtils::hash)
+        );
+    }
+
+    /**
+     * {@code 21685} and {@code 76695} share the top 25 bits of their hash, so linear counting stores them as one entry
+     * and counts this group as 1. {@link #assertSimpleGroup} must accept that as a hash collision.
+     */
+    public void testHashCollisionInSmallGroup() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        runner.input(
+            new TupleLongLongBlockSourceOperator(runner.blockFactory(), List.of(Tuple.tuple(0L, 21685L), Tuple.tuple(0L, 76695L)))
+        );
+        List<Page> results = runner.run(simple());
+        assertSimpleOutput(runner.deepCopy(), results);
+        assertThat(((LongBlock) results.getFirst().getBlock(1)).getLong(0), equalTo(1L));
+    }
+
+    /**
+     * {@link CountDistinctTestUtils#assertCount} only accepts an undercount in a small group when the values' hashes
+     * really collide, so it still catches values being lost.
+     */
+    public void testUndercountWithoutHashCollisionFails() {
+        expectThrows(
+            AssertionError.class,
+            () -> CountDistinctTestUtils.assertCount(1, LongStream.of(1, 2).map(CountDistinctTestUtils::hash))
+        );
     }
 
     @Override

@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 164870
+summary: "[DiskBBQ] Wait for queue saturation in `DiversifyingNearestChildrenKnnCollector`"
+type: bug

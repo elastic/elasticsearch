@@ -44,10 +44,12 @@ result_vector:dense_vector
 
 addDenseVectorWithNull
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 + null
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [vector_field_1 + null] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -58,10 +60,12 @@ null
 
 addDenseVectorWithNullInverse
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = null + vector_field_1
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [null + vector_field_1] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -174,10 +178,12 @@ result_vector:dense_vector
 
 subDenseVectorWithNull
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 - null
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [vector_field_1 - null] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -188,10 +194,12 @@ null
 
 subDenseVectorWithNullInverse
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = null - vector_field_1
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [null - vector_field_1] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -304,10 +312,12 @@ result_vector:dense_vector
 
 mulDenseVectorWithNull
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 * null
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [vector_field_1 * null] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -318,10 +328,12 @@ null
 
 mulDenseVectorWithNullInverse
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = null * vector_field_1
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [null * vector_field_1] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -434,10 +446,12 @@ result_vector:dense_vector
 
 divDenseVectorWithNull
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 / null
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [vector_field_1 / null] always evaluates to NULL.
 
 result_vector:dense_vector
 null
@@ -448,10 +462,12 @@ null
 
 divDenseVectorWithNullInverse
 required_capability: dense_vector_arithmetic
+required_capability: warn_null_misuse
 FROM dense_vector_arithmetic
 | eval result_vector = null / vector_field_1
 | SORT id
 | KEEP result_vector;
+warning:Line 2:24: Expression [null / vector_field_1] always evaluates to NULL.
 
 result_vector:dense_vector
 null

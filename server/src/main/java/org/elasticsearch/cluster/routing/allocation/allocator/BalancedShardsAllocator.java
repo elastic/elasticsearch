@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,14 +87,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
 
     public enum MoveType {
-        CANNOT_REMAIN("move(cannot-remain)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
-        NOT_PREFERRED("move(not-preferred)", ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED),
-        REBALANCE("move(rebalance)", ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
+        CANNOT_REMAIN("move(cannot-remain)", RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
+        NOT_PREFERRED("move(not-preferred)", RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED),
+        REBALANCE("move(rebalance)", RecoveryPriority.RELOCATE_REBALANCING);
 
         private final String reason;
-        private final ShardRouting.RecoveryPriority recoveryPriority;
+        private final RecoveryPriority recoveryPriority;
 
-        MoveType(String reason, ShardRouting.RecoveryPriority recoveryPriority) {
+        MoveType(String reason, RecoveryPriority recoveryPriority) {
             this.reason = reason;
             this.recoveryPriority = recoveryPriority;
         }
@@ -102,7 +103,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return reason;
         }
 
-        public ShardRouting.RecoveryPriority recoveryPriority() {
+        public RecoveryPriority recoveryPriority() {
             return recoveryPriority;
         }
     }
@@ -1318,7 +1319,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Keeps track of the single "best" shard movement we could make from each node, as scored by
-         * the {@link PrioritiseByShardWriteLoadComparator}. Provides a utility for checking if
+         * {@link BalancingWeights#createMoveComparatorForNode}. Provides a utility for checking if
          * a proposed movement is "better" than the current best for that node.
          */
         private class BestShardMovementsTracker {
@@ -1327,7 +1328,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             // LinkedHashMap so we iterate in insertion order
             private final Map<String, StoredShardMovement> bestShardMovementsByNode = new LinkedHashMap<>();
-            private final Map<String, PrioritiseByShardWriteLoadComparator> comparatorCache = new HashMap<>();
+            private final Map<String, Comparator<ShardRouting>> comparatorCache = new HashMap<>();
 
             /**
              * Is the provided {@link ShardRouting} potentially a better shard to move than the one
@@ -1343,7 +1344,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 int comparison = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),
-                    nodeId -> new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), allocation.routingNodes().node(nodeId))
+                    nodeId -> balancingWeights.createMoveComparatorForNode(allocation.routingNodes().node(nodeId), allocation.clusterInfo())
                 ).compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
                 return comparison < 0;
@@ -1355,104 +1356,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             public Iterable<StoredShardMovement> getBestShardMovements() {
                 return bestShardMovementsByNode.values();
-            }
-        }
-
-        /**
-         * Sorts shards by desirability to move, sort order goes:
-         * <ol>
-         *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr;
-         *          {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode} (exclusive)</li>
-         *     <li>Shards with write-load in <i>{@link PrioritiseByShardWriteLoadComparator#threshold}</i> &rarr; 0</li>
-         *     <li>Shards with write-load == {@link PrioritiseByShardWriteLoadComparator#maxWriteLoadOnNode}</li>
-         *     <li>Shards with missing write-load</li>
-         * </ol>
-         *
-         * e.g., for any two <code>ShardRouting</code>s, <code>r1</code> and <code>r2</code>,
-         * <ul>
-         *     <li><code>compare(r1, r2) &gt; 0</code> when <code>r2</code> is more desirable to move</li>
-         *     <li><code>compare(r1, r2) == 0</code> when the two shards are equally desirable to move</li>
-         *     <li><code>compare(r1, r2) &lt; 0</code> when <code>r1</code> is more desirable to move</li>
-         * </ul>
-         */
-        // Visible for testing
-        public static class PrioritiseByShardWriteLoadComparator implements Comparator<ShardRouting> {
-
-            /**
-             * This is the threshold over which we consider shards to have a "high" write load represented
-             * as a ratio of the maximum write-load present on the node.
-             * <p>
-             * We prefer to move shards that have a write-load close to <b>this value</b> x {@link #maxWriteLoadOnNode}.
-             */
-            public static final double THRESHOLD_RATIO = 0.5;
-            private static final double MISSING_WRITE_LOAD = -1;
-            private final Map<ShardId, Double> shardWriteLoads;
-            private final double maxWriteLoadOnNode;
-            private final double threshold;
-            private final String nodeId;
-
-            public PrioritiseByShardWriteLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
-                shardWriteLoads = clusterInfo.getShardWriteLoads();
-                double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
-                for (ShardRouting shardRouting : routingNode) {
-                    maxWriteLoadOnNode = Math.max(
-                        maxWriteLoadOnNode,
-                        shardWriteLoads.getOrDefault(shardRouting.shardId(), MISSING_WRITE_LOAD)
-                    );
-                }
-                this.maxWriteLoadOnNode = maxWriteLoadOnNode;
-                threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
-                nodeId = routingNode.nodeId();
-            }
-
-            @Override
-            public int compare(ShardRouting lhs, ShardRouting rhs) {
-                assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
-                    : this.getClass().getSimpleName()
-                        + " is node-specific. comparator="
-                        + nodeId
-                        + ", lhs="
-                        + lhs.currentNodeId()
-                        + ", rhs="
-                        + rhs.currentNodeId();
-
-                // If we have no shard write-load data, shortcut
-                if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
-                    return 0;
-                }
-
-                final double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
-                final double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
-
-                // prefer any known write-load over any unknown write-load
-                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
-                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
-                if (rhsIsMissing && lhsIsMissing) {
-                    return 0;
-                }
-                if (rhsIsMissing ^ lhsIsMissing) {
-                    return lhsIsMissing ? 1 : -1;
-                }
-
-                if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
-                    final var lhsOverThreshold = lhsWriteLoad >= threshold;
-                    final var rhsOverThreshold = rhsWriteLoad >= threshold;
-                    if (lhsOverThreshold && rhsOverThreshold) {
-                        // Both values between threshold and maximum, prefer lowest
-                        return Double.compare(lhsWriteLoad, rhsWriteLoad);
-                    } else if (lhsOverThreshold) {
-                        // lhs between threshold and maximum, rhs below threshold, prefer lhs
-                        return -1;
-                    } else if (rhsOverThreshold) {
-                        // lhs below threshold, rhs between threshold and maximum, prefer rhs
-                        return 1;
-                    }
-                    // Both values below the threshold, prefer highest
-                    return Double.compare(rhsWriteLoad, lhsWriteLoad);
-                }
-
-                // prefer the non-max write load if there is one
-                return Double.compare(lhsWriteLoad, rhsWriteLoad);
             }
         }
 
@@ -1833,9 +1736,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 shardSize,
                                 MoveType.REBALANCE.reason(),
                                 allocation.changes(),
-                                ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+                                RecoveryPriority.RELOCATE_REBALANCING
                             ).v1()
-                            : shard.relocate(minNode.getNodeId(), shardSize, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING)
+                            : shard.relocate(minNode.getNodeId(), shardSize, RecoveryPriority.RELOCATE_REBALANCING)
                     );
                     return true;
                 }

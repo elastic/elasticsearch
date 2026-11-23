@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -41,7 +42,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         true,
         new EndpointMetadata.Capabilities(
             new EndpointMetadata.ReasoningCapability(List.of(ReasoningEffort.HIGH, ReasoningEffort.LOW), ReasoningEffort.HIGH),
-            new EndpointMetadata.ContextWindow(100000, 8192)
+            new EndpointMetadata.ContextWindow(100000, 8192),
+            new EndpointMetadata.TemplatesCapability(EndpointMetadata.TemplatePolicy.REQUIRED)
         )
     );
 
@@ -76,6 +78,9 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "context_window": {
               "max_input_tokens": 100000,
               "max_output_tokens": 8192
+            },
+            "templates": {
+              "policy": "required"
             }
           }
         }
@@ -108,6 +113,9 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "context_window": {
               "max_input_tokens": 100000,
               "max_output_tokens": 8192
+            },
+            "templates": {
+              "policy": "required"
             }
           }
         }
@@ -155,10 +163,15 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         }
         var reasoning = randomBoolean() ? randomReasoningCapability() : null;
         var contextWindow = randomBoolean() ? randomContextWindow() : null;
-        if (reasoning == null && contextWindow == null) {
+        var templates = randomBoolean() ? randomTemplatesCapability() : null;
+        if (reasoning == null && contextWindow == null && templates == null) {
             return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
         }
-        return new EndpointMetadata.Capabilities(reasoning, contextWindow);
+        return new EndpointMetadata.Capabilities(reasoning, contextWindow, templates);
+    }
+
+    public static EndpointMetadata.TemplatesCapability randomTemplatesCapability() {
+        return new EndpointMetadata.TemplatesCapability(randomFrom(EndpointMetadata.TemplatePolicy.values()));
     }
 
     public static EndpointMetadata.ReasoningCapability randomReasoningCapability() {
@@ -472,7 +485,43 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         }
         if (version.supports(EndpointMetadata.CAPABILITIES_ADDED) == false) {
             capabilities = EndpointMetadata.Capabilities.EMPTY_INSTANCE;
+        } else if (version.supports(EndpointMetadata.CAPABILITIES_TEMPLATES_ADDED) == false) {
+            capabilities = new EndpointMetadata.Capabilities(capabilities.reasoning(), capabilities.contextWindow(), null);
         }
         return new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy, capabilities);
+    }
+
+    /**
+     * The upstream service may add policies this node does not know about. They are dropped rather than failing the whole
+     * authorization response, matching how unknown reasoning effort levels are handled.
+     */
+    public void testCapabilitiesParse_TemplatesWithUnknownPolicy_IsDropped() throws IOException {
+        var json = """
+            { "templates": { "policy": "optional" }, "context_window": { "max_input_tokens": 10 } }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            var capabilities = EndpointMetadata.Capabilities.parse(parser);
+            assertNull(capabilities.templates());
+            assertThat(capabilities.contextWindow(), is(new EndpointMetadata.ContextWindow(10, null)));
+        }
+    }
+
+    public void testCapabilitiesParse_TemplatesWithoutPolicy_IsDropped() throws IOException {
+        var json = """
+            { "templates": {} }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            var capabilities = EndpointMetadata.Capabilities.parse(parser);
+            assertThat(capabilities, is(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
+        }
+    }
+
+    public void testTemplatePolicy_FromString() {
+        assertThat(EndpointMetadata.TemplatePolicy.fromString("required"), is(EndpointMetadata.TemplatePolicy.REQUIRED));
+        assertThat(EndpointMetadata.TemplatePolicy.fromString(" REQUIRED "), is(EndpointMetadata.TemplatePolicy.REQUIRED));
+        assertThat(EndpointMetadata.TemplatePolicy.REQUIRED.toString(), is("required"));
+        assertThat(EndpointMetadata.TemplatePolicy.values().length, is(1));
+        expectThrows(IllegalArgumentException.class, () -> EndpointMetadata.TemplatePolicy.fromString("none"));
+        expectThrows(IllegalArgumentException.class, () -> EndpointMetadata.TemplatePolicy.fromString("optional"));
     }
 }

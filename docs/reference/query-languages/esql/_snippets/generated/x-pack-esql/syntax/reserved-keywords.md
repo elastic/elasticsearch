@@ -16,4 +16,7 @@
   `IP_LOCATION`, `TS_COLLAPSE`
 
 * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-  `DEDUP`, `HIGHLIGHT`
+  `DEDUP`, `DENSE_VECTOR`, `HIGHLIGHT`
+
+* {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga`
+  `LET`

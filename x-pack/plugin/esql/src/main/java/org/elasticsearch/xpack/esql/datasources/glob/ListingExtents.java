@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
-
-import java.util.List;
 
 /**
  * How far a listing runs.
@@ -27,8 +24,10 @@ import java.util.List;
  * (see {@code PartitionMetadata#coversFileCount}). A second, narrower bound would have described a listing that
  * cannot be built, so it is gone rather than documented.
  * <p>
- * {@link Integer#MAX_VALUE} is unbounded. A bounded listing sets {@link FileList#isTruncated()}, which states what
- * a reader handed a prefix of a dataset owes it.
+ * {@link Integer#MAX_VALUE} is unbounded. Only a listing that <em>reaches</em> this number sets
+ * {@link FileList#isTruncated()}, which states what a reader handed a prefix of a dataset owes it. Asking for a
+ * bound is not the same as getting a prefix — for a glob selective enough to be worth bounding, the usual outcome
+ * is a complete listing, cacheable and believable when empty.
  */
 public record ListingExtents(int maxFiles) {
 
@@ -45,15 +44,4 @@ public record ListingExtents(int maxFiles) {
         return maxFiles != Integer.MAX_VALUE;
     }
 
-    /**
-     * The prefix of {@code files} partition detection may fold over. Listing order, because that is the order the
-     * dataset's own settings put the files in, so the sample is the front of the dataset rather than an arbitrary
-     * subset of it. A view of {@code files}, not a copy: it must not be mutated, and it must not outlive them.
-     * <p>
-     * Only ever a prefix where the file set was itself bounded — the constructor refuses the combination that
-     * would make this sample a full listing.
-     */
-    public List<StorageEntry> partitionSampleOf(List<StorageEntry> files) {
-        return files.size() <= maxFiles ? files : files.subList(0, maxFiles);
-    }
 }

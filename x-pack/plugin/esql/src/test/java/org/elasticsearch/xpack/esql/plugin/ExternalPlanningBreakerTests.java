@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -46,7 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -65,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -156,14 +159,14 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     /**
-     * Charge for one listing at the default discovered-files cap, on the compacted form planning keeps.
-     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes of schema-map
-     * slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
+     * Charge for one listing at the floor of the heap-derived discovered-files default, on the compacted
+     * form planning keeps. Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes
+     * of schema-map slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
      * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
+     * Pins the floor rather than {@code Settings.EMPTY} so a fat test JVM does not build a million entries.
      */
-    public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
-        int files = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(Settings.EMPTY);
-        assertEquals(25_000, files);
+    public void testPlanningChargeAtDiscoveredFilesFloor() {
+        int files = 25_000;
         List<StorageEntry> entries = new ArrayList<>(files);
         for (int i = 0; i < files; i++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/part-" + i + ".parquet"), 1024L, Instant.EPOCH));
@@ -325,7 +328,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     /**
-     * Listing and phase 2 admit on the one reservation {@code EsqlSession.execute} binds. Closing the
+     * Listing and phase 2 admit on the one reservation {@code PlanExecutor.esql} binds. Closing the
      * phase-2 run leaves the listing charge; a second run does not keep the first run's bytes.
      */
     public void testSeam1AndSeam2ShareLedgerAndReleaseTogether() throws Exception {
@@ -351,8 +354,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> resolved = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), resolved);
-        FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob).fileList();
+        ExternalSourceSpec spec = new ExternalSourceSpec(glob, Map.of("schema_resolution", "union_by_name"));
+        resolver.resolve(List.of(spec), null, null, null, null, null, resolved);
+        FileList listing = resolved.actionGet(30, TimeUnit.SECONDS).resolvedSource(spec).fileList();
         long seam1 = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(seam1, greaterThan(0L));
         assertEquals(seam1, reservation.queryHeld());
@@ -383,9 +387,38 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         assertEquals(seam2, second.held());
         assertEquals(baseline + seam1 + seam2, breaker.getUsed());
 
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(info);
+        reservation.close();
         assertEquals(0L, reservation.queryHeld());
         assertEquals(0L, second.held());
+        assertEquals(baseline, breaker.getUsed());
+    }
+
+    /**
+     * Uncompacted {@code GenericFileList} weighs a 64-byte object header above the per-entry floor.
+     * That remainder rides {@code listingPlanningCharge} as {@code esql-external-planning} and must
+     * return on {@link ExternalPlanningReservation#close()}. Compact listings weigh less than the
+     * floor, so they do not produce this extra 64.
+     */
+    public void testGenericFileListObjectHeaderIsSixtyFourBytesAndCloseRefundsTheListingCharge() {
+        FileList listing = GlobExpander.fileListOf(
+            List.of(
+                new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+                new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
+            ),
+            "s3://bucket/data/*.parquet"
+        );
+        assertEquals(64L, listing.planningBytes() - listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+
+        CircuitBreaker breaker = requestBreaker("1mb");
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        long charge = ExternalSourceResolver.listingPlanningCharge(listing);
+        reservation.chargeQuery(charge);
+        assertEquals(charge, reservation.queryHeld());
+        assertEquals(baseline + charge, breaker.getUsed());
+
+        reservation.close();
+        assertEquals(0L, reservation.queryHeld());
         assertEquals(baseline, breaker.getUsed());
     }
 
@@ -554,29 +587,6 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         assertEquals(bothLayers, Phase2Reservation.bytesFor(hiveAndSize, oneFile(hivePath, partitions)));
     }
 
-    public void testReleaseReturnsSuccessAndFailureToBaseline() {
-        CircuitBreaker breaker = requestBreaker("1mb");
-        long baseline = breaker.getUsed();
-
-        EsqlExecutionInfo success = executionInfo();
-        ExternalPlanningReservation successReservation = bind(success, breaker);
-        successReservation.chargeQuery(400);
-        successReservation.openRun().charge(50);
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(success);
-        assertEquals(baseline, breaker.getUsed());
-        assertEquals(0L, successReservation.queryHeld());
-
-        EsqlExecutionInfo failure = executionInfo();
-        ExternalPlanningReservation failureReservation = bind(failure, breaker);
-        failureReservation.chargeQuery(250);
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(failure);
-        assertEquals(baseline, breaker.getUsed());
-        assertEquals(0L, failureReservation.queryHeld());
-
-        TransportEsqlQueryAction.releaseExternalPlanningBytes(failure);
-        assertEquals(baseline, breaker.getUsed());
-    }
-
     private static ExternalPlanningReservation bind(EsqlExecutionInfo info, CircuitBreaker breaker) {
         ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
         info.externalPlanning(reservation);
@@ -608,6 +618,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        // ComputeService reads the cluster's minimum transport version when it plans external splits; the cluster service
+        // is a mock, so it has to be handed a state to read it from.
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
@@ -642,6 +655,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         TransportActionServices transport = new TransportActionServices(
+            null,
             transportService,
             null,
             exchangeService,
@@ -656,7 +670,22 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             mock(PlannerSettings.Holder.class),
             null
         );
-        return new ComputeService(transport, null, null, threadPool, BigArrays.NON_RECYCLING_INSTANCE, blockFactory, operators, readers);
+        return new ComputeService(
+            transport,
+            null,
+            null,
+            threadPool,
+            new ComputeExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext()),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            blockFactory,
+            operators,
+            readers,
+            null,
+            // Holds no node back, so every node of a state is a worker.
+            new ExternalWorkerReadiness(clusterService, null, threadPool, false),
+            null,
+            null
+        );
     }
 
     private static FormatReaderRegistry parquetRegistry() {
@@ -1035,6 +1064,14 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         private static StorageObject object(StoragePath path, long length) {
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
                 @Override
                 public StorageIdentity storageIdentity() {
                     return AbstractTestStorageObject.NOOP;

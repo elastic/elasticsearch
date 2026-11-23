@@ -38,13 +38,13 @@ import java.util.TreeSet;
 public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /**
-     * Instance fields carrying no cross-instance mutable state. {@code sharedCsvMapper} qualifies because every
-     * copy builds its own in the constructor ({@code createMapper(options)}) and it is only configured there,
-     * never reconfigured during reads.
+     * Instance fields carrying no cross-instance mutable state. {@code sharedCsvMapper} is only configured
+     * in the constructor, never reconfigured during reads. Copies that keep the same {@code options}
+     * ({@code withBlockFactory}, {@code withReadConfig}) reuse the receiver's mapper.
      */
     private static final Set<String> IMMUTABLE_OR_CONFIG_FIELDS = Set.of(
         "blockFactory",
@@ -54,11 +54,15 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "extensions",
         "resolvedSchema",
         "schemaSampleSize",
+        "schemaSampleBytes",
+        "schemaMaxFields",
         "effectivePolicy",
         "canonicalConfig",
         "readConfig",
         "declaredDateFormats",
         "declaredProvenanceBinding",
+        "multilineFields",
+        "headerBindingByProvenance",
         "directBlockEnabled",
         "configWarnings"
     );
@@ -82,8 +86,13 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDirectBlockEnabled", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaMaxFields", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withBlockFactory", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleBytes", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredTypeColumns", WitherLifecycle.IDENTITY_NO_COPY)
     );
@@ -170,6 +179,20 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
                             fieldOf(product, field)
                         );
                     }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
+                        );
+                    }
+                    if (m.getName().equals("withBlockFactory") || m.getName().equals("withReadConfig")) {
+                        assertSame(
+                            "wither [" + m.getName() + "] must reuse sharedCsvMapper; options are unchanged",
+                            fieldOf(receiver, "sharedCsvMapper"),
+                            fieldOf(product, "sharedCsvMapper")
+                        );
+                    }
                 }
             }
         }
@@ -246,8 +269,16 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
             );
             case "withDeclaredDateFormats" -> List.<Object[]>of(new Object[] { Map.of("b", "yyyy-MM-dd") });
             case "withDeclaredProvenanceBinding" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
+            case "withHeaderBindingByProvenance" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
             case "withDirectBlockEnabled" -> List.<Object[]>of(new Object[] { true }, new Object[] { false });
+            case "withSchemaMaxFields" -> List.<Object[]>of(new Object[] { 1 }, new Object[] { 2000 });
             case "withReadConfig" -> List.<Object[]>of(new Object[] { "0123456789abcdef0123456789abcdef" });
+            case "withBlockFactory" -> List.<Object[]>of(
+                new Object[] { BLOCK_FACTORY },
+                new Object[] { BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() }
+            );
+            case "withSchemaSampleShare" -> List.<Object[]>of(new Object[] { 8 });
+            case "withSchemaSampleBytes" -> List.<Object[]>of(new Object[] { 4096L });
             case "withPushedFilter" -> List.<Object[]>of(new Object[] { new Object() });
             case "withDeclaredTypeColumns" -> List.<Object[]>of(new Object[] { Set.of("a") });
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);

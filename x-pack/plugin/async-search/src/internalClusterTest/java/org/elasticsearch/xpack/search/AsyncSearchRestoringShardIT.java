@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncResultsTestUtils;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -64,6 +65,12 @@ public class AsyncSearchRestoringShardIT extends AbstractSnapshotIntegTestCase {
         createRepository(REPO, "mock");
         createFullSnapshot(REPO, SNAPSHOT);
         assertAcked(indicesAdmin().prepareDelete(INDEX));
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        AsyncResultsTestUtils.awaitAsyncTasksAndDeleteResultsIndex();
+        super.beforeIndexDeletion();
     }
 
     /**

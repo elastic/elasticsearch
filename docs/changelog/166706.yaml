@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 166706
+summary: Skip index resolution when there are no local indices
+type: bug

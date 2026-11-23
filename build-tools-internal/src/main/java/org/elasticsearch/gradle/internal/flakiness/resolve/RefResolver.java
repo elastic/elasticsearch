@@ -48,7 +48,9 @@ import java.util.regex.Pattern;
  *       test cannot: {@code :x-pack:plugin:logsdb} and {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} have
  *       nested directories but disjoint {@code srcDirs}, so only one of them claims a given file.
  *   <li><b>unmute</b> / <b>explicit</b> refs carry only a class (and optional method); the owning source set
- *       is the one whose java {@code srcDirs} actually contain {@code &lt;pkg&gt;/&lt;Name&gt;.java} on disk.</li>
+ *       is the one whose java {@code srcDirs} actually contain {@code &lt;pkg&gt;/&lt;Name&gt;.java} on disk. An
+ *       unmute ref may additionally carry task filters when a mute only became narrower; those filters never
+ *       affect ownership, only which runnable {@code Test} tasks survive once the owner has been found.</li>
  * </ul>
  */
 public final class RefResolver {
@@ -206,6 +208,7 @@ public final class RefResolver {
             return Optional.empty();
         }
         String suffix = cm.className().replace('.', '/') + JAVA_SUFFIX;
+        List<TestTaskInfo> scopedTasks = taskScopedTestTasks(ref);
         // Iterate this project's java source sets in a fixed order so resolution is deterministic even in the
         // (improbable) case of overlapping source dirs.
         for (String ssName : JAVA_SOURCE_SET_KIND.keySet()) {
@@ -219,11 +222,11 @@ public final class RefResolver {
                 if (Files.isRegularFile(candidate)) {
                     if (ss.name().equals(Kinds.SS_YAML_REST_TEST)) {
                         if (cm.method() != null && YAML_METHOD.matcher(cm.method()).matches()) {
-                            return Optional.of(target(ss, Kinds.YAML_REST_TEST_CASE, cm.className(), null, cm.method()));
+                            return Optional.of(target(ss, Kinds.YAML_REST_TEST_CASE, cm.className(), null, cm.method(), scopedTasks));
                         }
-                        return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
+                        return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null, scopedTasks));
                     }
-                    return Optional.of(target(ss, JAVA_SOURCE_SET_KIND.get(ssName), cm.className(), null, null));
+                    return Optional.of(target(ss, JAVA_SOURCE_SET_KIND.get(ssName), cm.className(), null, null, scopedTasks));
                 }
             }
         }
@@ -236,7 +239,18 @@ public final class RefResolver {
      * {@code yamlRestTest}), which is what {@link TestTaskSelector} treats as canonical when it is enabled.
      */
     private BaseTarget target(SourceSetInfo ss, String kind, String fqcn, String suitePath, String yamlTest) {
-        TestTaskSelector.Selection selection = TestTaskSelector.select(ss.name(), ss.outputDir(), testTasks, taskCap);
+        return target(ss, kind, fqcn, suitePath, yamlTest, testTasks);
+    }
+
+    private BaseTarget target(
+        SourceSetInfo ss,
+        String kind,
+        String fqcn,
+        String suitePath,
+        String yamlTest,
+        List<TestTaskInfo> candidateTasks
+    ) {
+        TestTaskSelector.Selection selection = TestTaskSelector.select(ss.name(), ss.outputDir(), candidateTasks, taskCap);
         return new BaseTarget(
             project.projectPath(),
             ss.name(),
@@ -245,9 +259,24 @@ public final class RefResolver {
             suitePath,
             yamlTest,
             selection.taskPaths(),
-            selection.candidateCount(),
+            selection.candidateTaskPaths(),
             selection.skipReason()
         );
+    }
+
+    private List<TestTaskInfo> taskScopedTestTasks(FlakinessRef ref) {
+        if (FlakinessRef.SOURCE_UNMUTE.equals(ref.source()) == false) {
+            return testTasks;
+        }
+        List<String> includeTasks = ref.includeTasks();
+        List<String> excludeTasks = ref.excludeTasks();
+        if (includeTasks == null && excludeTasks == null) {
+            return testTasks;
+        }
+        return testTasks.stream()
+            .filter(task -> includeTasks == null || includeTasks.contains(task.taskPath()))
+            .filter(task -> excludeTasks == null || excludeTasks.contains(task.taskPath()) == false)
+            .toList();
     }
 
     /** Repo-relative-ish remainder of {@code file} under {@code dir}, or {@code null} if not under it. */

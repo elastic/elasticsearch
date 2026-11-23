@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -47,7 +49,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -89,6 +90,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -2808,17 +2810,16 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /*
+     * The subquery branch is a bare relation once its wrapper is stripped, so PushAggregateThroughUnionAll splits the
+     * count into per-branch partials summed by a combiner aggregate above the union:
+     *
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS d2#10]]
-     *   \_UnionAll[[_meta_field{r}#33, emp_no{r}#34, first_name{r}#35, gender{r}#36, hire_date{r}#37, job{r}#38, job.raw{r}#39,
-     *               languages{r}#40, last_name{r}#41, long_noidx{r}#42, salary{r}#43]]
-     *     |_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
-     *                languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     * \_Aggregate[[],[SUM($$partial$$d2{r$}#..,...) AS d2#10]]
+     *   \_BranchPlan[[null, unnamed_view_1]]
+     *     |_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
      *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_Project[[_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, gender{f}#24, hire_date{f}#29, job{f}#30, job.raw{f}#31,
-     *                languages{f}#25, last_name{f}#26, long_noidx{f}#32, salary{f}#27]]
-     *       \_Subquery[]
-     *         \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     *     \_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
+     *       \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
      */
     public void testInlineStatsOverSubqueryUnusedOutput() {
         var query = """
@@ -2838,20 +2839,20 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("d2"));
-        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
-        assertTrue("expected count(*)", count.field().foldable());
+        // PushAggregateThroughUnionAll split the count: the combiner sums the per-branch partial counts.
+        var sum = as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.name(sum.field()), startsWith("$$partial$$"));
 
         var unionAll = as(agg.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        var firstChild = as(unionAll.children().get(0), Project.class);
-        var firstRelation = as(firstChild.child(), EsRelation.class);
-        assertEquals("test", firstRelation.indexPattern());
-
-        var secondChild = as(unionAll.children().get(1), Project.class);
-        var subquery = as(secondChild.child(), Subquery.class);
-        var secondRelation = as(subquery.child(), EsRelation.class);
-        assertEquals("test", secondRelation.indexPattern());
+        for (LogicalPlan child : unionAll.children()) {
+            var partial = as(child, Aggregate.class);
+            var count = as(Alias.unwrap(partial.aggregates().get(0)), Count.class);
+            assertTrue("expected count(*)", count.field().foldable());
+            var relation = as(partial.child(), EsRelation.class);
+            assertEquals("test", relation.indexPattern());
+        }
     }
 
     /*
@@ -3214,6 +3215,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
+     * DENSE_VECTOR is rejected below {@link DenseVector#ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION}, so its tests pin a version
+     * that supports it.
+     */
+    private TestAnalyzer denseVectorAnalyzer() {
+        TransportVersion floor = DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION;
+        return typesAnalyzer().minimumTransportVersion(minimumVersion.supports(floor) ? minimumVersion : floor);
+    }
+
+    /**
      * The unused generated column and its input field are pruned. Checks the delta explicitly: the analyzed node embeds
      * both {@code keyword} and {@code text}; after pruning only {@code keyword} (whose generated column is kept) remains,
      * proving {@code text} and its embedding were actually dropped.
@@ -3235,13 +3245,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }
      */
     public void testDenseVectorPrunesUnusedGeneratedColumn() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
 
         // before pruning: both fields are embedded
         {
@@ -3269,13 +3278,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * When none of the generated columns are used, the whole DENSE_VECTOR node is removed.
      */
     public void testDenseVectorNodeRemovedWhenNoGeneratedColumnUsed() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep integer
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertTrue("DenseVector present before pruning", analyzedPlan.anyMatch(p -> p instanceof DenseVector));
 
         LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
@@ -3286,13 +3294,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * When every generated column is used, the node is left unchanged.
      */
     public void testDenseVectorUnchangedWhenAllGeneratedColumnsUsed() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector, text_dense_vector
             """;
-        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
         assertThat(Expressions.names(dv.fields()), contains("keyword", "text"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
     }
@@ -3301,14 +3308,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * With three embedded fields and two used generated columns, only the unused middle field is pruned.
      */
     public void testDenseVectorPrunesMiddleFieldOnly() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | eval a = keyword, b = keyword, c = keyword
             | dense_vector a, b, c WITH { "inference_id" : "text-embedding-inference-id" }
             | keep a_dense_vector, c_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat(Expressions.names(onlyDenseVector(analyzedPlan).fields()), contains("a", "b", "c"));
 
         DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
@@ -3321,14 +3327,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * first clause survives.
      */
     public void testChainedDenseVectorClausesPruneIndependently() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
             | dense_vector text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
 
         LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
@@ -3341,14 +3346,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * Pruning commutes with a preceding filter: a WHERE before DENSE_VECTOR still prunes the unused field.
      */
     public void testDenseVectorPruneWithFilter() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | where integer > 0
             | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_dense_vector
             """;
-        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(denseVectorAnalyzer().query(query)));
         assertThat(Expressions.names(dv.fields()), contains("keyword"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
     }
@@ -3359,7 +3363,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * clause is not confused by the earlier, dropped one.
      */
     public void testDenseVectorPruneKeepsUsedClauseAcrossChain() {
-        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
         var query = """
             from types
             | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
@@ -3367,7 +3370,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | dense_vector keyword_copy WITH { "inference_id" : "text-embedding-inference-id" }
             | keep keyword_copy_dense_vector
             """;
-        var analyzedPlan = typesAnalyzer().query(query);
+        var analyzedPlan = denseVectorAnalyzer().query(query);
         assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
 
         // only the used (second) clause survives, embedding keyword_copy

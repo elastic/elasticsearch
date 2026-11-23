@@ -134,6 +134,8 @@ public class MetricValidator {
 
         static final Set<String> ESQL_ATTRIBUTES = Set.of("feature_name", "success");
 
+        static final Set<String> ESQL_RESOLVED_SETTINGS_ATTRIBUTES = Set.of("feature_name", "setting_value", "success");
+
         static final Set<String> DOWNSAMPLE_ATTRIBUTES = Set.of("status");
 
         static final Set<String> ALLOCATOR_NODE_ATTRIBUTES = Set.of("node_id", "node_name");
@@ -205,7 +207,11 @@ public class MetricValidator {
             Map.entry("es.esql.functions.queries.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.functions.usages.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.settings.queries.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.resolved_settings.queries.total", ESQL_RESOLVED_SETTINGS_ATTRIBUTES),
             Map.entry("es.esql.settings.usages.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.view_settings.queries.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.view_settings.usages.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.view_resolved_settings.queries.total", ESQL_RESOLVED_SETTINGS_ATTRIBUTES),
             Map.entry(INFERENCE_REQUEST_COUNT_TOTAL, INFERENCE_ATTRIBUTES),
             Map.entry(INFERENCE_REQUEST_DURATION, INFERENCE_ATTRIBUTES),
             Map.entry(INFERENCE_DEPLOYMENT_DURATION, INFERENCE_ATTRIBUTES),
@@ -282,6 +288,7 @@ public class MetricValidator {
             Map.entry("es.search_response.took_durations.open_pit.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.query.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.store_bytes_read.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search_response.cache_miss_wait.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search.shards.phases.can_match.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.dfs.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.fetch.duration.histogram", SEARCH_SHARD_ATTRIBUTES),

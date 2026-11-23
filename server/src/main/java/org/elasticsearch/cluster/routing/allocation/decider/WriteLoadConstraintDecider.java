@@ -33,6 +33,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintDecider.class);
 
     public static final String NAME = "write_load";
+    private static final Decision EMPTY_NOT_PREFERRED_DECISION = new Decision.Single(Decision.Type.NOT_PREFERRED, NAME, null);
 
     private final FrequencyCappedAction logCanRemainMessage;
     private final FrequencyCappedAction logCanAllocateMessage;
@@ -109,7 +110,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         } else if (allocation.clusterInfo().nodeIsWriteLoadHotspotting(node.nodeId())) {
             return allocation.decision(
@@ -144,7 +145,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
+                return EMPTY_NOT_PREFERRED_DECISION;
             }
         }
 
@@ -277,7 +278,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             }
             return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
         } else {
-            return Decision.NOT_PREFERRED;
+            return EMPTY_NOT_PREFERRED_DECISION;
         }
     }
 

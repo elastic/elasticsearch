@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,6 +85,9 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             return explicitName != null ? explicitName : field.name() + suffix;
         }
     }
+
+    /** Minimum transport version that knows how to deserialize this plan node. */
+    public static final TransportVersion ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION = TransportVersion.fromName("esql_dense_vector_command");
 
     public static final String TIMEOUT_OPTION_NAME = "timeout";
 
@@ -193,7 +197,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      */
     private final boolean inferenceIdIsFallback;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public DenseVector(Source source, LogicalPlan child, Expression rowLimit, List<NamedExpression> fields) {
         this(source, child, rowLimit, fields, OutputNaming.DEFAULT);

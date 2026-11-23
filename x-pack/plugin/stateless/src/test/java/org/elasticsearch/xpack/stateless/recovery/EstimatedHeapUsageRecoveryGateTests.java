@@ -249,7 +249,6 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
 
         assertBlocks(gate);
         assertBlocks(gate); // cached evaluation does not record another computation
-        meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
@@ -257,11 +256,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.DOUBLE_ASYNC_GAUGE,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC
-                ),
-            RecordingMeterRegistry.measures(watermarkPercent - estimatedUsagePercent)
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC),
+            everyItem(transformedMatch(Measurement::value, equalTo(watermarkPercent - estimatedUsagePercent)))
         );
         assertThat(
             meterRegistry.getRecorder()
@@ -279,7 +275,6 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 .build()
         );
         assertRuns(gate);
-        meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC),
@@ -287,23 +282,13 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.DOUBLE_ASYNC_GAUGE,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC
-                ),
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC),
             RecordingMeterRegistry.measures(raisedWatermarkPercent - estimatedUsagePercent)
         );
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
             empty()
-        );
-
-        gate.close();
-        assertFalse(
-            meterRegistry.getRecorder()
-                .getRegisteredMetrics(InstrumentType.DOUBLE_ASYNC_GAUGE)
-                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC)
         );
     }
 

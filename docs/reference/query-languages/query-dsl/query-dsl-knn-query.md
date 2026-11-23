@@ -138,7 +138,9 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 `filter`
 :   (Optional, query object) Query to filter the documents that can match. The kNN search will return the top documents that also match this filter. The value can be a single query or a list of queries. If `filter` is not provided, all documents are allowed to match.
 
-The filter is a pre-filter, meaning that it is applied **during** the approximate kNN search to ensure that `num_candidates` matching documents are returned.
+    The filter is a pre-filter, meaning that it is applied **during** the approximate kNN search to ensure that `num_candidates` matching documents are returned.
+    
+    {applies_to}`stack: ga 9.6+` When the filter matches a large enough share of the vectors in a shard, {{es}} runs the approximate kNN search without the filter and applies it to the candidates afterward. If too few candidates match, {{es}} falls back to filtering during the search, so the search returns as many matching documents as regular filtered search does. To change the threshold, use the [`index.dense_vector.post_filter_selectivity_threshold`](/reference/elasticsearch/index-settings/index-modules.md#index-dense-vector-post-filter-selectivity-threshold) index setting. For details, refer to [Filtering behavior and performance](docs-content://solutions/search/vector/knn/filtered-knn-search.md#filtering-behavior-and-performance).
 
 
 `similarity`
@@ -251,13 +253,33 @@ The `knn` query can be used inside a nested query. The behaviour here is similar
 * kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
 
-To ensure correct results: each individual filter must be either over:
+:::::{applies-switch}
+
+::::{applies-item} stack: ga 9.6+
+Filters can use any query type and can mix top-level and `nested` fields. For example, a `bool` filter can combine fields from different levels in its `must`, `should`, and `must_not` clauses, and a `nested` filter can match a different nested object in the same document.
+
+{{es}} evaluates each filter at the nesting level of the fields it reads. A vector passes the filter when its own nested object matches, or when its enclosing object at that level matches.
+
+:::{note}
+The following filters keep the 9.5 and earlier behavior:
+
+- Filters that only read runtime fields, scripts, or fields copied with `include_in_parent` or `include_in_root`. {{es}} can't determine their nesting level.
+- `combined_fields` queries and `cross_fields` `multi_match` queries over fields from several levels. These aren't split by level.
+:::
+::::
+
+::::{applies-item} stack: ga 9.2-9.5
+Each filter must target only one of the following:
 
 - Top-level metadata
-- `nested` metadata {applies_to}`stack: ga 9.2`
-  :::{note}
-  A single knn query supports multiple filters, where some filters can be over the top-level metadata and some over nested.
-  :::
+- `nested` metadata
+
+:::{note}
+A single knn query supports multiple filters, where some filters can be over the top-level metadata and some over nested.
+:::
+::::
+
+:::::
 
 ### Basic nested knn search
 
@@ -502,7 +524,7 @@ Use the `lookup` query vector builder to retrieve an existing vector from a stor
 2. The ID of the document to look up.
 3. The name of the vector field in the document to use as the query vector.
 
-#### `text_embedding` [text-embedding-builder] 
+#### `text_embedding` [text-embedding-builder]
 
 Use the `text_embedding` query vector builder to generate a query vector from text input.
 

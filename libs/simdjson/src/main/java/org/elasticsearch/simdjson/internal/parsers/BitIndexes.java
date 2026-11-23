@@ -21,6 +21,8 @@
 
 package org.elasticsearch.simdjson.internal.parsers;
 
+import org.elasticsearch.simdjson.JsonParsingException;
+
 /**
  * A compact array of byte-offset indices into a JSON buffer, identifying the positions of
  * structural characters ({@code { } [ ] : ,}) and pseudo-structural value starts
@@ -95,9 +97,27 @@ public final class BitIndexes {
         readIdx++;
     }
 
+    /**
+     * Returns the index at the read cursor and advances it.
+     *
+     * <p>The slot at {@code readEnd} holds a sentinel (see {@link #finish()} and
+     * {@link #writeSentinel}), so reading exactly one element past the window is allowed and yields
+     * a value that makes the walker reject the document. Reading any further means the walker is
+     * consuming stale indexes left over from a previous document (or uninitialized slots), so this
+     * throws instead of returning them. This must be a real check rather than an assertion: with
+     * assertions disabled a truncated document could otherwise be walked into stale data.
+     *
+     * @throws JsonParsingException if the cursor is already past the sentinel (truncated document)
+     */
     public int getAndAdvance() {
-        assert readIdx <= readEnd;
+        if (readIdx > readEnd) {
+            throw truncated();
+        }
         return indexes[readIdx++];
+    }
+
+    private static JsonParsingException truncated() {
+        return new JsonParsingException("Unexpected end of document");
     }
 
     int getLast() {
@@ -109,8 +129,16 @@ public final class BitIndexes {
         return indexes[++readIdx];
     }
 
+    /**
+     * Returns the index at the read cursor without advancing.
+     *
+     * @throws JsonParsingException if the cursor is already past the sentinel (truncated document)
+     * @see #getAndAdvance()
+     */
     public int peek() {
-        assert readIdx <= readEnd;
+        if (readIdx > readEnd) {
+            throw truncated();
+        }
         return indexes[readIdx];
     }
 

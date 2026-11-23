@@ -158,9 +158,9 @@ public class ColumnarStringEqualityBenchmark {
         if (frequency.containsKey(ABSENT_TERM)) {
             throw new AssertionError("the absent term is present");
         }
-        dictionaryHit = ColumnarStringTermQuery.term(FIELD, new BytesRef(named), s -> {});
-        escapedHit = ColumnarStringTermQuery.term(FIELD, new BytesRef(escaped), s -> {});
-        miss = ColumnarStringTermQuery.term(FIELD, new BytesRef(ABSENT_TERM), s -> {});
+        dictionaryHit = ColumnarStringTermQuery.term(FIELD, new BytesRef(named), false, s -> {});
+        escapedHit = ColumnarStringTermQuery.term(FIELD, new BytesRef(escaped), false, s -> {});
+        miss = ColumnarStringTermQuery.term(FIELD, new BytesRef(ABSENT_TERM), false, s -> {});
         final Set<String> inDictionary = dictionaryTerms(column);
         // NOTE: a plain column names nothing, so this holds only where a dictionary was reached. Without it a
         // change in term selection could move a probe to the other path and leave the method names lying.

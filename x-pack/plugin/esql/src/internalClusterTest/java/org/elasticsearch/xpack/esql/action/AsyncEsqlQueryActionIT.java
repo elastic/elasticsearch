@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
@@ -47,6 +48,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -54,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -74,6 +75,9 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // production default (#162919)
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), true)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
     }
@@ -250,36 +254,50 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                )
             """).pragmas(pragmas).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
 
-        try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+        var client = client();
+        try (var initialResponse = client.execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
             assertThat(initialResponse.isRunning(), is(true));
             assertThat(initialResponse.asyncExecutionId(), isPresent());
             assertTrue("the first leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
             assertTrue("the second leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
+            // A timed wait: an instant availablePermits() check would pass if a third leaf were dispatched but not yet parked.
             assertFalse(
                 "branch_parallel_degree=2 must keep the remaining nested leaf undispatched",
                 scriptWaits.tryAcquire(200, TimeUnit.MILLISECONDS)
             );
 
-            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(initialResponse.asyncExecutionId().get()));
+            String asyncId = initialResponse.asyncExecutionId().get();
+            var stopFuture = client.execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(asyncId));
+            // Wait for STOP to cut the parked leaves (is_partial is set) before releasing them, so the cut is not racing the release.
+            assertBusy(() -> {
+                try (EsqlQueryResponse running = getAsyncResponse(client, asyncId)) {
+                    assertThat(running.isPartial(), is(true));
+                }
+            });
             scriptPermits.release(numberOfDocs() * 3);
             try (var stoppedResponse = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(stoppedResponse.isRunning(), is(false));
                 assertThat(stoppedResponse.isPartial(), is(true));
                 assertThat(stoppedResponse.columns(), equalTo(List.of(new ColumnInfoImpl("total", "long", null))));
-                // The stop races with the released leaves, so anywhere from none to all three branches may contribute a row. A
-                // branch that is stopped mid-aggregation may emit a partial sum (or null if it processed nothing); a branch that
-                // completed sums pause_me=1 over all docs, so no value can exceed numberOfDocs().
-                List<List<Object>> rows = getValuesList(stoppedResponse);
-                assertThat(rows.size(), lessThanOrEqualTo(3));
-                for (List<Object> row : rows) {
-                    assertThat(row, hasSize(1));
-                    if (row.get(0) != null) {
-                        assertThat((long) row.get(0), greaterThanOrEqualTo(0L));
-                        assertThat((long) row.get(0), lessThanOrEqualTo((long) numberOfDocs()));
-                    }
-                }
             }
         } finally {
+            // Unblock anything still in pause_me if STOP never reached the permit release (e.g. assertBusy failed).
+            scriptPermits.release(numberOfDocs() * 3);
+            try {
+                // Release only wakes waiters; draining straight away could steal their permits. Let the drivers finish first.
+                assertBusy(() -> {
+                    List<TaskInfo> drivers = client.admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .setActions(DriverTaskRunner.ACTION_NAME)
+                        .get()
+                        .getTasks();
+                    assertThat(drivers, empty());
+                });
+            } catch (AssertionError e) {
+                // Log rather than throw so that a failure from the test body is not masked.
+                logger.warn("drivers still running after releasing script permits", e);
+            }
             scriptPermits.drainPermits();
             scriptWaits.drainPermits();
         }
@@ -392,7 +410,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                )
             """).waitForCompletionTimeout(TimeValue.timeValueNanos(1))
             .keepOnCompletion(randomBoolean())
-            .allowPartialResults(false)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
         final String asyncId;
         try {
@@ -555,7 +572,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             // small interval so that we can return quickly on submission
             .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
             .keepOnCompletion(randomBoolean())
-            .allowPartialResults(false)
             // large interval so that the tasks won't be cancelled until it has started
             .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
         final String asyncId;

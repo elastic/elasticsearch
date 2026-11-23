@@ -3,6 +3,13 @@ _meta:
   description: Default settings for Prometheus metrics data streams
   managed: true
 template:
+  settings:
+    index:
+      time_series:
+        # Cluster the time series of each metric by scrape target in the index sort order and the codec's tsid partitions,
+        # see IndexSettings#TIME_SERIES_TSID_PREFIXED_DIMENSIONS. Exemplars must use the same value as metrics so that
+        # an exemplar gets the tsid of the time series it belongs to.
+        tsid_prefixed_dimensions: ["labels.job", "labels.instance"]
   data_stream_options:
     failure_store:
       enabled: true

@@ -86,6 +86,17 @@ public class LogicalOptimizerContextTests extends ESTestCase {
     }
 
     private EsqlFlags randomFlags() {
-        return new EsqlFlags(randomBoolean(), randomIntBetween(-1, 127), randomBoolean(), randomIntBetween(1, 50), randomIntBetween(1, 20));
+        return new EsqlFlags(
+            randomBoolean(),
+            randomIntBetween(-1, 127),
+            randomIntBetween(1, 50),
+            randomIntBetween(1, 20),
+            randomIntBetween(1, 20),
+            randomIntBetween(1, 100_000),
+            randomIntBetween(1, 1000),
+            randomPositiveTimeValue(),
+            randomBoolean(),
+            randomFrom(EsqlFlags.FetchPhaseMode.values())
+        );
     }
 }

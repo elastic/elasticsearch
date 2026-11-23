@@ -25,6 +25,7 @@ import static java.util.Map.entry;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * REST-level request metrics for AutoOps.
@@ -54,27 +55,142 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
         30_000.
     );
 
+    private final ThreadContext threadContext;
     private final Map<RouteKey, DoubleHistogram> measuredRoutes;
 
-    public RestRequestMetrics(MeterRegistry meterRegistry) {
+    public RestRequestMetrics(ThreadContext threadContext, MeterRegistry meterRegistry) {
+        this.threadContext = threadContext;
         var search = meterRegistry.registerDoubleHistogram(
             "es.rest.search.duration",
             "Durations of search requests",
             "ms",
             BUCKET_BOUNDARIES
         );
-        this.measuredRoutes = Map.ofEntries(
+        var multiSearch = meterRegistry.registerDoubleHistogram(
+            "es.rest.msearch.duration",
+            "Durations of multi search requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        var esqlSyncQuery = meterRegistry.registerDoubleHistogram(
+            "es.rest.esql.duration",
+            "Durations of synchronous ESQL query requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        var index = meterRegistry.registerDoubleHistogram(
+            "es.rest.index.duration",
+            "Durations of document index requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        var update = meterRegistry.registerDoubleHistogram(
+            "es.rest.update.duration",
+            "Durations of document update requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        var bulk = meterRegistry.registerDoubleHistogram("es.rest.bulk.duration", "Durations of bulk requests", "ms", BUCKET_BOUNDARIES);
+        var count = meterRegistry.registerDoubleHistogram("es.rest.count.duration", "Durations of count requests", "ms", BUCKET_BOUNDARIES);
+        var searchScroll = meterRegistry.registerDoubleHistogram(
+            "es.rest.search_scroll.duration",
+            "Durations of search scroll requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        var prometheusQuery = meterRegistry.registerDoubleHistogram(
+            "es.rest.prometheus_query.duration",
+            "Durations of Prometheus query requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        var prometheusWrite = meterRegistry.registerDoubleHistogram(
+            "es.rest.prometheus_write.duration",
+            "Durations of Prometheus write requests",
+            "ms",
+            BUCKET_BOUNDARIES
+        );
+        this.measuredRoutes = Map.<RouteKey, DoubleHistogram>ofEntries(
+            // search
             entry(new RouteKey(GET, "_search"), search),
             entry(new RouteKey(POST, "_search"), search),
             entry(new RouteKey(GET, "{index}/_search"), search),
             entry(new RouteKey(POST, "{index}/_search"), search),
             entry(new RouteKey(GET, "{index}/_knn_search"), search),
-            entry(new RouteKey(POST, "{index}/_knn_search"), search)
+            entry(new RouteKey(POST, "{index}/_knn_search"), search),
+
+            // multi search
+            entry(new RouteKey(GET, "_msearch"), multiSearch),
+            entry(new RouteKey(POST, "_msearch"), multiSearch),
+            entry(new RouteKey(GET, "{index}/_msearch"), multiSearch),
+            entry(new RouteKey(POST, "{index}/_msearch"), multiSearch),
+
+            // ESQL sync query
+            entry(new RouteKey(POST, "_query"), esqlSyncQuery),
+
+            // index
+            entry(new RouteKey(POST, "{index}/_doc/{id}"), index),
+            entry(new RouteKey(PUT, "{index}/_doc/{id}"), index),
+            entry(new RouteKey(POST, "{index}/_create/{id}"), index),
+            entry(new RouteKey(PUT, "{index}/_create/{id}"), index),
+            entry(new RouteKey(POST, "{index}/_doc"), index),
+
+            // update
+            entry(new RouteKey(POST, "{index}/_update/{id}"), update),
+
+            // bulk
+            entry(new RouteKey(POST, "_bulk"), bulk),
+            entry(new RouteKey(PUT, "_bulk"), bulk),
+            entry(new RouteKey(POST, "{index}/_bulk"), bulk),
+            entry(new RouteKey(PUT, "{index}/_bulk"), bulk),
+
+            // count
+            entry(new RouteKey(GET, "_count"), count),
+            entry(new RouteKey(POST, "_count"), count),
+            entry(new RouteKey(GET, "{index}/_count"), count),
+            entry(new RouteKey(POST, "{index}/_count"), count),
+
+            // search scroll
+            entry(new RouteKey(GET, "_search/scroll"), searchScroll),
+            entry(new RouteKey(POST, "_search/scroll"), searchScroll),
+            entry(new RouteKey(GET, "_search/scroll/{scroll_id}"), searchScroll),
+            entry(new RouteKey(POST, "_search/scroll/{scroll_id}"), searchScroll),
+
+            // prometheus query
+            entry(new RouteKey(GET, "_prometheus/api/v1/series"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/api/v1/series"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/series"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/{index}/api/v1/series"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/api/v1/query_range"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/api/v1/query_range"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/query_range"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/{index}/api/v1/query_range"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/api/v1/query"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/api/v1/query"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/query"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/{index}/api/v1/query"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/api/v1/query_exemplars"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/api/v1/query_exemplars"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/query_exemplars"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/{index}/api/v1/query_exemplars"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/api/v1/labels"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/api/v1/labels"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/labels"), prometheusQuery),
+            entry(new RouteKey(POST, "_prometheus/{index}/api/v1/labels"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/api/v1/label/{name}/values"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/label/{name}/values"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/api/v1/metadata"), prometheusQuery),
+            entry(new RouteKey(GET, "_prometheus/{index}/api/v1/metadata"), prometheusQuery),
+
+            // prometheus write
+            entry(new RouteKey(POST, "_prometheus/api/v1/write"), prometheusWrite),
+            entry(new RouteKey(POST, "_prometheus/metrics/{dataset}/api/v1/write"), prometheusWrite),
+            entry(new RouteKey(POST, "_prometheus/metrics/{dataset}/{namespace}/api/v1/write"), prometheusWrite)
         );
     }
 
     @Override
-    public void start(ThreadContext threadContext, RestRequest request, @Nullable String route) {
+    public void start(RestRequest request, @Nullable String route) {
         if (route == null) {
             return;
         }
@@ -94,7 +210,7 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
     public void recordException(RestRequest request, Throwable t) {}
 
     @Override
-    public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
+    public Releasable prepareEnd(RestRequest request, RestResponse response) {
         State state = threadContext.getTransient(STATE_KEY);
         if (state == null) {
             return () -> {};

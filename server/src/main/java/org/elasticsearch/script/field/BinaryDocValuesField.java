@@ -87,6 +87,11 @@ public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
     }
 
     @Override
+    public int byteLength(int index) {
+        return values[index].length();
+    }
+
+    @Override
     public String getName() {
         return name;
     }

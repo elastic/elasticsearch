@@ -240,6 +240,11 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         return getAshProjectionMatrix(fieldInfo);
     }
 
+    /** Returns the bits per projected dimension the given field was written with in this segment, for tests. */
+    int getBitsPerDimForTest(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).ashBitsPerDim();
+    }
+
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
@@ -299,8 +304,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 endDoc = sliceAcceptDocs.endDoc();
             }
             return AshPostingsVisitor.createSliced(
-                ashMatrix.wT(),
-                dimension,
+                ashMatrix,
                 target,
                 fieldInfo.getVectorSimilarityFunction(),
                 unwrappedInput,
@@ -314,8 +318,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             );
         }
         return AshPostingsVisitor.create(
-            ashMatrix.wT(),
-            dimension,
+            ashMatrix,
             target,
             fieldInfo.getVectorSimilarityFunction(),
             unwrappedInput,

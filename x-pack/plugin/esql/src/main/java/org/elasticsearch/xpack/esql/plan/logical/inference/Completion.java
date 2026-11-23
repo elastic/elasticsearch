@@ -63,7 +63,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
      * Never null - defaults to empty map if not provided.
      */
     private final MapExpression taskSettings;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
         this(source, p, Literal.NULL, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
@@ -78,18 +78,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         Attribute targetField
     ) {
         this(source, child, inferenceId, rowLimit, prompt, targetField, DEFAULT_TASK_SETTINGS, null);
-    }
-
-    public Completion(
-        Source source,
-        LogicalPlan child,
-        Expression inferenceId,
-        Expression rowLimit,
-        Expression prompt,
-        Attribute targetField,
-        MapExpression taskSettings
-    ) {
-        this(source, child, inferenceId, rowLimit, prompt, targetField, taskSettings, null);
     }
 
     public Completion(

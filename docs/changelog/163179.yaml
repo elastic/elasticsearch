@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 162866
+ - 162529
+ - 162893
+pr: 163179
+summary: FILLNULL to build aliases as an optimization rule
+type: bug

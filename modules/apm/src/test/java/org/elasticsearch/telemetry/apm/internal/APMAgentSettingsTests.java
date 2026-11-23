@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -25,8 +26,6 @@ import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETR
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING;
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -71,6 +70,13 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmTelemetryProvider.getTracer()).setMaxTraceDepth(depth);
     }
 
+    public void testUpdateMaxSpansPropagatesToTracer() {
+        int maxSpans = randomIntBetween(0, 1000);
+        Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), maxSpans).build();
+        triggerUpdateConsumer(Settings.EMPTY, update);
+        verify(apmTelemetryProvider.getTracer()).setMaxSpans(maxSpans);
+    }
+
     public void testUpdateRecordExceptionStacksPropagatesToTracer() {
         Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), true).build();
         triggerUpdateConsumer(Settings.EMPTY, update);
@@ -101,6 +107,7 @@ public class APMAgentSettingsTests extends ESTestCase {
                 TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
                 TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
                 OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH,
+                OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS,
                 OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
                 OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
                 APM_AGENT_SETTINGS
@@ -111,22 +118,12 @@ public class APMAgentSettingsTests extends ESTestCase {
         clusterSettings.applySettings(update);
     }
 
-    public void testRejectForbiddenOrUnknownAgentSettings() {
-        String prefix = APM_AGENT_SETTINGS.getKey();
-        Settings settings = Settings.builder().put(prefix + "unknown", "true").build();
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> APM_AGENT_SETTINGS.getAsMap(settings));
-        assertThat(exception.getMessage(), containsString("[" + prefix + "unknown]"));
+    public void testLeftoverAgentSettingsAreAcceptedAndDeprecated() {
+        Setting<String> setting = APM_AGENT_SETTINGS.getConcreteSettingForNamespace("some_key_that_never_existed");
+        Settings settings = Settings.builder().put(setting.getKey(), "value").build();
 
-        // though, accept / ignore nested global_labels
-        var map = APMAgentSettings.APM_AGENT_SETTINGS.getAsMap(Settings.builder().put(prefix + "global_labels.abc", "123").build());
-        assertThat(map, hasEntry("global_labels.abc", "123"));
-    }
-
-    public void testRejectUnknownSettingResemblingAnAllowedOne() {
-        Settings settings = Settings.builder().put(APM_AGENT_SETTINGS.getKey() + "unknown.service_name", "true").build();
-
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> APM_AGENT_SETTINGS.getAsMap(settings));
-        assertThat(exception.getMessage(), containsString("[telemetry.agent.unknown.service_name]"));
+        assertEquals("value", setting.get(settings));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
     }
 
     public void testTelemetryTracingSanitizeFieldNamesFallbackDefault() {

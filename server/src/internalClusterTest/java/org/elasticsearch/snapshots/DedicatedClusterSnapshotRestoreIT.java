@@ -1070,7 +1070,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 long requestId,
                 String action,
                 TransportRequest request,
-                TransportRequestOptions finalOptions
+                TransportRequestOptions finalOptions,
+                int networkMessageSize
             ) {
                 if (blocked.get() && action.equals(TransportUpdateSnapshotStatusAction.NAME)) {
                     throw new AssertionError("Node had no assigned shard snapshots so it shouldn't send out shard state updates");

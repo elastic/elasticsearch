@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -46,6 +47,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
+
+    /** The tests here create {@link TimeSeriesAggregationBuilder}s, which emit the deprecation warning. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

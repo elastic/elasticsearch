@@ -261,7 +261,7 @@ required_capability: match_phrase_function
 required_capability: qstr_function
 
 from employees 
-| where match_phrase(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
+| where match_phrase(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) OR gender: F")
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 
@@ -987,6 +987,54 @@ ROW content = to_text(mv_append("ends with brown", "fox starts"))
 content:text
 ;
 
+// Options take a different evaluation path, which must keep the position gap between values: it is wider than the
+// slop, so only the row holding the phrase in a single value matches.
+matchPhraseOnRuntimeTextWithSlopDoesNotSpanMultipleValues
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_options
+
+ROW x = ["split", "single"]
+| MV_EXPAND x
+| EVAL content = to_text(case(x == "split", ["ends with brown", "fox starts"], "ends with brown fox starts"))
+| WHERE match_phrase(content, "brown fox", {"slop": 5})
+| KEEP x
+;
+
+x:keyword
+single
+;
+
+matchPhraseOnTextWithRowNegated
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "The fox is brown"])
+| MV_EXPAND content
+| WHERE NOT match_phrase(content, "brown fox")
+| SORT content
+;
+
+content:text
+The fox is brown
+This is a brown dog
+;
+
+// Two aggregates keep the filter on the aggregate rather than letting it be lifted into a WHERE.
+matchPhraseOnRuntimeTextInStatsWhere
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_filter
+required_capability: full_text_functions_in_stats_where
+
+ROW content = ["This is a brown fox", "This is a brown dog", "The fox is brown"]
+| MV_EXPAND content
+| EVAL content = to_text(content)
+| STATS phrases = COUNT(*) WHERE match_phrase(content, "brown fox"), total = COUNT(*)
+;
+
+phrases:long | total:long
+1            | 3
+;
+
 ###############################################
 # Tests for MATCH_PHRASE on runtime keyword expressions: a pushed-down match_phrase on a keyword
 # field rewrites to a term query, so the runtime path matches the exact value
@@ -1020,6 +1068,24 @@ ROW content = ["brown fox", "a brown fox", "Brown Fox", "brown, fox"]
 
 content:keyword
 brown fox
+;
+
+matchPhraseOnMvMaxOfKeyword
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_fused_field_load_fix
+
+// MV_MAX is fused into the field load on the data node; that load has no indexed Lucene field behind it, so the
+// match still has to run at runtime
+FROM employees
+| WHERE emp_no <= 10025 AND match_phrase(MV_MAX(job_positions), "Support Engineer")
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+10021          | Support Engineer
+10023          | [Accountant, Purchase Manager, Support Engineer]
 ;
 
 matchPhraseOnKeywordWithRowAndNullValues
@@ -1208,6 +1274,22 @@ content:text
 a Brown Fox runs
 ;
 
+matchPhraseOnRuntimeTextWithWhitespaceAnalyzerInStatsWhere
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_phrase_stats_where_analyzer_fix
+
+// the aggregate filter has to honor the declared values analyzer too: whitespace does not lowercase, so only one
+// row counts; the standard analyzer would count both. The unfiltered total keeps the filter on the aggregate.
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| STATS c = COUNT(*) WHERE match_phrase(content, "Brown Fox"), total = COUNT(*)
+;
+
+c:long | total:long
+1      | 2
+;
+
 matchPhraseOnRuntimeTextWithKeywordAnalyzer
 required_capability: match_phrase_function
 required_capability: fn_to_text_analyzer
@@ -1345,6 +1427,32 @@ book_no:keyword | _score:double
 1463            | 2.5
 2675            | 2.5
 2714            | 2.5
+;
+
+matchPhraseOnRuntimeTextThenScoreFilter
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+required_capability: runtime_score_fix
+
+// the _score filter sees the runtime score, not the 0.0 baseline
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings", {"boost": 2.5})
+| WHERE _score > 2.0
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.5
+2675            | 2.5
+2714            | 2.5
+4023            | 2.5
+5335            | 2.5
+7140            | 2.5
+7350            | 2.5
+8875            | 2.5
 ;
 
 matchPhraseOnRuntimeKeywordWithScore

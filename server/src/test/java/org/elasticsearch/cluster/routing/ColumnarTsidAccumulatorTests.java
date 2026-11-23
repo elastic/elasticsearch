@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,12 +38,38 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
     }
 
     private static IndexVersion singleBytePrefixVersion() {
-        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE);
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TSID_SINGLE_PREFIX_BYTE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH)
+        );
+    }
+
+    private static IndexVersion prefixedDimensionsHashVersion() {
+        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
+    }
+
+    /** The path prefix of the prefixed dimensions of the rows these tests build. */
+    private static final String DIMENSIONS_PREFIX = "dim.resource.";
+
+    /**
+     * Every layout: the legacy multi-byte prefix, the single prefix byte alone, and the single prefix byte with the
+     * prefixed-dimensions hash over the test prefix, over exact paths, over patterns no test path matches, and disabled by
+     * the default empty setting.
+     */
+    private static List<TsidLayout> allLayouts() {
+        return List.of(
+            TsidLayout.forVersion(multiBytePrefixVersion()),
+            TsidLayout.forVersion(singleBytePrefixVersion()),
+            new TsidLayout(prefixedDimensionsHashVersion(), List.of(DIMENSIONS_PREFIX + "*")),
+            new TsidLayout(prefixedDimensionsHashVersion(), List.of(DIMENSIONS_PREFIX + "host", DIMENSIONS_PREFIX + "attr0")),
+            new TsidLayout(prefixedDimensionsHashVersion(), List.of("resource.attributes.*", "labels.job")),
+            TsidLayout.forVersion(prefixedDimensionsHashVersion())
+        );
     }
 
     private static void assertAccumulatorMatchesTsidBuilder(List<List<Dim>> rows) {
-        for (IndexVersion version : List.of(multiBytePrefixVersion(), singleBytePrefixVersion())) {
-            boolean singleByte = TsidBuilder.useSingleBytePrefixLayout(version);
+        for (TsidLayout layout : allLayouts()) {
+            Predicate<String> isPrefixedDimension = layout.prefixedDimensionMatcher();
             BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
 
             // Reference: row-major through TsidBuilder, dimensions added in source order.
@@ -53,7 +80,7 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
                     MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, d.path());
                     builder.addPrehashedDimension(d.path(), pathHash.h1, pathHash.h2, d.valueH1(), d.valueH2());
                 }
-                expected[r] = builder.buildTsid(version);
+                expected[r] = builder.buildTsid(layout);
             }
 
             // Under test: column-major folding. Distinct paths sorted, one path group each.
@@ -63,25 +90,39 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
                     sortedPaths.add(d.path());
                 }
             }
-            ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(rows.size(), singleByte);
+            ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
+                rows.size(),
+                layout.singleBytePrefix(),
+                isPrefixedDimension != null
+            );
             int pathGroup = TsidBuilder.NO_PATH_GROUP;
             for (String path : sortedPaths) {
                 pathGroup++;
                 MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(hasher, path);
                 int prefixRank = TsidBuilder.prefixByteRank(path);
+                boolean prefixedDimension = TsidBuilder.isPrefixedDimension(path, isPrefixedDimension);
                 for (int r = 0; r < rows.size(); r++) {
                     for (Dim d : rows.get(r)) {
                         if (d.path().equals(path)) {
-                            accumulator.add(r, pathHash.h1, pathHash.h2, d.valueH1(), d.valueH2(), pathGroup, prefixRank);
+                            accumulator.add(
+                                r,
+                                pathHash.h1,
+                                pathHash.h2,
+                                d.valueH1(),
+                                d.valueH2(),
+                                pathGroup,
+                                prefixRank,
+                                prefixedDimension
+                            );
                         }
                     }
                 }
             }
             BytesRef[] actual = accumulator.build();
 
-            assertThat("row count, version " + version, actual.length, equalTo(rows.size()));
+            assertThat("row count, layout " + layout, actual.length, equalTo(rows.size()));
             for (int r = 0; r < rows.size(); r++) {
-                assertThat("row " + r + ", version " + version, actual[r], equalTo(expected[r]));
+                assertThat("row " + r + ", layout " + layout, actual[r], equalTo(expected[r]));
             }
         }
     }
@@ -191,12 +232,60 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         assertAccumulatorMatchesTsidBuilder(rows);
     }
 
+    /**
+     * Dimensions under the prefix fold into the prefixed-dimensions stream, 4 words each, so that stream is
+     * always block aligned; every count of them is still checked, next to a varying number of other dimensions.
+     */
+    public void testPrefixedDimensionsDrivePrefixedBytes() {
+        for (int prefixed = 1; prefixed <= 5; prefixed++) {
+            List<Dim> row = new ArrayList<>();
+            for (int i = 0; i < prefixed; i++) {
+                row.add(randomDim(DIMENSIONS_PREFIX + "attr" + i));
+            }
+            for (int i = 0; i < randomIntBetween(0, 3); i++) {
+                row.add(randomDim("dim.f" + i));
+            }
+            if (randomBoolean()) {
+                row.add(randomDim(TsidBuilder.OTEL_METRIC_FIELD));
+            }
+            assertAccumulatorMatchesTsidBuilder(List.of(row));
+        }
+    }
+
+    /** An array-valued prefixed dimension folds every value, in insertion order, as the full hash does. */
+    public void testArrayValuedPrefixedDimension() {
+        List<Dim> row = List.of(
+            randomDim(DIMENSIONS_PREFIX + "tags"),
+            randomDim(DIMENSIONS_PREFIX + "tags"),
+            randomDim(DIMENSIONS_PREFIX + "tags"),
+            randomDim("dim.host")
+        );
+        assertAccumulatorMatchesTsidBuilder(List.of(row));
+    }
+
+    /**
+     * A batch where only some rows carry prefixed dimensions: rows with them get the prefixed-dimensions
+     * hash, rows without keep the full hash in those bytes. Both must be right at once.
+     */
+    public void testPrefixedDimensionsPresentOnlyOnSomeRows() {
+        List<List<Dim>> rows = List.of(
+            List.of(randomDim(DIMENSIONS_PREFIX + "host"), randomDim("dim.host")),
+            List.of(randomDim("dim.host"), randomDim("dim.region")),
+            List.of(randomDim(TsidBuilder.OTEL_METRIC_FIELD), randomDim(DIMENSIONS_PREFIX + "host"), randomDim("dim.host")),
+            List.of(randomDim("dim.host"))
+        );
+        assertAccumulatorMatchesTsidBuilder(rows);
+    }
+
     /** Randomized batches over the whole shape space. */
     public void testRandomized() {
         int rowCount = randomIntBetween(1, 12);
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 7); i++) {
             paths.add("dim.f" + i);
+        }
+        for (int i = 0; i < randomIntBetween(0, 3); i++) {
+            paths.add(DIMENSIONS_PREFIX + "attr" + i);
         }
         if (randomBoolean()) {
             paths.add(TsidBuilder.OTEL_METRIC_FIELD);
@@ -227,10 +316,11 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
     }
 
     public void testRowWithNoDimensionsThrows() {
-        ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(2, randomBoolean());
+        boolean singleBytePrefix = randomBoolean();
+        ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(2, singleBytePrefix, singleBytePrefix && randomBoolean());
         MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(new BufferedMurmur3Hasher(0L), "dim.host");
         // Row 0 gets a value, row 1 gets nothing.
-        accumulator.add(0, pathHash.h1, pathHash.h2, randomLong(), randomLong(), 0, TsidBuilder.PREFIX_RANK_NONE);
+        accumulator.add(0, pathHash.h1, pathHash.h2, randomLong(), randomLong(), 0, TsidBuilder.PREFIX_RANK_NONE, false);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, accumulator::build);
         assertThat(e.getMessage(), equalTo("Dimensions are empty"));

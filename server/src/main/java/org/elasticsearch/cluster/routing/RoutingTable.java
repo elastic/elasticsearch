@@ -191,28 +191,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     /**
-     * Return GroupShardsIterator where each active shard routing has it's own shard iterator.
-     *
-     * @param includeEmpty             if true, a shard iterator will be added for non-assigned shards as well
-     */
-    public List<ShardIterator> allActiveShardsGrouped(String[] indices, boolean includeEmpty) {
-        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ShardRouting::active);
-    }
-
-    /**
      * Return GroupShardsIterator where each assigned shard routing has it's own shard iterator.
      *
      * @param includeEmpty if true, a shard iterator will be added for non-assigned shards as well
      */
     public List<ShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
-        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ShardRouting::assignedToNode);
-    }
-
-    private List<ShardIterator> allSatisfyingPredicateShardsGrouped(
-        String[] indices,
-        boolean includeEmpty,
-        Predicate<ShardRouting> predicate
-    ) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         for (String index : indices) {
@@ -225,7 +208,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                 for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
                     ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
-                    if (predicate.test(shardRouting)) {
+                    if (shardRouting.assignedToNode()) {
                         set.add(shardRouting.shardsIt());
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
                         set.add(new ShardIterator(shardRouting.shardId(), Collections.emptyList()));

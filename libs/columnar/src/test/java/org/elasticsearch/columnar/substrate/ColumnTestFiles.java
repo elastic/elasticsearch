@@ -26,7 +26,8 @@ import java.io.IOException;
  */
 public final class ColumnTestFiles {
 
-    private static final String[] EXTENSIONS = { "cnd", "cna", "cnl", "cnn" };
+    // NOTE: the skip file is not named cns, which the numeric tests write themselves beside these files.
+    private static final String[] EXTENSIONS = { "cnd", "cna", "cnl", "cnn", "cnk" };
     private static final String CODEC = "ColumNARTestColumn";
 
     private ColumnTestFiles() {}
@@ -34,13 +35,19 @@ public final class ColumnTestFiles {
     /** A column's outputs, closed with their footers. */
     public static final class Outputs implements Closeable {
         private final ColumnOutputs outputs;
+        private final IndexOutput skipIndex;
 
-        private Outputs(ColumnOutputs outputs) {
+        private Outputs(ColumnOutputs outputs, IndexOutput skipIndex) {
             this.outputs = outputs;
+            this.skipIndex = skipIndex;
         }
 
         public ColumnOutputs outputs() {
             return outputs;
+        }
+
+        public IndexOutput skipIndex() {
+            return skipIndex;
         }
 
         @Override
@@ -51,12 +58,19 @@ public final class ColumnTestFiles {
                 CodecUtil.writeFooter(outputs.addressing());
                 CodecUtil.writeFooter(outputs.lengths());
                 CodecUtil.writeFooter(outputs.navigation());
+                CodecUtil.writeFooter(skipIndex);
                 success = true;
             } finally {
                 if (success) {
-                    IOUtils.close(outputs.data(), outputs.addressing(), outputs.lengths(), outputs.navigation());
+                    IOUtils.close(outputs.data(), outputs.addressing(), outputs.lengths(), outputs.navigation(), skipIndex);
                 } else {
-                    IOUtils.closeWhileHandlingException(outputs.data(), outputs.addressing(), outputs.lengths(), outputs.navigation());
+                    IOUtils.closeWhileHandlingException(
+                        outputs.data(),
+                        outputs.addressing(),
+                        outputs.lengths(),
+                        outputs.navigation(),
+                        skipIndex
+                    );
                 }
             }
         }
@@ -65,18 +79,24 @@ public final class ColumnTestFiles {
     /** A column's inputs, each checksummed whole and its header checked. */
     public static final class Inputs implements Closeable {
         private final ColumnInputs inputs;
+        private final IndexInput skipIndex;
 
-        private Inputs(ColumnInputs inputs) {
+        private Inputs(ColumnInputs inputs, IndexInput skipIndex) {
             this.inputs = inputs;
+            this.skipIndex = skipIndex;
         }
 
         public ColumnInputs inputs() {
             return inputs;
         }
 
+        public IndexInput skipIndex() {
+            return skipIndex;
+        }
+
         @Override
         public void close() throws IOException {
-            IOUtils.close(inputs.data(), inputs.addressing(), inputs.lengths(), inputs.navigation());
+            IOUtils.close(inputs.data(), inputs.addressing(), inputs.lengths(), inputs.navigation(), skipIndex);
         }
     }
 
@@ -89,7 +109,7 @@ public final class ColumnTestFiles {
                 ColumnarCodecUtil.writeHeader(out[i], CODEC, FormatVersion.CURRENT, segmentId, "");
             }
             success = true;
-            return new Outputs(new ColumnOutputs(out[0], out[1], out[2], out[3]));
+            return new Outputs(new ColumnOutputs(out[0], out[1], out[2], out[3]), out[4]);
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(out);
@@ -116,7 +136,7 @@ public final class ColumnTestFiles {
                 ColumnarCodecUtil.checkHeader(in[i], CODEC, segmentId, "");
             }
             success = true;
-            return new Inputs(new ColumnInputs(in[0], in[1], in[2], in[3]));
+            return new Inputs(new ColumnInputs(in[0], in[1], in[2], in[3]), in[4]);
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(in);

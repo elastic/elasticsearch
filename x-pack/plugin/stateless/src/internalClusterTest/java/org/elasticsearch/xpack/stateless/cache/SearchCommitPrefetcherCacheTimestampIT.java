@@ -23,8 +23,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -159,7 +160,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
 
     FileCacheKey getCacheKeyForIndex(String indexName, ShardId shardId) {
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);
+        var bccBlobName = BccBlob.blobNameFromGeneration(latestCommitGeneration);
         var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
         return new FileCacheKey(shardId, primaryTerm, bccBlobName);
     }
@@ -231,7 +232,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
                 blobCacheMetrics,
                 capturingPolicy,
                 System::nanoTime,
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
                 metricHolder
             );
             this.capturingPolicy = capturingPolicy;

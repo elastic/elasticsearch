@@ -43,8 +43,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -78,7 +80,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     /**
@@ -117,6 +119,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Minimal {@link StorageObject} that only reports a length — all the fast-path decision inspects. */
     private static StorageObject fixedLengthObject(long length) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1700,7 +1705,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testMixedValuesToString() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"id": 1, "data": "a"}
@@ -1731,7 +1736,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNestedObject() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"address": {"city": "NYC", "zip": "10001"}}
@@ -1756,7 +1761,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNestedObjectSometimesNull() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // "address" is a nested-object prefix in the schema (address.city / address.zip), but in one row it is a JSON null.
         // Reproduces https://github.com/elastic/elasticsearch/issues/152574 (NPE on structural decoder nodes).
@@ -1784,7 +1789,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDeeplyNestedObjectSometimesNull() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Intermediate prefix "user.sessionContext" is an object in one row and JSON null in another.
         String ndjson = """
@@ -1818,7 +1823,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * mismatched rows null-filled and every column staying row-aligned.
      */
     public void testCloudTrailNestedObjectsWithInferredSchema() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"eventSource":"s3.amazonaws.com","userIdentity":{"type":"Root","arn":"arn:1"},"responseElements":{"code":"200"}}
@@ -1984,7 +1989,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"id":1,"ts":"2023-10-23T12:15:03.360103847Z"}
             {"id":2,"ts":"2023-10-23T12:15:03.360Z"}
             """;
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///temporal.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
@@ -2013,7 +2018,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testArrayOfObjects() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"events": [{"type": "click", "page": 1}, {"type": "view", "page": 2}], "id": 1}
@@ -2040,7 +2045,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNullsInArray() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"tags": ["a", null, "b"], "id": 1}
@@ -2067,7 +2072,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNullsInArray2() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"id":1,"name":null,"age":null,"active":null}
@@ -2094,7 +2099,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNestedArraysMisalignment() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"matrix": [[1,2],[3,4]], "id": 1}
@@ -2113,7 +2118,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testNonNullValueForNullTypedColumn() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"data": null, "id": 0}
@@ -2140,7 +2145,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDateParsing() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"timestamp": "2025-03-26T18:12:34Z"}
@@ -2167,7 +2172,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testBigInteger() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         String ndjson = """
             {"id": 1, "big": 18446744073709551615}
@@ -2190,7 +2195,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testBigDecimal() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
 
         // Extra large numeric values convert to Infinity
         // DOUBLE.MAX_VALUE is 1.7976931348623157e+308
@@ -2848,7 +2853,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * formatter must preserve millisecond precision when decoding to epoch-milliseconds.
      */
     public void testDatetimeWithMilliseconds() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         String ndjson = """
             {"ts":"2024-03-10T15:30:45.123Z"}
             {"ts":"2024-03-10T15:30:45.999Z"}
@@ -2876,7 +2881,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * normalised to their UTC equivalent epoch-milliseconds.
      */
     public void testDatetimeWithTimezoneOffset() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         String ndjson = """
             {"ts":"2024-06-15T12:00:00+05:30"}
             {"ts":"2024-06-15T10:00:00-08:00"}
@@ -2904,7 +2909,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * widen to KEYWORD — the resulting block is a {@link BytesRefBlock} with the raw string values.
      */
     public void testDatetimeMixedWithNonDatetimeStringFallsBackToKeyword() throws IOException {
-        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         String ndjson = """
             {"tag":"2024-01-01T00:00:00Z"}
             {"tag":"not-a-date"}
@@ -3044,11 +3049,16 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Default segment size: 4 MiB, larger than the SPI's 1 MiB default. Locked in so a refactor
-     * that drops the override (and silently falls back to 1 MiB) trips a precommit failure.
+     * Default segment size: 4 MiB less the array header, larger than the SPI's 1 MiB default. Locked in so a
+     * refactor that drops the override (and silently falls back to 1 MiB) trips a precommit failure, and so the
+     * header carve-out that keeps each chunk array out of an extra G1 humongous region is not rounded back
+     * up to an exact 4 MiB.
      */
-    public void testMinimumSegmentSizeDefaultIsFourMiB() {
-        assertEquals(4L * 1024 * 1024, new NdJsonFormatReader(Settings.EMPTY, blockFactory).minimumSegmentSize());
+    public void testMinimumSegmentSizeDefaultIsRegionFriendlyFourMiB() {
+        assertEquals(
+            HeapFootprint.regionFriendlyLength(4 * 1024 * 1024),
+            new NdJsonFormatReader(Settings.EMPTY, blockFactory).minimumSegmentSize()
+        );
     }
 
     /**
@@ -3058,7 +3068,29 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testMinimumSegmentSizeRespectsNodeSetting() {
         var settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "8mb").build();
-        assertEquals(8L * 1024 * 1024, new NdJsonFormatReader(settings, blockFactory).minimumSegmentSize());
+        assertEquals(
+            HeapFootprint.regionFriendlyLength(8 * 1024 * 1024),
+            new NdJsonFormatReader(settings, blockFactory).minimumSegmentSize()
+        );
+    }
+
+    /**
+     * A configured size is trimmed by the array header, whether it comes from the node setting or {@code WITH}: an
+     * exact power of two such as {@code 4mb} would make every chunk array spill into an extra G1 humongous region.
+     * Other values lose only the header. The 64 KiB minimum is checked against the value as configured.
+     */
+    public void testConfiguredSegmentSizeIsTrimmedByArrayHeader() {
+        var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        for (String size : List.of("4mb", "16mb", "5mb", "64kb")) {
+            long configured = ByteSizeValue.parseBytesSizeValue(size, "test").getBytes();
+            long expected = HeapFootprint.lengthFittingIn(configured);
+            assertThat(expected, Matchers.lessThan(configured));
+            assertThat(configured - expected, Matchers.lessThan(32L));
+            var nodeSettings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, size).build();
+            assertEquals(size, expected, new NdJsonFormatReader(nodeSettings, blockFactory).minimumSegmentSize());
+            assertEquals(size, expected, ((NdJsonFormatReader) reader.withConfig(Map.of("segment_size", size))).minimumSegmentSize());
+        }
+        assertEquals(HeapFootprint.regionFriendlyLength(4 * 1024 * 1024), HeapFootprint.lengthFittingIn(4 * 1024 * 1024));
     }
 
     /**
@@ -3070,8 +3102,16 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         FormatReader tuned = reader.withConfig(Map.of("segment_size", "2mb"));
         assertNotSame(reader, tuned);
-        assertEquals("Per-query override applied", 2L * 1024 * 1024, ((NdJsonFormatReader) tuned).minimumSegmentSize());
-        assertEquals("Original reader still uses the default", 4L * 1024 * 1024, reader.minimumSegmentSize());
+        assertEquals(
+            "Per-query override applied",
+            HeapFootprint.regionFriendlyLength(2 * 1024 * 1024),
+            ((NdJsonFormatReader) tuned).minimumSegmentSize()
+        );
+        assertEquals(
+            "Original reader still uses the default",
+            HeapFootprint.lengthFittingIn(NdJsonFormatReader.DEFAULT_SEGMENT_SIZE.getBytes()),
+            reader.minimumSegmentSize()
+        );
     }
 
     /** Configurations that hurt more than they help (sub-64 KiB) must be rejected up front. */
@@ -3094,6 +3134,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         String ndjson = "{\"id\":1}\n{\"id\":2}\n{\"id\":3}\n";
         byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
         StorageObject lengthUnsupported = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -3149,6 +3192,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testLargeObjectFallsBackToStreaming() throws IOException {
         byte[] payload = "{\"id\":42}\n".getBytes(StandardCharsets.UTF_8);
         StorageObject oversized = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -3237,6 +3283,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int start = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8).length;
         int length = all.length - start;
         StorageObject tailAlignedStart = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -3536,6 +3585,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */
     private static StorageObject streamOnlyObject(String path, byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

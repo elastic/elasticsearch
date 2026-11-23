@@ -24,7 +24,10 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -74,6 +77,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -99,6 +103,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -721,6 +726,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    /**
+     * Perform a batch of document index operations on the engine
+     * @param batch operations to perform, with their mapped columns
+     * @return one {@link IndexResult} per operation, in batch order. Document specific failures are reported as failed
+     * results. So are operations the engine did not attempt because an earlier operation of the batch hit a failure
+     * while the engine stayed healthy; those carry no sequence number.
+     */
     public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
         throw new UnsupportedOperationException("batch indexing is not supported by this engine");
     }
@@ -872,10 +884,12 @@ public abstract class Engine implements Closeable {
     public static class IndexResult extends Result {
 
         private final boolean created;
+        private final boolean batchAborted;
 
         public IndexResult(long version, long term, long seqNo, boolean created, String id) {
             super(Operation.TYPE.INDEX, version, term, seqNo, id);
             this.created = created;
+            this.batchAborted = false;
         }
 
         /**
@@ -886,17 +900,38 @@ public abstract class Engine implements Closeable {
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo, String id) {
+            this(failure, version, term, seqNo, id, false);
+        }
+
+        private IndexResult(Exception failure, long version, long term, long seqNo, String id, boolean batchAborted) {
             super(Operation.TYPE.INDEX, failure, version, term, seqNo, id);
             this.created = false;
+            this.batchAborted = batchAborted;
         }
 
         public IndexResult(CompressedXContent requiredMappingUpdate, String id) {
             super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
+            this.batchAborted = false;
+        }
+
+        /**
+         * The failed result of an operation that {@link Engine#indexBatch} did not apply because planning failed for its
+         * sub-batch or an earlier one while the engine stayed healthy. Nothing was consumed for it: no sequence number,
+         * no Lucene or translog write. A caller that splits its request into several batches can fail the rest of the
+         * request the same way instead of attempting it.
+         */
+        public static IndexResult batchAborted(Exception failure, long term, String id) {
+            return new IndexResult(failure, Versions.MATCH_ANY, term, UNASSIGNED_SEQ_NO, id, true);
         }
 
         public boolean isCreated() {
             return created;
+        }
+
+        /** Whether this is a {@link #batchAborted} result. */
+        public boolean isBatchAborted() {
+            return batchAborted;
         }
     }
 
@@ -1127,8 +1162,17 @@ public abstract class Engine implements Closeable {
         return acquireSearcher(source, SearcherScope.EXTERNAL);
     }
 
+    public final Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         return acquireSearcher(source, scope, Function.identity());
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope, SplitShardCountSummary splitShardCountSummary)
+        throws EngineException {
+        return acquireSearcher(source, scope, splitShardCountSummary, Function.identity());
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
@@ -1267,8 +1311,11 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
-    /** get commits stats for the last commit */
-    public final CommitStats commitStats() {
+    /**
+     * Get commit stats for the last commit. Engines may override this to avoid reading the last committed segment infos, as long as
+     * the stats are the same as those built from {@link #getLastCommittedSegmentInfos()}.
+     */
+    public CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -1374,16 +1421,20 @@ public abstract class Engine implements Closeable {
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
-        return getSegmentInfo(lastCommittedSegmentInfos, false);
+        return getSegmentInfo(lastCommittedSegmentInfos, false, false);
     }
 
-    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
+    final Segment[] getSegmentInfo(
+        SegmentInfos lastCommittedSegmentInfos,
+        boolean includeVectorFormatsInfo,
+        boolean includeAutoCalibration
+    ) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo, includeAutoCalibration);
             }
         }
 
@@ -1391,7 +1442,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo, includeAutoCalibration);
                 }
             }
         }
@@ -1431,7 +1482,8 @@ public abstract class Engine implements Closeable {
         SegmentReader segmentReader,
         boolean search,
         Map<String, Segment> segments,
-        boolean includeVectorFormatsInfo
+        boolean includeVectorFormatsInfo,
+        boolean includeAutoCalibration
     ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
@@ -1480,6 +1532,39 @@ public abstract class Engine implements Closeable {
                 segment.attributes.put(entry.getKey(), entry.getValue().toString());
             }
         }
+        try {
+            FieldInfos fieldInfos = segmentReader.getFieldInfos();
+            if (includeAutoCalibration && fieldInfos.hasVectorValues()) {
+                List<String> vectorFieldNames = new ArrayList<>();
+                for (FieldInfo fieldInfo : fieldInfos) {
+                    if (fieldInfo.hasVectorValues()) {
+                        vectorFieldNames.add(fieldInfo.name);
+                    }
+                }
+                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
+                // field per segment; off-heap sizes come from field metadata and are always cheap
+                // this is why vector count is disabled in stateless until we can retrieve that information cheaply
+                DenseVectorStats vectorStats = denseVectorStatsCache.get(segmentReader, vectorFieldNames, isStateless == false);
+                for (Map.Entry<String, List<DenseVectorStats.AutoCalibrationEntry>> fieldEntry : vectorStats.calibrationStats()
+                    .entrySet()) {
+                    for (DenseVectorStats.AutoCalibrationEntry calibrationEntry : fieldEntry.getValue()) {
+                        if (calibrationEntry.parameters == null) {
+                            continue;
+                        }
+                        if (segment.autoCalibrationParams == null) {
+                            segment.autoCalibrationParams = new HashMap<>();
+                            segment.autoCalibrationVectorCounts = new HashMap<>();
+                            segment.autoCalibrationSizeBytes = new HashMap<>();
+                        }
+                        segment.autoCalibrationParams.put(fieldEntry.getKey(), calibrationEntry.parameters);
+                        segment.autoCalibrationVectorCounts.put(fieldEntry.getKey(), calibrationEntry.numberOfVectors);
+                        segment.autoCalibrationSizeBytes.put(fieldEntry.getKey(), calibrationEntry.sizeInBytes);
+                    }
+                }
+            }
+        } catch (AlreadyClosedException | IOException e) {
+            logger.trace(() -> "failed to get auto-calibration stats for segment [" + segmentReader.getSegmentName() + "]", e);
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }
@@ -1489,7 +1574,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments();
 
-    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration);
 
     public boolean refreshNeeded() {
         if (store.tryIncRef() == false) {
@@ -1822,6 +1907,17 @@ public abstract class Engine implements Closeable {
          */
         public String source() {
             return source;
+        }
+
+        /**
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+         */
+        @Deprecated
+        @Override
+        public void search(Query query, Collector collector) {
+            throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
         }
 
         public DirectoryReader getDirectoryReader() {
@@ -2468,6 +2564,21 @@ public abstract class Engine implements Closeable {
      * @return the number of translog operations have been recovered
      */
     public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
+
+    /**
+     * Returns the decorator to use for parsing documents that are indexed by this engine. Engines that meter documents as they are
+     * indexed can override this to record size information, this includes operations that are replayed from the translog.
+     */
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
+    }
+
+    /**
+     * Called once per columnar batch chunk before its columns are frozen, see
+     * {@link org.elasticsearch.plugins.internal.DocumentSizeReporter#onBatchParsingCompleted}. Engines that meter documents override this
+     * to hand the chunk to their reporter.
+     */
+    public void onBatchParsingCompleted(BatchMappingContext context) {}
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

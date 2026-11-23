@@ -243,6 +243,18 @@ public class ColumnarStringGroupingBenchmark {
         bh.consume(column.readPerDocument());
     }
 
+    /** One value at a time from where the column holds it, which a page read must not lose to. */
+    @Benchmark
+    public void readDirect(Blackhole bh) throws IOException {
+        bh.consume(column.readDirect());
+    }
+
+    /** Lengths alone, the shape of {@code BYTE_LENGTH(field)}. */
+    @Benchmark
+    public void byteLengths(Blackhole bh) throws IOException {
+        bh.consume(column.byteLengths());
+    }
+
     @Benchmark
     public void scan(Blackhole bh) throws IOException {
         bh.consume(column.scan());

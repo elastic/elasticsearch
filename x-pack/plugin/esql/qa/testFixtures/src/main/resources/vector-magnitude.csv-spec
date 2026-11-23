@@ -81,11 +81,13 @@ avg:double | min:double | max:double
 magnitudeWithNull
 required_capability: magnitude_scalar_vector_function
 required_capability: dense_vector_field_type_released
+required_capability: warn_null_misuse
  
 row a = 1
 | eval magnitude = v_magnitude(null) 
 | keep magnitude
 ;
+warning:Line 2:20: Expression [v_magnitude(null)] always evaluates to NULL.
 
 magnitude:double
 null

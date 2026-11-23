@@ -68,6 +68,10 @@ public class AllocationDecisionMatcher extends BaseMatcher<Decision> {
         );
     }
 
+    public static AllocationDecisionMatcher isNotPreferredDecisionWithNoExplanation(String expectedLabel) {
+        return new AllocationDecisionMatcher(Decision.Type.NOT_PREFERRED, equalTo(expectedLabel), nullValue(String.class));
+    }
+
     public static AllocationDecisionMatcher isNotPreferredDecisionWithExplanationMatching(
         String expectedLabel,
         Matcher<String> explanationMatcher

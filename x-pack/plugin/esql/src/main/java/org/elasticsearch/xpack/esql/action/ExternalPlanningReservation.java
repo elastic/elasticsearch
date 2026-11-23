@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * One request-breaker reservation for a query's external planning. Created from the session's block
  * factory so every admit and the final release use that same breaker.
  * <p>
- * Resolution's listing and the schema map live until {@link #close()}, which the query listener calls once,
+ * Resolution's listing and the schema map live until {@link #close()}, which {@code PlanExecutor.esql} calls once,
  * because the plan holds both for as long as the query does.
  * A {@link Run} holds bytes released before that: phase-2 split shells for one compute execution, the listing
  * split discovery performs for itself in that execution, and the private attribute lists of one reconcile

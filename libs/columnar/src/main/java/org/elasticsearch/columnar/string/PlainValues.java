@@ -17,6 +17,7 @@ import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
@@ -44,7 +45,8 @@ import java.util.Arrays;
  * address times that length. Having no codes, it marks no repeats either, so a value equal to the one before
  * it is stored again.
  *
- * <p>Values are read a block of {@code valuesPerBlock} at a time, one span of the byte stream for the block.
+ * <p>Values are read a block of {@code valuesPerBlock} at a time, one span of the byte stream for the block. A block
+ * holding more bytes than a chunk is read a value at a time instead.
  */
 final class PlainValues {
 
@@ -70,6 +72,7 @@ final class PlainValues {
         int valuesPerBlock,
         long numValues,
         int constantLength,
+        int chunkTargetBytes,
         ChunkIndexMetadata chunks,
         MonotonicWriter.Table starts,
         LongBlocks.Metadata lengths
@@ -83,6 +86,7 @@ final class PlainValues {
             out.writeVInt(valuesPerBlock);
             out.writeVLong(numValues);
             out.writeVInt(constantLength + 1);
+            out.writeVInt(chunkTargetBytes);
             chunks.writeTo(out);
             if (constant() == false) {
                 out.writeVLong(starts.dataOffset());
@@ -97,9 +101,10 @@ final class PlainValues {
             final int valuesPerBlock = in.readVInt();
             final long numValues = in.readVLong();
             final int constantLength = in.readVInt() - 1;
+            final int chunkTargetBytes = in.readVInt();
             final ChunkIndexMetadata chunks = ChunkIndexMetadata.readFrom(in);
             if (constantLength >= 0) {
-                return new Metadata(valuesPerBlock, numValues, constantLength, chunks, MonotonicWriter.Table.NONE, null);
+                return new Metadata(valuesPerBlock, numValues, constantLength, chunkTargetBytes, chunks, MonotonicWriter.Table.NONE, null);
             }
             final long startsOffset = in.readVLong();
             final long startsLength = in.readVLong();
@@ -110,6 +115,7 @@ final class PlainValues {
                 valuesPerBlock,
                 numValues,
                 constantLength,
+                chunkTargetBytes,
                 chunks,
                 new MonotonicWriter.Table(startsOffset, startsLength, startsMeta),
                 lengths
@@ -131,6 +137,7 @@ final class PlainValues {
         private final int valuesPerBlock;
         private final int lengthBlockSize;
         private final long numValues;
+        private final int chunkTargetBytes;
         private long count;
         private long valueBytes;
         private int minLength = -1;
@@ -140,10 +147,16 @@ final class PlainValues {
         private long runs;
         private final BytesRefBuilder previous = new BytesRefBuilder();
         private boolean previousNull;
+        /** Whether values come through {@link #transfer}, which keeps no {@link #previous}; a column takes one or the other. */
+        private Boolean transferred;
+        private final boolean tracksOwnerChunk;
+        private int ownerChunk;
 
         /**
-         * @param constantLength the length every value has, which the caller knows before writing any of them,
-         *                       or {@code -1}; a column with one keeps no lengths
+         * @param constantLength   the length every value has, which the caller knows before writing any of them,
+         *                         or {@code -1}; a column with one keeps no lengths
+         * @param tracksOwnerChunk whether the caller reads {@link #ownerChunk}, which only a column that captures
+         *                         bounds does
          */
         Writer(
             ChunkCodec codec,
@@ -152,9 +165,11 @@ final class PlainValues {
             int lengthBlockSize,
             long numValues,
             int constantLength,
-            ColumnOutputs outputs
+            ColumnOutputs outputs,
+            boolean tracksOwnerChunk
         ) {
             assert valuesPerBlock <= lengthBlockSize : valuesPerBlock + " > " + lengthBlockSize;
+            this.tracksOwnerChunk = tracksOwnerChunk;
             this.chunks = new ChunkedBytesWriter(codec, bounds, outputs.data(), outputs.navigation());
             this.constantLength = constantLength;
             if (constantLength >= 0) {
@@ -172,15 +187,20 @@ final class PlainValues {
             this.valuesPerBlock = valuesPerBlock;
             this.lengthBlockSize = lengthBlockSize;
             this.numValues = numValues;
+            this.chunkTargetBytes = bounds.targetBytes();
         }
 
-        void add(BytesRef value) throws IOException {
+        /** Adds {@code value} and returns whether it equals the value before it. */
+        boolean add(BytesRef value) throws IOException {
+            assert transferred != Boolean.TRUE : "a column's values are either added or transferred";
+            transferred = false;
             if (constantLength >= 0 && value.length != constantLength) {
                 // The column's addresses are computed from the length, so one value off it misplaces every one after.
                 throw new IllegalStateException("a value of " + value.length + " bytes in a column counted at " + constantLength);
             }
             final boolean repeat = count > 0 && previousNull == false && previous.get().bytesEquals(value);
             startSlot();
+            recordOwnerChunk();
             if (lengths != null && repeat && count % lengthBlockSize != 0) {
                 lengths.add(REPEAT);
             } else {
@@ -198,6 +218,45 @@ final class PlainValues {
             }
             previousNull = false;
             count++;
+            return repeat;
+        }
+
+        /**
+         * Adds the value of {@code length} bytes the cursor is on, handed over a piece at a time. {@code repeat} says
+         * whether it equals the value before it.
+         */
+        void transfer(int length, boolean repeat, StringColumnValues value) throws IOException {
+            assert transferred != Boolean.FALSE : "a column's values are either added or transferred";
+            transferred = true;
+            if (constantLength >= 0 && length != constantLength) {
+                throw new IllegalStateException("a value of " + length + " bytes in a column counted at " + constantLength);
+            }
+            assert repeat == false || (count > 0 && previousNull == false) : "only a value can be repeated";
+            startSlot();
+            recordOwnerChunk();
+            if (lengths != null && repeat && count % lengthBlockSize != 0) {
+                lengths.add(REPEAT);
+            } else {
+                final long before = chunks.uncompressedLength();
+                value.transferValue(chunks::append);
+                if (chunks.uncompressedLength() - before != length) {
+                    // The lengths place every later value, so a wrong one misplaces them all.
+                    throw new IllegalStateException(
+                        "a value said to be " + length + " bytes handed over " + (chunks.uncompressedLength() - before)
+                    );
+                }
+                if (lengths != null) {
+                    lengths.add(code(length));
+                }
+            }
+            valueBytes += length;
+            minLength = minLength < 0 ? length : Math.min(minLength, length);
+            maxLength = Math.max(maxLength, length);
+            if (repeat == false) {
+                runs++;
+            }
+            previousNull = false;
+            count++;
         }
 
         void addNull() throws IOException {
@@ -205,12 +264,28 @@ final class PlainValues {
                 throw new IllegalStateException("a null in a column counted as holding none");
             }
             startSlot();
+            recordOwnerChunk();
             lengths.add(NULL_CODE);
             if (count == 0 || previousNull == false) {
                 runs++;
             }
             previousNull = true;
             count++;
+        }
+
+        /**
+         * The chunk that owns the slot just written: the one holding its first byte, or the one being filled if it has none.
+         * Valid only if the writer was built with {@code tracksOwnerChunk}.
+         */
+        int ownerChunk() {
+            assert tracksOwnerChunk : "the writer was not asked to track the chunk that owns a slot";
+            return ownerChunk;
+        }
+
+        private void recordOwnerChunk() {
+            if (tracksOwnerChunk) {
+                ownerChunk = chunks.chunkBeingFilled();
+            }
         }
 
         private void startSlot() throws IOException {
@@ -245,9 +320,9 @@ final class PlainValues {
             assert count == numValues : "wrote " + count + " values, told " + numValues;
             final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish());
             if (constantLength >= 0) {
-                return new Metadata(valuesPerBlock, count, constantLength, index, MonotonicWriter.Table.NONE, null);
+                return new Metadata(valuesPerBlock, count, constantLength, chunkTargetBytes, index, MonotonicWriter.Table.NONE, null);
             }
-            return new Metadata(valuesPerBlock, count, -1, index, starts.finish(), lengths.finish());
+            return new Metadata(valuesPerBlock, count, -1, chunkTargetBytes, index, starts.finish(), lengths.finish());
         }
     }
 
@@ -258,9 +333,11 @@ final class PlainValues {
         private final int constantLength;
         private final int valuesShift;
         private final int valuesPerBlock;
+        private final int chunkTargetBytes;
 
         /** Null when every value has {@link #constantLength}. */
         private final LongValues starts;
+        private final long numLengthBlocks;
         private final LongBlocks.Reader lengths;
         private final int lengthShift;
         private final int lengthMask;
@@ -269,7 +346,7 @@ final class PlainValues {
         private final long[] slotStarts;
         private final int[] slotLengths;
         /** The loaded block of codes, which is what says a slot is null. */
-        private long[] codes;
+        private final long[] codes;
         private long loadedLengths = -1;
         private int loadedCount;
 
@@ -277,6 +354,8 @@ final class PlainValues {
         private final BytesRef block = new BytesRef();
         private long loadedBlock = -1;
         private long blockStart;
+        /** Whether the loaded block was read whole, or holds more bytes than a chunk and is read a value at a time. */
+        private boolean blockWhole;
 
         private Reader(Metadata meta, ColumnInputs inputs) throws IOException {
             this.numValues = meta.numValues();
@@ -284,16 +363,20 @@ final class PlainValues {
             this.chunks = meta.chunks().open(inputs);
             this.valuesShift = Integer.numberOfTrailingZeros(meta.valuesPerBlock());
             this.valuesPerBlock = meta.valuesPerBlock();
+            this.chunkTargetBytes = meta.chunkTargetBytes();
             if (meta.constant()) {
                 this.starts = null;
+                this.numLengthBlocks = 0;
                 this.lengths = null;
                 this.lengthShift = 0;
                 this.lengthMask = 0;
                 this.slotStarts = null;
                 this.slotLengths = null;
+                this.codes = null;
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
+            this.numLengthBlocks = meta.lengths().numBlocks();
             this.lengthShift = Integer.numberOfTrailingZeros(lengthBlockSize);
             this.lengthMask = lengthBlockSize - 1;
             this.starts = MonotonicReader.open(
@@ -306,10 +389,41 @@ final class PlainValues {
             this.lengths = new LongBlocks.Reader(meta.lengths(), inputs.lengths(), inputs.navigation());
             this.slotStarts = new long[lengthBlockSize];
             this.slotLengths = new int[lengthBlockSize];
+            this.codes = new long[lengthBlockSize];
         }
 
         long numValues() {
             return numValues;
+        }
+
+        /**
+         * Prefetches the values at {@code [firsts[i], firsts[i] + counts[i])}, a block at a time, in one stage: a column of one
+         * length its value blocks, which their addresses locate, and any other column its blocks of lengths and the bytes
+         * each of them covers, which the navigation file locates.
+         */
+        void prefetch(long[] firsts, long[] counts, int count) throws IOException {
+            long last = -1;
+            for (int i = 0; i < count; i++) {
+                for (long address = firsts[i]; address < firsts[i] + counts[i]; address++) {
+                    if (constantLength >= 0) {
+                        final long block = address >>> valuesShift;
+                        if (block != last) {
+                            last = block;
+                            final long first = block << valuesShift;
+                            chunks.prefetch(first * constantLength, (Math.min(first + valuesPerBlock, numValues) - first) * constantLength);
+                        }
+                    } else {
+                        final long block = address >>> lengthShift;
+                        if (block != last) {
+                            last = block;
+                            lengths.prefetchBlocks(block, block);
+                            final long start = starts.get(block);
+                            final long end = block + 1 < numLengthBlocks ? starts.get(block + 1) : chunks.length();
+                            chunks.prefetch(start, end - start);
+                        }
+                    }
+                }
+            }
         }
 
         /** Whether the slot at {@code valueAddress} is null, which its code says. */
@@ -341,7 +455,11 @@ final class PlainValues {
          */
         long read(long valueAddress, BytesRef dst) throws IOException {
             assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
-            loadBlock(valueAddress >>> valuesShift);
+            if (loadBlock(valueAddress >>> valuesShift) == false) {
+                final long start = start(valueAddress);
+                chunks.span(start, length(valueAddress), dst);
+                return start;
+            }
             final long start;
             final int length;
             if (constantLength >= 0) {
@@ -356,6 +474,35 @@ final class PlainValues {
             dst.offset = block.offset + (int) (start - blockStart);
             dst.length = length;
             return start;
+        }
+
+        /** Hands the value at {@code valueAddress} to {@code sink} a piece at a time. A null hands over nothing. */
+        void transfer(long valueAddress, BytesSink sink) throws IOException {
+            assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
+            final int length = length(valueAddress);
+            if (length > 0) {
+                // Decoding overwrites the buffer the loaded block points into.
+                loadedBlock = -1;
+                chunks.transfer(start(valueAddress), length, sink);
+            }
+        }
+
+        /** Whether the slot at {@code valueAddress} is stored as a repeat of the value before it. */
+        boolean repeatsPrevious(long valueAddress) throws IOException {
+            if (constantLength >= 0) {
+                return false;
+            }
+            loadLengths(valueAddress >>> lengthShift);
+            return codes[(int) (valueAddress & lengthMask)] == REPEAT;
+        }
+
+        /** Where the value at {@code valueAddress} begins in the byte stream. */
+        private long start(long valueAddress) throws IOException {
+            if (constantLength >= 0) {
+                return valueAddress * constantLength;
+            }
+            loadLengths(valueAddress >>> lengthShift);
+            return slotStarts[(int) (valueAddress & lengthMask)];
         }
 
         /**
@@ -401,16 +548,24 @@ final class PlainValues {
             };
         }
 
-        private void loadBlock(long valueBlock) throws IOException {
+        /**
+         * Loads the block of values {@code valueBlock} as one span, unless it holds more bytes than a chunk, and answers
+         * whether it did.
+         */
+        private boolean loadBlock(long valueBlock) throws IOException {
             final long first = valueBlock << valuesShift;
             if (constantLength >= 0) {
                 if (valueBlock != loadedBlock) {
                     final long end = Math.min(first + valuesPerBlock, numValues);
+                    final long length = (end - first) * constantLength;
                     blockStart = first * constantLength;
-                    chunks.span(blockStart, (int) ((end - first) * constantLength), block);
+                    blockWhole = length <= chunkTargetBytes;
+                    if (blockWhole) {
+                        chunks.span(blockStart, (int) length, block);
+                    }
                     loadedBlock = valueBlock;
                 }
-                return;
+                return blockWhole;
             }
             loadLengths(first >>> lengthShift);
             if (valueBlock != loadedBlock) {
@@ -419,17 +574,22 @@ final class PlainValues {
                 final int at = (int) (first & lengthMask);
                 final int last = Math.min(at + valuesPerBlock, loadedCount) - 1;
                 blockStart = slotStarts[at];
-                chunks.span(blockStart, (int) (slotStarts[last] + slotLengths[last] - blockStart), block);
+                final long length = slotStarts[last] + slotLengths[last] - blockStart;
+                blockWhole = length <= chunkTargetBytes;
+                if (blockWhole) {
+                    chunks.span(blockStart, (int) length, block);
+                }
                 loadedBlock = valueBlock;
             }
+            return blockWhole;
         }
 
         private void loadLengths(long lengthBlock) throws IOException {
             if (lengthBlock == loadedLengths) {
                 return;
             }
-            codes = lengths.block(lengthBlock);
             loadedCount = (int) Math.min(slotStarts.length, numValues - (lengthBlock << lengthShift));
+            System.arraycopy(lengths.block(lengthBlock), 0, codes, 0, loadedCount);
             long at = starts.get(lengthBlock);
             for (int i = 0; i < loadedCount; i++) {
                 final long code = codes[i];

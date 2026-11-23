@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.recovery;
 
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.recovery.RecoveryStats;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
-import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
@@ -29,17 +22,14 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /// Integration tests for source-side relocation throttling in stateless Elasticsearch.
 public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPluginIntegTestCase {
 
-    /// Unthrottle master-side allocation so concurrent primary relocations can reach the source queue.
+    /// Unthrottle master-side allocation and data node limits. Each test customizes its own throttle.
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
@@ -63,6 +53,8 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
                 StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
                 Integer.MAX_VALUE
             )
+            .put(unthrottledIncomingRecoveryNodeSettings())
+            .put(unthrottledOutgoingRecoveryNodeSettings())
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE);
     }
 
@@ -77,7 +69,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         startMasterOnlyNode();
         final var sourceNode = startIndexNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var targetNode = startIndexNode();
@@ -111,7 +103,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         startMasterOnlyNode();
         final var sourceNode = startIndexNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var targetNode = startIndexNode();
@@ -159,7 +151,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
 
         final var sourceNode = startIndexNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
                 .build()
         );
         final var targetNode = startIndexNode();
@@ -198,7 +190,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         startMasterOnlyNode();
         final var sourceNode = startIndexNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var targetNode = startIndexNode();
@@ -252,7 +244,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         startMasterOnlyNode();
         final var sourceNode = startIndexNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var targetNode = startIndexNode();
@@ -301,7 +293,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
 
         final var sourceNode = startIndexNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), firstLimit)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), firstLimit)
                 .build()
         );
         final var targetNode = startIndexNode();
@@ -335,7 +327,7 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
         // Increasing the limit dispatches pending relocations up to the new limit.
         updateClusterSettings(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), secondLimit)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), secondLimit)
         );
         awaitRecoveryCountStats(
             Map.of(
@@ -346,62 +338,5 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
 
         proceedWithHandoffs.countDown();
         ensureGreen(indexName);
-    }
-
-    private void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
-        final var conditionLatch = new CountDownLatch(1);
-        final var success = new AtomicBoolean();
-
-        final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
-        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
-        for (final var nodeName : predicatePerNode.keySet()) {
-            indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
-            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
-        }
-
-        final var listener = new TestRecoverySchedulingListener() {
-            @Override
-            public void onRecoverySchedulingChange() {
-                if (success.get()) {
-                    return;
-                }
-                for (final var nodePredicate : predicatePerNode.entrySet()) {
-                    final var stats = new RecoveryStats();
-                    for (IndexService indexService : indicesServices.get(nodePredicate.getKey())) {
-                        for (IndexShard shard : indexService) {
-                            stats.add(shard.recoveryStats());
-                        }
-                    }
-                    if (nodePredicate.getValue().test(stats) == false) {
-                        return;
-                    }
-                }
-                success.set(true);
-                conditionLatch.countDown();
-            }
-        };
-
-        for (final var nodeName : predicatePerNode.keySet()) {
-            schedulingListeners.get(nodeName).addListener(listener);
-        }
-        try {
-            listener.onRecoverySchedulingChange(); // check in case conditions were already met
-            safeAwait(conditionLatch);
-        } finally {
-            for (final var nodeName : predicatePerNode.keySet()) {
-                schedulingListeners.get(nodeName).removeListener(listener);
-            }
-        }
-    }
-
-    private static RecoveryStats getRecoveryStats(String node) {
-        return clusterAdmin().prepareNodesStats(node)
-            .clear()
-            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-            .get()
-            .getNodes()
-            .getFirst()
-            .getIndices()
-            .getRecoveryStats();
     }
 }

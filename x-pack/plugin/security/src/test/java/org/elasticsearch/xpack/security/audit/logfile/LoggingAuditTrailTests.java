@@ -741,6 +741,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         grantApiKeyRequest.getGrant().setUsername(randomFrom(randomAlphaOfLength(8), null));
         grantApiKeyRequest.getGrant().setPassword(randomFrom(new SecureString("password not exposed"), null));
         grantApiKeyRequest.getGrant().setAccessToken(randomFrom(new SecureString("access token not exposed"), null));
+        grantApiKeyRequest.getGrant().setServiceAccountToken(randomFrom(new SecureString("service account token not exposed"), null));
         grantApiKeyRequest.getGrant().setRunAsUsername(randomFrom(randomAlphaOfLength(10), null));
         grantApiKeyRequest.setApiKeyRequest(createApiKeyRequest);
         auditTrail.accessGranted(requestId, authentication, GrantApiKeyAction.NAME, grantApiKeyRequest, authorizationInfo);
@@ -774,6 +775,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         if (grantApiKeyRequest.getGrant().getAccessToken() != null) {
             grantKeyAuditEventStringBuilder.append(",\"has_access_token\":").append(true);
+        }
+        if (grantApiKeyRequest.getGrant().getServiceAccountToken() != null) {
+            grantKeyAuditEventStringBuilder.append(",\"has_service_account_token\":").append(true);
         }
         if (grantApiKeyRequest.getGrant().getRunAsUsername() != null) {
             grantKeyAuditEventStringBuilder.append(",\"run_as\":\"").append(grantApiKeyRequest.getGrant().getRunAsUsername()).append("\"");
@@ -1906,6 +1910,49 @@ public class LoggingAuditTrailTests extends ESTestCase {
         );
         auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
         assertEmptyLog(logger);
+    }
+
+    public void testRestUriWithQueryStringAndFragment() throws Exception {
+        // each entry is: raw request URI, expected url.path, expected url.query (null if absent)
+        final List<Tuple<String, Tuple<String, String>>> cases = List.of(
+            new Tuple<>("_uri", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri?foo=bar", new Tuple<>("_uri", "foo=bar")),
+            new Tuple<>("_uri?foo=bar#frag", new Tuple<>("_uri", "foo=bar")),
+            new Tuple<>("_uri?foo=bar?baz=qux", new Tuple<>("_uri", "foo=bar?baz=qux")),
+            new Tuple<>("_uri?foo=bar#frag?baz=qux", new Tuple<>("_uri", "foo=bar")),
+            new Tuple<>("_uri?#frag", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri#frag", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri#frag?foo=bar", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri#", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri%23frag?foo=bar", new Tuple<>("_uri%23frag", "foo=bar"))
+        );
+        final InetSocketAddress address = new InetSocketAddress(
+            forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+            randomIntBetween(9200, 9300)
+        );
+        RemoteHostHeader.process(prepareRestContent("_uri", address).v1(), threadContext);
+        for (Tuple<String, Tuple<String, String>> testCase : cases) {
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+            final RestRequest request = prepareRestContent(testCase.v1(), address).v2();
+
+            final String requestId = randomAlphaOfLengthBetween(8, 24);
+            auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
+            final Map<String, String> checkedFields = new HashMap<>(commonFields);
+            checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+            checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied");
+            checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+            checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+            checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+            checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+            checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, testCase.v2().v1());
+            if (testCase.v2().v2() != null) {
+                checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, testCase.v2().v2());
+            }
+            opaqueId(threadContext, checkedFields);
+            traceId(threadContext, checkedFields);
+            forwardedFor(threadContext, checkedFields);
+            assertMsg(logger, checkedFields);
+        }
     }
 
     public void testAuthenticationFailed() throws Exception {

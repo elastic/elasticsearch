@@ -114,14 +114,13 @@ public class FlattenedConflictsIT extends ESRestTestCase {
         refresh("idx_date");
         refresh("idx_flat_date");
 
-        // The flattened sub-key is not in the real mapping so the data node treats it
-        // as absent — only the 5 docs from the date index contribute.
+        // Where a name under a flattened field is its key, the flattened index fills the column too
         List<List<Object>> values = esql("""
             FROM idx_date, idx_flat_date
             | STATS c = COUNT(metadata.time)
             """);
         assertThat(values.size(), equalTo(1));
-        assertThat(values.get(0).get(0), equalTo(5));
+        assertThat(values.get(0).get(0), equalTo(readsKeys() ? 10 : 5));
     }
 
     public void testIntegerVsFlattenedWithCast(String node1, String node2) throws Exception {
@@ -142,13 +141,17 @@ public class FlattenedConflictsIT extends ESRestTestCase {
         refresh("idx_obj_int");
         refresh("idx_flat_int");
 
-        // int sum: 1+2+...+10 = 55; flattened sub-key treated as absent.
+        // int sum: 1+2+...+10 = 55, plus 10+20+...+50 = 150 where the flattened index reads its key
         List<List<Object>> values = esql("""
             FROM idx_obj_int, idx_flat_int
             | STATS s = SUM(features.topic_id::long)
             """);
         assertThat(values.size(), equalTo(1));
-        assertThat(values.get(0).get(0), equalTo(55));
+        assertThat(values.get(0).get(0), equalTo(readsKeys() ? 205 : 55));
+    }
+
+    private boolean readsKeys() throws IOException {
+        return clusterHasCapability("POST", "/_query", List.of(), List.of("flattened_keys")).orElse(false);
     }
 
     private void createIndexPinned(String name, String mapping, String node) throws IOException {

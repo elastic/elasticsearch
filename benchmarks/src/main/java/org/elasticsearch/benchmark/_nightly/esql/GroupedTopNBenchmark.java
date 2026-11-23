@@ -14,16 +14,13 @@ import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator.OutputOrdering;
@@ -62,7 +59,7 @@ public class GroupedTopNBenchmark {
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final int BLOCK_LENGTH = 4 * 1024;
@@ -148,11 +145,7 @@ public class GroupedTopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            new GroupKeyEncoder(
-                groupKeyChannels,
-                elementTypes,
-                new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), "group-key-encoder", 64)
-            ),
+            groupKeyChannels,
             8 * 1024,
             Long.MAX_VALUE,
             sortedOutput ? OutputOrdering.SORTED : OutputOrdering.NOT_SORTED

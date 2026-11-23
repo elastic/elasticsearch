@@ -1,0 +1,48 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.lucene.store;
+
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.function.IntFunction;
+
+/**
+ * Reusable, lazily-grown off-heap (native) scratch buffer. Holding one instance
+ * avoids allocating on every call.
+ *
+ * <p>Not thread-safe; instances must not be shared across threads.
+ */
+public final class SegmentBufferScratch implements IntFunction<MemorySegment> {
+
+    private MemorySegment backing;
+    private MemorySegment slice;
+
+    /**
+     * Returns an off-heap (native) {@link MemorySegment} of exactly {@code count} bytes, aligned for
+     * any primitive layout. The backing allocation is grown lazily and never shrunk,
+     * so a run of equally-sized requests allocates nothing at all.
+     */
+    @Override
+    public MemorySegment apply(int count) {
+        if (slice == null || slice.byteSize() != count) {
+            if (backing == null || backing.byteSize() < count) {
+                // allocate on a power-of-two to reduce the number of excessive re-allocations
+                // as allocated buffers are not deallocated until the arena is closed,
+                // and also to make things easier for malloc
+                int bufferSize = count <= 1 ? 2 : Integer.highestOneBit(count - 1) << 1;
+                backing = ThreadConfinedArena.allocate(bufferSize, ValueLayout.JAVA_LONG.byteAlignment());
+            }
+            slice = backing.asSlice(0, count);
+        }
+        assert backing.scope().isAlive() : "Segment has been de-allocated";
+        assert backing.isAccessibleBy(Thread.currentThread()) : "Another thread is trying to access an allocated thread-confined buffer";
+        return slice;
+    }
+}

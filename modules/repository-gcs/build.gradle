@@ -8,7 +8,7 @@
  */
 
 
-import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import java.nio.file.Files
@@ -26,7 +26,7 @@ dependencies {
   implementation 'com.google.cloud:google-cloud-storage:2.71.0'
   implementation 'com.google.cloud:google-cloud-core:2.73.0'
   implementation 'com.google.cloud:google-cloud-core-http:2.73.0'
-  runtimeOnly 'com.google.guava:guava:33.6.0-jre'
+  runtimeOnly 'com.google.guava:guava:33.7.2-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
@@ -281,7 +281,7 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   include '**/GoogleCloudStorageThirdPartyTests.class'
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
-  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.base', buildParams.testSeedProvider.map { seed -> gcsBasePath + "_third_party_tests_" + seed }
   if (useFixture == false) {
     nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
   }

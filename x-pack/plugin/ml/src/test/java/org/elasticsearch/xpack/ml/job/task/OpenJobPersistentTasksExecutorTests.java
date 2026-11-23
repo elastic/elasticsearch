@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -365,7 +365,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -582,7 +582,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertTrue(action.shouldRetry(new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS)));
         assertThat(action.calculateDelayBound(TimeValue.timeValueSeconds(5).millis()), equalTo(TimeValue.timeValueSeconds(30).millis()));
 
-        assertTrue(action.shouldRetry(new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY)));
+        assertTrue(action.shouldRetry(new SearchPhaseExecutionException("query", "partial results", List.of())));
         assertThat(action.calculateDelayBound(TimeValue.timeValueSeconds(5).millis()), equalTo(TimeValue.timeValueSeconds(10).millis()));
     }
 

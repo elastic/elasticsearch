@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -50,6 +51,7 @@ import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -57,6 +59,7 @@ import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -73,6 +76,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -84,6 +88,7 @@ import static org.elasticsearch.repositories.azure.AbstractAzureServerTestCase.r
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -100,6 +105,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This class tests how a {@link AzureBlobContainer} and its underlying SDK client are retrying requests when reading or writing blobs.
@@ -361,6 +367,10 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         assertThat(countDown.isCountedDown(), is(true));
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.repositories.azure:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/152914"
+    )
     public void testWriteLargeBlob() throws Exception {
         final int maxRetries = randomIntBetween(4, 8);
         logger.info("--> max retries: {}", maxRetries);
@@ -423,9 +433,32 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     Streams.readFully(exchange.getRequestBody());
                     AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                 } else {
-                    logger.info("--> failing no response");
                     long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
-                    readFromInputStream(exchange.getRequestBody(), randomLongBetween(0, contentLength));
+                    final long bytesToRead = randomLongBetween(0, contentLength);
+                    logger.info(
+                        "--> failing no response: [{}] [{}] content-length [{}], will read [{}] bytes",
+                        exchange.getRequestMethod(),
+                        exchange.getRequestURI(),
+                        contentLength,
+                        bytesToRead
+                    );
+                    // Count the bytes actually received so that, if the client stalls mid-body (see #152914), the log shows how far it got.
+                    final AtomicLong bytesReceived = new AtomicLong();
+                    final InputStream countingBody = new FilterInputStream(exchange.getRequestBody()) {
+                        @Override
+                        public int read() throws IOException {
+                            final int b = super.read();
+                            if (b != -1) {
+                                bytesReceived.incrementAndGet();
+                            }
+                            return b;
+                        }
+                    };
+                    try {
+                        readFromInputStream(countingBody, bytesToRead);
+                    } finally {
+                        logger.info("--> failing no response: received [{}] of [{}] bytes", bytesReceived.get(), bytesToRead);
+                    }
                 }
                 exchange.close();
             } catch (Throwable t) {
@@ -688,6 +721,57 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         );
     }
 
+    public void testContentsChangeWhileStreaming() throws Exception {
+        final byte[] bytes = randomBlobContent(2);
+        final BlobContainer blobContainer = createBlobContainer(1);
+        final CountDownLatch firstByteConsumed = new CountDownLatch(1);
+        httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, "contents_change_while_streaming"),
+            interceptGetBlobRequest(exchange -> {
+                try {
+                    Streams.readFully(exchange.getRequestBody());
+
+                    if (exchange.getRequestHeaders().getFirst("If-Match") != null) {
+                        // The resume after we've sent some bytes (see below); this resume has an "If-Match" due to it being set
+                        // in `RetryingInputStream.openStreamWithRetry` (also see `addSuccessfulDownloadHeaders` where the
+                        // ETag is taken from during the first read).
+                        // We fail this read to show that the content has changed.
+                        AzureHttpHandler.sendError(
+                            exchange,
+                            RestStatus.PRECONDITION_FAILED,
+                            "ConditionNotMet",
+                            "The condition specified using HTTP conditional header(s) is not met."
+                        );
+                        return;
+                    }
+                    // We only send 1 byte (of the at least 2 in `bytes`) so we have a resume.
+                    addSuccessfulDownloadHeaders(exchange, bytes, bytes.length);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), bytes.length);
+                    exchange.getResponseBody().write(bytes, 0, 1);
+                    exchange.getResponseBody().flush();
+                    // we wait before `close`-ing because otherwise the byte and the FIN can arrive at the client on the same read and
+                    // hence the retry won't be sent with an "If-Match" leading to the 412 `sendError` above
+                    safeAwait(firstByteConsumed);
+                } finally {
+                    exchange.close();
+                }
+            }, bytes)
+        );
+
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "contents_change_while_streaming")) {
+            firstByteConsumed.countDown();
+            String message = expectThrows(BlobVersionMismatchException.class, () -> Streams.readFully(inputStream)).getMessage();
+            assertThat(
+                message,
+                matchesRegex(
+                    "blob \\["
+                        + blobContainer.path().buildAsString()
+                        + "contents_change_while_streaming] version \\[\\S+] is no longer available: .*"
+                )
+            );
+        }
+    }
+
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {
         return createBlobContainer(maxRetries, null, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
     }
@@ -801,11 +885,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
                 );
             }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
         };
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
@@ -816,6 +895,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 

@@ -33,20 +33,30 @@ public enum ResolutionDemand {
     ROWS,
 
     /**
-     * An ungrouped aggregate answerable from file metadata: resolution reads every footer up front and split
+     * An ungrouped aggregate answerable from file metadata: resolution reads footers up front and split
      * discovery is skipped. The footers it reads are ones a later phase would have read anyway.
+     * <p>
+     * Elected from the query's shape alone, so it is asked of formats that cannot answer it. The gather
+     * then stops once a read would feed neither the fold nor the schema cache; see
+     * {@code remainingReadsBuyNothing}.
      */
     EAGER_STATS;
 
     /**
-     * @param requiringStats paths under an ungrouped aggregate, or {@code null} to resolve every path eagerly
-     * @param readingNoRows  paths whose rows are all discarded, or {@code null} if the shape was not examined
+     * Keyed by the {@link ExternalSourceSpec}, as resolution is.
+     *
+     * @param requiringStats specs under an ungrouped aggregate, or {@code null} to resolve every spec eagerly
+     * @param readingNoRows  specs whose rows are all discarded, or {@code null} if the shape was not examined
      */
-    public static ResolutionDemand of(String path, Set<String> requiringStats, Set<String> readingNoRows) {
-        if (requiringStats == null || requiringStats.contains(path)) {
+    public static ResolutionDemand of(
+        ExternalSourceSpec spec,
+        Set<ExternalSourceSpec> requiringStats,
+        Set<ExternalSourceSpec> readingNoRows
+    ) {
+        if (requiringStats == null || requiringStats.contains(spec)) {
             return EAGER_STATS;
         }
-        return readingNoRows != null && readingNoRows.contains(path) ? SCHEMA_DISCOVERY : ROWS;
+        return readingNoRows != null && readingNoRows.contains(spec) ? SCHEMA_DISCOVERY : ROWS;
     }
 
     /** Whether resolution must eagerly aggregate global statistics across every file. */
@@ -55,9 +65,8 @@ public enum ResolutionDemand {
     }
 
     /**
-     * Whether the query discards every row from this path. No longer decides how far a listing runs - the
-     * dataset's mode does that - and its one remaining caller is the declared rail's coercibility check, which a
-     * query reading no rows never performs the cast for.
+     * Whether the query discards every row this spec reads. How far the listing runs is the dataset's mode, not
+     * this; the one caller is the declared-mapping coercibility check, whose cast such a query never performs.
      */
     public boolean isSchemaDiscovery() {
         return this == SCHEMA_DISCOVERY;

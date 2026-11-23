@@ -19,24 +19,24 @@ import java.util.Map;
 
 public class RestCountActionTests extends RestActionTestCase {
 
-    public void testApplyRoutingOrSliceWithSliceParam() {
+    public void testApplyRoutingOrSliceWithPathMultiSlice() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_count")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1,s2"))
+            .withPath("/my-index/tenant-a,tenant-b/_count")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a,tenant-b"))
             .build();
         SearchRequest countRequest = new SearchRequest();
         RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest);
-        assertEquals("s1,s2", countRequest.routing());
+        assertEquals("tenant-a,tenant-b", countRequest.routing());
         assertTrue(countRequest.isRoutingFromSlice());
-        assertEquals("s1,s2", countRequest.searchSlice());
+        assertEquals("tenant-a,tenant-b", countRequest.searchSlice());
     }
 
-    public void testApplyRoutingOrSliceWithSliceAllParam() {
+    public void testApplyRoutingOrSliceWithPathSliceAll() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_count")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL))
+            .withPath("/my-index/_all/_count")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
             .build();
         SearchRequest countRequest = new SearchRequest();
         RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest);
@@ -48,28 +48,28 @@ public class RestCountActionTests extends RestActionTestCase {
     public void testApplyRoutingOrSliceRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_count")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1", "routing", "r1"))
+            .withPath("/my-index/tenant-a/_count")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a", "routing", "r1"))
             .build();
         SearchRequest countRequest = new SearchRequest();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
         );
-        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
     }
 
     public void testApplyRoutingOrSliceRejectsSliceWhenFeatureDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_count")
-            .withParams(Map.of(SliceIndexing.PARAM_NAME, "s1"))
+            .withPath("/my-index/tenant-a/_count")
+            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, "tenant-a"))
             .build();
         SearchRequest countRequest = new SearchRequest();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest)
         );
-        assertEquals("request does not support [slice]", e.getMessage());
+        assertEquals("request does not support [_slice]", e.getMessage());
     }
 }

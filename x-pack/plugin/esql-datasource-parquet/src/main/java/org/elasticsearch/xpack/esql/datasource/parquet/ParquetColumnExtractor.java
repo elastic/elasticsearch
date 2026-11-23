@@ -13,12 +13,14 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -36,9 +38,12 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -71,10 +76,10 @@ import java.util.function.Consumer;
  *       {@link CoalescedRangeReader} merges adjacent column-chunk ranges <em>within</em> the row
  *       group (column chunks in one row group are written contiguously, so the multi-column
  *       projection coalesces naturally) and dispatches the merged ranges to
- *       {@link StorageObject#readBytesAsync}. The first in-flight bucket and the stall path
- *       wait per GET ({@code PER_GET}); later buckets take a look-ahead
- *       {@link ParquetIoWatermark} hold so TopN extraction competes with scan look-ahead for
- *       {@code heap / 8} and wait for a live group to decode when the cap would be exceeded.
+ *       {@link StorageObject#readBytesAsync}. Look-ahead buckets take a non-blocking
+ *       {@link ParquetIoWatermark#tryAdmit} hold. A required bucket that cannot fit parks on
+ *       {@link ParquetIoWatermark#admitAsync} inside {@code materialize}, so TopN extraction
+ *       competes with scan look-ahead for {@code heap / 8} without charge-on-expiry.
  *       Within that cap, buckets still fan out before decode: the extractor does not wait on
  *       row group {@code k}'s bytes before issuing {@code k+1}'s GET. Per-request RTT/TTFB cost
  *       goes from
@@ -93,15 +98,14 @@ import java.util.function.Consumer;
  *       bucket-visit order (independent of decode arrival order). A gather permutation then
  *       routes each caller slot to its position in the concatenated block via
  *       {@link Block#filter(boolean, int...)}, replaying duplicate requests for the same row.</li>
- *   <li><b>Coerce to the target type.</b> The extractor always decodes a column at the file's own
- *       physical type; when the caller-supplied target (planner/declared) type differs, the
- *       stitched block is coerced through {@link DeclaredTypeCoercions#castBlock} — the same
- *       engine (and therefore the same values and the same policy-aware failure behavior:
- *       warn+null by default, fail the read under {@code fail_fast}) as the eager decode paths
- *       in {@link ParquetFormatReader}. Unlike the eager paths nothing is
- *       fused into the decode loops here, so every non-identity supported pair coerces this way;
- *       a pair {@link DeclaredTypeCoercions#supports} rejects (a drifted glob file) reads as
- *       all-null with a response Warning, mirroring the eager per-file validation.</li>
+ *   <li><b>Coerce to the target type — inside the decode, ahead of the stitch above.</b> {@link #extract} retypes
+ *       the column view to the query's type for every pair {@link #coercionAdmissible} accepts, and the decode loops
+ *       do the rest: a {@link DeclaredTypeCoercions#fusedInDecode} pair decodes straight to the target, and every
+ *       other pair decodes at the file's own type and goes through {@link DeclaredTypeCoercions#castBlock}, which is
+ *       the same decision, in the same place, as on the eager scan. Because it precedes the gather, a per-value
+ *       coercion warning costs the budget once per decoded value, whatever number of caller slots replay that
+ *       value. A pair {@code coercionAdmissible} rejects is never retyped and reads as all-null with a Warning,
+ *       through {@link #nullFillUncoercible}.</li>
  * </ol>
  * <p>
  * I/O cost: one async coalesced fetch per visited row group, all dispatched in parallel up to
@@ -140,7 +144,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * {@code HeaderWarning}. Production always supplies one: it is the budget-gated wrapper that caps the whole
      * source and ends in {@code DriverContext#addWarning}. Running on the driver thread is not enough to make the
      * fallback correct — when the scan runs on a node other than the coordinator that thread's response headers do
-     * not reach the client (elastic/esql-planning#1837) — so the {@code null} case is for tests only.
+    * not reach the client — so the {@code null} case is for tests only.
      * See {@link #coercionWarnings()}.
      */
     @Nullable
@@ -262,6 +266,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
             if (infos[c] != null) {
                 resolved++;
+                // The decode loops own the fuse-or-cast decision: handed a target-typed view they decode a fused
+                // pair in one step and defuse every other pair to the file's type plus castBlock, which is exactly
+                // what the eager scan hands them. Retyping every admissible pair here puts this route on that one
+                // decision instead of a second copy of it, and leaves nothing for the stitched block to coerce.
+                DataType target = targetTypes == null ? null : targetTypes[c];
+                if (target != null && target != infos[c].esqlType() && coercionAdmissible(infos[c].esqlType(), target, columnNames[c])) {
+                    infos[c] = infos[c].targetTyped(target, reader.declaredDateFormatterFor(columnNames[c]));
+                }
             }
         }
         if (resolved == 0) {
@@ -336,11 +348,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 result[c] = stitched;
                 DataType target = targetTypes == null ? null : targetTypes[c];
                 if (target != null && target != infos[c].esqlType()) {
-                    // coerceToTarget consumes `stitched` (its finally closes it), so clear the
-                    // slot first — a throw mid-coercion must not double-close via the outer
+                    // nullFillUncoercible consumes `stitched` (its finally closes it), so clear the
+                    // slot first — a throw mid-report must not double-close via the outer
                     // defensive cleanup.
                     result[c] = null;
-                    result[c] = coerceToTarget(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
+                    result[c] = nullFillUncoercible(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
                 }
             }
             return result;
@@ -437,10 +449,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int bucketIdx = waitForNextCompleted(futures);
                 ColumnChunkPrefetcher.PrefetchedChunks prefetchedResult;
                 try {
-                    prefetchedResult = futures[bucketIdx].get();
-                } catch (ExecutionException e) {
-                    // Unwrap the CompletableFuture wrapper; the underlying cause is what callers
-                    // expect (e.g. an IOException from S3) and what existing tests assert against.
+                    // waitForNextCompleted's fast path returns a completed slot without reading
+                    // the ambient cancel signal. Taking the value through the helper still
+                    // observes cancel, so look-ahead buckets that landed during decode of an
+                    // earlier group do not keep the worker thread in materialize.
+                    prefetchedResult = StorageRetryCancellation.getWithCancellationChecks(futures[bucketIdx]);
+                } catch (CompletionException e) {
+                    // Unwrap the helper's wrapper; the underlying cause is what callers expect
+                    // (e.g. an IOException from S3) and what existing tests assert against.
                     Throwable cause = e.getCause();
                     if (cause instanceof IOException io) {
                         throw io;
@@ -449,9 +465,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         throw re;
                     }
                     throw new IOException("prefetch failed for row group " + buckets.get(bucketIdx).rowGroupIndex, cause);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted while awaiting row group prefetch", e);
                 }
                 futures[bucketIdx] = null;
                 pending--;
@@ -460,7 +473,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 BlockMetaData block = blocks.get(bucket.rowGroupIndex);
                 int rgRowCount = Math.toIntExact(block.getRowCount());
 
-                try {
+                try (
+                    ParquetDecodeBudget decodeBudget = ParquetDecodeBudget.tracking(
+                        reader.ioWatermark(),
+                        ParquetDecodeWorkingSet.estimateBytes(block, projection)
+                    )
+                ) {
                     // Decode every resolved column from this bucket's prefetched chunk map. Each
                     // call passes a single-column projection so PrefetchedRowGroupBuilder only
                     // materialises that column's bytes despite the prefetched map carrying every
@@ -479,13 +497,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                             prefetchedResult.chunks(),
                             rgRowCount,
                             createdBy,
-                            blockFactory
+                            blockFactory,
+                            decodeBudget
                         );
                     }
                 } finally {
                     // Release this bucket's prefetched buffers as soon as the loop exits — the
                     // decoded values now live in perBucketBlocks and the raw bytes are no longer
-                    // referenced.
+                    // referenced. Decode extra is already closed; the hold drops with the chunks.
                     prefetchedResult.release().close();
                     finishExtractorLease(inflightLeases, bucketIdx);
                 }
@@ -519,7 +538,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Dispatches later buckets as look-ahead until {@link ParquetIoWatermark#tryAdmit} refuses.
-     * The first in-flight group and the stall path are {@code PER_GET}; look-ahead stays
+     * A required bucket that cannot {@code tryAdmit} takes {@code admitAsync}; look-ahead stays
      * non-blocking {@code GROUP_HOLD}.
      */
     private int dispatchAdmittedPrefetches(
@@ -553,8 +572,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit}.
-     * Non-look-ahead (first bucket and the stall path) uses blocking {@code PER_GET}.
+     * Starts one bucket GET. Look-ahead uses non-blocking {@code tryAdmit}. A required bucket
+     * that cannot {@code tryAdmit} takes {@code admitAsync} and starts the GET on grant, so
+     * materialize waits on a ticket rather than a blocking byte wait.
      */
     @Nullable
     private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketPrefetch(
@@ -568,26 +588,130 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         int bucketIdx
     ) {
         long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projection);
+        long admitBytes = ParquetDecodeWorkingSet.admitBytes(block, projection);
         ParquetIoWatermark watermark = reader.ioWatermark();
-        final ParquetIoWatermark.AdmitHold hold;
-        final ParquetIoWatermark.ByteGate byteGate;
-        if (lookahead) {
-            if (prefetchBytes > 0L && watermark != null) {
-                hold = watermark.tryAdmit(prefetchBytes);
-                if (hold == null && requireHold) {
-                    return null;
-                }
-            } else {
-                hold = null;
+        ParquetIoWatermark.AdmitHold hold = null;
+        if (admitBytes > 0L && watermark != null) {
+            hold = watermark.tryAdmit(admitBytes);
+            if (hold == null && lookahead && requireHold) {
+                return null;
             }
-            byteGate = hold == null ? ParquetIoWatermark.ByteGate.UNGATED : ParquetIoWatermark.ByteGate.GROUP_HOLD;
-        } else {
-            hold = null;
-            byteGate = ParquetIoWatermark.ByteGate.PER_GET;
         }
-        boolean reserved = hold != null;
         RowGroupIo lease = leaseForExtractor(rowGroupIndex);
         inflightLeases[bucketIdx] = lease;
+        if (hold == null && lookahead == false && admitBytes > 0L && watermark != null) {
+            return startBucketTicket(block, projection, blockFactory, lease, admitBytes, watermark);
+        }
+        return startBucketIo(block, projection, blockFactory, lease, watermark, hold);
+    }
+
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketTicket(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        RowGroupIo lease,
+        long prefetchBytes,
+        ParquetIoWatermark watermark
+    ) {
+        BooleanSupplier ambient = StorageRetryCancellation.current();
+        BooleanSupplier captured = ambient == null ? () -> false : ambient;
+        AtomicBoolean abandoned = new AtomicBoolean();
+        BooleanSupplier cancel = () -> abandoned.get() || captured.getAsBoolean() || lease.isCancelled();
+        CompletableFuture<ParquetIoWatermark.AdmitHold> ticket = new CompletableFuture<>();
+        // Fresh or rebound lease; affinity and GET start after grant. Holds no untracked bytes while waiting.
+        watermark.admitAsync(prefetchBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            if (ticket.complete(hold) == false) {
+                hold.drop();
+            }
+        }, ticket::completeExceptionally));
+        AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> inner = new AtomicReference<>();
+        AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> raw = new AtomicReference<>();
+        AtomicReference<ParquetIoWatermark.AdmitHold> grantedHold = new AtomicReference<>();
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> composed = ticket.thenCompose(granted -> {
+            grantedHold.set(granted);
+            if (abandoned.get()) {
+                granted.drop();
+                return CompletableFuture.failedFuture(new CancellationException());
+            }
+            try {
+                AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> started = new AtomicReference<>();
+                StorageRetryCancellation.runWithCancellation(
+                    cancel,
+                    () -> started.set(startBucketIo(block, projection, blockFactory, lease, watermark, granted, raw))
+                );
+                inner.set(started.get());
+                if (abandoned.get()) {
+                    abandonStartedIo(started.get(), raw.get(), granted);
+                }
+                return started.get();
+            } catch (Exception e) {
+                granted.drop();
+                return CompletableFuture.failedFuture(e);
+            }
+        });
+        composed.whenComplete((ignored, error) -> {
+            if (composed.isCancelled() == false || abandoned.compareAndSet(false, true) == false) {
+                return;
+            }
+            FutureUtils.cancel(ticket);
+            watermark.nodeByteBudget().wakeWaiters();
+            abandonStartedIo(inner.get(), raw.get(), grantedHold.get());
+        });
+        return composed;
+    }
+
+    private static void abandonStartedIo(
+        @Nullable CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startedIo,
+        @Nullable CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> raw,
+        @Nullable ParquetIoWatermark.AdmitHold hold
+    ) {
+        if (startedIo != null) {
+            FutureUtils.cancel(startedIo);
+        }
+        if (raw != null) {
+            FutureUtils.cancel(raw);
+            releasePrefetchIfLanded(raw);
+        } else if (startedIo != null) {
+            releasePrefetchIfLanded(startedIo);
+        }
+        if (hold != null) {
+            hold.drop();
+        }
+    }
+
+    private static void releasePrefetchIfLanded(CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future) {
+        try {
+            ColumnChunkPrefetcher.PrefetchedChunks landed = future.getNow(null);
+            if (landed != null) {
+                landed.release().close();
+            }
+        } catch (Exception ignored) {
+            // cancelled or failed GET: hold.drop is on the error path
+        }
+    }
+
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        RowGroupIo lease,
+        @Nullable ParquetIoWatermark watermark,
+        @Nullable ParquetIoWatermark.AdmitHold hold
+    ) {
+        return startBucketIo(block, projection, blockFactory, lease, watermark, hold, null);
+    }
+
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketIo(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        RowGroupIo lease,
+        @Nullable ParquetIoWatermark watermark,
+        @Nullable ParquetIoWatermark.AdmitHold hold,
+        @Nullable AtomicReference<CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>> rawHolder
+    ) {
+        ParquetIoWatermark.ByteGate byteGate = hold == null ? ParquetIoWatermark.ByteGate.UNGATED : ParquetIoWatermark.ByteGate.GROUP_HOLD;
+        boolean reserved = hold != null;
         try {
             CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
             try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, true)) {
@@ -603,7 +727,36 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 );
             }
             if (hold != null) {
-                future.whenComplete((ignored, error) -> hold.drop());
+                long decodeBytes = ParquetDecodeWorkingSet.estimateBytes(block, projection);
+                CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> raw = future;
+                if (rawHolder != null) {
+                    rawHolder.set(raw);
+                }
+                raw.whenComplete((chunks, error) -> {
+                    if (error != null || chunks == null) {
+                        hold.drop();
+                    } else {
+                        hold.dropIoRemainder(decodeBytes);
+                    }
+                });
+                CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> wrapped = raw.thenApply(chunks -> {
+                    if (chunks == null) {
+                        return chunks;
+                    }
+                    return new ColumnChunkPrefetcher.PrefetchedChunks(chunks.chunks(), () -> {
+                        try {
+                            chunks.release().close();
+                        } finally {
+                            hold.drop();
+                        }
+                    });
+                });
+                wrapped.whenComplete((ignored, error) -> {
+                    if (wrapped.isCancelled()) {
+                        FutureUtils.cancel(raw);
+                    }
+                });
+                future = wrapped;
                 reserved = false;
             }
             return future;
@@ -656,9 +809,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Polls the futures array for any completed slot, returning its index. Blocks on
-     * {@link CompletableFuture#anyOf} until at least one new future completes; subsequent
-     * scans are O(N) in the per-call array length, which is bounded by the number of
-     * surviving row groups (typically &lt; 32).
+     * {@link CompletableFuture#anyOf} until at least one new future completes, remaining
+     * responsive to {@link StorageRetryCancellation}; subsequent scans are O(N) in the
+     * per-call array length, which is bounded by the number of surviving row groups
+     * (typically &lt; 32).
      */
     private static int waitForNextCompleted(CompletableFuture<?>[] futures) {
         // Fast path: a future from a previous round may already be done. Scan first.
@@ -678,12 +832,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         }
         // anyOf blocks until any future completes (success or failure). We don't use anyOf's
         // result; we re-scan for the now-completed slot to recover the bucket index. That keeps
-        // the index ↔ bucket binding without a parallel HashMap lookup.
+        // the index ↔ bucket binding without a parallel HashMap lookup. Cancelling the anyOf
+        // composite does not cancel the prefetch futures; the caller's catch (Throwable) does.
         try {
-            CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)).join();
+            StorageRetryCancellation.getWithCancellationChecks(CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)));
         } catch (CompletionException ignored) {
-            // anyOf surfaces the first failure; ignore here — the caller's get() on the failed
-            // future will rethrow the underlying cause with proper unwrapping.
+            // anyOf surfaces the first failure; ignore here — the caller's
+            // getWithCancellationChecks on the failed future will rethrow the underlying
+            // cause with proper unwrapping.
         }
         idx = findCompleted(futures);
         if (idx < 0) {
@@ -751,43 +907,54 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Coerces one stitched physical-type block to the caller's target (planner/declared) type
-     * through {@link DeclaredTypeCoercions#castBlock} — the identical engine, formatter (the
-     * column's declared date {@code format} via
-     * {@link ParquetFormatReader#declaredDateFormatterFor}), and policy-aware failure behavior
-     * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
-     * like an eagerly scanned one — including the declared-vs-inferred null-fill decision: the lossy
-     * {@link DeclaredTypeCoercions#supports} escape (which admits narrowing) is honored only for a
-     * DECLARED column, mirroring {@code validatePlannerTypesAgainstFile}. An inferred target may only
-     * widen ({@link ParquetFormatReader#plannerTypeCompatibleWithFileDerivedType}); a narrowing or a
-     * drifted-glob pair reads the column as all-null rather than downcasting (which would disagree
-     * with the eager scan of the same file). Always consumes {@code physical} and returns a fresh
-     * caller-owned block.
+     * Mirrors {@code validatePlannerTypesAgainstFile}: the narrowing {@link DeclaredTypeCoercions#supports} admits
+     * is licensed only for a DECLARED column, so an inferred narrowing null-fills instead. {@code columnName} is
+     * the physical name.
      */
-    private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
+    private boolean coercionAdmissible(DataType fileType, DataType target, String columnName) {
+        return DeclaredTypeCoercions.supports(fileType, target)
+            && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType) || reader.isDeclaredTypeColumn(columnName));
+    }
+
+    /**
+     * Null-fills a column this file cannot supply as the query's type at all, and reports it under the policy.
+     * Every pair {@link #coercionAdmissible} accepts is retyped in {@link #extract} and coerced by the decode
+     * loops, which leaves the stitched block already at its target; so a column reaching here is one whose pair
+     * is inadmissible, and there is nothing to cast. Always consumes {@code physical}.
+     */
+    private Block nullFillUncoercible(
+        Block physical,
+        DataType fileType,
+        DataType target,
+        String columnName,
+        int count,
+        BlockFactory factory
+    ) {
         try {
-            // Same gate as the eager reader (validatePlannerTypesAgainstFile). castBlock only functions on a supports()
-            // pair, so that stays the precondition; on top of it the lossy narrowing it admits is licensed only for a
-            // DECLARED column — an inferred target may coerce only when the pair also widens. So an inferred narrowing
-            // (supports true, not widening, not declared) null-fills instead of downcasting, agreeing with the eager
-            // scan of the same file. columnName is physical here (the extractor projects physical names), matching the set.
-            boolean coercible = DeclaredTypeCoercions.supports(fileType, target)
-                && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType)
-                    || reader.isDeclaredTypeColumn(columnName));
-            if (coercible) {
-                return DeclaredTypeCoercions.castBlock(
-                    physical,
+            // Inside the try: the caller has already cleared its slot, so an AssertionError thrown before the
+            // finally below would leak `physical` and contradict this method's "always consumes" contract.
+            assert coercionAdmissible(fileType, target, columnName) == false
+                : "admissible pair ["
+                    + fileType.typeName()
+                    + " -> "
+                    + target.typeName()
+                    + "] on column ["
+                    + columnName
+                    + "] reached the null-fill sink; extract retypes every admissible pair, so the decode loops own it";
+            if (reader.isDeclaredTypeColumn(columnName)) {
+                // A declared column follows the policy, as on the eager scan; skip_row never defers extraction
+                // for a declared read, so a live sink here means null_field.
+                DeclaredTypeCoercions.onUncoercibleColumn(
+                    columnName,
+                    messageLocation,
                     fileType,
                     target,
-                    reader.declaredDateFormatterFor(columnName),
-                    factory,
-                    columnName,
-                    castBlockWarnings()
+                    castBlockWarnings() == null ? null : uncoercibleColumnWarnings()
                 );
+            } else {
+                // Once per column: every deferred batch rediscovers the same file-level mismatch.
+                uncoercibleColumnWarnings().addOnce(DeclaredTypeCoercions.uncoercibleColumnDetail(columnName, fileType, target));
             }
-            coercionWarnings().add(
-                "column [" + columnName + "]: [" + fileType.typeName() + "] in the file, [" + target.typeName() + "] in the query"
-            );
             return factory.newConstantNullBlock(count);
         } finally {
             physical.close();
@@ -807,12 +974,28 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     private SkipWarnings coercionWarnings() {
         if (coercionWarnings == null) {
+            String prefix = "Some values in [" + messageLocation + "] cannot be read as the column type; ";
             coercionWarnings = new SkipWarnings(
-                "Some values in [" + messageLocation + "] cannot be read as the column type; returning null",
+                prefix + "returning null",
+                prefix + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 warningSink
             );
         }
         return coercionWarnings;
+    }
+
+    private SkipWarnings uncoercibleColumnWarnings;
+
+    /**
+     * The sink for a column this file cannot supply as the query's type at all ({@link #nullFillUncoercible}), under the
+     * summary the eager per-file validation uses, so a column reads under one message whichever path decodes it.
+     * Lazily created and shared by every {@link #extract} call, so {@link SkipWarnings#addOnce} reports a column once.
+     */
+    private SkipWarnings uncoercibleColumnWarnings() {
+        if (uncoercibleColumnWarnings == null) {
+            uncoercibleColumnWarnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsNullSummary(messageLocation), warningSink);
+        }
+        return uncoercibleColumnWarnings;
     }
 
     /** See {@link #nullListElementWarnings()}. */
@@ -842,9 +1025,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     /**
      * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
      * {@code fail_fast} so the failure propagates — identical to the eager iterators'
-     * policy-aware {@code coercionWarnings()}. The drifted-glob whole-column-null fallback in
-     * {@link #coerceToTarget} stays on the always-live {@link #coercionWarnings()} regardless of
-     * policy, mirroring the eager per-file validation which also warns+nulls under every policy.
+     * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a declared column the
+     * file cannot supply at all ({@link #nullFillUncoercible}) under {@code fail_fast}, exactly as the eager
+     * per-file validation does; otherwise that column, and the same fallback for an inferred column
+     * (which widens or nulls under every policy), report on {@link #uncoercibleColumnWarnings()}.
      */
     @Nullable
     private SkipWarnings castBlockWarnings() {
@@ -928,10 +1112,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetched,
         int rgRowCount,
         String createdBy,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ParquetDecodeBudget decodeBudget
     ) throws IOException {
-        try (
-            PrefetchedPageReadStore store = PrefetchedRowGroupBuilder.build(
+        PrefetchedPageReadStore store;
+        try {
+            store = PrefetchedRowGroupBuilder.build(
                 block,
                 bucket.rowGroupIndex,
                 projectedSchema,
@@ -940,13 +1126,30 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 /* preloadedMetadata = */ null,
                 prefetched,
                 reader.codecFactory(),
-                blockFactory.breaker()
-            )
-        ) {
+                blockFactory.breaker(),
+                decodeBudget
+            );
+        } catch (IllegalArgumentException e) {
+            throw ParquetReadFailures.wrap(e, "Failed to read Parquet column [" + columnName + "] in file [" + messageLocation + "]");
+        }
+        try (store) {
             if (info.maxRepLevel() == 0) {
                 return decodeFlat(bucket, info, store, rgRowCount, blockFactory);
             }
             return decodeList(bucket, info, columnName, store, projectedSchema, rgRowCount, createdBy, blockFactory);
+        } catch (Exception e) {
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to read Parquet column ["
+                    + columnName
+                    + "] (type "
+                    + info.esqlType()
+                    + ") at row group ["
+                    + (bucket.rowGroupIndex + 1)
+                    + "] in file ["
+                    + messageLocation
+                    + "]"
+            );
         }
     }
 
@@ -965,7 +1168,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 // RowRanges.all() lets every page through loadNextPage()'s page-skip check; the
                 // sparse loop drives skip/read by in-group position from there.
                 RowRanges.all(rgRowCount),
-                null,
+                // A retyped view decodes a coercion in this loop, so the warning sink follows the policy as the
+                // eager scan's does; the eager scan additionally carries a failed-position sink, which this path
+                // does not -- see decodeList. Unused for a column decoded at its own type, which coerces nothing.
+                castBlockWarnings(),
                 warningSink
             )
         ) {
@@ -1029,8 +1235,12 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     runEnd++;
                 }
                 int runLength = runEnd - runStart;
-                // The extractor always decodes at the file's own type, so no coercion sink is in play here; the
-                // dropped-null-element notice is unconditional and needs one regardless.
+                // A retyped view decodes a coercion in this loop, so the sink follows the policy. No failed-position
+                // sink: skip_row defers nothing once any column is declared, which covers every declared read. An
+                // inferred pair can still be partial -- commonType(long, unsigned_long) is unsigned_long and a
+                // negative long fails it -- so with no declared column under skip_row the cell nulls here where the
+                // eager scan drops the row, a divergence older than this change. The dropped-null-element notice is
+                // unconditional.
                 chunks.add(
                     ParquetColumnDecoding.readListColumn(
                         listReader,
@@ -1038,7 +1248,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         runLength,
                         blockFactory,
                         columnName,
-                        null,
+                        castBlockWarnings(),
                         null,
                         warningSink,
                         nullListElementWarnings()

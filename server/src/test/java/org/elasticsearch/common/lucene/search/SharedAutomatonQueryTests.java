@@ -26,8 +26,8 @@ public class SharedAutomatonQueryTests extends ESTestCase {
 
     private static SharedAutomaton automaton(String field, String pattern) {
         return SharedAutomaton.compile(
-            AutomatonQueries.toWildcardAutomaton(new Term(field, pattern), new NoopCircuitBreaker("test")),
-            new NoopCircuitBreaker("test"),
+            AutomatonQueries.toWildcardAutomaton(new Term(field, pattern), NoopCircuitBreaker.INSTANCE),
+            NoopCircuitBreaker.INSTANCE,
             "wildcard"
         );
     }
@@ -43,7 +43,7 @@ public class SharedAutomatonQueryTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> SharedAutomaton.compile(nfa, new NoopCircuitBreaker("test"), "wildcard")
+            () -> SharedAutomaton.compile(nfa, NoopCircuitBreaker.INSTANCE, "wildcard")
         );
         assertThat(e.getMessage(), containsString("require a determinized automaton"));
     }

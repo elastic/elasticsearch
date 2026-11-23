@@ -83,6 +83,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -366,6 +367,29 @@ public class TopHitsIT extends ESIntegTestCase {
                 TopHits topHits = response.getAggregations().get("hits");
                 assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(topHits.getHits().getHits().length, equalTo(2));
+            }
+        );
+    }
+
+    public void testSortOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("top_hits_sort_mapped").setMapping("sort_field", "type=double"),
+            prepareCreate("top_hits_sort_unmapped").setMapping("other", "type=keyword")
+        );
+        prepareIndex("top_hits_sort_mapped").setId("mapped").setSource("sort_field", 3.14).get();
+        prepareIndex("top_hits_sort_unmapped").setId("unmapped").setSource("other", "foo").get();
+        refresh("top_hits_sort_mapped", "top_hits_sort_unmapped");
+
+        assertNoFailuresAndResponse(
+            prepareSearch("top_hits_sort_mapped", "top_hits_sort_unmapped").setSize(0)
+                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("sort_field").unmappedType("keyword")).size(2)),
+            response -> {
+                TopHits topHits = response.getAggregations().get("hits");
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(topHits.getHits().getHits().length, equalTo(2));
+                // the doc that has no value for the field is sorted last
+                assertThat(topHits.getHits().getAt(0).getId(), equalTo("mapped"));
+                assertThat(topHits.getHits().getAt(1).getId(), equalTo("unmapped"));
             }
         );
     }
@@ -1065,6 +1089,38 @@ public class TopHitsIT extends ESIntegTestCase {
             assertTrue(source1.containsKey("message"));
             assertTrue(source1.containsKey("reviewers"));
         });
+    }
+
+    /**
+     * Two buckets fetch through the single inner hits context the aggregator forks. The articles own disjoint comment
+     * dates, so a leak across buckets shows up as a bucket reporting the other article's dates.
+     */
+    public void testTopHitsWithInnerHitsInsideTerms() {
+        QueryBuilder nestedQuery = nestedQuery("comments", matchQuery("comments.message", "comment"), ScoreMode.Avg).innerHit(
+            new InnerHitBuilder().setSize(5)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("articles").setQuery(nestedQuery)
+                .addAggregation(terms("title").field("title.keyword").subAggregation(topHits("top").size(1))),
+            response -> {
+                Terms terms = response.getAggregations().get("title");
+                assertThat(terms.getBuckets().size(), equalTo(2));
+                assertArticleInnerHits(terms, "title 1", "1", 1L, 2L);
+                assertArticleInnerHits(terms, "title 2", "2", 3L, 4L);
+            }
+        );
+    }
+
+    private static void assertArticleInnerHits(Terms terms, String bucketKey, String articleId, Long... commentDates) {
+        SearchHits hits = ((TopHits) terms.getBucketByKey(bucketKey).getAggregations().get("top")).getHits();
+        assertThat(hits.getHits().length, equalTo(1));
+        assertThat(hits.getAt(0).getId(), equalTo(articleId));
+        SearchHits innerHits = hits.getAt(0).getInnerHits().get("comments");
+        List<Long> dates = new ArrayList<>();
+        for (SearchHit innerHit : innerHits) {
+            dates.add(((Number) innerHit.getSourceAsMap().get("date")).longValue());
+        }
+        assertThat(dates, containsInAnyOrder(commentDates));
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {

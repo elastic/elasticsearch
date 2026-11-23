@@ -86,21 +86,11 @@ public class StringColumnAddressingTests extends ColumnarStringTestCase {
         }
         final List<BytesRef> paged = new ArrayList<>();
         final int[] counts = new int[1];
-        assertTrue("the column serves a page of every document", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+        assertTrue("the column serves a page of every document", reader.readBlock(docs, 0, docs.length, new ValuesSink() {
             @Override
-            public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+            protected void page(List<BytesRef> values, int[] valueCounts, int docCount) {
                 counts[0] = docCount;
-                for (int i = 0; i < count; i++) {
-                    paged.add(BytesRef.deepCopyOf(dictionary[ordinals[i]]));
-                }
-            }
-
-            @Override
-            public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
-                counts[0] = docCount;
-                for (int i = 0; i < count; i++) {
-                    paged.add(BytesRef.deepCopyOf(values[i]));
-                }
+                paged.addAll(values);
             }
         }));
         final List<BytesRef> expected = new ArrayList<>();

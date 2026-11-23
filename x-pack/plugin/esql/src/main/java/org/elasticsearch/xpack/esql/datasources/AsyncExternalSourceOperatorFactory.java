@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -83,7 +85,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -138,6 +142,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     @Nullable
     private final FormatReaderRegistry formatReaderRegistry;
+    /**
+     * Registry prototype this {@link #formatReader} was minted from, or {@code null} when the
+     * caller constructed the factory with a standalone reader (tests). Close of the query copy
+     * stops at this object so a node-wide singleton is not closed at query end.
+     */
+    @Nullable
+    private final FormatReader registryPrototype;
     private final StoragePath path;
     private final List<Attribute> attributes;
     // Node telemetry sink, attached to each storage object as it is opened (see attachStorageMetrics).
@@ -216,21 +227,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     @Nullable
     private final List<Attribute> unifiedReadSchema;
-    /**
-     * {@link BlockFactory} used by producer-thread iterator wrappers ({@link VirtualColumnIterator}
-     * for {@code _file.*} / Hive-style partition columns, {@link SchemaAdaptingIterator} for
-     * null-fill and type-casting under UBN). When {@code null}, the per-driver factory from
-     * {@link DriverContext#blockFactory()} is used as a fallback for tests.
-     * <p>
-     * Production wires the node-level (root) factory here so producer-thread allocations route
-     * through the global request circuit breaker instead of the driver-local breaker, which
-     * asserts single-thread access during the driver's run loop. Allocating against the local
-     * breaker from a generic-pool thread races with the driver's run loop and can corrupt the
-     * breaker's reserved-bytes accounting in production (assertions are stripped); see the class
-     * Javadoc on {@link org.elasticsearch.compute.data.LocalCircuitBreaker} for details.
-     */
-    @Nullable
-    private final BlockFactory producerBlockFactory;
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
@@ -241,6 +237,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * skips parallel parse; STATS / full scans keep {@link #maxConcurrentOpenSegments}.
      */
     static final int FILTERED_LIMIT_SEGMENT_WINDOW = 2;
+    /**
+     * Initial concurrent producers for a filtered LIMIT. Driver count is already
+     * {@code task_concurrency}; this ramps start inside {@link #startSliceQueueRead}. A
+     * match on the first split must not open one reader per driver. The cap doubles when a
+     * unit finishes and the observed limiter still has remaining rows, so a filter that
+     * matches nothing early still reaches full parallelism.
+     */
+    static final int FILTERED_LIMIT_READER_RAMP = 1;
+    private final Object filteredLimitRampLock = new Object();
+    private int filteredLimitRunning;
+    private int filteredLimitCap = FILTERED_LIMIT_READER_RAMP;
+    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
@@ -266,6 +274,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * then {@link #onClose} (or {@link #releaseDeferredCloseRef()} when deferred extraction is on).
      * Dual refs keep the storage lease alive until every operator built during pipeline construction
      * has closed, even if an earlier producer fails while later {@code get()} calls are still pending.
+     * While the count is zero {@link #dynamicThreshold()} builds nothing, so a late probe cannot
+     * acquire a side-channel reference that no {@link #releaseOperator} would release.
      */
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
     /**
@@ -350,6 +360,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StorageProvider storageProvider,
         FormatReader formatReader,
         @Nullable FormatReaderRegistry formatReaderRegistry,
+        @Nullable FormatReader registryPrototype,
         StoragePath path,
         List<Attribute> attributes,
         int batchSize,
@@ -364,7 +375,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, String> renames,
         Function<List<Attribute>, String> readConfigFingerprinter,
         @Nullable List<Attribute> unifiedReadSchema,
-        @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
@@ -405,6 +415,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.storageProvider = storageProvider;
         this.formatReader = formatReader;
         this.formatReaderRegistry = formatReaderRegistry;
+        this.registryPrototype = registryPrototype;
         this.path = path;
         this.attributes = attributes;
         this.readerResolvedAttributes = stripRowPosition(attributes);
@@ -456,7 +467,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.renames = renames == null ? Map.of() : renames;
         this.readConfigFingerprinter = readConfigFingerprinter == null ? schema -> "" : readConfigFingerprinter;
         this.unifiedReadSchema = unifiedReadSchema;
-        this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
@@ -515,6 +525,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private final FormatReader formatReader;
         @Nullable
         private FormatReaderRegistry formatReaderRegistry;
+        @Nullable
+        private FormatReader registryPrototype;
         private final StoragePath path;
         private final List<Attribute> attributes;
         private final int batchSize;
@@ -533,8 +545,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Function<List<Attribute>, String> readConfigFingerprinter = schema -> "";
         @Nullable
         private List<Attribute> unifiedReadSchema;
-        @Nullable
-        private BlockFactory producerBlockFactory;
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
@@ -631,19 +641,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          */
         public Builder unifiedReadSchema(@Nullable List<Attribute> unifiedReadSchema) {
             this.unifiedReadSchema = unifiedReadSchema;
-            return this;
-        }
-
-        /**
-         * Sets the {@link BlockFactory} used by {@link VirtualColumnIterator} when materialising
-         * constant blocks for virtual partition / {@code _file.*} columns. Production should pass the
-         * node-level (root) factory so producer-thread allocations route through the global request
-         * circuit breaker rather than the driver-local breaker (which asserts single-thread access
-         * during the driver's run loop). Tests may leave this {@code null} to fall back to the
-         * driver context's factory.
-         */
-        public Builder producerBlockFactory(@Nullable BlockFactory producerBlockFactory) {
-            this.producerBlockFactory = producerBlockFactory;
             return this;
         }
 
@@ -765,11 +762,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Prototype {@link FormatReader} from the registry this query copy was minted from.
+         * When equal to {@link #formatReader} the query does not own close of that object.
+         */
+        public Builder registryPrototype(@Nullable FormatReader registryPrototype) {
+            this.registryPrototype = registryPrototype;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
                 formatReader,
                 formatReaderRegistry,
+                registryPrototype,
                 path,
                 attributes,
                 batchSize,
@@ -784,7 +791,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 renames,
                 readConfigFingerprinter,
                 unifiedReadSchema,
-                producerBlockFactory,
                 sliceQueue,
                 errorPolicy,
                 parsingParallelism,
@@ -1049,10 +1055,34 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * pre-encode every {@code _rowPosition} value it emits with that id. Caller must ensure the
      * reader implements {@link ColumnExtractorAware}; this is validated at
      * {@link Builder#build} time.
+     * <p>
+     * If registration fails (notably {@link SourceExtractors.ClosedException} when the driver finished while this
+     * unit was being opened), the extractor is closed here, outside the registry's monitor, because nothing else
+     * references it.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
         ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink(driverContext));
-        return sourceExtractorsFor(driverContext).register(extractor);
+        try {
+            return sourceExtractorsFor(driverContext).register(extractor);
+        } catch (Exception e) {
+            Releasables.closeWhileHandlingException(extractor);
+            throw e;
+        }
+    }
+
+    /**
+     * Whether {@code e} is the expected race of a driver that finished while this producer was opening its next
+     * unit: the extract operator closed the {@link SourceExtractors} registry, which only happens after the driver
+     * closed the source and so finished {@code buffer}. A closed registry with a live buffer is a wiring bug and
+     * is not matched, so it still fails the query instead of silently truncating results. A match is logged at
+     * {@code DEBUG} so the frequency of the race stays observable even though the exception is dropped.
+     */
+    private static boolean isRegistryClosedAfterBufferFinished(Throwable e, AsyncExternalSourceBuffer buffer) {
+        if (e instanceof SourceExtractors.ClosedException && buffer.noMoreInputs()) {
+            logger.debug("driver finished while the source was opening its next unit; ending the source without a failure");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1160,8 +1190,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Wraps {@code pages} in a {@link VirtualColumnIterator} when this factory has any virtual
      * partition / {@code _file.*} columns. The iterator allocates the constant blocks against
-     * {@link #producerBlockFactory} when set (production: the node-level root factory) and
-     * falls back to the driver context's factory otherwise (test convenience). Returns
+     * the producer {@link BlockFactory} (request-level root, never the driver-local factory wrapping
+     * {@link org.elasticsearch.compute.data.LocalCircuitBreaker}). Returns
      * {@code pages} unchanged when there are no virtual columns to materialise — either the
      * dataset is unpartitioned, or the query projects no output columns at all (a zero-projection
      * {@code COUNT(*)} read, which forwards the reader's position-only pages untouched).
@@ -1169,7 +1199,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private CloseableIterator<Page> wrapWithVirtualColumns(
         CloseableIterator<Page> pages,
         Map<String, Object> partitionValuesForFile,
-        DriverContext driverContext
+        @Nullable BlockFactory producerFactory
     ) {
         // Two independent skip axes. The DATASET axis: an unpartitioned dataset has no virtual
         // columns to materialise. The OUTPUT axis: a zero-projection read (a bare STATS COUNT(*),
@@ -1186,23 +1216,47 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty() || attributes.isEmpty()) {
             return pages;
         }
-        return new VirtualColumnIterator(
-            pages,
-            attributes,
-            partitionColumnNames,
-            partitionValuesForFile,
-            producerBlockFactory(driverContext)
-        );
+        return new VirtualColumnIterator(pages, attributes, partitionColumnNames, partitionValuesForFile, producerFactory);
+    }
+
+    @Nullable
+    static BlockFactory producerBlockFactory(DriverContext driverContext) {
+        BlockFactory factory = driverContext.blockFactory();
+        return factory == null ? null : factory.parent();
     }
 
     /**
-     * Resolves the {@link BlockFactory} used by producer-thread iterator wrappers (see field
-     * Javadoc on {@link #producerBlockFactory}). Production wires the node-level root factory;
-     * tests fall back to the driver-local factory because they typically run the producer and
-     * consumer on the same thread, so the local breaker's single-thread assertion does not fire.
+     * Binds {@code reader} to the producer-thread factory immediately before a read. Node-level
+     * caches stay on the registry singleton. Page and per-read sample allocations go to this factory
+     * once the format overrides {@link FormatReader#withBlockFactory}; otherwise this is a no-op.
+     * When that wither returns a copy, the pre-bind mint ({@code withReadConfig} / {@code wrapForObject})
+     * is closed so it is not dropped unclosed. {@code null} is a no-op (tests that mock a
+     * {@link DriverContext} without one).
      */
-    private BlockFactory producerBlockFactory(DriverContext driverContext) {
-        return producerBlockFactory != null ? producerBlockFactory : driverContext.blockFactory();
+    private FormatReader bindProducerFactory(FormatReader reader, @Nullable BlockFactory factory) {
+        FormatReader bound = reader.withBlockFactory(factory);
+        if (bound != reader) {
+            closeMinted(reader);
+        }
+        return bound;
+    }
+
+    @Nullable
+    private static CircuitBreaker producerBreaker(@Nullable BlockFactory factory) {
+        return factory == null ? null : factory.breaker();
+    }
+
+    @Nullable
+    private static CircuitBreaker producerBreaker(DriverContext driverContext) {
+        return producerBreaker(producerBlockFactory(driverContext));
+    }
+
+    private static CircuitBreaker streamingBreaker(DriverContext driverContext) {
+        CircuitBreaker breaker = producerBreaker(driverContext);
+        if (breaker == null) {
+            throw new IllegalArgumentException("streaming parse requires a block factory");
+        }
+        return breaker;
     }
 
     /**
@@ -1369,7 +1423,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private CloseableIterator<Page> adaptSchema(
         CloseableIterator<Page> pages,
         ColumnMapping mapping,
-        DriverContext driverContext,
+        @Nullable BlockFactory producerFactory,
         @Nullable List<Attribute> perFileReadSchema,
         @Nullable List<String> perFileCols,
         @Nullable Consumer<String> informationalWarningSink,
@@ -1416,7 +1470,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             pages,
             queryDataSchema.attributes(),
             mapping,
-            producerBlockFactory(driverContext),
+            producerFactory,
             rowPositionInputIndex,
             perFileColumnTypes,
             informationalWarningSink,
@@ -1440,7 +1494,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Do NOT clear the filter entirely: YES-pushed conjuncts (LIKE-family) were
                     // removed from FilterExec and must still be enforced by the reader. Re-push only
                     // the YES conjuncts from the original list so they reach the evaluator, while the
-                    // RECHECK conjuncts remain in FilterExec. See elastic/esql-planning#2052.
+                    // RECHECK conjuncts remain in FilterExec. (A YES conjunct on the cast column itself
+                    // is the one case the reader cannot answer here; PushFiltersToSource keeps those in
+                    // the FilterExec as well, so the reader's "no constraint" answer is re-checked.)
                     List<Expression> yesConjuncts = pushedExpressions.stream()
                         .filter(e -> pushdownSupport.canPush(e) == FilterPushdownSupport.Pushability.YES)
                         .toList();
@@ -1504,6 +1560,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return formatReaderRegistry.wrapForObject(reader, objectName);
     }
 
+    /** Node-wide I/O byte tickets for extra SPPC chunk buffers; {@code null} when the registry has none. */
+    @Nullable
+    private NodeByteBudget nodeByteBudget() {
+        return formatReaderRegistry == null ? null : formatReaderRegistry.nodeByteBudget();
+    }
+
     @Nullable
     private static String objectNameOf(@Nullable StorageObject storageObject) {
         if (storageObject == null) {
@@ -1513,15 +1575,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return objectPath == null ? null : objectPath.objectName();
     }
 
+    /** Whether planning installed a numeric or {@code BYTES_REF} TopN threshold supplier for this factory. */
+    private boolean thresholdInstalled() {
+        return thresholdSupplier != null || minCompetitiveSupplier != null;
+    }
+
+    /**
+     * The shared TopN threshold for this factory's readers, built on first use and torn down by
+     * {@link #closeDynamicThreshold()} once the last operator hold is released. Returns {@code null}
+     * when no threshold supplier is installed, and also once {@link #operatorRefCount} has reached
+     * zero: building the threshold acquires a reference on the TopN side channel, and after the
+     * final {@link #releaseOperator} nothing runs {@link #closeDynamicThreshold()} again, so a
+     * threshold built by a late {@link #noFurtherCandidates()} probe would hold that reference (and
+     * the channel's request-breaker bytes) for the life of the node. The check is made under the
+     * monitor {@link #closeDynamicThreshold()} takes, after the decrement that precedes it, so a
+     * caller either observes zero and builds nothing, or builds before the decrement and is torn
+     * down by the closer.
+     */
     @Nullable
     private DynamicThreshold dynamicThreshold() {
         DynamicThreshold threshold = cachedThreshold;
-        if (threshold != null || (thresholdSupplier == null && minCompetitiveSupplier == null)) {
+        if (threshold != null || thresholdInstalled() == false) {
             return threshold;
         }
         synchronized (this) {
             threshold = cachedThreshold;
             if (threshold == null) {
+                int holds = operatorRefCount.get();
+                assert holds >= 0 : "operator hold released more often than acquired: " + holds;
+                if (holds <= 0) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            () -> "threshold probe after the last operator hold was released; not building a threshold for [" + path + "]",
+                            new IllegalStateException("late threshold probe")
+                        );
+                    }
+                    return null;
+                }
                 if (thresholdColumnName == null) {
                     throw new IllegalStateException("threshold descriptor is incomplete");
                 }
@@ -1550,10 +1640,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
-    private boolean noFurtherCandidates() {
-        DynamicThreshold threshold = dynamicThreshold();
-        if (threshold != null && threshold.noFurtherCandidates()) {
-            return true;
+    /**
+     * Whether the readers can stop opening units: the TopN threshold reports no further
+     * candidates, the pushed/observed LIMIT is exhausted, or a threshold is installed but can no
+     * longer be built because the last operator hold is gone. In that last case the threshold and
+     * the storage lease have been closed and no consumer is left, so a probe that outlived its
+     * operator must stop rather than fall through to a limiter that may still report "keep going".
+     * Package-private so tests can issue a probe after the last operator hold was released (see
+     * {@link #dynamicThreshold()}).
+     */
+    boolean noFurtherCandidates() {
+        if (thresholdInstalled()) {
+            DynamicThreshold threshold = dynamicThreshold();
+            // With a supplier installed, dynamicThreshold() only yields null once the holds are gone (and it has
+            // logged the late caller).
+            if (threshold == null || threshold.noFurtherCandidates()) {
+                return true;
+            }
         }
         Limiter limiter = sourceLimiter != null ? sourceLimiter : observedLimiter;
         return limiter != null && limiter.remaining() == 0;
@@ -1607,7 +1710,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FormatReader operatorReader,
         @Nullable FormatReadCounters formatCounters
     ) {
-        ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
+        ActionListener<Void> finishBuffer = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
             releaseOperator();
@@ -1619,11 +1722,124 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(sliceQueue.totalSlices());
         ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, operatorReader, formatCounters);
         try {
-            producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            submitSliceQueueProducer(state, finishBuffer);
         } catch (Exception e) {
-            completionListener.onFailure(e);
+            finishBuffer.onFailure(e);
         }
     }
+
+    /**
+     * Starts the producer immediately, parks it until a filtered-LIMIT slot opens, or completes
+     * it without I/O once the observed limiter is exhausted. Pushed LIMIT and full scans skip
+     * the ramp: every {@link #get(DriverContext)} submits as before.
+     */
+    private void submitSliceQueueProducer(ProducerState state, ActionListener<Void> finishBuffer) {
+        if (filteredLimitRamp() == false) {
+            // Initial submit is not force-execution: a saturated esql_worker can reject start-of-slice.
+            // Park resumes (executeProducer) are force-execution; T8 covers resume only.
+            executeProducer(state, finishBuffer, () -> runProducerLoop(state, finishBuffer), false);
+            return;
+        }
+        ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
+        boolean startNow;
+        ParkedProducer skipped = null;
+        synchronized (filteredLimitRampLock) {
+            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
+                skipped = new ParkedProducer(state, finishBuffer);
+                startNow = false;
+            } else if (filteredLimitRunning < filteredLimitCap) {
+                filteredLimitRunning++;
+                startNow = true;
+            } else {
+                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
+                startNow = false;
+            }
+        }
+        if (startNow) {
+            try {
+                executeProducer(state, started, () -> runProducerLoop(state, started), false);
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+            return;
+        }
+        if (skipped != null) {
+            skipped.finishBuffer().onResponse(null);
+        }
+    }
+
+    private boolean filteredLimitRamp() {
+        return sourceLimiter == null && observedLimiter != null;
+    }
+
+    private void onFilteredLimitProducerFinished() {
+        if (filteredLimitRamp() == false) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            filteredLimitRunning--;
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    /**
+     * A unit finished and the observed limiter still wants rows, so open more of the parked
+     * drivers. Doubling (rather than +1) is what lets a selective filter reach
+     * {@code task_concurrency} without waiting out one split per extra reader.
+     */
+    private void maybeRampAfterUnit() {
+        if (filteredLimitRamp() == false || noFurtherCandidates()) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
+                filteredLimitCap *= 2;
+            } else {
+                filteredLimitCap = Integer.MAX_VALUE;
+            }
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        if (noFurtherCandidates()) {
+            while (filteredLimitParked.isEmpty() == false) {
+                toSkip.add(filteredLimitParked.poll());
+            }
+            return;
+        }
+        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
+            ParkedProducer parked = filteredLimitParked.poll();
+            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
+                toSkip.add(parked);
+                continue;
+            }
+            filteredLimitRunning++;
+            toStart.add(parked);
+        }
+    }
+
+    private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        for (ParkedProducer parked : toSkip) {
+            parked.finishBuffer().onResponse(null);
+        }
+        for (ParkedProducer parked : toStart) {
+            ActionListener<Void> started = ActionListener.runAfter(parked.finishBuffer(), this::onFilteredLimitProducerFinished);
+            try {
+                executeProducer(parked.state(), started, () -> runProducerLoop(parked.state(), started), false);
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+        }
+    }
+
+    private record ParkedProducer(ProducerState state, ActionListener<Void> finishBuffer) {}
 
     /**
      * Multi-file read path (legacy, non-slice-queue). Per-file {@link ColumnMapping} still arrives
@@ -1651,7 +1867,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, operatorReader, formatCounters);
         state.schemaInfo = schemaMap;
         try {
-            producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
+            // Initial submit is not force-execution. Park resumes are; T8 covers resume only.
+            executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener), false);
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
@@ -1660,7 +1877,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Producer-loop state. One instance per producer path (slice-queue OR multi-file).
      * Tracks iteration position across splits/leaves/files, the currently active page iterator,
-     * and the shared outputs (buffer + DriverContext). Mutated only from the producer executor.
+     * and the shared outputs (buffer + DriverContext).
+     * <p>
+     * {@code pages} is assigned on {@code esql_external_io} then read on {@code esql_worker}.
+     * The handoff is {@code producerExecutor.execute} after the open (happens-before). Duplicate
+     * signals during an open fail via {@link #opening} rather than racing two assigns.
      */
     private static final class ProducerState {
         @Nullable
@@ -1671,6 +1892,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final List<String> projectedColumns;
         final AsyncExternalSourceBuffer buffer;
         final DriverContext driverContext;
+        /**
+         * Root factory resolved once at producer start from {@link #producerBlockFactory(DriverContext)}.
+         * Never the driver-local factory wrapping {@link org.elasticsearch.compute.data.LocalCircuitBreaker}.
+         * Null when tests mock a {@link DriverContext} with no factory.
+         */
+        @Nullable
+        final BlockFactory producerBlockFactory;
         /**
          * The factory's shared reader instance. Used as the base for per-file withers (pushed filter,
          * read config) but does not hold per-operator counters — those flow through
@@ -1701,8 +1929,34 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastSchemaPath;
         @Nullable
         List<Attribute> lastBoundSchema;
+        // The header columns last read for a split of a file with several, and that file: saves the re-read when
+        // this operator opens consecutive splits of one file. A null value is a real answer; the path says it was read.
+        @Nullable
+        StoragePath lastHeaderPath;
+        @Nullable
+        List<String> lastHeaderColumns;
         // 1-based index of the split / file the producer is currently working on (0 = not started).
         int currentSplitIndex;
+        /**
+         * Exclusive producer run (non-reentrant). Each {@code doRun} installs a unique token.
+         * Park and the post-open hop release that token before submitting the next task so an
+         * already-done {@code addListener} (DIRECT) or a fast I/O completion cannot trip a false
+         * overlap. The outer {@code finally} CAS uses the same token so it cannot steal a nested
+         * run's slot. A second {@code doRun} that still finds a token is a bug: close and fail.
+         */
+        final AtomicReference<Object> producerRun = new AtomicReference<>();
+        /** Terminal success or failure recorded; {@link #deliverProducerFailure} may still be pending. */
+        final AtomicBoolean producerFinished = new AtomicBoolean();
+        /** First overlap/IO failure; delivered once the resource owner has closed the iterator. */
+        final AtomicReference<Exception> producerFailure = new AtomicReference<>();
+        /** {@code onFailure} already fired; pairs with {@link #producerFailure}. */
+        final AtomicBoolean producerNotified = new AtomicBoolean();
+        /**
+         * An open is in flight on {@code esql_external_io}. The run token is released for that hop
+         * so the post-open drain can claim; this bit covers the gap so a duplicate signal cannot
+         * start a second {@code advanceToNextUnit}.
+         */
+        final AtomicBoolean opening = new AtomicBoolean();
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -1721,6 +1975,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.projectedColumns = projectedColumns;
             this.buffer = buffer;
             this.driverContext = driverContext;
+            this.producerBlockFactory = producerBlockFactory(driverContext);
             this.operatorReader = operatorReader;
             this.formatCounters = formatCounters;
         }
@@ -1747,6 +2002,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * blocked parser workers can no longer starve the drain that must consume their pages.
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
+        if (state.opening.get()) {
+            // Spurious signal while an open is on esql_external_io. Record the failure only;
+            // the in-flight open owns the stream (often still a local) and delivers after close.
+            markProducerFailed(state, new IllegalStateException("overlapping producer open"));
+            return;
+        }
+        if (state.producerFinished.get()) {
+            releaseProducerResources(state);
+            deliverProducerFailure(state, completionListener);
+            return;
+        }
         if (state.pages == null) {
             openUnitThenDrain(state, completionListener);
         } else {
@@ -1762,31 +2028,73 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * A {@code false} return from {@link #advanceToNextUnit} means the producer is exhausted (terminal success).
      */
     private void openUnitThenDrain(ProducerState state, ActionListener<Void> completionListener) {
-        try {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> {
-                // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking
-                // open probes (length()/computeSegments/reader open) so a parked storage retry/throttle backoff on
-                // the runtime read path aborts on cancel instead of sleeping out its budget. Mirrors the scope the
-                // coordinator installs in ExternalSourceResolver for discovery/resolution footer reads.
-                boolean opened = StorageRetryCancellation.callWithCancellation(state.buffer::readCancelled, () -> advanceToNextUnit(state));
-                if (opened == false) {
-                    state.buffer.commitInFlightBytes();
-                    snapshotFormatReaderStatus(state);
-                    l.onResponse(null);
-                    return;
-                }
-                // Unit opened (iterator built, segmentator admitted — not necessarily running yet). Drain
-                // on the consumer pool so later parser tasks cannot starve their own consumer.
+        if (state.opening.compareAndSet(false, true) == false) {
+            markProducerFailed(state, new IllegalStateException("overlapping producer open"));
+            return;
+        }
+        // This task is handing off to the I/O pool; release so the post-open drain hop can claim
+        // the run without a false overlap if that hop lands before onAfter.
+        releaseProducerRun(state);
+        AbstractRunnable openTask = new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                boolean handedOff = false;
                 try {
-                    producerExecutor.execute(() -> drainCurrentUnit(state, l));
+                    // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking
+                    // open probes (length()/computeSegments/reader open) so a parked storage retry/throttle backoff on
+                    // the runtime read path aborts on cancel instead of sleeping out its budget. Mirrors the scope the
+                    // coordinator installs in ExternalSourceResolver for discovery/resolution footer reads.
+                    boolean opened = StorageRetryCancellation.callWithCancellation(
+                        state.buffer::readCancelled,
+                        () -> advanceToNextUnit(state)
+                    );
+                    if (opened == false) {
+                        state.buffer.commitInFlightBytes();
+                        snapshotFormatReaderStatus(state);
+                        completeProducer(state, completionListener);
+                        return;
+                    }
+                    if (state.producerFinished.get()) {
+                        // Duplicate signal already failed the query; this thread owns the iterator.
+                        releaseProducerResources(state);
+                        deliverProducerFailure(state, completionListener);
+                        return;
+                    }
+                    // Drop the bit before the drain hop: EOF re-enters runProducerLoop to open the
+                    // next unit. Tests (and DIRECT executors) run that hop inline on this stack.
+                    state.opening.set(false);
+                    handedOff = true;
+                    // Unit opened (iterator built, segmentator admitted — not necessarily running yet). Drain
+                    // on the consumer pool so later parser tasks cannot starve their own consumer.
+                    try {
+                        executeProducer(state, completionListener, () -> drainCurrentUnit(state, completionListener));
+                    } catch (Exception e) {
+                        abortProducer(state, completionListener, e);
+                    }
                 } catch (Exception e) {
-                    clearCurrentIterator(state);
-                    l.onFailure(e);
+                    abortProducer(state, completionListener, e);
+                } catch (AssertionError e) {
+                    abortProducer(state, completionListener, new IllegalStateException(e.getMessage(), e));
+                } finally {
+                    // A second clear after handoff drops the next open's bit when EOF re-enters
+                    // inline (DIRECT) or finishes before this finally (esql_worker).
+                    if (handedOff == false) {
+                        state.opening.set(false);
+                    }
                 }
-            }));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                state.opening.set(false);
+                abortProducer(state, completionListener, e);
+            }
+        };
+        try {
+            executor.execute(openTask);
         } catch (Exception e) {
-            clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            state.opening.set(false);
+            abortProducer(state, completionListener, e);
         }
     }
 
@@ -1798,7 +2106,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private void drainCurrentUnit(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            // Same StorageRetryCancellation scope as the open phase: the page pulls (tryAdvance/hasNext/next)
+            // Same StorageRetryCancellation scope as the open phase: the page pulls (tryAdvance)
             // drive the storage reads whose retry/throttle backoff must observe a hard cancel here.
             DrainResult result = StorageRetryCancellation.callWithCancellation(
                 state.buffer::readCancelled,
@@ -1806,35 +2114,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             );
             switch (result) {
                 case DONE -> {
-                    // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
-                    // capture the live bytes first, then close so a reader that invalidates its
-                    // StorageObject on close cannot make metrics() throw and drop the delta.
+                    // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open.
+                    // Stream reads publish in 256 KiB chunks and flush the tail only on close, so the
+                    // iterator must close while the object is still tracked. Commit published chunks
+                    // first so a reader that invalidates metrics() on close cannot drop that delta.
                     snapshotFormatReaderStatus(state);
-                    state.buffer.finishInFlightBytes();
-                    clearCurrentIterator(state);
-                    completionListener.onResponse(null);
+                    closeCurrentIteratorAndFinishBytes(state);
+                    completeProducer(state, completionListener);
                 }
                 case EOF -> {
                     // Finished consuming this unit: capture deltas, count the split as processed,
                     // and re-enter to advance to the next unit (openUnitThenDrain re-dispatches to the I/O pool).
                     snapshotFormatReaderStatus(state);
                     state.buffer.incSplitsProcessed();
-                    state.buffer.finishInFlightBytes();
-                    clearCurrentIterator(state);
+                    closeCurrentIteratorAndFinishBytes(state);
+                    maybeRampAfterUnit();
                     runProducerLoop(state, completionListener);
                 }
                 case BLOCKED -> {
-                    // A listener has been registered on waitForSpace that will re-submit the drain.
-                    // Do not write the bytes view here: parkUntilReady may already have submitted
-                    // runProducerLoop on another pool thread, and the live view already includes
-                    // bytes that land while the producer is parked.
-                    snapshotFormatReaderStatus(state);
+                    // A listener has been registered that will re-submit the drain. Do not mutate
+                    // producer state after park: addListener may already have run the resume inline.
                 }
             }
         } catch (Exception e) {
-            state.buffer.finishInFlightBytes();
-            clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            abortProducer(state, completionListener, e);
+        } catch (AssertionError e) {
+            abortProducer(state, completionListener, new IllegalStateException(e.getMessage(), e));
         }
     }
 
@@ -1852,11 +2157,91 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Closes the current page iterator (if any) so the next {@link #advanceToNextUnit} call starts
-     * cleanly. Safe to call multiple times.
+     * cleanly. Safe to call multiple times. Nulls the slot before close so a concurrent drain
+     * cannot observe a dying iterator.
      */
     private static void clearCurrentIterator(ProducerState state) {
-        closeQuietly(state.pages);
+        CloseableIterator<Page> previous = state.pages;
         state.pages = null;
+        closeQuietly(previous);
+    }
+
+    /**
+     * Commits live published chunks, closes the iterator so {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream} flushes its last partial
+     * 256 KiB, then folds the remainder. Closing first is what makes {@code bytes_read} exact for
+     * stream formats; committing first keeps already-published chunks if {@code metrics()} throws
+     * after close.
+     */
+    private static void closeCurrentIteratorAndFinishBytes(ProducerState state) {
+        state.buffer.commitInFlightBytes();
+        clearCurrentIterator(state);
+        state.buffer.finishInFlightBytes();
+    }
+
+    /**
+     * Install {@code next} as the live iterator. A previous live iterator is a bug (two opens
+     * racing): close it and fail the query rather than leak it or skip a file. Closing the
+     * replaced iterator is the leak fix (text S3 permit, Parquet byte hold).
+     */
+    static CloseableIterator<Page> occupyPagesSlot(CloseableIterator<Page> previous, CloseableIterator<Page> next) {
+        if (previous != null) {
+            closeQuietly(previous);
+            assert false : "replaced live iterator";
+            throw new IllegalStateException("replaced live iterator");
+        }
+        return next;
+    }
+
+    /**
+     * {@code pages == null} mid-drain is a bug; fail the query rather than treat it as EOF.
+     * There is no leftover iterator to close: null is the empty slot (close lives in
+     * {@link #occupyPagesSlot} / {@link #clearCurrentIterator}).
+     */
+    static CloseableIterator<Page> requirePages(CloseableIterator<Page> pages) {
+        if (pages == null) {
+            assert false : "null pages mid-drain";
+            throw new IllegalStateException("null pages mid-drain");
+        }
+        return pages;
+    }
+
+    /** {@link #occupyPagesSlot} into {@code state.pages}; closes {@code pages} if the slot was live. */
+    private static void assignPages(ProducerState state, CloseableIterator<Page> pages) {
+        CloseableIterator<Page> previous = state.pages;
+        state.pages = null;
+        try {
+            state.pages = occupyPagesSlot(previous, pages);
+        } catch (IllegalStateException e) {
+            closeQuietly(pages);
+            throw e;
+        } catch (AssertionError e) {
+            closeQuietly(pages);
+            throw e;
+        }
+    }
+
+    /**
+     * Exclusive producer-run CAS. {@code true} means this token owns the run until
+     * {@link #releaseProducerRun} or {@code doRun}'s {@code finally}. A failed claim is a
+     * duplicate {@code doRun}; the caller records the failure and does not close or notify
+     * (the token holder cleans up when it sees {@code producerFinished}).
+     */
+    static boolean claimProducerRun(AtomicReference<Object> run, Object token) {
+        return run.compareAndSet(null, token);
+    }
+
+    /**
+     * Per-thread token for the current {@code doRun}, so park/open can release before handoff
+     * without a shared field a nested run on another {@code esql_worker} thread could clobber.
+     */
+    private static final ThreadLocal<Object> PRODUCER_RUN_TOKEN = new ThreadLocal<>();
+
+    private static void releaseProducerRun(ProducerState state) {
+        Object token = PRODUCER_RUN_TOKEN.get();
+        if (token != null) {
+            state.producerRun.compareAndSet(token, null);
+        }
     }
 
     /**
@@ -1865,9 +2250,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
      */
     private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
-        CloseableIterator<Page> pages = state.pages;
+        CloseableIterator<Page> pages = requirePages(state.pages);
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
+            if (state.producerFinished.get()) {
+                return DrainResult.DONE;
+            }
             if (noFurtherCandidates()) {
                 return DrainResult.DONE;
             }
@@ -1889,21 +2277,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
             Holder<DrainResult> drainResultHolder = new Holder<>();
             Page page = buffer.readCounters().meteredCpu(() -> {
-                Page tryPage = pages.tryAdvance();
+                Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+                Page tryPage = ExternalSourceDrainUtils.tryAdvanceOrPark(pages, blockedOn);
+                if (blockedOn.get() != null) {
+                    drainResultHolder.set(parkUntilReady(blockedOn.get(), state, completionListener));
+                    return null;
+                }
                 if (tryPage == null) {
-                    // tryAdvance returned null: either EOF or the iterator is between chunks.
-                    // Recheck waitForReady: not-done = more data coming, yield. Done = hasNext
-                    // gives the definitive answer (won't block since isReadyNow was just true).
-                    SubscribableListener<Void> recheck = pages.waitForReady();
-                    if (recheck.isDone()) {
-                        if (pages.hasNext() == false) {
-                            drainResultHolder.set(DrainResult.EOF);
-                            return null;
-                        }
-                        tryPage = pages.next();
-                    } else {
-                        drainResultHolder.set(parkUntilReady(recheck, state, completionListener));
-                    }
+                    drainResultHolder.set(DrainResult.EOF);
+                    return null;
                 }
                 return tryPage;
             });
@@ -1917,6 +2299,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // park on space we hold it in the listener closure and deliver it on resume.
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
+                pages.revokeOvershootOnPark();
                 return parkUntilReadyWithPage(space, page, state, completionListener);
             }
             if (buffer.noMoreInputs() || noFurtherCandidates()) {
@@ -1947,22 +2330,37 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * <p>
      * Collapses three structurally identical {@code addListener} blocks (page-ready, page-ready
      * recheck, buffer-space) into one site, removing copy-paste drift risk between branches.
+     * <p>
+     * The park is registered through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished}, so a
+     * finished buffer (cancel / DELETE / LIMIT teardown, STOP, producer failure) ends it even when
+     * {@code signal} is the iterator's own readiness (a byte-budget ticket, an in-flight GET) that
+     * nothing on the cancel path completes. The woken loop returns {@link DrainResult#DONE} on
+     * {@code noMoreInputs} and closes the iterator from its own run, which is what cancels the
+     * iterator's pending ticket / GET.
      *
      * @param signal a not-done listener from {@code waitForReady()} or {@code waitForSpace()};
      *               callers must verify {@code signal.isDone() == false} before invoking this
      *               helper, otherwise the producer will be re-submitted immediately.
      */
     private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
-        signal.addListener(ActionListener.wrap(v -> {
+        // Snapshot before unlock: BLOCKED must not mutate after addListener (inline resume).
+        snapshotFormatReaderStatus(state);
+        // Unlock before addListener. SubscribableListener completes an already-done signal inline
+        // (DIRECT) even when an executor is passed, and addListener(producerExecutor) is not
+        // force-execution (T8). Release so an inline resume can claim the run; this task must not
+        // mutate producer state after this point. An already-finished buffer completes the park
+        // inline too, so the same ordering covers a cancel that raced this park.
+        releaseProducerRun(state);
+        state.buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             try {
-                producerExecutor.execute(() -> runProducerLoop(state, completionListener));
+                executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
                 clearCurrentIterator(state);
-                completionListener.onFailure(e);
+                failProducer(state, completionListener, e);
             }
         }, e -> {
             clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            failProducer(state, completionListener, e);
         }));
         return DrainResult.BLOCKED;
     }
@@ -1970,7 +2368,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Like {@link #parkUntilReady} but holds an already-consumed page across the park. On resume
      * the page is delivered to the buffer (or released if the buffer was finished); then the
-     * producer loop continues.
+     * producer loop continues. {@code signal} is {@code waitForSpace()}, which the buffer already
+     * completes on finish; it goes through {@code waitForReadyOrFinished} anyway so every producer
+     * park follows the one rule.
      */
     private DrainResult parkUntilReadyWithPage(
         SubscribableListener<Void> signal,
@@ -1978,30 +2378,131 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ProducerState state,
         ActionListener<Void> completionListener
     ) {
-        signal.addListener(ActionListener.wrap(v -> {
-            boolean transferred = false;
+        snapshotFormatReaderStatus(state);
+        releaseProducerRun(state);
+        state.buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
+            boolean consumed = false;
             try {
                 if (state.buffer.noMoreInputs() || noFurtherCandidates()) {
+                    consumed = true;
                     page.releaseBlocks();
-                    transferred = true;
                 } else {
+                    consumed = true;
                     deliverPage(page, state);
-                    transferred = true;
                 }
-                producerExecutor.execute(() -> runProducerLoop(state, completionListener));
+                executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
-                if (transferred == false) {
+                if (consumed == false) {
                     page.releaseBlocks();
                 }
                 clearCurrentIterator(state);
-                completionListener.onFailure(e);
+                failProducer(state, completionListener, e);
             }
         }, e -> {
             page.releaseBlocks();
             clearCurrentIterator(state);
-            completionListener.onFailure(e);
+            failProducer(state, completionListener, e);
         }));
         return DrainResult.BLOCKED;
+    }
+
+    /**
+     * Submits one producer continuation on {@code producerExecutor}. Park/open hops use
+     * force-execution so a full {@code esql_worker} queue cannot drop the resume (T8).
+     * Wrapping {@code producerExecutor} itself in a lambda would drop that flag;
+     * {@link ExternalIoExecutors#preserving} already forwards it.
+     * Each signal is one submit: no queued/dirty mailbox. The run lock asserts one
+     * {@code doRun} at a time; a pile of forced resumes is accepted.
+     */
+    private void executeProducer(ProducerState state, ActionListener<Void> completionListener, Runnable work) {
+        executeProducer(state, completionListener, work, true);
+    }
+
+    private void executeProducer(ProducerState state, ActionListener<Void> completionListener, Runnable work, boolean forceExecution) {
+        AbstractRunnable task = new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return forceExecution;
+            }
+
+            @Override
+            protected void doRun() {
+                Object token = new Object();
+                if (claimProducerRun(state.producerRun, token) == false) {
+                    // Token holder may be mid-tryAdvance; do not close or notify here.
+                    markProducerFailed(state, new IllegalStateException("overlapping producer run"));
+                    return;
+                }
+                Object previousToken = PRODUCER_RUN_TOKEN.get();
+                PRODUCER_RUN_TOKEN.set(token);
+                try {
+                    if (state.producerFinished.get()) {
+                        if (state.opening.get()) {
+                            return;
+                        }
+                        releaseProducerResources(state);
+                        deliverProducerFailure(state, completionListener);
+                        return;
+                    }
+                    work.run();
+                } finally {
+                    state.producerRun.compareAndSet(token, null);
+                    if (previousToken != null) {
+                        PRODUCER_RUN_TOKEN.set(previousToken);
+                    } else {
+                        PRODUCER_RUN_TOKEN.remove();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                abortProducer(state, completionListener, e);
+            }
+        };
+        producerExecutor.execute(task);
+    }
+
+    private static void completeProducer(ProducerState state, ActionListener<Void> listener) {
+        if (state.producerFinished.compareAndSet(false, true) == false) {
+            deliverProducerFailure(state, listener);
+            return;
+        }
+        if (state.producerFailure.get() != null) {
+            deliverProducerFailure(state, listener);
+            return;
+        }
+        listener.onResponse(null);
+    }
+
+    /** Record a terminal failure without notifying. The resource owner delivers after close. */
+    private static void markProducerFailed(ProducerState state, Exception e) {
+        // Exception first so a volatile read of producerFinished happens-after producerFailure.
+        state.producerFailure.compareAndSet(null, e);
+        state.producerFinished.set(true);
+    }
+
+    /** {@code onFailure} once, after this thread has closed the iterator (or there is none). */
+    private static void deliverProducerFailure(ProducerState state, ActionListener<Void> listener) {
+        Exception e = state.producerFailure.get();
+        if (e != null && state.producerNotified.compareAndSet(false, true)) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static void failProducer(ProducerState state, ActionListener<Void> listener, Exception e) {
+        markProducerFailed(state, e);
+        deliverProducerFailure(state, listener);
+    }
+
+    /** Bytes + iterator. Used when this run owns cleanup (holder, or a terminal failure on this task). */
+    private static void releaseProducerResources(ProducerState state) {
+        closeCurrentIteratorAndFinishBytes(state);
+    }
+
+    private static void abortProducer(ProducerState state, ActionListener<Void> listener, Exception e) {
+        releaseProducerResources(state);
+        failProducer(state, listener, e);
     }
 
     private void deliverPage(Page page, ProducerState state) {
@@ -2009,27 +2510,44 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void deliverPage(Page page, AsyncExternalSourceBuffer buffer) {
-        if (sourceLimiter == null) {
+        boolean consumed = false;
+        try {
+            if (sourceLimiter != null) {
+                int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
+                if (accepted == 0) {
+                    return;
+                }
+            }
+            // Full page: downstream LimitOperator slices overflow. Do not slice here.
             page.allowPassingToDifferentDriver();
+            consumed = true;
             buffer.addPage(page);
-            return;
+        } finally {
+            if (consumed == false) {
+                page.releaseBlocks();
+            }
         }
-        int accepted = sourceLimiter.tryAccumulateHits(page.getPositionCount());
-        if (accepted == 0) {
-            page.releaseBlocks();
-            return;
-        }
-        // Full page: downstream LimitOperator slices overflow. Do not slice here.
-        page.allowPassingToDifferentDriver();
-        buffer.addPage(page);
     }
 
     /**
      * Advance the iteration position to the next unit (slice-queue leaf or multi-file file) and
      * open a fresh page iterator for it. Returns {@code false} if iteration is exhausted or the
-     * buffer has been finished externally.
+     * buffer has been finished externally, including when the driver finished while this unit was opening and its
+     * extractor could no longer be registered.
      */
     private boolean advanceToNextUnit(ProducerState state) throws IOException {
+        try {
+            return advanceToNextUnitUnguarded(state);
+        } catch (SourceExtractors.ClosedException e) {
+            // The driver finished while this unit was opening (the open paths already released the iterator).
+            if (isRegistryClosedAfterBufferFinished(e, state.buffer)) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private boolean advanceToNextUnitUnguarded(ProducerState state) throws IOException {
         while (true) {
             if (noFurtherCandidates()) {
                 return false;
@@ -2101,8 +2619,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // true on text-reader path: reader owns its parse-error budget separately; adapter must own rowCount
         // so max_error_ratio applies to reconciliation-cast drops (parse-error drops stay in reader's budget).
         boolean adapterOwnsRowCount = false;
+        FormatReader fileReader = null;
         try {
-            FormatReader fileReader = readerForFile(fileSplit, state.operatorReader);
+            fileReader = bindProducerFactory(readerForFile(fileSplit, state.operatorReader), state.producerBlockFactory);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
                 StorageObject fullObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
@@ -2199,6 +2718,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Owning the file's trailing bytes means the last segment may close its last stripe to EOF.
                 // Same fact as the reader's lastSplit below — one derivation, so the two cannot disagree.
                 boolean splitIsFileFinal = FileSplitProvider.isLastInFile(fileSplit);
+                // Every split of a file is handed its header columns, read once per file and kept for the next split. The
+                // exception is a split that is both the file's first and last: it has no later split to share them with, and
+                // the dispatch modes that stream it (compressed files, bracket multi-value CSV) read the header from the
+                // stream they are already reading, so a read here would be a whole extra open per file. Only a reader of
+                // header lines has columns to hand over, and an empty schema (which the read context drops) has no use
+                // for them.
+                boolean soleSplitOfItsFile = firstSplit && splitIsFileFinal;
+                List<String> headerColumns = soleSplitOfItsFile
+                    || perFileReadSchema == null
+                    || perFileReadSchema.isEmpty()
+                    || fileReader.readsHeaderLine() == false ? null : headerColumnsFor(fileSplit, fileReader, state);
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -2215,7 +2745,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     state.buffer::recordWarning,
                     bufferedInformationalWarningSink(state.buffer),
                     state.buffer.readCounters(),
-                    state.formatCounters
+                    state.formatCounters,
+                    state.driverContext,
+                    headerColumns
                 );
                 adapterOwnsRowCount = pages != null;
                 if (pages == null) {
@@ -2228,6 +2760,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .lastSplit(splitIsFileFinal)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
+                        .fileHeaderColumns(headerColumns)
                         .splitStartByte(fileSplit.offset())
                         .maxRecordBytes(maxRecordBytes)
                         .readCounters(state.formatCounters)
@@ -2242,7 +2775,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
-                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
+                        .breaker(producerBreaker(state.producerBlockFactory))
                         .sharedErrorBudget(splitBudget)
                         .build();
                     final var finalReader = fileReader;
@@ -2250,7 +2783,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 if (compressedRowPosSlot >= 0) {
                     pages = new NullSpliceRowPositionStrategy(
-                        producerBlockFactory(state.driverContext),
+                        state.producerBlockFactory,
                         "compressed-offset split has no decompressed _rowPosition anchor"
                     ).apply(pages, compressedRowPosSlot);
                 } else {
@@ -2264,7 +2797,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 fileSplit.columnMapping(),
-                state.driverContext,
+                state.producerBlockFactory,
                 perFileReadSchema,
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer),
@@ -2279,19 +2812,46 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(
+            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(
                 withEncoder,
                 overlayFileLocation(fileSplit.partitionValues(), fileSplit.path()),
-                state.driverContext
+                state.producerBlockFactory
             );
+            wrapped = releasingReader(wrapped, fileReader);
+            pages = null;
+            assignPages(state, wrapped);
             return true;
         } catch (Exception e) {
+            state.buffer.commitInFlightBytes();
             closeQuietly(pages);
+            closeMinted(fileReader);
             state.buffer.finishInFlightBytes();
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
         }
+    }
+
+    /**
+     * The header columns of {@code fileSplit}'s file, read over the whole file rather than the split's range so a
+     * compressed file is decompressed from its start. Remembered for the next split of the same file.
+     */
+    @Nullable
+    private List<String> headerColumnsFor(FileSplit fileSplit, FormatReader fileReader, ProducerState state) throws IOException {
+        if (fileSplit.path().equals(state.lastHeaderPath)) {
+            return state.lastHeaderColumns;
+        }
+        StorageObject headerObject = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
+        attachStorageMetrics(headerObject); // before any read, as for the schema probe above
+        List<String> headerColumns;
+        try {
+            headerColumns = fileReader.fileHeaderColumns(headerObject);
+        } finally {
+            foldObjectMetrics(state.buffer, headerObject);
+        }
+        state.lastHeaderPath = fileSplit.path();
+        state.lastHeaderColumns = headerColumns;
+        return headerColumns;
     }
 
     /**
@@ -2344,15 +2904,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // multi-file paths, and correct once filter adaptation is extended to the batch path.
         List<String> cols = dataProjectedColumns();
         String firstObjectName = objectNameOf(splitRefs.get(0).object());
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) wrapForObject(readerForMapping(null), firstObjectName);
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) bindProducerFactory(
+            wrapForObject(readerForMapping(null), firstObjectName),
+            state.producerBlockFactory
+        );
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
             pages = applyRowPositionStrategy(rangeReader, pages, cols);
-            state.pages = pages;
+            pages = releasingReader(pages, rangeReader);
+            CloseableIterator<Page> toAssign = pages;
+            pages = null;
+            assignPages(state, toAssign);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
+            closeMinted(rangeReader);
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
@@ -2392,11 +2959,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
 
         CloseableIterator<Page> pages = null;
+        FormatReader fileReader = null;
         try {
             StoragePath filePath = files.path(fileIndex);
             long size = files.size(fileIndex);
             long mtime = files.lastModifiedMillis(fileIndex);
-            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime, files.version(fileIndex));
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             state.buffer.trackStorageObject(obj);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
@@ -2417,11 +2985,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
             // KEEP-partition-only) skips adaptSchema and must not hand mapFilters a unified-width
             // mapping; pass null so pushedExpressions reach the reader unchanged, as before.
-            FormatReader fileReader = wrapForObject(
-                readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
-                    readConfigFingerprinter.apply(perFileReadSchema)
+            fileReader = bindProducerFactory(
+                wrapForObject(
+                    readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
+                        readConfigFingerprinter.apply(perFileReadSchema)
+                    ),
+                    filePath.objectName()
                 ),
-                filePath.objectName()
+                state.producerBlockFactory
             );
             SharedErrorBudget fileBudget = SharedErrorBudget.forPolicy(errorPolicy, filePath.objectName());
             pages = openWithParallelism(
@@ -2441,7 +3012,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.buffer::recordWarning,
                 bufferedInformationalWarningSink(state.buffer),
                 state.buffer.readCounters(),
-                state.formatCounters
+                state.formatCounters,
+                state.driverContext
             );
             boolean adapterOwnsRowCount = pages != null;
             if (pages == null) {
@@ -2454,18 +3026,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
-                    .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
+                    .breaker(producerBreaker(state.producerBlockFactory))
                     .sharedErrorBudget(fileBudget)
                     .readCounters(state.formatCounters)
                     .build();
-                pages = state.buffer.readCounters().meteredCpu(() -> fileReader.read(obj, ctx));
+                final var thisFileReader = fileReader;
+                pages = state.buffer.readCounters().meteredCpu(() -> thisFileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 mapping,
-                state.driverContext,
+                state.producerBlockFactory,
                 perFileReadSchema,
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer),
@@ -2476,10 +3049,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
+            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, perFileValues, state.producerBlockFactory);
+            wrapped = releasingReader(wrapped, fileReader);
+            pages = null;
+            assignPages(state, wrapped);
             return true;
         } catch (Exception e) {
+            state.buffer.commitInFlightBytes();
             closeQuietly(pages);
+            closeMinted(fileReader);
             state.buffer.finishInFlightBytes();
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
@@ -2559,17 +3137,29 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .readCounters(formatCounters)
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
-        FormatReader reader = wrapForObject(
-            readerWithDynamicThreshold(operatorReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema)),
-            objectNameOf(storageObject)
+        FormatReader reader = bindProducerFactory(
+            wrapForObject(
+                readerWithDynamicThreshold(operatorReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema)),
+                objectNameOf(storageObject)
+            ),
+            producerBlockFactory(driverContext)
         );
         long wallStart = System.nanoTime();
         reader.readAsync(storageObject, ctx, executor, buffer.readCounters(), ActionListener.wrap(iterator -> {
             // record wall time async took
             buffer.readCounters().add(System.nanoTime() - wallStart, 0L);
-            CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
+            CloseableIterator<Page> wrapped;
+            try {
+                wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
+                wrapped = releasingReader(wrapped, reader);
+            } catch (Exception ex) {
+                closeQuietly(iterator);
+                closeMinted(reader);
+                throw ex;
+            }
             consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns, formatCounters);
         }, e -> {
+            closeMinted(reader);
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
             releaseOperator();
@@ -2595,93 +3185,110 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
             // Split-less whole-file read, as in the native-async branch above: the unified schema is this file's.
-            FormatReader reader = wrapForObject(
-                readerWithDynamicThreshold(operatorReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema)),
-                objectNameOf(storageObject)
+            FormatReader reader = bindProducerFactory(
+                wrapForObject(
+                    readerWithDynamicThreshold(operatorReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema)),
+                    objectNameOf(storageObject)
+                ),
+                producerBlockFactory(driverContext)
             );
-            // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
-            // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
-            CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {
-                CloseableIterator<Page> opened = openWithParallelism(
-                    reader,
-                    storageObject,
-                    PhysicalNames.translateNames(projectedColumns, renames),
-                    errorPolicy,
-                    false,
-                    true,
-                    // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
-                    true,
-                    null,
-                    0L,
-                    buffer.capturedSourceMetadataSink(),
-                    buffer::recordWarning,
-                    bufferedInformationalWarningSink(buffer),
-                    buffer.readCounters(),
-                    formatCounters
-                );
-                if (opened == null) {
-                    FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
-                        .batchSize(batchSize)
-                        .rowLimit(sourceReaderRowLimit())
-                        .errorPolicy(errorPolicy)
-                        .maxRecordBytes(maxRecordBytes)
-                        .statsColumnScope(statsColumnScope)
-                        .informationalWarningSink(bufferedInformationalWarningSink(buffer))
-                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
-                        .readCounters(formatCounters)
-                        .build();
-                    opened = buffer.readCounters().meteredCpu(() -> reader.read(storageObject, ctx));
-                }
-                return opened;
-            });
-            // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
-            // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
-            // alongside the data columns.
-            final CloseableIterator<Page> finalPages;
+            boolean owned = false;
             try {
-                pages = applyRowPositionStrategy(reader, pages, projectedColumns);
-                pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
-                CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-                finalPages = wrapWithVirtualColumns(withEncoder, overlayFileLocation(partitionValues, path), driverContext);
-            } catch (Exception e) {
-                closeQuietly(pages);
-                throw e;
+                // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
+                // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
+                CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {
+                    CloseableIterator<Page> opened = openWithParallelism(
+                        reader,
+                        storageObject,
+                        PhysicalNames.translateNames(projectedColumns, renames),
+                        errorPolicy,
+                        false,
+                        true,
+                        // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
+                        true,
+                        null,
+                        0L,
+                        buffer.capturedSourceMetadataSink(),
+                        buffer::recordWarning,
+                        bufferedInformationalWarningSink(buffer),
+                        buffer.readCounters(),
+                        formatCounters,
+                        driverContext
+                    );
+                    if (opened == null) {
+                        FormatReadContext ctx = FormatReadContext.builder()
+                            .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
+                            .batchSize(batchSize)
+                            .rowLimit(sourceReaderRowLimit())
+                            .errorPolicy(errorPolicy)
+                            .maxRecordBytes(maxRecordBytes)
+                            .statsColumnScope(statsColumnScope)
+                            .informationalWarningSink(bufferedInformationalWarningSink(buffer))
+                            .breaker(producerBreaker(driverContext))
+                            .readCounters(formatCounters)
+                            .build();
+                        opened = buffer.readCounters().meteredCpu(() -> reader.read(storageObject, ctx));
+                    }
+                    return opened;
+                });
+                // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
+                // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
+                // alongside the data columns.
+                final CloseableIterator<Page> finalPages;
+                try {
+                    pages = applyRowPositionStrategy(reader, pages, projectedColumns);
+                    pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+                    CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
+                    finalPages = releasingReader(
+                        wrapWithVirtualColumns(
+                            withEncoder,
+                            overlayFileLocation(partitionValues, path),
+                            producerBlockFactory(driverContext)
+                        ),
+                        reader
+                    );
+                    owned = true;
+                } catch (Exception e) {
+                    closeQuietly(pages);
+                    throw e;
+                }
+                drainPagesAsync(
+                    finalPages,
+                    buffer,
+                    // Cold-path drain resumes on the consumer pool (esql_worker), not the read/parse pool, so the
+                    // drain never competes with parser workers for I/O threads. See runProducerLoop's split.
+                    producerExecutor,
+                    // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
+                    buffer::readCancelled,
+                    this::noFurtherCandidates,
+                    page -> deliverPage(page, buffer),
+                    // Close the iterator chain and record telemetry BEFORE notifying the buffer:
+                    // closing publishes the finalize marker into the capture sink (via
+                    // StatsCapturingIterator and the parallel coordinators' finalize hook) and
+                    // flushes MeteredInputStream's last partial 256 KiB into the still-tracked
+                    // object. recordSingleFileTelemetry then folds bytes_read / splits_processed /
+                    // format-reader status. The Driver may snapshot status() synchronously the
+                    // moment buffer.finish(false) flips isFinished() to true; notifying the buffer
+                    // first opens a window where the snapshot lacks the marker (reconciler discards
+                    // the partial contributions) and the telemetry counters (profile shows zeros
+                    // for an operator that did real work). Telemetry runs on both success and
+                    // failure to match the previous runAfter semantics.
+                    ActionListener.runAfter(ActionListener.wrap(v -> {
+                        closeAndRecordSingleFileTelemetry(buffer, formatCounters, finalPages);
+                        buffer.finish(false);
+                    }, e -> {
+                        closeAndRecordSingleFileTelemetry(buffer, formatCounters, finalPages);
+                        buffer.onFailure(e);
+                    }), () -> {
+                        driverContext.removeAsyncAction();
+                        releaseOperator();
+                    })
+                );
+            } finally {
+                if (owned == false) {
+                    closeMinted(reader);
+                }
             }
-            drainPagesAsync(
-                finalPages,
-                buffer,
-                // Cold-path drain resumes on the consumer pool (esql_worker), not the read/parse pool, so the
-                // drain never competes with parser workers for I/O threads. See runProducerLoop's split.
-                producerExecutor,
-                // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
-                buffer::readCancelled,
-                this::noFurtherCandidates,
-                page -> deliverPage(page, buffer),
-                // Close the iterator chain and record telemetry BEFORE notifying the buffer:
-                // closing publishes the finalize marker into the capture sink (via
-                // StatsCapturingIterator and the parallel coordinators' finalize hook), and
-                // recordSingleFileTelemetry writes the splits_processed / bytes_read /
-                // format-reader status counters that the operator status snapshot reads. The
-                // Driver may snapshot status() synchronously the moment buffer.finish(false)
-                // flips isFinished() to true; notifying the buffer first opens a window where
-                // the snapshot lacks the marker (reconciler discards the partial contributions)
-                // and the telemetry counters (profile shows zeros for an operator that did
-                // real work). Telemetry runs on both success and failure to match the previous
-                // runAfter semantics.
-                ActionListener.runAfter(ActionListener.wrap(v -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(finalPages);
-                    buffer.finish(false);
-                }, e -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(finalPages);
-                    buffer.onFailure(e);
-                }), () -> {
-                    driverContext.removeAsyncAction();
-                    releaseOperator();
-                })
-            );
         }));
     }
 
@@ -2696,7 +3303,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(capturing);
-            buffer.onFailure(e);
+            if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {
+                buffer.onFailure(e);
+            }
             driverContext.removeAsyncAction();
             releaseOperator();
         });
@@ -2705,7 +3314,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> wrapped = wrapWithVirtualColumns(
                 withEncoder,
                 overlayFileLocation(partitionValues, path),
-                driverContext
+                producerBlockFactory(driverContext)
             );
             drainPagesAsync(
                 wrapped,
@@ -2720,12 +3329,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // before notifying the buffer so the finalize marker and the telemetry
                 // counters reach the operator status snapshot before isFinished() flips.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(wrapped);
+                    closeAndRecordSingleFileTelemetry(buffer, formatCounters, wrapped);
                     buffer.finish(false);
                 }, e -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(wrapped);
+                    closeAndRecordSingleFileTelemetry(buffer, formatCounters, wrapped);
                     buffer.onFailure(e);
                 }), () -> {
                     driverContext.removeAsyncAction();
@@ -2736,16 +3343,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * Commits published chunks, closes {@code pages} so {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream} flushes its last partial
+     * 256 KiB, then records single-file telemetry. Closing while the object is still tracked is
+     * what makes {@code bytes_read} exact for stream formats.
+     */
+    private static void closeAndRecordSingleFileTelemetry(
+        AsyncExternalSourceBuffer buffer,
+        @Nullable FormatReadCounters formatCounters,
+        CloseableIterator<Page> pages
+    ) {
+        buffer.commitInFlightBytes();
+        closeQuietly(pages);
+        recordSingleFileTelemetry(buffer, formatCounters);
+    }
+
+    /**
      * Records final telemetry for the single-file producer paths
      * ({@link #startNativeAsyncRead}, {@link #startSyncWrapperRead}): increments
      * splits_processed, folds the tracked object's live bytes into committed, and
      * forwards the latest format-reader counter snapshot. Best-effort: any
      * accessor that misbehaves (e.g. returns {@code null} from a test mock) is
      * tolerated so telemetry can never short-circuit the lifecycle callbacks.
-     * Callers must invoke this before closing the iterator so {@code metrics()} is
-     * still valid.
+     * Callers must close the iterator first so the stream remainder is published,
+     * then invoke this while {@code metrics()} is still valid.
      */
-    private void recordSingleFileTelemetry(AsyncExternalSourceBuffer buffer, @Nullable FormatReadCounters formatCounters) {
+    private static void recordSingleFileTelemetry(AsyncExternalSourceBuffer buffer, @Nullable FormatReadCounters formatCounters) {
         buffer.incSplitsProcessed();
         buffer.finishInFlightBytes();
         if (formatCounters == null) {
@@ -2788,7 +3411,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private ActionListener<Void> failureListener(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         return ActionListener.wrap(v -> {}, e -> {
-            buffer.onFailure(e);
+            if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {
+                buffer.onFailure(e);
+            }
             driverContext.removeAsyncAction();
             releaseOperator();
         });
@@ -2797,6 +3422,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private void releaseOperator() {
         if (operatorRefCount.decrementAndGet() == 0) {
             closeDynamicThreshold();
+            FormatReaders.closeDistinctFrom(formatReader, registryPrototype);
             if (onClose != null) {
                 if (deferredExtraction) {
                     // Don't close onClose here — the deferred extraction path keeps using the storage
@@ -2809,6 +3435,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
         }
+    }
+
+    /**
+     * Close page-iterator {@code pages} together with any per-file remints distinct from
+     * {@link #formatReader}. {@code null} pages still close the remints (failed open).
+     */
+    private CloseableIterator<Page> releasingReader(CloseableIterator<Page> pages, FormatReader... minted) {
+        return FormatReaders.releasing(pages, formatReader, minted);
+    }
+
+    private void closeMinted(FormatReader... minted) {
+        FormatReaders.closeAll(formatReader, minted);
     }
 
     private static void closeQuietly(Closeable closeable) {
@@ -2864,25 +3502,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (seg == null) {
             return ParallelDispatchMode.NOT_PARALLELIZABLE;
         }
-        // A header-bound declaration must resolve column names against the header at byte 0 (the coordinators give only
-        // chunk 0 the file's leading bytes — firstSplit(chunk.index == 0)), so it must read the WHOLE file from the
-        // leader — never a mid-file range with no header. It must NOT go NOT_PARALLELIZABLE: that mode's synchronous
-        // whole-file fallback wraps no StatsCapturingIterator, so it strips the cold read's row-count/stripe harvest and
-        // breaks the warm COUNT(*)/MIN/MAX serve. Both whole-file streaming paths below read leader-anchored AND capture
-        // stats, so a declared header read warms exactly like an inferred one. Compression is resolved first so a
-        // gz/… declaration stays on the compressed path (decoding correctly) rather than the uncompressed one.
-        boolean needsFileStart = reader.declaredNameBindingNeedsFileStart();
+        // Compression is resolved first so a compressed file stays on the compressed path (decoding correctly) rather
+        // than the uncompressed one.
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
-            // A splittable/indexed codec could range-split into headerless chunks; a header-bound declaration forces the
-            // stream-only (whole-file, leader-anchored) compressed path instead. A non-splittable codec is stream-only anyway.
-            if (needsFileStart == false && (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec)) {
+            if (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec) {
                 return ParallelDispatchMode.SPLITTABLE_OR_INDEXED_COMPRESSED;
             }
             return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
-        }
-        if (needsFileStart) {
-            return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL;
         }
         RecordSplitter splitter = seg.recordSplitter();
         // A null splitter (only reachable from mocks) keeps the strided default.
@@ -2906,9 +3533,54 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable Consumer<String> partialResultsWarningSink,
         @Nullable Consumer<String> warningSink,
         @Nullable ExternalReadCounters readCounters,
-        @Nullable FormatReadCounters formatCounters
+        @Nullable FormatReadCounters formatCounters,
+        DriverContext driverContext
+    ) throws IOException {
+        return openWithParallelism(
+            reader,
+            obj,
+            cols,
+            policy,
+            recordAlignedMacroSplit,
+            splitIncludesFileLeader,
+            splitIsFileFinal,
+            perFileReadSchema,
+            baseFileOffset,
+            captureSink,
+            partialResultsWarningSink,
+            warningSink,
+            readCounters,
+            formatCounters,
+            driverContext,
+            null
+        );
+    }
+
+    /**
+     * As the overload without it, plus the file's header columns, read once per file by the caller; {@code null} for a
+     * split that reads its own header (the file's only split).
+     */
+    CloseableIterator<Page> openWithParallelism(
+        FormatReader reader,
+        StorageObject obj,
+        List<String> cols,
+        ErrorPolicy policy,
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader,
+        boolean splitIsFileFinal,
+        @Nullable List<Attribute> perFileReadSchema,
+        long baseFileOffset,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        @Nullable Consumer<String> partialResultsWarningSink,
+        @Nullable Consumer<String> warningSink,
+        @Nullable ExternalReadCounters readCounters,
+        @Nullable FormatReadCounters formatCounters,
+        DriverContext driverContext,
+        @Nullable List<String> fileHeaderColumns
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
+            // LIMIT and p<=1 never enter SPPC, so they take no streaming floor / extra
+            // NodeByteBudget charges. The single-thread reader owns its own buffers.
             return null;
         }
         ParallelDispatchMode mode = resolveDispatchMode(reader);
@@ -2940,7 +3612,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     warningSink,
                     readCounters,
                     formatCounters,
-                    this::noFurtherCandidates
+                    this::noFurtherCandidates,
+                    fileHeaderColumns
                 );
             }
             case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
@@ -2955,10 +3628,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // coordinator below eagerly allocates parallelism-many segment-sized (1 MiB) buffers per file
                 // up front; that is necessary for a sequential-only stream but wastes memory on a seekable
                 // file, and at high parallelism and concurrency it exhausts the heap.
-                // A header-bound declaration must resolve names against the header at byte 0, so it can never take
-                // the proven-probing macro-split path (a non-leader range has no header). Force it onto the streaming
-                // whole-file path below, which reads leader-anchored in a single pass and still captures stats.
-                if (splitter != null && splitter.supportsProvenProbing() && reader.declaredNameBindingNeedsFileStart() == false) {
+                if (splitter != null && splitter.supportsProvenProbing()) {
                     return ParallelParsingCoordinator.parallelRead(
                         seg,
                         obj,
@@ -2981,7 +3651,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         warningSink,
                         readCounters,
                         formatCounters,
-                        this::noFurtherCandidates
+                        this::noFurtherCandidates,
+                        fileHeaderColumns
                     );
                 }
                 // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is
@@ -3023,10 +3694,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     statsColumnScope,
                     new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                     streamingSegmentatorAdmission,
-                    producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
+                    streamingBreaker(driverContext),
                     readCounters,
                     formatCounters,
-                    this::noFurtherCandidates
+                    this::noFurtherCandidates,
+                    nodeByteBudget()
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -3039,9 +3711,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 DecompressionCodec codec = cdr.codec();
                 // Shared by both the codec's native-footprint accounting and the coordinator's chunk
                 // buffers, so the whole streaming pipeline reports against a single breaker.
-                var streamingBreaker = producerBlockFactory != null
-                    ? producerBlockFactory.breaker()
-                    : new NoopCircuitBreaker("streaming-parse");
+                var streamingBreaker = streamingBreaker(driverContext);
                 // Route through the production decorator so every failure path releases both the codec's
                 // native handle (e.g. the PanamaZstdInputStream Arena) and the raw connection without
                 // draining it. DecompressingStorageObject.newStream() wraps raw in UncloseableInputStream
@@ -3077,7 +3747,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     streamingBreaker,
                     readCounters,
                     formatCounters,
-                    this::noFurtherCandidates
+                    this::noFurtherCandidates,
+                    nodeByteBudget()
                 );
             }
             case SPLITTABLE_OR_INDEXED_COMPRESSED -> {

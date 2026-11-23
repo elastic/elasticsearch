@@ -26,9 +26,15 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         );
         assertRendered(Condition.ACCESS_DENIED, "Access denied reading [x.csv]", "Access denied reading external data");
         assertRendered(Condition.OBJECT_NOT_FOUND, "External data object not found: [x.csv]", "External data object not found");
+        assertRendered(Condition.OBJECT_ARCHIVED, "External data object [x.csv] is archived", "External data object is archived");
         assertRendered(Condition.MALFORMED_DATA, "Malformed data in [x.csv]", "Malformed external data");
         assertRendered(Condition.METADATA_UNAVAILABLE, "Failed to get metadata for [x.csv]", "Failed to get external data metadata");
         assertRendered(Condition.LISTING_FAILED, "Failed to list external data objects", "Failed to list external data objects");
+        assertRendered(
+            Condition.LOCAL_CAPACITY,
+            "External read concurrency limit reached on this node reading [x.csv]",
+            "External read concurrency limit reached on this node"
+        );
     }
 
     public void testDetailCodeAndRemedyAreAppended() {
@@ -51,6 +57,10 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         assertEquals(
             "External data object [x.csv] was modified during read (HTTP 412). Re-run the query.",
             Condition.OBJECT_CHANGED.render("x.csv", "HTTP 412", "Re-run the query.")
+        );
+        assertEquals(
+            "External data object [x.csv] is archived (HTTP 403 InvalidObjectState). Restore it.",
+            Condition.OBJECT_ARCHIVED.render("x.csv", "HTTP 403 InvalidObjectState", "Restore it.")
         );
         assertEquals(
             "Malformed data in [x.csv] (bad magic). Check the format.",
@@ -79,10 +89,21 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         );
         assertEquals("Unexpected internal failure reading external source", Condition.CLIENT_BUG.render("x.csv", "", ""));
         assertEquals("Unexpected internal failure reading external source: boom", Condition.CLIENT_BUG.render("", "boom", ""));
+        // Names no object: the node, not any store object, is what cannot serve the read yet.
+        assertEquals("Node not ready to serve external data", Condition.WORKER_NOT_READY.render("x.csv", "", "ignored"));
+        assertEquals("Node not ready to serve external data (waited [10s])", Condition.WORKER_NOT_READY.render("", "waited [10s]", ""));
     }
 
     public void testObjectNameIsInsertedLiterally() {
         assertEquals("Malformed data in [a{}$1.csv]", Condition.MALFORMED_DATA.render("a{}$1.csv", "", ""));
+    }
+
+    public void testStaleCachedObjectMatchesRewriteAndDelete() {
+        StoragePath path = StoragePath.of("s3://b/x.csv");
+        assertTrue(ExternalException.isStaleCachedObject(new ExternalObjectChangedException(path)));
+        assertTrue(ExternalException.isStaleCachedObject(new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "")));
+        assertFalse(ExternalException.isStaleCachedObject(new ExternalClientException(Condition.ACCESS_DENIED, path, "", "")));
+        assertFalse(ExternalException.isStaleCachedObject(new IllegalStateException("not a storage condition")));
     }
 
     private static void assertRendered(Condition condition, String withObject, String withoutObject) {

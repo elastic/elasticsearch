@@ -17,28 +17,51 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3BackendFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * End-to-end REST coverage for turning federation off on a live deployment: a node boots with federation available, a
- * data source and dataset are created, then one of the two levers is turned off and the node is restarted. This is the
- * realistic "flip it and bounce" flow (both levers are read once at startup), and it is the only way to observe the
- * unavailable behavior against <em>pre-existing</em> federation state, which a cluster that boots without federation
- * cannot create.
+ * End-to-end REST coverage for turning federation off and back on on a live deployment, in three phases:
+ * <ol>
+ *   <li>a node boots with federation available; a data source and a dataset are created and the dataset is read;</li>
+ *   <li>one of the two levers is turned off and the node is restarted: it must start, and the feature must look like it
+ *       never existed even though the state from phase 1 is still in cluster state;</li>
+ *   <li>the lever is turned back on and the node is restarted again: the state must still be there, and the dataset
+ *       must be readable again, so that an operator who opts out and back in loses nothing.</li>
+ * </ol>
+ * This is the realistic "flip it and bounce" flow (both levers are read once at startup), and it is the only way to
+ * observe the unavailable behavior against <em>pre-existing</em> federation state, which a cluster that boots without
+ * federation cannot create.
  *
  * <p>Both levers must produce the same surface, so subclasses share this flow and differ only in
- * {@link #turnFederationOff()}. Values reach the node through a mutable holder that the cluster spec reads on every
+ * {@link #setFederation(boolean)}. Values reach the node through a mutable holder that the cluster spec reads on every
  * (re)start; after {@link ElasticsearchCluster#restart(boolean)} the REST client is rebuilt because the node's ports may
  * change.
+ *
+ * <p>The dataset is a CSV file on an in-process S3 fixture, so that phases 1 and 3 can actually read it. The fixture is
+ * a class rule of this base, independent of the node, so its endpoint, registered in the data source in phase 1, is
+ * still valid after both restarts. {@code s3} with a CSV file is used because neither carries a snapshot-only feature
+ * flag and these suites also run against release builds; the data source carries the fixture's credentials, so the
+ * encrypted secret in cluster state round-trips through a node that boots without the feature as well. The read is a
+ * projection rather than an aggregation, because an ungrouped {@code COUNT}/{@code MIN}/{@code MAX} can be answered from
+ * split statistics without ever reading the file. The rows alone do not prove the credentials were used, because the
+ * fixture serves an unsigned request too, so each read is also checked to have reached the fixture signed.
  *
  * <p>Asserted after federation is off (it must look like it never existed):
  * <ul>
@@ -50,39 +73,60 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class AbstractFederationRestartRestTestCase extends ESRestTestCase {
 
+    private static final String DATASET_PREFIX = WAREHOUSE + "/restart";
+    private static final String CSV = """
+        id:integer,name:keyword,value:integer
+        1,name-1,10
+        2,name-2,20
+        3,name-3,30
+        """;
+    private static final List<List<Object>> EXPECTED_ROWS = List.of(
+        List.of(1, "name-1", 10),
+        List.of(2, "name-2", 20),
+        List.of(3, "name-3", 30)
+    );
+
+    @ClassRule
+    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
+
     /**
-     * The suite's own cluster, which this flow restarts. Each subclass declares its own {@code @ClassRule} because the
-     * two levers are supplied to the node differently.
+     * The suite's own cluster, which this flow restarts twice. Each subclass declares its own {@code @ClassRule} because
+     * the two levers are supplied to the node differently.
      */
     protected abstract ElasticsearchCluster cluster();
 
     /**
-     * Sets this suite's lever to off. The value is only picked up by the restart that follows.
+     * Sets this suite's lever to on or off. The value is only picked up by the restart that follows. A subclass must
+     * also keep {@code esql.external.allowed_endpoint_hosts} in step with the lever if its cluster does not carry it
+     * permanently: the fixture is reached over plain {@code http}, which the {@code s3} data source only accepts for an
+     * allowlisted host, and the allowlist is a federation setting that an unregistered node refuses to start with.
      */
-    protected abstract void turnFederationOff();
+    protected abstract void setFederation(boolean on);
 
     @Override
     protected boolean preserveClusterUponCompletion() {
-        // The cluster is restarted mid-test and is ephemeral for this class; skip the shared-cluster wipe. The
-        // federation routes are unregistered after the restart, so the created state cannot be cleaned up over REST
-        // anyway.
+        // The cluster is restarted mid-test and is ephemeral for this class; skip the shared-cluster wipe.
         return true;
     }
 
-    public void testFeatureLooksAbsentAfterRestart() throws Exception {
+    public void testFeatureFollowsTheLeverAcrossRestarts() throws Exception {
         final String source = "restart_source";
         final String dataset = "restart_dataset";
+        final S3BackendFixture backend = new S3BackendFixture(s3Fixture);
 
-        // Phase 1: federation available. Create the state the unavailable phase will act on.
-        putDataSource(source, Map.of("region", "us-east-1", "auth", "anonymous"));
-        putDataset(dataset, source, "s3://bucket/x/*.parquet");
+        // Phase 1: federation available. Create the state the other phases act on, and read it once as the baseline.
+        backend.uploadBlob(DATASET_PREFIX + "/part-1.csv", CSV.getBytes(StandardCharsets.UTF_8));
+        putDataSource(source, backend.dataSourceSettings());
+        putDataset(dataset, source, backend.resourceUri(DATASET_PREFIX + "/*.csv"));
         assertThat(datasourceNames(), contains(source));
         assertThat(datasetNames(), contains(dataset));
+        long baselineRead = System.currentTimeMillis();
+        assertThat(queryRows(dataset), equalTo(EXPECTED_ROWS));
+        assertSignedReads(baselineRead);
 
-        turnFederationOff();
-        cluster().restart(false);
-        closeClients();
-        initClient();
+        // Phase 2: federation off. The node must start, and the feature must look absent.
+        setFederation(false);
+        restartAndReconnect();
 
         // All six routes are gone: PUT/GET/DELETE for both data sources and datasets return the standard no-handler 400,
         // even though the pre-existing state is still in cluster state.
@@ -96,13 +140,57 @@ public abstract class AbstractFederationRestartRestTestCase extends ESRestTestCa
         // FROM <pre-existing dataset> is never resolved as a dataset: the name flows into normal index resolution with
         // resolveDatasets=false, so it matches no concrete index and errors as Unknown index, the same 400 a nonexistent
         // index name gives. The dataset is not accessed and neither lever must leak into the message.
-        Request query = new Request("POST", "/_query");
-        query.setJsonEntity("{\"query\": \"FROM " + dataset + "\"}");
-        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(query));
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(query(dataset)));
         String body = EntityUtils.toString(ex.getResponse().getEntity());
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(body, containsString("Unknown index [" + dataset + "]"));
         assertNoLeverNamed(body);
+
+        // Phase 3: federation back on. The state survived both bounces, the routes are back, and the dataset is read
+        // through the data source's stored endpoint, credentials and format configuration exactly as in phase 1.
+        setFederation(true);
+        restartAndReconnect();
+
+        assertThat(datasourceNames(), contains(source));
+        assertThat(datasetNames(), contains(dataset));
+        long restoredRead = System.currentTimeMillis();
+        assertThat(queryRows(dataset), equalTo(EXPECTED_ROWS));
+        assertSignedReads(restoredRead);
+
+        // The routes are back, so the state can be cleaned up over REST again.
+        assertThat(
+            client().performRequest(new Request("DELETE", "/_query/dataset/" + dataset)).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+        assertThat(
+            client().performRequest(new Request("DELETE", "/_query/data_source/" + source)).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+    }
+
+    private void restartAndReconnect() throws IOException {
+        cluster().restart(false);
+        closeClients();
+        initClient();
+    }
+
+    /**
+     * Asserts that the dataset file was fetched from the fixture since {@code since}, and that every fetch carried an
+     * {@code Authorization} header. The fixture answers an unsigned request as well, so the rows alone prove only that the
+     * stored endpoint resolved and that no wrong key was sent; this proves the stored credentials were actually used,
+     * which is what a restart is most likely to break, the encrypted secret in cluster state.
+     */
+    private static void assertSignedReads(long since) {
+        List<S3RequestLog> reads = S3FixtureUtils.getRequestLogs()
+            .stream()
+            .filter(
+                log -> log.getTimestamp() >= since && log.getRequestType().equals("GET_OBJECT") && log.getPath().contains(DATASET_PREFIX)
+            )
+            .toList();
+        assertThat("the dataset file must be fetched from the fixture", reads, not(empty()));
+        for (S3RequestLog read : reads) {
+            assertTrue("fetched without the stored credentials: " + read, read.isSigned());
+        }
     }
 
     /**
@@ -124,6 +212,21 @@ public abstract class AbstractFederationRestartRestTestCase extends ESRestTestCa
     private static void assertNoLeverNamed(String body) {
         assertThat(body, not(containsString(Federation.REGISTER_PROPERTY)));
         assertThat(body, not(containsString(Federation.FEDERATION_ENABLED.getKey())));
+    }
+
+    private static Request query(String dataset) {
+        Request query = new Request("POST", "/_query");
+        // An explicit LIMIT keeps the "adding default limit" warning away from the strict default warnings handler.
+        query.setJsonEntity("{\"query\": \"FROM " + dataset + " | KEEP id, name, value | SORT id | LIMIT 10\"}");
+        return query;
+    }
+
+    /** Reads every row of the dataset. A projection, so the file is actually read rather than answered from statistics. */
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> queryRows(String dataset) throws IOException {
+        Response r = client().performRequest(query(dataset));
+        assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
+        return (List<List<Object>>) entityAsMap(r).get("values");
     }
 
     @SuppressWarnings("unchecked")

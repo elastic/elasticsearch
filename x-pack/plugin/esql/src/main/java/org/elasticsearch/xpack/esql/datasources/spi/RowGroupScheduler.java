@@ -15,10 +15,9 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 public interface RowGroupScheduler {
 
     /**
-     * Attempts to pin {@code io} as the query's sole overshoot owner. Succeeds only for the
-     * current winner (fewest outstanding GETs with gap {@code >= 2}, else oldest
-     * {@link RowGroupIo#startSeq()}), or when there is no live favourite and {@code io} is that
-     * winner. A second pin while one is live returns {@code false}.
+     * Attempts to pin {@code io} as the query's sole overshoot owner and favourite. Succeeds
+     * unless {@code io} is null or finished, the scheduler is closed, or another unfinished
+     * lease already holds the pin. A second pin while one is live returns {@code false}.
      */
     boolean tryPinOvershoot(RowGroupIo io);
 

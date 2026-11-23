@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.core5.pool.PoolStats;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1108,6 +1109,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
                     final PlainActionFuture<IssueTokenResponse> firstFuture = new PlainActionFuture<>();
                     client.issueToken(new IssueTokenRequest("aud-1"), firstFuture);
                     assertEquals("header.payload.sig", firstFuture.get(10, TimeUnit.SECONDS).token());
+                    assertIdleConnections(manager, 1);
                     assertEquals(
                         "rotation epoch after the initial sslConfig.start() publish must be one",
                         1,
@@ -1157,6 +1159,34 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
                 ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
             }
         }
+    }
+
+    /**
+     * Without {@code reload()}'s idle drain, a pooled pre-rotation connection must be retired by
+     * {@link RotationAwareReuseStrategy} after its next response instead of returning to the pool.
+     */
+    public void testStaleConnectionIsRetiredAfterRotation() throws Exception {
+        handler = exchange -> respondWithToken(exchange, (System.currentTimeMillis() / 1000) + 3_600);
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            awaitToken(harness, new IssueTokenRequest("aud-1"));
+            assertIdleConnections(harness.manager, 1);
+
+            harness.manager.getTlsStrategy().setDelegate(harness.sslConfig.getStrategy());
+            awaitToken(harness, new IssueTokenRequest("aud-2"));
+            assertIdleConnections(harness.manager, 0);
+
+            awaitToken(harness, new IssueTokenRequest("aud-3"));
+            assertIdleConnections(harness.manager, 1);
+        }
+    }
+
+    // HC5 completes the response future before releasing the connection to the pool.
+    private static void assertIdleConnections(WorkloadIdentityHttpClientManager manager, int expected) throws Exception {
+        assertBusy(() -> {
+            final PoolStats stats = manager.getConnectionPoolStats();
+            assertEquals(0, stats.getLeased());
+            assertEquals(expected, stats.getAvailable());
+        });
     }
 
     /**

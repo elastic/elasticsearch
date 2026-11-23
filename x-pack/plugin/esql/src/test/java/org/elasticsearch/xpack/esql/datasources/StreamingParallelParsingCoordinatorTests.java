@@ -501,6 +501,59 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. The release runs on every read and swallows the stream's failure, so this fires on a complete
+     * read rather than needing the early-close shape.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the release give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedStreamReleaseDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the release warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to release stream for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            streamingReadCountingMtimeProbes(
+                ExternalStatsCapture.newSink(),
+                new AtomicInteger(),
+                new TestFileStorageObject(path, MTIME_PROBE_INSTANT),
+                new FailingCloseStream(new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8)))
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /** A stream whose {@code close()} fails, so the release give-up fires on an otherwise ordinary read. */
+    private static final class FailingCloseStream extends FilterInputStream {
+        FailingCloseStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public void close() throws IOException {
+            // No location in the message: the warning attaches this throwable in full.
+            throw new IOException("this stream cannot be released");
+        }
+    }
+
     private static final String MTIME_PROBE_PATH = "mem://streaming-mtime-probe-test";
 
     private static final Instant MTIME_PROBE_INSTANT = Instant.parse("2020-01-01T00:00:00Z");
@@ -524,8 +577,21 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         StorageObject source
     ) throws Exception {
         // > 2 chunk-buffers so the segmentator dispatches several chunks and the per-chunk probe repeats.
-        String content = buildContent(500);
-        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        return streamingReadCountingMtimeProbes(
+            sink,
+            probes,
+            source,
+            new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8))
+        );
+    }
+
+    /** As above, over a given stream, so a release that fails can be driven too. */
+    private static List<Instant> streamingReadCountingMtimeProbes(
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
+        AtomicInteger probes,
+        StorageObject source,
+        InputStream stream
+    ) throws Exception {
         StorageObject file = new CountingMtimeStorageObject(source, probes);
         List<Instant> chunkMtimes = Collections.synchronizedList(new ArrayList<>());
         StatsPublishingLineReader reader = new StatsPublishingLineReader(512, MTIME_PROBE_PATH, chunkMtimes);

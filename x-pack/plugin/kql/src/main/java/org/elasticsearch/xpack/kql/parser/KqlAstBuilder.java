@@ -197,7 +197,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                 .filter(Predicate.not(kqlParsingContext::isRangeField)) // Range fields do not support case insensitive
                 .collect(Collectors.toSet());
 
-            withFields(searchFields, fieldQueryApplier(queryText, hasWildcard, false, boolQueryBuilder::should));
+            withFields(searchFields, fieldQueryApplier(queryText, hasWildcard, false, true, boolQueryBuilder::should));
             return rewriteDisjunctionQuery(boolQueryBuilder);
         }
 
@@ -271,7 +271,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             boolean hasWildcard = hasWildcard(fieldQueryValueCtx);
             boolean isPhraseMatch = fieldQueryValueCtx.fieldQueryValueLiteral().QUOTED_STRING() != null;
 
-            withFields(fieldNameCtx, fieldQueryApplier(queryText, hasWildcard, isPhraseMatch, boolQueryBuilder::should));
+            withFields(fieldNameCtx, fieldQueryApplier(queryText, hasWildcard, isPhraseMatch, false, boolQueryBuilder::should));
 
             return rewriteDisjunctionQuery(boolQueryBuilder);
         }
@@ -281,6 +281,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         String queryText,
         boolean hasWildcard,
         boolean isPhraseMatch,
+        boolean lenient,
         Consumer<QueryBuilder> clauseConsumer
     ) {
         return (fieldName, mappedFieldType) -> {
@@ -289,7 +290,9 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             if (hasWildcard && isKeywordField(mappedFieldType)) {
                 fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
             } else if (hasWildcard) {
-                fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
+                fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true))
+                    .field(fieldName)
+                    .lenient(lenient ? true : null);
             } else if (isDateField(mappedFieldType)) {
                 RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
                 if (kqlParsingContext.timeZone() != null) {

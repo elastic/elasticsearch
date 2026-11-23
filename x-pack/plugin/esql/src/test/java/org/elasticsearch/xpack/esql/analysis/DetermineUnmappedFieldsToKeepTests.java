@@ -730,6 +730,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         ensureNoWarnings();
     }
 
+    /**
+     * A view is a boundary with no {@code _source} of its own, whatever its body is, so a query that only reads views and has a column
+     * named like the one of unmapped fields gets no warning: renaming the column would not get any unmapped field. It does not matter
+     * whether the root of the view body is a relation, as in {@code FROM test}, or something above it.
+     */
+    public void testViewOnlyQueryWithColumnNamedUnmappedFieldsHasNoWarning() {
+        for (String body : List.of("FROM test", "FROM test | KEEP emp_no")) {
+            test().addView("v", body).statement(setUnmappedLoadAll("FROM v | EVAL _unmapped_fields = \"mine\""));
+            ensureNoWarnings();
+        }
+    }
+
     /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */
     public void testLookupJoinFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
         var plan = test().addLookupIndex("colliding_lookup", lookupIndexWithUnmappedFieldsField())

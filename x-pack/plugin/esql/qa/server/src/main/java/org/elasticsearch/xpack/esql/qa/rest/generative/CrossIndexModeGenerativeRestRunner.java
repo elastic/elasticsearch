@@ -152,15 +152,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "YAML document exceeds the limit",
         // Long-running queries on very large synthetic result sets may time out on the cand side
         // while completing on the ref side. Known performance difference, not a correctness bug.
-        "milliseconds timeout on connection",
-        // semantic_text fields reject full-text match queries (qstr/MATCH) in columnar mode with
-        // "does not support match queries", while standard mode handles them. Known mode difference.
-        "does not support match queries",
-        // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
-        // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
-        // expression. Affects both modes equally but can surface as partial results on one side
-        // only due to shard-level execution order differences.
-        "Unsupported field type [NULL]"
+        "milliseconds timeout on connection"
     );
 
     /**

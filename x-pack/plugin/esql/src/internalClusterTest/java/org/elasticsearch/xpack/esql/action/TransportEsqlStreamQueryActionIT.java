@@ -112,7 +112,7 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
 
     public void testStoreOverflow() throws Exception {
         int docCount = indexDocs();
-        int maxRows = randomIntBetween(10, docCount);
+        int maxRows = randomIntBetween(1, docCount - 1);
 
         List<String> lines = executeStream(
             "FROM " + SOURCE_INDEX + " | LIMIT " + docCount,
@@ -147,6 +147,50 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
             offset += ((Number) page.get(PAGE_SIZE_FIELD)).intValue();
         }
         assertThat("every row after the sent ones must be stored", offset, equalTo((long) docCount));
+    }
+
+    public void testStoreOverflowWhenResultFitsTheLimit() throws Exception {
+        int docCount = indexDocs();
+        int maxRows = randomIntBetween(docCount, docCount * 2);
+
+        List<String> lines = executeStream(
+            "FROM " + SOURCE_INDEX + " | LIMIT " + docCount,
+            new StreamOptions(StreamOptions.Store.OVERFLOW, maxRows, StreamOptions.NO_LIMIT)
+        );
+
+        assertThat(lines, hasSize(docCount + 2));// + header and footer
+        Map<String, Object> footer = parseJson(lines.getLast());
+        assertThat(footer.get("complete"), equalTo(true));
+        assertThat(footer.get("next_offset"), equalTo(docCount));
+        String streamId = (String) parseJson(lines.getFirst()).get(STREAM_ID_FIELD);
+        assertNotNull("the first line must carry the stream id", streamId);
+
+        assertBusy(() -> assertThat(getMetadataDocument(streamId).get(STREAM_STATUS), equalTo("COMPLETE")));
+
+        Map<String, Object> metadata = getMetadataDocument(streamId);
+        assertThat(((Number) metadata.get(STREAM_TOTAL_ROWS)).longValue(), equalTo((long) docCount));
+        assertThat("every page was sent, so none overflowed", getPageDocuments(streamId), empty());
+    }
+
+    public void testStoreWhenQueryReturnsNoRows() throws Exception {
+        indexDocs();
+        StreamOptions.Store store = randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL);
+
+        List<String> lines = executeStream("FROM " + SOURCE_INDEX + " | WHERE value < 0", store);
+
+        assertThat(lines, hasSize(2));// header and footer
+        Map<String, Object> footer = parseJson(lines.getLast());
+        assertThat(footer.get("complete"), equalTo(true));
+        assertThat(footer.get("next_offset"), equalTo(0));
+        String streamId = (String) parseJson(lines.getFirst()).get(STREAM_ID_FIELD);
+        assertNotNull("the first line must carry the stream id", streamId);
+
+        assertBusy(() -> assertThat(getMetadataDocument(streamId).get(STREAM_STATUS), equalTo("COMPLETE")));
+
+        Map<String, Object> metadata = getMetadataDocument(streamId);
+        assertThat(((Number) metadata.get(STREAM_TOTAL_ROWS)).longValue(), equalTo(0L));
+        assertThat(((Number) metadata.get(STREAM_TOTAL_PAGES)).longValue(), equalTo(0L));
+        assertThat("there is nothing to store", getPageDocuments(streamId), empty());
     }
 
     private static Map<String, Object> parseJson(String header) {

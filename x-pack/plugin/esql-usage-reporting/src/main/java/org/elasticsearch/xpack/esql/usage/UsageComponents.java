@@ -21,7 +21,7 @@ public final class UsageComponents {
     private UsageComponents() {}
 
     public static UsageAccumulator newAccumulator(UsageReportingSettings settings) {
-        return NoopUsageAccumulator.INSTANCE;
+        return new AtomicUsageAccumulator();
     }
 
     public static UsageRecordBuilder newRecordBuilder(UsageReportingSettings settings) {

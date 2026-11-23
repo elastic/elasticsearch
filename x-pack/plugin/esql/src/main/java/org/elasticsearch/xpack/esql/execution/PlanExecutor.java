@@ -20,6 +20,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
@@ -57,13 +58,11 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
-import org.elasticsearch.xpack.esql.telemetry.QueryCaller;
-import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -92,6 +91,8 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    @Nullable
+    private final IntSupplier maxDirectoryListings;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -143,6 +144,44 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
@@ -160,6 +199,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.maxDirectoryListings = maxDirectoryListings;
     }
 
     /**
@@ -195,6 +235,7 @@ public class PlanExecutor {
             threadContext,
             null,
             null,
+            null,
             null
         );
     }
@@ -211,6 +252,34 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -221,7 +290,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
     }
 
@@ -257,11 +327,10 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry, applicableSettings);
-        // The caller is read from the calling thread's context, before the query goes async, so every outcome of this
-        // query (success, failure, cancellation) is attributed to the same caller.
+        // The client label is read from the calling thread's context, before the query goes async, so every outcome of this
+        // query (success, failure, cancellation) is attributed to the same client.
         final ThreadContext threadContext = services.transportService().getThreadPool().getThreadContext();
-        final QueryCaller caller = QueryCallerClassifier.classify(threadContext);
-        final String client = clientOf(caller);
+        final String client = clientOf(threadContext);
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
@@ -282,7 +351,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
         final var session = new EsqlSession(
             sessionId,
@@ -316,29 +386,17 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> executeListener = releasingListener;
 
         if (request.analyzeOnly() == false) {
-            metrics.total(caller.client());
+            QueryMetric clientId = QueryMetric.fromString("rest");
+            metrics.total(clientId);
             var begin = System.nanoTime();
-            AtomicBoolean finishCounted = new AtomicBoolean();
             executeListener = wrap(
-                x -> onQuerySuccess(
-                    request,
-                    releasingListener,
-                    x,
-                    caller,
-                    finishCounted,
-                    planTelemetry,
-                    services.usageService(),
-                    executionInfo,
-                    begin,
-                    client
-                ),
+                x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
                 ex -> onQueryFailure(
                     request,
                     session.planSnapshot().settings(),
                     releasingListener,
                     ex,
-                    caller,
-                    finishCounted,
+                    clientId,
                     planTelemetry,
                     executionInfo,
                     begin,
@@ -381,8 +439,6 @@ public class PlanExecutor {
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> result,
-        QueryCaller caller,
-        AtomicBoolean finishCounted,
         PlanTelemetry planTelemetry,
         UsageService usageService,
         EsqlExecutionInfo executionInfo,
@@ -407,10 +463,6 @@ public class PlanExecutor {
                 planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
-        // Last step before the response. ActionListener.wrap sends a throw from the bookkeeping above to onQueryFailure,
-        // which counts the query as failed. Counting success any earlier would leave es_esql_success=true and the guard
-        // below would drop that failure measurement.
-        countFinishedQuery(finishCounted, caller, true);
         listener.onResponse(result);
     }
 
@@ -419,16 +471,17 @@ public class PlanExecutor {
         ResolvedSettings settings,
         ActionListener<Versioned<Result>> listener,
         Exception ex,
-        QueryCaller caller,
-        AtomicBoolean finishCounted,
+        QueryMetric clientId,
         PlanTelemetry planTelemetry,
         EsqlExecutionInfo executionInfo,
         long begin,
         String client,
         ExternalSourceResolver externalSourceResolver
     ) {
-        metrics.failed(caller.client());
-        countFinishedQuery(finishCounted, caller, false);
+        // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
+        // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
+        // X-elastic-product-origin header instead (see clientOf), so the two families can differ for the same query.
+        metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -449,18 +502,6 @@ public class PlanExecutor {
     }
 
     /**
-     * Counts a finished query on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success
-     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count. Record success only after the
-     * other success bookkeeping, immediately before the response is delivered, so a throw from that bookkeeping is counted
-     * as a failure instead of a success that this guard then refuses to correct.
-     */
-    private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, boolean success) {
-        if (finishCounted.compareAndSet(false, true)) {
-            planTelemetryManager.publishQuery(caller, success);
-        }
-    }
-
-    /**
      * The labels of one external-source query: its client, and the storage type and format of the external sources it read,
      * taken from the analyzed plan.
      */
@@ -469,10 +510,12 @@ public class PlanExecutor {
     }
 
     /**
-     * The {@link ExternalSourceMetrics} client label of {@code caller}.
+     * The {@link ExternalSourceMetrics} client label of the request whose context is {@code threadContext}. A {@code null}
+     * context, which some callers and mocks supply, has no origin header and so maps to {@link ExternalSourceMetrics#CLIENT_NONE}.
      */
-    static String clientOf(QueryCaller caller) {
-        return ExternalSourceMetrics.client(caller.client());
+    static String clientOf(@Nullable ThreadContext threadContext) {
+        String origin = threadContext == null ? null : threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        return ExternalSourceMetrics.clientFromOrigin(origin);
     }
 
     /**

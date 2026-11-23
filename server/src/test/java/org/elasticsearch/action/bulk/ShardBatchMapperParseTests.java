@@ -991,8 +991,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         // A number field refuses a column holding a null outright, as the encoder packs it as a UNION column, so only an empty array and a
         // missing field reach its check. "{}" is a document without the field.
         final boolean number = type.equals("long") || type.equals("double");
-        final List<String> valuelessShapes = number
-            ? List.of("{\"f\":[]}", "{}")
+        final List<String> valuelessShapes = number ? List.of("{\"f\":[]}", "{}")
+            : singleValued
+                // Two nulls are two values in the column, so a multi_value=false field refuses them before the nullability check.
+                ? List.of("{\"f\":[]}", "{\"f\":[[]]}", "{\"f\":[null]}", "{\"f\":null}", "{}")
             : List.of("{\"f\":[]}", "{\"f\":[[]]}", "{\"f\":[null]}", "{\"f\":[null,null]}", "{\"f\":null}", "{}");
         // At least one document with values, so the column has the field's type, and at least one without.
         final int docCount = randomIntBetween(2, 6);

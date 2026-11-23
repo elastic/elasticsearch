@@ -363,24 +363,25 @@ Unknown key under settings is rejected:
 
 ---
 SET-only setting under settings is rejected:
-  # unmapped_fields exists in the registry but opted out of body exposure. It must be set via in-query SET,
-  # not via the request body.
+  # time_series_reduce_per_index exists in the registry but opted out of body exposure. It must be set via in-query SET,
+  # not via the request body. unmapped_fields_in_request_body marks the nodes that also have the setting, which was added after
+  # the request body block and without a capability of its own, and unmapped_fields used to be the example here.
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ query_settings_request_body ]
+          capabilities: [ query_settings_request_body, unmapped_fields_in_request_body ]
       test_runner_features: [ capabilities ]
-      reason: "Requires the settings request body block"
+      reason: "Requires the settings request body block and a setting that is not exposed in it"
   - do:
       catch: bad_request
       esql.query:
         body:
           settings:
-            unmapped_fields: "NULLIFY"
+            time_series_reduce_per_index: true
           query: "FROM tzs | LIMIT 1"
-  - match: { error.root_cause.0.reason: "/.*Setting..unmapped_fields..is.not.exposed.as.a.request.body.parameter.*/" }
+  - match: { error.root_cause.0.reason: "/.*Setting..time_series_reduce_per_index..is.not.exposed.as.a.request.body.parameter.*/" }
 
 ---
 Unknown in-query SET key is rejected:

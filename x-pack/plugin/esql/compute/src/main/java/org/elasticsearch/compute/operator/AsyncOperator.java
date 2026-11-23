@@ -38,7 +38,10 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public abstract class AsyncOperator<Fetched> implements Operator {
 
-    private volatile SubscribableListener<Void> blockedFuture;
+    /**
+     * Guarded by {@code this}.
+     */
+    private SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
     private final FailureCollector failureCollector = new FailureCollector();
@@ -144,15 +147,15 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     }
 
     private void notifyIfBlocked() {
-        if (blockedFuture != null) {
-            final SubscribableListener<Void> future;
-            synchronized (this) {
-                future = blockedFuture;
-                this.blockedFuture = null;
-            }
-            if (future != null) {
-                future.onResponse(null);
-            }
+        final SubscribableListener<Void> future;
+        // Under the lock, like isBlocked: either it sees the result, or this sees its future. Read outside the lock, the
+        // future could still be null while isBlocked, which missed the result, was about to create it.
+        synchronized (this) {
+            future = blockedFuture;
+            this.blockedFuture = null;
+        }
+        if (future != null) {
+            future.onResponse(null);
         }
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -390,6 +391,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
         Map<String, Stats> recentStatsByDeployment = new HashMap<>();
         Map<String, Integer> numberOfAllocations = new HashMap<>();
+        Map<String, AssignmentState> assignmentStates = new HashMap<>();
         // Check for recent scale ups in the deployment stats, because a different node may have
         // caused a scale up when an inference request arrives and there were zero allocations.
         Set<String> hasRecentObservedScaleUp = new HashSet<>();
@@ -397,6 +399,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
             String deploymentId = assignmentStats.getDeploymentId();
             numberOfAllocations.put(deploymentId, assignmentStats.getNumberOfAllocations());
+            assignmentStates.put(deploymentId, assignmentStats.getState());
             Map<String, Stats> deploymentStats = lastInferenceStatsByDeploymentAndNode.computeIfAbsent(
                 deploymentId,
                 key -> new HashMap<>()
@@ -426,6 +429,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     hasRecentObservedScaleUp.add(deploymentId);
                 }
             }
+            // A deployment without allocations has no node stats. Evaluate it with empty stats anyway, so
+            // that the scaler applies the minimum number of allocations (e.g. it was raised while at zero).
+            if (assignmentStats.getNodeStats().isEmpty()) {
+                recentStatsByDeployment.put(deploymentId, new Stats(0, 0, 0, 0.0));
+            }
         }
 
         if (statsTimeInterval == null) {
@@ -436,6 +444,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
             AdaptiveAllocationsScaler adaptiveAllocationsScaler = scalers.get(deploymentId);
+            if (adaptiveAllocationsScaler == null) {
+                // The deployment was removed or adaptive allocations were disabled while the stats were requested.
+                continue;
+            }
             adaptiveAllocationsScaler.process(stats, statsTimeInterval, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
@@ -447,6 +459,14 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (newNumberOfAllocations < numberOfAllocations.get(deploymentId)
                     && (hasRecentScaleUp || hasRecentObservedScaleUp.contains(deploymentId))) {
                     logger.debug("adaptive allocations scaler: skipping scaling down [{}] because of recent scaleup.", deploymentId);
+                    continue;
+                }
+                if (assignmentStates.get(deploymentId) != AssignmentState.STARTED) {
+                    logger.debug(
+                        "adaptive allocations scaler: skipping scaling [{}] because it is in [{}] state.",
+                        deploymentId,
+                        assignmentStates.get(deploymentId)
+                    );
                     continue;
                 }
                 if (newNumberOfAllocations > numberOfAllocations.get(deploymentId)) {
@@ -463,21 +483,25 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
         if (assignment.getAdaptiveAllocationsSettings() != null
-            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE
-            && (assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == null
-                || assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations() == 0)) {
+            && assignment.getAdaptiveAllocationsSettings().getEnabled() == Boolean.TRUE) {
 
+            // Scale up when no allocations are requested; otherwise, wait for them.
             // Prevent against a flurry of scale up requests.
-            if (deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+            if (assignment.getTaskParams().getNumberOfAllocations() == 0
+                && deploymentIdsWithInFlightScaleFromZeroRequests.contains(assignment.getDeploymentId()) == false) {
+                // Scale up to (at least) the minimum, so that a delayed request doesn't reduce
+                // the allocations after the scaler has already scaled up to the minimum.
+                Integer minNumberOfAllocations = assignment.getAdaptiveAllocationsSettings().getMinNumberOfAllocations();
+                int numberOfAllocations = minNumberOfAllocations == null ? 1 : Math.max(1, minNumberOfAllocations);
                 lastScaleUpTimesMillis.put(assignment.getDeploymentId(), System.currentTimeMillis());
-                var updateListener = updateAssigmentListener(assignment.getDeploymentId(), 1);
+                var updateListener = updateAssigmentListener(assignment.getDeploymentId(), numberOfAllocations);
                 var cleanUpListener = ActionListener.runAfter(
                     updateListener,
                     () -> deploymentIdsWithInFlightScaleFromZeroRequests.remove(assignment.getDeploymentId())
                 );
 
                 deploymentIdsWithInFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
-                updateNumberOfAllocations(assignment.getDeploymentId(), 1, cleanUpListener);
+                updateNumberOfAllocations(assignment.getDeploymentId(), numberOfAllocations, cleanUpListener);
             }
 
             AdaptiveAllocationsScaler scaler = scalers.get(assignment.getDeploymentId());

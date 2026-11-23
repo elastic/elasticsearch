@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166728
-summary: Harvest no statistics when the external-source cache is disabled
+summary: Harvest no statistics when the external-source cache is disabled, and no column statistics when the stripe-column scope is count
 type: enhancement

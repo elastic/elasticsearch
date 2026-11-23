@@ -44,6 +44,8 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
                 "properties": {
                     "value": { "type": "keyword" },
                     "other": { "type": "keyword" },
+                    "point": { "type": "geo_point" },
+                    "range": { "type": "integer_range" },
                     "obj": {
                         "properties": {
                             "a": { "type": "keyword" },
@@ -203,6 +205,166 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
                 { "obj": { "a": "x" } }
                 """);
             assertFalse(asserter.assertSameIndexOperation(o1, o2));
+        }
+    }
+
+    /**
+     * Synthesizing turns a dotted field name into an object, so the original and synthesized forms of
+     * an operation name the same field with different keys.
+     */
+    public void testDottedFieldNames() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        {
+            var o1 = toIndexOp("""
+                { "obj.a": "x" }
+                """);
+            var o2 = toIndexOp("""
+                { "obj.a": "y" }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o1 = toIndexOp("""
+                { "obj.inner.c": "x", "value": "same" }
+                """);
+            var o2 = toIndexOp("""
+                { "obj.inner.c": "y", "value": "same" }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            // one operation names the field with a dotted key, the other with an object
+            var o1 = toIndexOp("""
+                { "obj.a": "x", "obj.inner.c": "v" }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "a": "y", "inner": { "c": "v" } } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o1 = toIndexOp("""
+                { "obj.a": "x", "obj.inner.c": "v" }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "a": [ "x" ], "inner": { "c": "v" } } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+            assertTrue(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            // a dotted name inside an object
+            var o1 = toIndexOp("""
+                { "obj": { "inner.c": "x" } }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "inner.c": "y" } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            // the same field given both as a dotted key and inside an object
+            var o1 = toIndexOp("""
+                { "obj.a": "x", "obj": { "a": "y" } }
+                """);
+            var o2 = toIndexOp("""
+                { "obj.a": "z", "obj": { "a": "y" } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+    }
+
+    /**
+     * Synthesizing turns an array of objects into an object of arrays, so the original and synthesized
+     * forms hold the fields at different depths.
+     */
+    public void testArraysOfObjects() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        {
+            var o1 = toIndexOp("""
+                { "obj": [ { "a": "x" }, { "a": "y" } ] }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": [ { "a": "x" }, { "a": "z" } ] }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o1 = toIndexOp("""
+                { "obj": { "inner": [ { "c": "x" } ] } }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "inner": [ { "c": "y" } ] } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o1 = toIndexOp("""
+                { "obj": [ { "a": "x" }, { "a": "y" } ] }
+                """);
+            var o2 = toIndexOp("""
+                { "obj": { "a": [ "x", "y" ] } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+            assertTrue(asserter.assertSameIndexOperation(o2, o1));
+        }
+    }
+
+    /**
+     * A field value can itself be an object, and synthesizing can write it with other keys: a GeoJSON
+     * point becomes {@code lat} and {@code lon}, and a range given with {@code gt} and {@code lt}
+     * becomes {@code gte} and {@code lte}. A key that only the original or only the synthesized forms
+     * have must not match.
+     */
+    public void testFieldValuesThatAreObjects() throws Exception {
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engineConfig(true));
+        {
+            var o1 = toIndexOp("""
+                { "point": { "type": "Point", "coordinates": [ 2.0, 1.0 ] } }
+                """);
+            var o2 = toIndexOp("""
+                { "point": { "type": "Point", "coordinates": [ 4.0, 3.0 ] } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o1 = toIndexOp("""
+                { "range": { "gt": 0, "lt": 6 } }
+                """);
+            var o2 = toIndexOp("""
+                { "range": { "gt": 1, "lt": 6 } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            var o1 = toIndexOp("""
+                { "range": { "gte": 1 } }
+                """);
+            var o2 = toIndexOp("""
+                { "range": { "gte": 1, "lt": 9 } }
+                """);
+            assertFalse(asserter.assertSameIndexOperation(o1, o2));
+            assertFalse(asserter.assertSameIndexOperation(o2, o1));
+        }
+        {
+            // the same point and the same range, written differently
+            var o1 = toIndexOp("""
+                { "point": { "type": "Point", "coordinates": [ 2.0, 1.0 ] }, "range": { "gt": 0, "lt": 6 } }
+                """);
+            var o2 = toIndexOp("""
+                { "point": { "lat": 1.0, "lon": 2.0 }, "range": { "gte": 1, "lte": 5 } }
+                """);
+            assertTrue(asserter.assertSameIndexOperation(o1, o2));
+            assertTrue(asserter.assertSameIndexOperation(o2, o1));
         }
     }
 

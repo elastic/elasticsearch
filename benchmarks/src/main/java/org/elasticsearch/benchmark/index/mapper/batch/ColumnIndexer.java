@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.BatchMappingShardContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.transport.BytesRefRecycler;
 
@@ -141,7 +142,8 @@ public final class ColumnIndexer {
                 chunkEnd,
                 resolution,
                 Engine.Operation.Origin.PRIMARY,
-                recycler
+                recycler,
+                DocumentParsingProvider.EMPTY_INSTANCE
             )
         ) {
             if (engineBatch == null) {
@@ -188,7 +190,8 @@ public final class ColumnIndexer {
                 Math.min(ShardBatchIndexer.BATCH_CHUNK_SIZE, request.size()),
                 resolution,
                 Engine.Operation.Origin.PRIMARY,
-                recycler
+                recycler,
+                DocumentParsingProvider.EMPTY_INSTANCE
             )
         ) {
             return engineBatch != null;

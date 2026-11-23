@@ -22,6 +22,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -703,6 +704,13 @@ public final class StreamingParallelParsingCoordinator {
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
+         * Where the chunks of this read hand their pieces of a stripe, so a stripe several chunks observed is
+         * staged once rather than once per chunk. {@code null} when there is no sink to stage into or no stripe
+         * grid to address pieces on, and each chunk then publishes its own pieces. Shared across parser threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
+        /**
          * Grow-loop bound. In production it comes from the {@code external_max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
          */
@@ -936,6 +944,7 @@ public final class StreamingParallelParsingCoordinator {
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.warningSinks = warningSinks;
             this.bufferPoolSize = parallelism + 1;
@@ -1032,29 +1041,69 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
+         * Cancels an in-flight {@code newStream} GET. Safe on the closer thread: it does not
+         * tear down a decoder the segmentator may still be reading.
+         */
+        private void cancelStorageOpen() {
+            if (storageObject != null) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                }
+            }
+        }
+
+        /**
          * Releases {@link #decompressedStream} exactly once regardless of which path reaches it first
-         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
-         * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
-         * available, so providers such as S3 can discard the underlying HTTP connection without draining
-         * the remaining response body. A no-op when the opener never ran ({@code decompressedStream} is
-         * still null) — does not CAS {@link #streamClosed} in that case so a racing segmentator can still
-         * close the stream it is about to assign.
+         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}
+         * after tasks have exited). Always {@link StorageObject#close()} so a hung {@code newStream}
+         * GET is cancelled even when {@code decompressedStream} is still null. Then closes the
+         * assigned stream; the leaf decides drain vs drop. A no-op when the opener never ran
+         * ({@code decompressedStream} is still null) — does not CAS {@link #streamClosed} in that case
+         * so a racing segmentator can still close the stream it is about to assign.
+         * <p>
+         * Must run on the thread that owns the decoder (the segmentator) once a {@code DecompressedStream}
+         * exists. Parse {@link #close()} cancels hung opens via {@link StorageObject#close()} and aborts
+         * only the raw GET via {@link #abortTransport()}, leaving this CAS unset so this method still
+         * closes gzip/zstd on the owner thread.
          */
         private void closeStream() {
+            cancelStorageOpen();
             InputStream stream = decompressedStream;
             if (stream == null) {
                 return;
             }
             if (streamClosed.compareAndSet(false, true)) {
                 try {
-                    if (storageObject != null) {
-                        storageObject.abortStream(stream);
-                    } else {
-                        stream.close();
-                    }
-                } catch (IOException e) {
+                    stream.close();
+                } catch (Exception e) {
                     logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
                 }
+            }
+        }
+
+        /**
+         * Wakes a segmentator blocked in {@code stream.read()} without closing a gzip/zstd decoder
+         * from this thread and without claiming {@link #streamClosed}. For {@link DecompressingStorageObject}
+         * that is {@code rawOwner.abortStream(raw)}; otherwise {@link StorageObject#abortStream}.
+         */
+        private void abortTransport() {
+            InputStream stream = decompressedStream;
+            if (stream == null) {
+                return;
+            }
+            try {
+                if (DecompressingStorageObject.isDecompressedStream(stream)) {
+                    // Wrapper owns the raw GET even when this coordinator has no StorageObject.
+                    DecompressingStorageObject.abortRawTransport(stream);
+                } else if (storageObject != null) {
+                    storageObject.abortStream(stream);
+                } else {
+                    stream.close();
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to abort transport for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
             }
         }
 
@@ -1176,7 +1225,9 @@ public final class StreamingParallelParsingCoordinator {
                     int bytesRead = readFromStream(stream, buf, offset, buf.length - offset);
                     if (bytesRead <= 0 && offset == 0) {
                         pooled.release();
-                        reachedEof = true;
+                        if (closed.get() == false) {
+                            reachedEof = true;
+                        }
                         break;
                     }
 
@@ -1317,7 +1368,11 @@ public final class StreamingParallelParsingCoordinator {
                     // parser pool cannot stall the consumer on missing POISON.
                 }
             } catch (Exception e) {
-                recordFirstError(e);
+                // close() aborts the stream to unblock a parked read(); the resulting failure is
+                // teardown, not a query failure. LIMIT / cancellation already has its rows.
+                if (closed.get() == false) {
+                    recordFirstError(e);
+                }
             } finally {
                 // Parser tasks may sit behind a pinned pool thread and never run. Inline whatever is
                 // still queued so EOF (including non-strict truncation) does not depend on those tasks.
@@ -1506,7 +1561,7 @@ public final class StreamingParallelParsingCoordinator {
                     recordFirstError(e);
                     return DispatchOutcome.QUEUED_FAILED;
                 }
-                if (last) {
+                if (last && closed.get() == false) {
                     reachedEof = true;
                 }
                 return DispatchOutcome.SUBMITTED;
@@ -1637,6 +1692,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                 .statsColumnScope(statsColumnScope)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
@@ -2457,7 +2513,10 @@ public final class StreamingParallelParsingCoordinator {
          * <p>
          * Phase 1: CAS {@code closed} to {@code true} (causes any in-flight parser task to bail on
          * its {@code firstError || closed} check and the segmentator to skip its next iteration), wake
-         * any segmentator parked on {@link #dispatchPermits}, and drain whatever is already queued.
+         * any segmentator parked on {@link #dispatchPermits}, abort the raw GET so a segmentator
+         * blocked in {@code stream.read()} (slow S3, retry, zstd decode) can exit, and drain whatever
+         * is already queued. Abort is transport-only: a {@code DecompressedStream} decoder is closed
+         * later on the segmentator thread, not here.
          * <p>
          * Phase 2: poll {@link #tasksOutstanding} for up to {@link #CLOSE_TIMEOUT_SECONDS} so all
          * one-shot parser tasks (and the segmentator) have a chance to exit cleanly, then drain again
@@ -2467,8 +2526,10 @@ public final class StreamingParallelParsingCoordinator {
          * deadline we log a warning and run the second drain anyway, but parser tasks may still be
          * alive at return time. Any pages they publish after that — and any blocks those pages
          * reference — are leaked. We do not interrupt the parser executor: it is shared and an
-         * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
-         * the leak window an exceptional condition; production workloads should not hit it.
+         * interrupt could disrupt unrelated tasks. Aborting the stream first makes the 60s wait apply
+         * to parser tasks that cannot be interrupted, not to a blocked upstream read. The timeout is
+         * intentionally generous to make the leak window an exceptional condition; production
+         * workloads should not hit it.
          */
         @Override
         public void close() throws IOException {
@@ -2487,6 +2548,12 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
+            // Cancel a hung {@code newStream} and abort an assigned body GET before waiting.
+            // A segmentator blocked in stream.read() never observes {@code closed} until the read
+            // returns. Do not close the decompressed stream on this thread: the segmentator may
+            // still be inside the decoder.
+            cancelStorageOpen();
+            abortTransport();
             drainAllQueues();
             boolean neverStarted = admissionHandle.cancel();
             if (neverStarted) {
@@ -2513,10 +2580,20 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 drainAllQueues();
             }
-            // Backstop for never-started (no-op while the stream is still null) and for any path that
-            // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close
-            // a stream it assigns after this read.
-            closeStream();
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every parser has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
+            }
+            // Backstop: early cancelStorageOpen cancelled a hung GET. Close the decompressed stream
+            // only once the segmentator has exited so this thread does not free native decoder
+            // state still in use. A timed-out segmentator closes the stream in its own finally.
+            if (neverStarted || tasksOutstanding.get() == 0) {
+                closeStream();
+            }
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
             // is fixed. Clean = no error, the segmentator reached EOF, and the consumer drained every
@@ -2560,6 +2637,7 @@ public final class StreamingParallelParsingCoordinator {
             for (GrowBuffer buf : growBuffers) {
                 buf.release();
             }
+            FormatReaders.closeDistinctFrom(reader, originalReader);
         }
 
         private void poisonCapturedStats(String path) {

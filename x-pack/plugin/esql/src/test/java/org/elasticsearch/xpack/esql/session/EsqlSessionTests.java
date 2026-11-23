@@ -8,13 +8,24 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -27,13 +38,16 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -47,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -54,23 +69,33 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,8 +106,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -412,29 +439,112 @@ public class EsqlSessionTests extends ESTestCase {
         assertThat(resolution, sameInstance(originalResolution));
     }
 
-    public void testExtractExternalConfigsThrowsOnNonLiteralTablePath() {
+    public void testExtractExternalSourceSpecsThrowsOnNonLiteralTablePath() {
         // After parameter substitution at parse time, every UnresolvedExternalRelation tablePath is
-        // expected to be a non-null Literal. extractExternalConfigs fails closed with
-        // IllegalStateException rather than silently dropping the entry from the resulting map.
+        // expected to be a non-null Literal. extractExternalSourceSpecs fails closed with
+        // IllegalStateException rather than silently dropping the relation from the resulting list.
         Source source = Source.EMPTY;
         Expression nonLiteral = new UnresolvedAttribute(source, "?param");
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, nonLiteral, new HashMap<>());
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> EsqlSession.extractExternalConfigs(relation));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> EsqlSession.extractExternalSourceSpecs(relation));
         assertThat(ex.getMessage(), containsString("UnresolvedExternalRelation tablePath is not a non-null Literal"));
     }
 
-    public void testExtractExternalConfigsHandlesLiteralTablePath() {
-        // Positive case: a Literal-tablePath relation produces a map keyed by the path string with
-        // the relation's config as the value.
+    public void testExtractExternalSourceSpecsHandlesLiteralTablePath() {
+        // Positive case: a Literal-tablePath relation produces one read of that path under the relation's config.
         Source source = Source.EMPTY;
         Expression tablePath = Literal.keyword(source, "s3://bucket/table");
         Map<String, Object> config = new HashMap<>();
         config.put("region", "us-east-1");
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, tablePath, config);
 
-        Map<String, Map<String, Object>> result = EsqlSession.extractExternalConfigs(relation);
-        assertThat(result, equalTo(Map.of("s3://bucket/table", config)));
+        assertThat(EsqlSession.extractExternalSourceSpecs(relation), equalTo(List.of(new ExternalSourceSpec("s3://bucket/table", config))));
+    }
+
+    /**
+     * Two datasets over one resource that read it <em>differently</em> are two specs, and both must survive to the
+     * resolver: one bucket read as CSV and as TSV yields different columns. Keyed by
+     * the resource alone, the second relation's configuration overwrote the first and both relations then resolved
+     * against whichever was visited last.
+     */
+    public void testOneResourceReadTwoWaysKeepsBothConfigurations() {
+        String path = "s3://bucket/sales";
+        Map<String, Object> asCsv = configWith("format", "csv");
+        Map<String, Object> asTsv = configWith("format", "tsv");
+
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, asCsv, asTsv));
+
+        assertThat("two specs over one resource must both survive", specs, hasSize(2));
+        assertThat(specs, equalTo(List.of(new ExternalSourceSpec(path, asCsv), new ExternalSourceSpec(path, asTsv))));
+    }
+
+    /** One resource read the same way twice is one spec, so the two relations share a listing and a schema. */
+    public void testOneResourceReadOneWayTwiceCollapsesToOneSpec() {
+        String path = "s3://bucket/sales";
+
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(
+            twoRelationsOnOnePath(path, configWith("format", "csv"), configWith("format", "csv"))
+        );
+
+        assertThat("equal configurations are one spec", specs, equalTo(List.of(new ExternalSourceSpec(path, configWith("format", "csv")))));
+    }
+
+    /**
+     * Two datasets over one resource are two specs even when only their {@code _dataset_context} differs. The context
+     * does not change which bytes are read, but {@code ExternalSourceResolver} annotates a classified failure with it,
+     * so collapsing the two would report one dataset's failure under the other's name.
+     */
+    public void testTwoDatasetsOverOneResourceAreTwoSpecs() {
+        String path = "s3://bucket/sales";
+        Map<String, Object> first = configWith("format", "csv");
+        first.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "a", "datasource", "src", "type", "s3"));
+        Map<String, Object> second = configWith("format", "csv");
+        second.put(ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "b", "datasource", "src", "type", "s3"));
+        assertThat("the two configs must be unequal as maps, or this test proves nothing", first, not(equalTo(second)));
+
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(twoRelationsOnOnePath(path, first, second));
+
+        assertThat(
+            "two named datasets are two specs",
+            specs,
+            equalTo(List.of(new ExternalSourceSpec(path, first), new ExternalSourceSpec(path, second)))
+        );
+    }
+
+    /** Different paths never compare, however far their configurations diverge. */
+    public void testExtractExternalSourceSpecsKeepsDistinctPathsApart() {
+        UnresolvedExternalRelation left = new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, "s3://bucket/left"),
+            configWith("format", "csv")
+        );
+        UnresolvedExternalRelation right = new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, "s3://bucket/right"),
+            configWith("format", "ndjson")
+        );
+
+        List<ExternalSourceSpec> specs = EsqlSession.extractExternalSourceSpecs(new UnionAll(EMPTY, List.of(left, right), List.of()));
+
+        assertThat(specs.stream().map(ExternalSourceSpec::path).toList(), equalTo(List.of("s3://bucket/left", "s3://bucket/right")));
+    }
+
+    private static Map<String, Object> configWith(String key, Object value) {
+        Map<String, Object> config = new HashMap<>();
+        config.put(key, value);
+        return config;
+    }
+
+    private static LogicalPlan twoRelationsOnOnePath(String path, Map<String, Object> left, Map<String, Object> right) {
+        return new UnionAll(
+            EMPTY,
+            List.of(
+                new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), left),
+                new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), right)
+            ),
+            List.of()
+        );
     }
 
     public void testComputeLookupJoinIndexScope() {
@@ -680,6 +790,32 @@ public class EsqlSessionTests extends ESTestCase {
         }
     }
 
+    /**
+     * The subquery of a {@code LEFT OUTER JOIN} is a separate query that the coordinator runs and replaces with its result, so
+     * a {@code LOOKUP JOIN} after the join is scoped to the clusters of the join's left input only.
+     */
+    public void testComputeLookupJoinIndexScopeLeftOuterJoinSubquery() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+
+        {
+            // LOOKUP JOIN after the JOIN: the subquery's cluster remote-2 does not feed it
+            var plan = TEST_PARSER.parseQuery("""
+                FROM remote-1:main
+                | LEFT OUTER JOIN (FROM remote-2:sub) ON x
+                | LOOKUP JOIN lookup ON x""");
+            var resolution = createIndexResolution("remote-1:main", "remote-2:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-1")));
+        }
+        {
+            // LOOKUP JOIN inside the JOIN subquery: scoped to the subquery's own cluster
+            var plan = TEST_PARSER.parseQuery("""
+                FROM remote-1:main
+                | LEFT OUTER JOIN (FROM remote-2:sub | LOOKUP JOIN lookup ON x) ON x""");
+            var resolution = createIndexResolution("remote-1:main", "remote-2:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-2")));
+        }
+    }
+
     public void testComputeEnrichScope() {
         {
             // enrich on a local index
@@ -885,6 +1021,105 @@ public class EsqlSessionTests extends ESTestCase {
         }
     }
 
+    public void testComputeLookupJoinIndexScopeEqlSource() {
+        assumeTrue("Requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        for (String eqlPattern : List.of("events", "remote:events")) {
+            String eql = "EQL " + eqlPattern + " \"process where true\"";
+            var resolution = createIndexResolution(eqlPattern, "remote:index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(TEST_PARSER.parseQuery(eql + " | LOOKUP JOIN lookup ON key"), "lookup", resolution),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    TEST_PARSER.parseQuery("FROM remote:index, (" + eql + ") | LOOKUP JOIN lookup ON key"),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local, "remote"))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    TEST_PARSER.parseQuery("FROM remote:index, (" + eql + " | LOOKUP JOIN lookup ON key)"),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    InSubqueryResolver.resolve(
+                        TEST_PARSER.parseQuery("FROM remote:index | WHERE key IN (" + eql + " | LOOKUP JOIN lookup ON key | KEEP key)")
+                    ),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    InSubqueryResolver.resolve(
+                        TEST_PARSER.parseQuery("FROM remote:index | WHERE key IN (" + eql + " | KEEP key) | LOOKUP JOIN lookup ON key")
+                    ),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of("remote"))
+            );
+        }
+    }
+
+    public void testComputeEnrichScopeEqlSource() {
+        assumeTrue("Requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        for (String eqlPattern : List.of("events", "remote:events")) {
+            String eql = "EQL " + eqlPattern + " \"process where true\"";
+            var resolution = createIndexResolution(eqlPattern, "remote:index");
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery(eql + " | ENRICH _remote:policy ON key"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery("FROM remote:index, (" + eql + ") | ENRICH _remote:policy ON key"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local, "remote"))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery("FROM remote:index, (" + eql + " | ENRICH _remote:policy ON key)"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            String enrichInsideSubquery = "FROM remote:index | WHERE key IN (" + eql + " | ENRICH _remote:policy ON key | KEEP key)";
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(enrichInsideSubquery)), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            String enrichAfterSubquery = "FROM remote:index | WHERE key IN (" + eql + " | KEEP key) | ENRICH _remote:policy ON key";
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(enrichAfterSubquery)), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of("remote"))
+            );
+        }
+    }
+
     /**
      * Two distinct {@link Enrich} occurrences can share the exact same {@link Source} today: a view containing an ENRICH is
      * re-parsed independently every time it's referenced, so referencing it from two differently-scoped subquery branches
@@ -955,21 +1190,21 @@ public class EsqlSessionTests extends ESTestCase {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
 
-        Set<String> captured = capturePathsRequiringStats(plan, path);
+        Set<ExternalSourceSpec> captured = captureSpecsRequiringStats(plan, path);
         assertNotNull("wiring must forward a non-null set", captured);
         assertTrue("LIMIT forwards an empty set (defer everything)", captured.isEmpty());
     }
 
     /**
      * Wiring test: an ungrouped {@code STATS COUNT(*)} over an external relation forwards a set
-     * containing the relation's path, so the resolver keeps eager all-file stats aggregation for it.
+     * containing the relation's spec, so the resolver keeps eager all-file stats aggregation for it.
      */
-    public void testPreAnalyzeExternalSourcesForwardsPathForUngroupedStats() {
+    public void testPreAnalyzeExternalSourcesForwardsSpecForUngroupedStats() {
         String path = "s3://bucket/data/*.parquet";
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
         LogicalPlan plan = new Aggregate(EMPTY, relation, List.of(), List.of());
 
-        assertEquals(Set.of(path), capturePathsRequiringStats(plan, path));
+        assertEquals(Set.of(new ExternalSourceSpec(path, Map.of())), captureSpecsRequiringStats(plan, path));
     }
 
     /**
@@ -1038,8 +1273,8 @@ public class EsqlSessionTests extends ESTestCase {
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), relation);
 
         CapturedExternalResolve captured = captureExternalResolve(plan, path);
-        assertEquals(Set.of(path), captured.pathsReadingNoRows());
-        assertTrue("a path reading no rows cannot also require eager stats", captured.pathsRequiringStats().isEmpty());
+        assertEquals(Set.of(new ExternalSourceSpec(path, Map.of())), captured.specsReadingNoRows());
+        assertTrue("a path reading no rows cannot also require eager stats", captured.specsRequiringStats().isEmpty());
     }
 
     /**
@@ -1052,51 +1287,221 @@ public class EsqlSessionTests extends ESTestCase {
         LogicalPlan plan = new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), relation);
 
         CapturedExternalResolve captured = captureExternalResolve(plan, path);
-        assertNotNull("wiring must forward a non-null set", captured.pathsReadingNoRows());
-        assertTrue("a query that reads rows bounds nothing", captured.pathsReadingNoRows().isEmpty());
+        assertNotNull("wiring must forward a non-null set", captured.specsReadingNoRows());
+        assertTrue("a query that reads rows bounds nothing", captured.specsReadingNoRows().isEmpty());
+    }
+
+    /**
+     * A read whose {@code partition_spec} binds {@code @timestamp} earns the request's own time bounds as listing
+     * hints with no {@code WHERE} in the query at all — the Kibana time-picker shape. The per-spec loop calls
+     * {@link PartitionSpec#withTimestampBounds} even when {@code PartitionFilterHintExtractor} found nothing for
+     * this path: the bounds come from the spec's own {@code partition_spec} and the request filter, not from the
+     * hints, so skipping the call on a null hint list loses both the {@code year} IN and the folder range.
+     */
+    public void testPreAnalyzeExternalSourcesAppliesTimestampBoundsWithNoQueryFilter() {
+        String path = "s3://bucket/logs/**";
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(
+            EMPTY,
+            Literal.keyword(EMPTY, path),
+            Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp)")
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(
+            relation,
+            path,
+            new QueryDslTimestampBoundsExtractor.TimestampBounds(
+                Instant.parse("2026-02-01T00:00:00Z"),
+                Instant.parse("2026-03-01T00:00:00Z")
+            )
+        );
+
+        ExternalSourceSpec spec = captured.specs().get(0);
+        assertNotNull("bounds alone must produce listing hints", captured.filterHints());
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = captured.filterHints().get(spec);
+        assertNotNull("the read must carry the projected hints", hints);
+        assertThat(hints.stream().map(PartitionFilterHintExtractor.PartitionFilterHint::columnName).toList(), equalTo(List.of("year")));
+        assertEquals(PartitionFilterHintExtractor.Operator.IN, hints.get(0).operator());
+        // Integer, not Long: the bounds path reads the year off the Instant, where the DATE_EXTRACT fold above
+        // carries the folded expression's own LONG.
+        assertEquals(List.of(2026), hints.get(0).values());
+
+        assertNotNull("bounds alone must produce a folder range", captured.folderRanges());
+        assertNotNull("the spec must carry the folder range", captured.folderRanges().get(spec));
+    }
+
+    /**
+     * The demand sets are per spec too. Two datasets over one resource, one read under {@code LIMIT 0} and one
+     * reading rows: the first owes a schema and nothing else, and the second must not drag it into reading rows.
+     * Keyed by resource, the subtraction removes the shared path for both and the {@code LIMIT 0} spec is resolved
+     * as a reading query — over-eager at best, and at worst running a declared-mapping check it would have skipped.
+     */
+    public void testTwoSpecsOverOnePathKeepTheirOwnReadDemand() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> asCsv = Map.of("format", "csv");
+        Map<String, Object> asTsv = Map.of("format", "tsv");
+        UnresolvedExternalRelation bounded = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asCsv);
+        UnresolvedExternalRelation reading = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asTsv);
+        LogicalPlan plan = new UnionAll(
+            EMPTY,
+            List.of(new Limit(EMPTY, new Literal(EMPTY, 0, DataType.INTEGER), bounded), reading),
+            List.of()
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+
+        assertThat(captured.specs(), hasSize(2));
+        assertEquals(
+            "only the spec under LIMIT 0 reads no rows",
+            Set.of(new ExternalSourceSpec(path, asCsv)),
+            captured.specsReadingNoRows()
+        );
+    }
+
+    /**
+     * The eager-stats half of the same separation, which the no-rows test above does not reach. One spec under an
+     * ungrouped aggregate and one under a positive {@code LIMIT}, over one resource: only the aggregating spec
+     * owes all-file statistics. Forget the configuration when building the key here and every dataset-backed spec
+     * falls out of the set, because a dataset's config is never empty — the planning-time statistics path would go
+     * silently unused.
+     */
+    public void testTwoSpecsOverOnePathKeepTheirOwnStatsDemand() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> asCsv = Map.of("format", "csv");
+        Map<String, Object> asTsv = Map.of("format", "tsv");
+        UnresolvedExternalRelation aggregating = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asCsv);
+        UnresolvedExternalRelation limited = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), asTsv);
+        LogicalPlan plan = new UnionAll(
+            EMPTY,
+            List.of(
+                new Aggregate(EMPTY, aggregating, List.of(), List.of()),
+                new Limit(EMPTY, new Literal(EMPTY, 10, DataType.INTEGER), limited)
+            ),
+            List.of()
+        );
+
+        CapturedExternalResolve captured = captureExternalResolve(plan, path);
+
+        assertThat(captured.specs(), hasSize(2));
+        assertEquals(
+            "only the aggregating spec owes all-file statistics",
+            Set.of(new ExternalSourceSpec(path, asCsv)),
+            captured.specsRequiringStats()
+        );
+    }
+
+    /**
+     * The pruning inputs are per spec, not per resource. Two datasets over one path whose {@code partition_spec}
+     * binds a different column each get the hints and folder range their own spec earns: one binds
+     * {@code @timestamp} and takes the request's bounds, the other binds {@code ts} and takes nothing. Keyed by the
+     * resource, whichever spec the loop reached last would decide for both — listing the bound one's whole glob, or
+     * pruning the unbound one's folders against a column it does not partition by.
+     * <p>
+     * Both relation orders, because the map this replaces kept the last write and an order-dependent gate passes
+     * in whichever order happens to be written.
+     */
+    public void testTwoSpecsOverOnePathEachGetTheirOwnPruningInputs() {
+        String path = "s3://bucket/logs/**";
+        Map<String, Object> bound = Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp)");
+        Map<String, Object> unbound = Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(ts)");
+        QueryDslTimestampBoundsExtractor.TimestampBounds bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(
+            Instant.parse("2026-02-01T00:00:00Z"),
+            Instant.parse("2026-03-01T00:00:00Z")
+        );
+
+        for (boolean boundFirst : List.of(true, false)) {
+            CapturedExternalResolve captured = captureExternalResolve(
+                boundFirst ? twoRelationsOnOnePath(path, bound, unbound) : twoRelationsOnOnePath(path, unbound, bound),
+                path,
+                bounds
+            );
+
+            assertThat("both specs must survive to the resolver", captured.specs(), hasSize(2));
+            ExternalSourceSpec boundSpec = new ExternalSourceSpec(path, bound);
+            ExternalSourceSpec unboundSpec = new ExternalSourceSpec(path, unbound);
+            assertThat(captured.specs(), containsInAnyOrder(boundSpec, unboundSpec));
+
+            List<PartitionFilterHintExtractor.PartitionFilterHint> boundHints = captured.filterHints().get(boundSpec);
+            assertNotNull("the @timestamp-bound spec earns the request's bounds", boundHints);
+            assertThat(
+                boundHints.stream().map(PartitionFilterHintExtractor.PartitionFilterHint::columnName).toList(),
+                equalTo(List.of("year"))
+            );
+            assertEquals(List.of(2026), boundHints.get(0).values());
+            assertNotNull("and its folder range", captured.folderRanges().get(boundSpec));
+
+            assertNull("the spec binding another column earns no hints", captured.filterHints().get(unboundSpec));
+            assertNull("and no folder range", captured.folderRanges().get(unboundSpec));
+        }
     }
 
     /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
-     * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
+     * and returns the {@code specsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */
-    private static Set<String> capturePathsRequiringStats(LogicalPlan plan, String path) {
-        return captureExternalResolve(plan, path).pathsRequiringStats();
+    private static Set<ExternalSourceSpec> captureSpecsRequiringStats(LogicalPlan plan, String path) {
+        return captureExternalResolve(plan, path).specsRequiringStats();
     }
 
+    /**
+     * The forwarded hints, re-keyed by resource. Hints reach the resolver per spec, and these plans hold one spec of
+     * each resource, so the two keyings carry the same information here; a plan with two specs over one resource would
+     * collide, and this throws rather than drop one.
+     */
     private static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> captureFilterHints(LogicalPlan plan, String path) {
-        return captureExternalResolve(plan, path).filterHints();
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> bySpec = captureExternalResolve(plan, path)
+            .filterHints();
+        if (bySpec == null) {
+            return null;
+        }
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> byPath = new HashMap<>();
+        bySpec.forEach((spec, hints) -> {
+            assertNull("two specs over [" + spec.path() + "]; assert on the spec-keyed map instead", byPath.put(spec.path(), hints));
+        });
+        return byPath;
     }
 
     private record CapturedExternalResolve(
-        Set<String> pathsRequiringStats,
-        Set<String> pathsReadingNoRows,
-        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
+        List<ExternalSourceSpec> specs,
+        Set<ExternalSourceSpec> specsRequiringStats,
+        Set<ExternalSourceSpec> specsReadingNoRows,
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<ExternalSourceSpec, FolderRangePredicate> folderRanges
     ) {}
 
     private static CapturedExternalResolve captureExternalResolve(LogicalPlan plan, String path) {
-        AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
-        AtomicReference<Set<String>> capturedNoRows = new AtomicReference<>();
-        AtomicReference<Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints = new AtomicReference<>();
+        return captureExternalResolve(plan, path, null);
+    }
+
+    private static CapturedExternalResolve captureExternalResolve(
+        LogicalPlan plan,
+        String path,
+        @Nullable QueryDslTimestampBoundsExtractor.TimestampBounds listingBounds
+    ) {
+        AtomicReference<List<ExternalSourceSpec>> capturedSpecs = new AtomicReference<>();
+        AtomicReference<Set<ExternalSourceSpec>> capturedStats = new AtomicReference<>();
+        AtomicReference<Set<ExternalSourceSpec>> capturedNoRows = new AtomicReference<>();
+        AtomicReference<Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints =
+            new AtomicReference<>();
+        AtomicReference<Map<ExternalSourceSpec, FolderRangePredicate>> capturedFolderRanges = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
-        // The arity the session calls. Overriding a narrower overload would capture nothing and silently run the
-        // real resolver instead, which is how this fake first went blind.
+        // The one resolve the resolver has, so a fake overriding it cannot be bypassed by a narrower overload.
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
             public void resolve(
-                List<String> paths,
-                Map<String, Map<String, Object>> pathConfigs,
-                Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
-                Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
-                Set<String> pathsRequiringStats,
-                Set<String> pathsReadingNoRows,
-                Map<String, FolderRangePredicate> folderRanges,
+                List<ExternalSourceSpec> specs,
+                Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+                Map<String, DatasetMapping> declaredMappings,
+                Set<ExternalSourceSpec> specsRequiringStats,
+                Set<ExternalSourceSpec> specsReadingNoRows,
+                Map<ExternalSourceSpec, FolderRangePredicate> folderRanges,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
-                capturedStats.set(pathsRequiringStats);
-                capturedNoRows.set(pathsReadingNoRows);
+                capturedSpecs.set(specs);
+                capturedStats.set(specsRequiringStats);
+                capturedNoRows.set(specsReadingNoRows);
                 capturedHints.set(filterHints);
+                capturedFolderRanges.set(folderRanges);
                 listener.onResponse(ExternalSourceResolution.EMPTY);
             }
         };
@@ -1118,10 +1523,33 @@ public class EsqlSessionTests extends ESTestCase {
         );
         EsqlSession.PreAnalysisResult result = new EsqlSession.PreAnalysisResult(Set.of(), Set.of());
         PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();
-        EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
+        EsqlSession.preAnalyzeExternalSources(
+            capturingResolver,
+            plan,
+            preAnalysis,
+            result,
+            future,
+            TEST_CFG,
+            new EsqlFunctionRegistry(),
+            listingBounds
+        );
         future.actionGet();
         assertTrue("resolve must be invoked when externalSourcePaths is non-empty", resolveCalled.get());
-        return new CapturedExternalResolve(capturedStats.get(), capturedNoRows.get(), capturedHints.get());
+        // The specs come from the plan's relations, not from preAnalysis.externalSourcePaths(). Every relation in
+        // these plans reads `path`, and a plan may hold more than one of them reading it differently, so the
+        // assertion is that the session forwards that resource and nothing else — not how many specs it forwards.
+        assertThat(
+            "the session must forward the plan's own specs",
+            capturedSpecs.get().stream().map(ExternalSourceSpec::path).distinct().toList(),
+            equalTo(List.of(path))
+        );
+        return new CapturedExternalResolve(
+            capturedSpecs.get(),
+            capturedStats.get(),
+            capturedNoRows.get(),
+            capturedHints.get(),
+            capturedFolderRanges.get()
+        );
     }
 
     private static IndexResolution resolvedIndex(String indexName) {
@@ -1139,6 +1567,150 @@ public class EsqlSessionTests extends ESTestCase {
         QuerySetting projectRouting = new QuerySetting(EMPTY, new Alias(EMPTY, "project_routing", Literal.keyword(EMPTY, "p")));
         EsqlStatement statement = new EsqlStatement(null, List.of(projectRouting));
         assertThat(EsqlSession.suppliedSettingNames(request, statement), equalTo(Set.of("time_zone", "project_routing")));
+    }
+
+    public void testNullRequestFilterLeavesEqlSourcesUntouched() {
+        LogicalPlan plan = new Limit(EMPTY, Literal.integer(EMPTY, 10), eqlRelation());
+        assertThat(EsqlSession.applyRequestFilterToEqlSources(plan, null, TransportVersion.current()), sameInstance(plan));
+    }
+
+    public void testRequestFilterReachesEqlSourceBelowAParent() {
+        QueryBuilder filter = QueryBuilders.rangeQuery("@timestamp").gte("now-15m");
+        LogicalPlan plan = analyzed(new Limit(EMPTY, Literal.integer(EMPTY, 10), eqlRelation()));
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(plan, filter, TransportVersion.current());
+        EqlRelation eql = (EqlRelation) ((Limit) stamped).child();
+        assertThat(eql.requestFilter(), sameInstance(filter));
+        assertTrue(stamped.analyzed());
+    }
+
+    public void testEqlSourceInsideViewIsLeftToTheViewOutputFilter() {
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        EqlRelation outsideView = eqlRelation();
+        EqlRelation insideView = eqlRelation();
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
+            analyzed(viewNextToBareBranch(outsideView, insideView)),
+            filter,
+            TransportVersion.current()
+        );
+        BranchPlan branches = (BranchPlan) stamped;
+        assertThat(((EqlRelation) branches.namedSubqueries().get(null)).requestFilter(), sameInstance(filter));
+        assertThat(branches.namedSubqueries().get("eql_view"), sameInstance(insideView));
+        assertTrue(stamped.analyzed());
+    }
+
+    public void testEqlSourceInsideViewIsFilteredWhenTheViewOutputRewriteCannotRun() {
+        TransportVersion tooOld = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_request_filter_on_dataset"));
+        assertFalse(ViewRequestFilterRewriter.supportsRewrite(tooOld));
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
+            analyzed(viewNextToBareBranch(eqlRelation(), eqlRelation())),
+            filter,
+            tooOld
+        );
+        stamped.forEachDown(LogicalPlan.class, p -> assertTrue(p.analyzed()));
+        List<LogicalPlan> eqlSources = stamped.collect(EqlRelation.class::isInstance);
+        assertThat(eqlSources, hasSize(2));
+        for (LogicalPlan eql : eqlSources) {
+            assertThat(((EqlRelation) eql).requestFilter(), sameInstance(filter));
+        }
+    }
+
+    public void testScopeEqlIndexPatternsUnderARequestFilterOrATimeRangeOnTheirPattern() {
+        UnresolvedRelation from = new UnresolvedRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
+        UnresolvedEqlRelation eql = new UnresolvedEqlRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            "process where true",
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            false,
+            List.of()
+        );
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("from", from);
+        children.put("eql", eql);
+        LogicalPlan plan = new BranchPlan(EMPTY, children, Map.of(), List.of());
+
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of()), sameInstance(plan));
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(new IndexPattern(EMPTY, "metrics-*"))), sameInstance(plan));
+
+        assertEqlScopedApartFrom(from, EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"), Set.of()));
+        assertEqlScopedApartFrom(from, EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(from.indexPattern())));
+    }
+
+    private static void assertEqlScopedApartFrom(UnresolvedRelation from, LogicalPlan scoped) {
+        BranchPlan branches = (BranchPlan) scoped;
+        IndexPattern eqlPattern = ((UnresolvedEqlRelation) branches.namedSubqueries().get("eql")).indexPattern();
+        assertTrue(eqlPattern.isEqlSource());
+        assertThat(eqlPattern.indexPattern(), equalTo("logs-*"));
+        assertThat(eqlPattern, not(equalTo(from.indexPattern())));
+        assertThat(branches.namedSubqueries().get("from"), sameInstance(from));
+    }
+
+    public void testEqlPatternConflictsWithATimeSeriesSourceOnItsPatternEvenUnderARequestFilterOrATimeRange() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        LogicalPlan plan = TEST_PARSER.parseQuery(
+            randomFrom("FROM (TS p), (EQL p \"any where true\")", "FROM (EQL p \"any where true\"), (TS p)")
+        );
+        assertTimeSeriesConflict(plan);
+
+        IndexPattern timeSeries = plan.collect(UnresolvedRelation.class).get(0).indexPattern();
+        LogicalPlan underRequestFilter = EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"), Set.of());
+        LogicalPlan underTimeRange = EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(timeSeries));
+        for (LogicalPlan scoped : List.of(underRequestFilter, underTimeRange)) {
+            assertTrue(scoped.collect(UnresolvedEqlRelation.class).get(0).indexPattern().isEqlSource());
+            assertTimeSeriesConflict(scoped);
+        }
+    }
+
+    private static void assertTimeSeriesConflict(LogicalPlan plan) {
+        expectThrows(
+            IllegalStateException.class,
+            containsString("index pattern 'p' found with different index mode"),
+            () -> new PreAnalyzer().preAnalyze(plan)
+        );
+    }
+
+    public void testFieldCapsFilterSkipsEqlAndViewInternalPatterns() {
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        IndexPattern from = new IndexPattern(EMPTY, "logs-*");
+        IndexPattern viewInternal = new IndexPattern(EMPTY, "views-*");
+        assertThat(EsqlSession.fieldCapsFilter(from, Set.of(viewInternal), filter), sameInstance(filter));
+        assertNull(EsqlSession.fieldCapsFilter(from.forEqlSource(), Set.of(viewInternal), filter));
+        assertNull(EsqlSession.fieldCapsFilter(viewInternal, Set.of(viewInternal), filter));
+        assertNull(EsqlSession.fieldCapsFilter(from, Set.of(), null));
+    }
+
+    private static EqlRelation eqlRelation() {
+        return new EqlRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            "process where true",
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            false,
+            List.of(new ReferenceAttribute(EMPTY, "host", DataType.KEYWORD))
+        );
+    }
+
+    private static LogicalPlan analyzed(LogicalPlan plan) {
+        plan.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        return plan;
+    }
+
+    private static BranchPlan viewNextToBareBranch(EqlRelation bare, EqlRelation insideView) {
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put(null, bare);
+        children.put("eql_view", insideView);
+        return new BranchPlan(EMPTY, children, Map.of("eql_view", BranchIdentity.view("eql_view")), bare.output());
     }
 
     /**
@@ -1161,5 +1733,88 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> composed = new HashMap<>(record.safeMetadata());
         composed.putAll(statistics);
         return composed;
+    }
+
+    // -- maxIndexedValues: how long a terms query the indices an IN subquery reads accept --
+
+    public void testMaxIndexedValuesIsTheSmallestMaxTermsCountOfTheLocalIndices() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 150, "middle", 1_000));
+        EsRelation relation = relationOver(Map.of("", List.of("wide", "narrow", "middle")));
+
+        assertThat(EsqlSession.maxIndexedValues(relation, metadata, true), equalTo(150));
+    }
+
+    public void testMaxIndexedValuesUsesTheDefaultMaxTermsCount() {
+        int defaultMaxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.getDefault(Settings.EMPTY);
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", defaultMaxTermsCount));
+        Settings noSetting = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        metadata = ProjectMetadata.builder(metadata)
+            .put(IndexMetadata.builder("unset").settings(noSetting).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("unset"))), metadata, true), equalTo(defaultMaxTermsCount));
+    }
+
+    /**
+     * A remote cluster's limit is not known here, and one lower than the list makes its shards fail the query, so any remote index
+     * leaves the limit unknown, whatever the local indices say and in whatever order the clusters come.
+     */
+    public void testMaxIndexedValuesIsUnknownWhenAnIndexIsOnARemoteCluster() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("idx"))), metadata, true), equalTo(0));
+
+        Map<String, List<String>> localFirst = new LinkedHashMap<>();
+        localFirst.put("", List.of("idx"));
+        localFirst.put("cluster-a", List.of("idx"));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(localFirst), metadata, true), equalTo(0));
+
+        Map<String, List<String>> remoteFirst = new LinkedHashMap<>();
+        remoteFirst.put("cluster-a", List.of("idx"));
+        remoteFirst.put("", List.of("idx"));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(remoteFirst), metadata, true), equalTo(0));
+    }
+
+    public void testMaxIndexedValuesIsUnknownWhenTheMetadataHasNoSuchIndex() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx", "gone"))), metadata, true), equalTo(0));
+    }
+
+    public void testMaxIndexedValuesIsUnknownWithoutMetadataOrIndices() {
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx"))), null, true), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of()), projectWithMaxTermsCount(Map.of("idx", 5_000)), true), equalTo(0));
+    }
+
+    /**
+     * A field that keeps only doc values cannot be queried by a {@code terms} query when expensive queries are not allowed, and the
+     * planner cannot see which fields those are, so the limit is capped at the default. A lower known limit still applies.
+     */
+    public void testMaxIndexedValuesIsCappedAtTheDefaultWhenExpensiveQueriesAreNotAllowed() {
+        int defaultLimit = AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 50));
+        EsRelation wide = relationOver(Map.of("", List.of("wide")));
+        EsRelation narrow = relationOver(Map.of("", List.of("narrow")));
+
+        assertThat(EsqlSession.maxIndexedValues(wide, metadata, true), equalTo(5_000));
+        assertThat(EsqlSession.maxIndexedValues(wide, metadata, false), equalTo(defaultLimit));
+        assertThat(EsqlSession.maxIndexedValues(narrow, metadata, false), equalTo(50));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("wide"))), metadata, false), equalTo(0));
+    }
+
+    private static ProjectMetadata projectWithMaxTermsCount(Map<String, Integer> maxTermsCountByIndex) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(ProjectId.DEFAULT);
+        maxTermsCountByIndex.forEach((index, maxTermsCount) -> {
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(), maxTermsCount)
+                .build();
+            project.put(IndexMetadata.builder(index).settings(settings).numberOfShards(1).numberOfReplicas(0));
+        });
+        return project.build();
+    }
+
+    private static EsRelation relationOver(Map<String, List<String>> concreteIndices) {
+        return new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), concreteIndices, Map.of(), List.of());
     }
 }

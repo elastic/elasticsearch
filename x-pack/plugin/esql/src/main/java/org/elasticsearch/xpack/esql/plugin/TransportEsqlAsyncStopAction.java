@@ -10,16 +10,18 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.ReservingResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -52,6 +54,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final AsyncSearchSecurity security;
+    private final CircuitBreaker circuitBreaker;
 
     private static final Logger logger = LogManager.getLogger(TransportEsqlAsyncStopAction.class);
 
@@ -64,15 +67,26 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         TransportEsqlAsyncGetResultsAction getResultsAction,
         Client client,
         ExchangeService exchangeService,
-        BlockFactoryProvider blockFactoryProvider
+        BlockFactoryProvider blockFactoryProvider,
+        CircuitBreakerService circuitBreakerService
     ) {
-        super(EsqlAsyncStopAction.NAME, transportService, actionFilters, AsyncStopRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // Charges the reply this node serializes for a relayed request until it is written.
+        super(
+            EsqlAsyncStopAction.NAME,
+            true,
+            transportService,
+            actionFilters,
+            AsyncStopRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.queryAction = queryAction;
         this.getResultsAction = getResultsAction;
         this.exchangeService = exchangeService;
         this.blockFactory = blockFactoryProvider.blockFactory();
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.security = new AsyncSearchSecurity(
             XPackPlugin.ASYNC_RESULTS_INDEX,
             new SecurityContext(clusterService.getSettings(), client.threadPool().getThreadContext()),
@@ -92,7 +106,14 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
                 node,
                 EsqlAsyncStopAction.NAME,
                 request,
-                new ActionListenerResponseHandler<>(listener, EsqlQueryResponse.reader(blockFactory), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                // Only reserves the response while it arrives, since the pages read from it are charged until it is released.
+                new ReservingResponseHandler<>(
+                    listener,
+                    EsqlQueryResponse.reader(blockFactory),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    circuitBreaker,
+                    TransportEsqlAsyncGetResultsAction.RELAYED_RESPONSE_BREAKER_LABEL
+                )
             );
         }
     }
@@ -134,6 +155,10 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             // reads). Either condition is a hard signal that we truncated live dataflow; without it the task can be
             // in the async-store persistence window with a fully complete result, in which case flagging {@code
             // is_partial=true} would be a lie.
+            //
+            // A STOP that arrives before any exchange or hook exists (parse / field_caps / split discovery) also
+            // leaves both signals false. Compute observes {@code execInfo.isStopped()} and completes empty via
+            // {@code ComputeService.completeIfStopped}, which is what marks that response partial.
             final boolean cutLiveWork = Boolean.TRUE.equals(interrupted) || stopHookCutSomething;
             if (cutLiveWork && esqlExecutionInfo != null) {
                 esqlExecutionInfo.markPartial();

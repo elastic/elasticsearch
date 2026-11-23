@@ -18,7 +18,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
@@ -44,9 +46,11 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGener
 import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
@@ -144,8 +148,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // $$field$converted_to$type reference that ExternalSourceResolver introduces when merging
             // schemas across heterogeneous sources (external parquet dataset + ES index).
             ".*Plan \\[AggregateExec\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*"
+        ),
+        GenerativeFeature.EQL,
+        Set.of(
+            // EQL source columns of a type the EQL page converter cannot extract are unsupported, unlike under FROM
+            // https://github.com/elastic/elasticsearch/issues/165569
+            eqlUnconvertibleFieldTypeError()
         )
     );
+
+    private static String eqlUnconvertibleFieldTypeError() {
+        String convertible = EqlRelation.CONVERTIBLE_TYPES.stream()
+            .map(DataType::typeName)
+            .map(Pattern::quote)
+            .collect(Collectors.joining("|"));
+        return "EQL command does not yet support \\[(?!(?:" + convertible + ")\\])[^\\]]+\\] fields";
+    }
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
@@ -495,6 +513,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     public void test() throws IOException {
+        if (isFeatureEnabled(GenerativeFeature.EQL)) {
+            assumeTrue("the EQL command is snapshot-only", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        }
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
         Collection<CsvTestsDataLoader.EnrichConfig> policies = ENRICH_POLICIES.values();
@@ -563,6 +584,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
         if (isFeatureEnabled(GenerativeFeature.PROMQL)) {
             return PromQLGenerator.INSTANCE;
+        }
+        if (isFeatureEnabled(GenerativeFeature.EQL)) {
+            return EqlGenerator.INSTANCE;
         }
         return EsqlQueryGenerator.sourceCommand();
     }

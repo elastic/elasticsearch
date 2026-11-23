@@ -10,6 +10,22 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.6.0 [elasticsearch-9.6.0-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes such as `[a-z]+` and `foo|bar` are unaffected, but patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859).
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * In ES|QL, a [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) function that is followed by `STATS` fails with `Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find`, even if a `LIMIT` is set after `STATS` or the `k` option is specified. As a workaround, add an explicit `LIMIT` immediately after the `KNN` filter and before `STATS`, for example `WHERE KNN(vector_field, [2.0, 3.0, 1.0]) | LIMIT 10 | STATS COUNT(*)`.
 
   Refer to [#163612](https://github.com/elastic/elasticsearch/issues/163612) for further details.
@@ -20,6 +36,22 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
 
   This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
@@ -27,6 +59,22 @@ Known issues are significant defects or limitations that may impact your impleme
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
 ## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * Boolean queries containing a `must`, `filter`, or `should` clause using a `terms` query
   (multi-value), along with a `must_not` clause, on fields with disabled indexing can still return
@@ -47,6 +95,22 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.5.0 [elasticsearch-9.5.0-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * Boolean queries containing a `must`, `filter`, or `should` clause, along with a `must_not` clause, on fields with disabled indexing can return false-positive matches. This occurs when a DSL or ES|QL query selects Lucene's bulk-scoring path due to an iterator evaluation defect in Lucene ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)). [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds) and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data streams are affected, since they disable indexing on all fields by default.
 
   A [partial fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1, addressing `term` and `range` query paths, but missing the multi-value `terms` query. The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)). which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
@@ -57,7 +121,27 @@ Known issues are significant defects or limitations that may impact your impleme
 
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
+* Shards can fail to allocate after an upgrade when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.5.1. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
+
+## 9.4.0 [elasticsearch-9.4.0-known-issues]
+
+* Shards can fail to allocate after an upgrade to {{es}} 9.4.0 through 9.4.4 when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.4.5. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
+
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.
 
@@ -65,6 +149,12 @@ Known issues are significant defects or limitations that may impact your impleme
 
 
 ## 9.3.3 [elasticsearch-9.3.3-known-issues]
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.3.3 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.
 
@@ -77,6 +167,12 @@ Known issues are significant defects or limitations that may impact your impleme
     ```
 
 ## 9.3.1 [elasticsearch-9.3.1-known-issues]
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * On multi-node clusters where one or more nodes do not have a GPU, the GPU stats collection for `_xpack/usage` triggers repeated WARN-level log messages from `OutboundHandler`:
 
@@ -102,6 +198,12 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.2.8 [elasticsearch-9.2.8-known-issues]
 
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.2.8 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.
 
   The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.2.9.
@@ -113,6 +215,12 @@ Known issues are significant defects or limitations that may impact your impleme
     ```
 
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * Upgrading from 9.1.10 to 9.2.4 may cause the following error:
 
@@ -126,11 +234,23 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.2.0 [elasticsearch-9.2.0-known-issues]
 
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * The `bbq_disk` index format, licensed under the [Enterprise subscription tier](https://www.elastic.co/subscriptions) was introduced in 9.2.0 without appropriate license enforcement. This allowed users to create and use `bbq_disk` indices without an Enterprise license. This will be addressed in version 9.3.0. Upon upgrading to 9.3+ indices created on 9.2 will still be available for updates and queries, but new indices created on 9.3+ will require an Enterprise license.
 
   This will be addressed in version 9.3.0.
 
 ## 9.1.1 [elasticsearch-9.1.1-known-issues]
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
 
@@ -142,6 +262,12 @@ Known issues are significant defects or limitations that may impact your impleme
 The bug is addressed in version 9.1.2.
 
 ## 9.1.0 [elasticsearch-9.1.0-known-issues]
+
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
 * An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
 
@@ -160,6 +286,12 @@ The bug is addressed in version 9.1.2.
 
 ## 9.0.3 [elasticsearch-9.0.3-known-issues]
 
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * A bug in the merge scheduler in Elasticsearch 9.0.3 may prevent shards from closing when there isn’t enough disk space to complete a merge. As a result, operations such as closing or relocating an index may hang until sufficient disk space becomes available.
 To mitigate this issue, the disk space checker is disabled by default in 9.0.3 by setting `indices.merge.disk.check_interval` to `0` seconds. Manually enabling this setting is not recommended.
 
@@ -175,6 +307,12 @@ To mitigate this issue, the disk space checker is disabled by default in 9.0.3 b
   * reducing the grouping key cardinality, by filtering out values before STATS
 
 ## 9.0.0 [elasticsearch-9.0.0-known-issues]
+* A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
+
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
+
+  Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
+
 * Elasticsearch on Windows might fail to start, or might forbid some file-related operations, when referencing paths with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the filesystem stores them with case. Entitlements, the new security system used by Elasticsearch, treat all paths as case-sensitive, and can therefore prevent access to a path that should be accessible.
 
   For example: If Elasticsearch is installed in  `C:\ELK\elasticsearch`, and you try to launch it as `c:\elk\elasticsearch\bin\elasticsearch.bat`, you will get a `NotEntitledException` while booting. This is because Elasticsearch blocks access to `c:\elk\elasticsearch`, because does not match `C:\ELK\elasticsearch`. \

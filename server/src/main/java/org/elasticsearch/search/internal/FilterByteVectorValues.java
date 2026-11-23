@@ -67,4 +67,9 @@ public abstract class FilterByteVectorValues extends ByteVectorValues {
     public Bits getAcceptOrds(Bits acceptDocs) {
         return in.getAcceptOrds(acceptDocs);
     }
+
+    @Override
+    public void prefetch(int[] ordsToPrefetch, int numOrds) throws IOException {
+        in.prefetch(ordsToPrefetch, numOrds);
+    }
 }

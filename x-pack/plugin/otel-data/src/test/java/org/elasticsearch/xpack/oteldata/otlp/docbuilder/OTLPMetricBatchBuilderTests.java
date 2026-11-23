@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 
@@ -18,30 +17,80 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.anyValue;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.anyValueArray;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.anyValueBytes;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createDoubleDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
-import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createSumMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueArray;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueBytes;
+import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class OTLPMetricBatchBuilderTests extends ESTestCase {
+public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
+
+    @Override
+    protected boolean producesTsid() {
+        return false;
+    }
+
+    @Override
+    protected List<Document> buildDocuments(MappingHints defaultMappingHints, DataPointGroupingContext context) throws IOException {
+        List<Map<String, String>> dynamicTemplates = new ArrayList<>();
+        List<Map<String, Map<String, String>>> dynamicTemplateParams = new ArrayList<>();
+        try (
+            OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(BytesRefRecycler.NON_RECYCLING_INSTANCE, defaultMappingHints)
+        ) {
+            for (DataPointGroupingContext.ResourceGroup resourceGroup : context.resourceGroups()) {
+                assertTrue(batchBuilder.buildMetricRows(resourceGroup, (group, t, p) -> {
+                    dynamicTemplates.add(t);
+                    dynamicTemplateParams.add(p);
+                }));
+            }
+            try (EscfBatch batch = batchBuilder.build()) {
+                List<Document> documents = new ArrayList<>();
+                for (int row = 0; row < batch.docCount(); row++) {
+                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                    SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+                    ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+                    documents.add(new Document(doc, dynamicTemplates.get(row), dynamicTemplateParams.get(row), null));
+                }
+                return documents;
+            }
+        }
+    }
+
+    /** Writes every resource group of {@code context} into {@code batchBuilder}, asserting each is eligible. */
+    private static void buildAllRows(OTLPMetricBatchBuilder batchBuilder, DataPointGroupingContext context) {
+        for (DataPointGroupingContext.ResourceGroup resourceGroup : context.resourceGroups()) {
+            assertTrue(batchBuilder.buildMetricRows(resourceGroup, (group, t, p) -> {}));
+        }
+    }
 
     private final long nowNanos = System.currentTimeMillis() * 1_000_000L;
 
@@ -114,11 +163,7 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> {
-            Map<String, String> templates = new HashMap<>();
-            Map<String, Map<String, String>> templateParams = new HashMap<>();
-            assertTrue(batchBuilder.buildMetricRow(group, templates, templateParams));
-        });
+        buildAllRows(batchBuilder, context);
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
@@ -159,7 +204,7 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        buildAllRows(batchBuilder, context);
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(2, batch.docCount());
@@ -211,7 +256,7 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        buildAllRows(batchBuilder, context);
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
@@ -265,54 +310,13 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        buildAllRows(batchBuilder, context);
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
         assertEquals(List.of("first"), readStringColumn(batch, "resource.attributes.host"));
         assertEquals(List.of(1L), readLongColumn(batch, "scope.attributes.lib"));
         assertEquals(List.of("prod"), readStringColumn(batch, "attributes.env"));
-    }
-
-    /** A histogram data point causes buildMetricRow to return false (falls back to XContent path). */
-    public void testBuildMetricRowReturnsFalseForHistogram() throws Exception {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
-            .addResourceMetrics(
-                createResourceMetrics(
-                    List.of(keyValue("service.name", "svc")),
-                    List.of(
-                        createScopeMetrics(
-                            "s",
-                            "1",
-                            List.of(
-                                createHistogramMetric(
-                                    "latency",
-                                    "ms",
-                                    List.of(
-                                        io.opentelemetry.proto.metrics.v1.HistogramDataPoint.newBuilder()
-                                            .setTimeUnixNano(nowNanos)
-                                            .setCount(1)
-                                            .setSum(42.0)
-                                            .build()
-                                    ),
-                                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-            .build();
-
-        DataPointGroupingContext context = newContext();
-        context.groupDataPoints(request);
-
-        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
-        );
-        context.consume(group -> { assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
-        assertEquals(0, batchBuilder.docCount());
     }
 
     /** Dotted metric names (e.g. {@code gauge.0}) are written as a nested-path column, not a top-level key. */
@@ -335,7 +339,7 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
         );
-        context.consume(group -> { assertTrue(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
+        buildAllRows(batchBuilder, context);
         EscfBatch batch = batchBuilder.build();
 
         assertEquals(1, batch.docCount());
@@ -343,9 +347,191 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
         assertFalse("metrics.gauge.0 column must be present", readLongColumn(batch, "metrics.gauge.0").isEmpty());
     }
 
-    /** An ARRAY attribute causes buildMetricRow to return false. */
-    public void testBuildMetricRowReturnsFalseForArrayAttribute() throws Exception {
+    /** An ARRAY attribute becomes an array column, keeping element order. */
+    public void testArrayAttributeWritesArrayColumn() throws Exception {
+        EscfBatch batch = buildSingleRow(keyValue("tags", "a", "b"));
+
+        assertEquals(1, batch.docCount());
+        assertEquals(List.of("a", "b"), readStringColumn(batch, "attributes.tags"));
+    }
+
+    /**
+     * A KVLIST attribute makes the row ineligible: the {@code complex_attributes} dynamic template maps an
+     * attribute object to {@code flattened}, which per-child-key columns would not match.
+     */
+    public void testBuildMetricRowReturnsFalseForObjectAttribute() throws Exception {
+        assertRowIneligible(keyValue("http", keyValueList(keyValue("method", "GET"))));
+    }
+
+    /** An empty KVLIST is rejected along with every other object. */
+    public void testBuildMetricRowReturnsFalseForEmptyObjectAttribute() throws Exception {
+        assertRowIneligible(keyValue("empty", keyValueList()));
+    }
+
+    /** An object inside an array is rejected too, however deep it sits. */
+    public void testBuildMetricRowReturnsFalseForObjectInsideArray() throws Exception {
+        assertRowIneligible(keyValueArray("items", anyValue(keyValueList(keyValue("a", 1L)))));
+    }
+
+    /** A bytes attribute makes the row ineligible*/
+    public void testBuildMetricRowReturnsFalseForBytesAttribute() throws Exception {
+        assertRowIneligible(keyValueBytes("payload", new byte[] { 1, 2, 3 }));
+    }
+
+    /** A bytes value nested inside an array is rejected the same way a top-level one is. */
+    public void testBuildMetricRowReturnsFalseForBytesInsideArray() throws Exception {
+        assertRowIneligible(keyValueArray("mixed", anyValue("a"), anyValueBytes(new byte[] { 1 })));
+    }
+
+    public void testBuildMetricRowReturnsFalseForNestedArray() throws Exception {
+        assertRowIneligible(keyValueArray("nested", anyValueArray(anyValue(1L), anyValue(2L))));
+    }
+
+    /**
+     * Resource fields are filled for every row of the resource group and scope fields for every row of their scope
+     * group, while each row keeps its own data-point attributes.
+     */
+    public void testSharedResourceAndScopeFieldsAreFilledForEveryRow() throws Exception {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                createResourceMetrics(
+                    List.of(keyValue("service.name", "svc"), keyValue("host.id", 7L)),
+                    List.of(
+                        ScopeMetrics.newBuilder()
+                            .setScope(InstrumentationScope.newBuilder().setName("s1").addAttributes(keyValue("lib", "a")))
+                            .addMetrics(
+                                createGaugeMetric(
+                                    "cpu",
+                                    "1",
+                                    List.of(
+                                        createDoubleDataPoint(nowNanos, 0, List.of(keyValue("core", "0"))),
+                                        createDoubleDataPoint(nowNanos, 0, List.of(keyValue("core", "1")))
+                                    )
+                                )
+                            )
+                            .build(),
+                        ScopeMetrics.newBuilder()
+                            .setScope(InstrumentationScope.newBuilder().setName("s2").addAttributes(keyValue("lib", "b")))
+                            .addMetrics(createGaugeMetric("mem", "1", List.of(createDoubleDataPoint(nowNanos))))
+                            .build()
+                    )
+                )
+            )
+            .build();
+
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(request);
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        buildAllRows(batchBuilder, context);
+        EscfBatch batch = batchBuilder.build();
+
+        assertEquals(3, batch.docCount());
+        assertEquals(List.of("svc", "svc", "svc"), readStringColumn(batch, "resource.attributes.service.name"));
+        assertEquals(List.of(7L, 7L, 7L), readLongColumn(batch, "resource.attributes.host.id"));
+        List<String> scopeNames = readStringColumn(batch, "scope.name");
+        List<String> scopeLibs = readStringColumn(batch, "scope.attributes.lib");
+        List<String> cores = new ArrayList<>();
+        for (int row = 0; row < batch.docCount(); row++) {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+            String scopeName = doc.evaluate("scope.name");
+            assertEquals(scopeNames.get(row), scopeName);
+            assertEquals(scopeName.equals("s1") ? "a" : "b", scopeLibs.get(row));
+            if (scopeName.equals("s1")) {
+                cores.add(doc.evaluate("attributes.core"));
+            } else {
+                assertNull(doc.evaluate("attributes.core"));
+            }
+        }
+        assertThat(scopeNames, containsInAnyOrder("s1", "s1", "s2"));
+        assertThat(cores, containsInAnyOrder("0", "1"));
+    }
+
+    /** A scope without rows next to a populated one leaves no values in the rows of the populated scope. */
+    public void testEmptyScopeWritesNoValues() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                createResourceMetrics(
+                    List.of(keyValue("service.name", "svc")),
+                    List.of(
+                        ScopeMetrics.newBuilder()
+                            .setScope(InstrumentationScope.newBuilder().setName("empty").addAttributes(keyValue("only_empty", "x")))
+                            .build(),
+                        createScopeMetrics("s", "1", List.of(createGaugeMetric("cpu", "1", List.of(createDoubleDataPoint(nowNanos)))))
+                    )
+                )
+            )
+            .build();
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(request);
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        buildAllRows(batchBuilder, context);
+        EscfBatch batch = batchBuilder.build();
+
+        assertEquals(1, batch.docCount());
+        assertEquals(List.of("s"), readStringColumn(batch, "scope.name"));
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        SourceRowToXContent.writeRow(batch.row(0), batch.schema(), builder);
+        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        assertNull(doc.evaluate("scope.attributes.only_empty"));
+    }
+
+    /** A resource attribute that can't be expressed as a column is only found when filling, after the rows are committed. */
+    public void testBuildMetricRowsReturnsFalseForBytesResourceAttribute() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                createResourceMetrics(
+                    List.of(keyValueBytes("payload", new byte[] { 1, 2, 3 })),
+                    List.of(createScopeMetrics("s", "1", List.of(createGaugeMetric("cpu", "1", List.of(createDoubleDataPoint(nowNanos))))))
+                )
+            )
+            .build();
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(request);
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        for (DataPointGroupingContext.ResourceGroup resourceGroup : context.resourceGroups()) {
+            assertFalse(batchBuilder.buildMetricRows(resourceGroup, (group, t, p) -> {}));
+        }
+    }
+
+    /** Builds a one-row batch from a single gauge data point carrying {@code dataPointAttributes}. */
+    private EscfBatch buildSingleRow(KeyValue... dataPointAttributes) throws Exception {
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(gaugeRequest(dataPointAttributes));
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        buildAllRows(batchBuilder, context);
+        return batchBuilder.build();
+    }
+
+    /** Asserts that a data point carrying {@code dataPointAttributes} cannot be written as ESCF columns. */
+    private void assertRowIneligible(KeyValue... dataPointAttributes) throws Exception {
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(gaugeRequest(dataPointAttributes));
+        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        for (DataPointGroupingContext.ResourceGroup resourceGroup : context.resourceGroups()) {
+            assertFalse(batchBuilder.buildMetricRows(resourceGroup, (group, t, p) -> fail("an ineligible row must not be committed")));
+        }
+        assertEquals(0, batchBuilder.docCount());
+    }
+
+    private ExportMetricsServiceRequest gaugeRequest(KeyValue... dataPointAttributes) {
+        return ExportMetricsServiceRequest.newBuilder()
             .addResourceMetrics(
                 createResourceMetrics(
                     List.of(keyValue("service.name", "svc")),
@@ -361,7 +547,7 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
                                         NumberDataPoint.newBuilder()
                                             .setTimeUnixNano(nowNanos)
                                             .setAsDouble(1.0)
-                                            .addAttributes(keyValue("tags", "a", "b"))
+                                            .addAllAttributes(List.of(dataPointAttributes))
                                             .build()
                                     )
                                 )
@@ -371,15 +557,5 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
                 )
             )
             .build();
-
-        DataPointGroupingContext context = newContext();
-        context.groupDataPoints(request);
-
-        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
-        );
-        context.consume(group -> { assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
-        assertEquals(0, batchBuilder.docCount());
     }
 }

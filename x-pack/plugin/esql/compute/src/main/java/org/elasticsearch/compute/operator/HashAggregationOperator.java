@@ -436,7 +436,7 @@ public class HashAggregationOperator implements Operator {
             this.supportPartitioning = parallelConfig != null
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()
-                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
+                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning(a.mode()));
             this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
             success = true;
         } finally {
@@ -518,7 +518,7 @@ public class HashAggregationOperator implements Operator {
         final boolean toEmit;
         boolean success = false;
         try {
-            toEmit = shouldEmitPartialResultsPeriodically(page);
+            toEmit = canEmitCurrentBatchPeriodically() && periodicEmitThresholdReached() && prepareForPeriodicEmit(page);
             success = true;
         } finally {
             if (success == false) {
@@ -538,7 +538,7 @@ public class HashAggregationOperator implements Operator {
             maybeReinitializeAfterPeriodicallyEmitted();
             List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
             class AddInput implements GroupingAggregatorFunction.AddInput {
-                long hashStart = System.nanoTime();
+                long hashStart;
                 long aggStart;
 
                 @Override
@@ -585,14 +585,17 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             try (AddInput add = new AddInput()) {
+                final long aggsPrepareStart = System.nanoTime();
                 for (GroupingAggregator aggregator : aggregators) {
                     GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
                     if (p != null) {
                         prepared.add(p);
                     }
                 }
-
                 // TODO we can skip the page *entirely* if we know we don't need "empty" results.
+                add.hashStart = System.nanoTime();
+                // Count aggregation preparation time toward aggregation time
+                aggregationNanos += add.hashStart - aggsPrepareStart;
                 blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }
@@ -656,10 +659,7 @@ public class HashAggregationOperator implements Operator {
 
     void clearCurrentBatch() {
         rowsAddedInCurrentBatch = 0;
-        // Only reuse via clear() when partitioning is active. TimeSeriesBlockHash may share its
-        // BytesRefArray with emitted ordinal dictionaries (incRef); clear()/truncate would corrupt
-        // those keys. Close+recreate drops the hash's ref and leaves emitted keys intact (#164417).
-        if (supportPartitioning && blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
+        if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
             partitionedBlockHash.clear();
         } else {
             blockHash.close();
@@ -748,12 +748,23 @@ public class HashAggregationOperator implements Operator {
     }
 
     /**
-     * Whether to emit the current batch before {@code incomingPage} is added to it.
+     * Whether the current batch may be emitted before the incoming page is added to it. Partial output can always be
+     * emitted early because the final aggregation re-merges groups that span batches.
      */
-    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
-        if (aggregatorMode.isOutputPartial() == false) {
-            return false;
+    protected boolean canEmitCurrentBatchPeriodically() {
+        return aggregatorMode.isOutputPartial();
+    }
+
+    private boolean prepareForPeriodicEmit(Page incomingPage) {
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.aggregatorFunction().prepareForPeriodicEmit(incomingPage) == false) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    private boolean periodicEmitThresholdReached() {
         if (rowsAddedInCurrentBatch == 0) {
             return false;
         }

@@ -196,14 +196,14 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_datasets",
         type = { "boolean" },
-        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
-        // every page documenting that feature is stack: preview / serverless: unavailable. Deriving it from
-        // preview() would instead claim the setting is available in preview on serverless, where the feature is not
-        // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
-        applies_to = "serverless: unavailable\nstack: preview 9.6+",
+        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, so its
+        // applies_to follows the Data Federation pages rather than the setting's own lifecycle.
+        // applies_to carries the version, so declaring since too is rejected by the renderer.
+        applies_to = "serverless: preview\nstack: preview 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "{applies_to}`{\"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`."
@@ -283,10 +283,23 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "time_series_reduce_per_index",
+        type = { "boolean" },
+        description = "When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses "
+            + "less memory and can improve query performance, but results may be approximate for time buckets that overlap index rollover "
+            + "boundaries and for windowed aggregates whose windows reach across those boundaries. Defaults to `false`."
+    )
+    public static final QuerySettingDef<Boolean> TIME_SERIES_REDUCE_PER_INDEX = QuerySettingDef.bool("time_series_reduce_per_index")
+        .withTelemetryLabels(List.of("false", "true"), value -> Boolean.toString(Boolean.TRUE.equals(value)))
+        .build();
+
+    @Param(
         name = "exemplars",
         type = { "boolean", "map_param" },
+        since = "9.7+",
         description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
             + " relevant to the query are returned based on heuristics that take the selected metrics and series into account."
+            + " For details, refer to [Query exemplars](/reference/query-languages/esql/commands/ts.md#esql-ts-exemplars)."
     )
     @MapParam(
         name = "exemplars",
@@ -310,7 +323,7 @@ public final class QuerySettings {
     )
         .withRequestBody()
         .withDefault(ExemplarsSettings.DISABLED)
-        .withSnapshotOnly()
+        .withPreview()
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
         .build();
 
@@ -327,6 +340,7 @@ public final class QuerySettings {
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
         TIME_ZONE,
+        TIME_SERIES_REDUCE_PER_INDEX,
         UNMAPPED_FIELDS
     );
 

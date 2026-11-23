@@ -16,12 +16,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
@@ -60,7 +64,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final boolean isSyntheticSourceEnabled;
@@ -93,7 +97,6 @@ public class BinaryFieldMapper extends FieldMapper {
                 indexSettings == null
                     ? nonColumnarDefault
                     : DocValuesParameter.defaultValues(indexSettings, nonColumnarDefault, DocValuesParameter.Values.Cardinality.HIGH),
-                m -> toType(m).docValues,
                 indexSettings
             );
         }
@@ -244,9 +247,6 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean stored;
     private final DocValuesParameter.Values docValues;
     private final boolean hasDocValues;
-    private final boolean isSyntheticSourceEnabled;
-    @Nullable
-    private final IndexSettings indexSettings;
     /**
      * Whether the values are left out of the {@code columnar_stored} {@code _source} and patched back from doc values on read: only
      * for the ColumNAR layouts, which keep array order and duplicates, and not under {@code on_failure: ignore}, whose set-aside
@@ -265,8 +265,6 @@ public class BinaryFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.docValues = builder.docValues.getValue();
         this.hasDocValues = docValues.enabled();
-        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
-        this.indexSettings = builder.indexSettings;
         this.patchedIntoSource = sourceColumnarStored
             && hasDocValues
             && mappedFieldType.columnarFormat() != null
@@ -391,9 +389,38 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * Only single-valued doc values are mapped in batch: they hold the raw bytes, so the source column is indexed as it is.
+     */
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(leafName(), indexSettings, isSyntheticSourceEnabled).init(this);
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().columnarFormat() == BinaryDocValuesFormat.PLAIN
+            && docValues.onFailure() != DocValuesParameter.Values.OnFailure.IGNORE;
+    }
+
+    /**
+     * Only raw bytes: base64 values from a JSON source take the row path.
+     */
+    @Override
+    public boolean supportsColumnKind(byte kind) {
+        return kind == EscfColumnKind.BINARY;
+    }
+
+    /**
+     * The doc values alias the source column, without a copy.
+     */
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (supportsColumnKind(source.kind()) == false) {
+            throw new UnsupportedOperationException(
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not supported for binary field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
+            );
+        }
+        ctx.addColumn(LuceneBinaryColumn.of(source.columnData(), fieldType().name(), org.apache.lucene.document.BinaryDocValuesField.TYPE));
     }
 
     @Override

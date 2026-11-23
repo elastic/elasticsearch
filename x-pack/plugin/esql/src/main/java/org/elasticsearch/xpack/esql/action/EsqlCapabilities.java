@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.HashSet;
 import java.util.Locale;
@@ -607,6 +608,23 @@ public class EsqlCapabilities {
          * in the index of the object.
          */
         OBJECTS_ARE_NOT_FIELDS,
+
+        /**
+         * A name under a {@code flattened} field is a field, the key of that name. Its type is that of the field other indices map
+         * there, or {@code keyword} if none does.
+         */
+        FLATTENED_KEYS(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG),
+
+        /**
+         * The root of a {@code flattened} field has no value that {@code ignore_above} left out, as a {@code keyword} field.
+         */
+        FLATTENED_ROOT_DROPS_IGNORED_VALUES,
+
+        /**
+         * A field that field caps returns only as the parent path of a name the query uses is not one of the query's fields, unless
+         * it holds the names below it. Only {@link #FLATTENED_KEYS} asks for parent paths outside {@code unmapped_fields="load"}.
+         */
+        PARENT_PATHS_ARE_NOT_FIELDS(FLATTENED_KEYS.isEnabled()),
 
         /**
          * Support for requesting the "_ignored" metadata field.
@@ -1427,7 +1445,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V7(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_RELEASE,
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1576,9 +1594,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         * A FORK may follow a subquery, a view or a LET named subquery that itself contains a FORK. Each of them is its own FORK
+         * scope, so the two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still
+         * rejected while parsing.
          */
-        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+        ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -1664,6 +1684,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
 
         /**
+         * Union-type conversions are scoped to their own side of an {@code IN} subquery. Before, a cast after an {@code IN} whose
+         * subquery ran {@code STATS} failed with "Cannot use field [...] due to ambiguities", and casts after the {@code IN} were
+         * loaded by the subquery's index too.
+         */
+        WHERE_IN_SUBQUERY_UNION_TYPES_SCOPE_FIX,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY,
@@ -1672,6 +1699,11 @@ public class EsqlCapabilities {
          * Support non-correlated IN subqueries in the {@code EVAL} command.
          */
         EVAL_IN_SUBQUERY,
+
+        /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
 
         /**
          * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
@@ -1767,6 +1799,12 @@ public class EsqlCapabilities {
          */
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
         /**
+         * Fixed a bug where a view or subquery over a bare time-series aggregation, such as
+         * {@code TS k8s | STATS rate(x) BY tbucket}, dropped the implicit {@code _timeseries} column when it was kept
+         * as its own branch, e.g. when the caller sets {@code unmapped_fields}.
+         */
+        VIEWS_IMPLICIT_TIMESERIES_COLUMN_FIX,
+        /**
          * Makes views not visible on remote clusters / linked projects
          */
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
@@ -1845,6 +1883,15 @@ public class EsqlCapabilities {
          * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
          */
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
+
+        /**
+         * Does the usage information for ESQL contain per-component CPU counters for external-source queries that failed
+         * or were cancelled ({@code datasources.queries.cpu_nanos.by_outcome.failure.*} and
+         * {@code datasources.queries.cpu_nanos.by_outcome.cancelled.*}, each with {@code .execution}, {@code .read},
+         * {@code .planning}, {@code .split_discovery} and {@code .total})? They are not part of
+         * {@code datasources.queries.cpu_nanos.*}, which is the CPU of the queries that succeeded.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU_BY_OUTCOME,
 
         /**
          * Support loading of ip fields if they are not indexed.
@@ -2097,6 +2144,11 @@ public class EsqlCapabilities {
          * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
         /**
          * Support for the RLIKE operator with a list of regexes.
          */
@@ -2431,6 +2483,8 @@ public class EsqlCapabilities {
          * Pack dimension values in TS command
          */
         PACK_DIMENSIONS_IN_TS,
+
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
 
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
@@ -2779,6 +2833,12 @@ public class EsqlCapabilities {
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL offset modifiers accept either sign and bind to their selector before binary operators.
+         * Gates regression specs on older nodes that do not implement this parsing behavior.
+         */
+        FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -3080,6 +3140,60 @@ public class EsqlCapabilities {
          * grammar surface, rather than this capability mirroring a separate build-type check.
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for the EQL source command. Delegates execution to the EQL engine (via
+         * {@code EqlSearchAction}) and exposes results under a fixed schema resolved at plan time.
+         * Snapshot-only: the grammar predicates in {@code EsqlBaseParser.g4}/{@code From.g4} read this
+         * capability directly to gate the EQL grammar surface.
+         */
+        EQL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code METADATA} clause on the EQL source command ({@code EQL idx "..." METADATA _index,
+         * _id, _source}). Adds the requested provenance columns, pulled from the EQL response envelope. Snapshot-only,
+         * gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_METADATA(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command honours {@code SET unmapped_fields} (NULLIFY / LOAD) for fields referenced by
+         * downstream ES|QL but absent from the mapping, the same as {@code FROM}. It also loads partially-mapped
+         * keyword fields from {@code _source} on multi-index patterns (field-caps produces a
+         * {@code PotentiallyUnmappedKeywordEsField} regardless of the setting), matching {@code FROM}. Snapshot-only,
+         * gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_UNMAPPED_FIELDS(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command is legal as a subquery source: {@code FROM (EQL idx "..." | ...)} and
+         * {@code WHERE x IN (EQL idx "..." | KEEP col)}. Both add {@code eqlCommand} to
+         * {@code subquerySourceCommand} in {@code EsqlBaseParser.g4} (predicated on {@link #EQL_COMMAND}); the IN
+         * form additionally needs a snapshot-gated {@code eql} mode-switch rule in {@code InExpression.g4}
+         * ({@code IN_SUBQUERY_EQL_LP}) so the lexer treats {@code IN (eql ...)} as a subquery rather than a
+         * value list. This is a separate spec-gate marker so that csv-spec/REST tests exercising the composition
+         * surface skip on mixed-version and multi-cluster nodes that lack it, independently of the top-level EQL
+         * command. Snapshot-only, gated together with {@link #EQL_COMMAND}. EQL as the upstream of {@code FORK}
+         * ({@code EQL ... | FORK (...) (...)}) and as a view body ({@code FROM <view-with-eql-body>}) need no
+         * grammar change and are covered by {@link #EQL_COMMAND} alone.
+         */
+        EQL_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command honours the request {@code filter}. Snapshot-only, gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_REQUEST_FILTER(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN after the EQL source command resolves its lookup index on the local cluster. Fixes #166162.
+         */
+        EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10, with a warning when
+         * used) and {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -3740,6 +3854,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FORK,
 
         /**
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the {@code _unmapped_fields} column is the last one of the output, wherever the
+         * commands of the query add their own: it used to sit right after the columns of the relation. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162506.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -3762,6 +3884,15 @@ public class EsqlCapabilities {
          * {@code DEDUP} under {@code unmapped_fields="LOAD_ALL"}. See https://github.com/elastic/elasticsearch/issues/157189.
          */
         OPTIONAL_FIELDS_LOAD_ALL_COMPOUND_OUTPUT_LIMIT_BY_DEDUP,
+
+        /**
+         * Support for {@code COMPLETION}, {@code DENSE_VECTOR}, {@code RERANK}, {@code FUSE}, {@code HIGHLIGHT} and {@code MMR} under
+         * {@code unmapped_fields="LOAD_ALL"}. They do not interact with the {@code _unmapped_fields} column: the ones that add or read
+         * columns of their own pass it through, and {@code FUSE}, which groups its input like {@code STATS}, does not return it. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162706
+         * and its siblings.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_COMPLETION_RERANK_FUSE_HIGHLIGHT_MMR(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
@@ -4199,6 +4330,18 @@ public class EsqlCapabilities {
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code sort_by_label} and {@code sort_by_label_desc} functions, which order an instant
+         * vector by label values in natural order.
+         */
+        PROMQL_SORT_BY_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support for the PromQL {@code count_values} aggregation, which counts the elements sharing each sample value and
+         * exposes the value as a label.
+         */
+        PROMQL_COUNT_VALUES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
@@ -4206,6 +4349,14 @@ public class EsqlCapabilities {
          * observations.
          */
         FIX_PROMQL_EMPTY_RANGE_IS_NO_ELEMENT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * A view whose body is {@code PROMQL} nullifies missing labels and metrics in its own scope, whatever the caller
+         * {@code SET}s, as the same {@code PROMQL} does directly, rather than failing with "Unknown column" under a caller
+         * {@code SET unmapped_fields}. A {@code PROMQL} inside a view no longer makes the caller's query nullify, and the
+         * sources of a view's {@code PROMQL} are read back against the view's query on data nodes.
+         */
+        FIX_PROMQL_VIEW_WITH_CALLER_UNMAPPED_FIELDS,
 
         /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
@@ -4349,6 +4500,12 @@ public class EsqlCapabilities {
         FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
+         * Commands after an {@code INLINE STATS} follow a column filled by an earlier {@code FILLNULL}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
+         */
+        FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4456,12 +4613,12 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query}: the {@code streaming} and
-         * {@code batch_size} URL parameters are accepted, and with {@code format=ndjson} the
-         * response streams header / pages / footer as NDJSON as rows are produced.
-         * Snapshot-only while the streaming protocol is still changing.
+         * Streaming execution on {@code POST /_query?streaming=true&format=ndjson}. That API was removed and
+         * {@code POST /_query} now rejects the {@code streaming} parameter, so this capability is disabled and no
+         * node advertises it. Streaming is served by {@code POST /_query/stream}, advertised by {@link #STREAMING_V2}.
+         * Kept only because capabilities are append-only.
          */
-        STREAMING(Build.current().isSnapshot()),
+        STREAMING(false),
 
         /**
          * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an
@@ -4504,7 +4661,19 @@ public class EsqlCapabilities {
          * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.
          */
-        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET,
+
+        /**
+         * {@code METADATA _class, _name} on a {@code LET} named subquery referenced in {@code FROM} answers {@code subquery} and the
+         * subquery name, instead of {@code null} for both.
+         */
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
+
+        /**
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
+         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         */
+        DESCRIBE_COMMAND(Build.current().isSnapshot()),
 
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
@@ -4637,6 +4806,12 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * TS null filtering follows aliases through null-propagating expressions, such as casts and arithmetic, to the metric
+         * fields they read. Converted or computed metrics receive the same null filtering as mapped metric fields.
+         */
+        TS_NULL_FILTER_THROUGH_EXPRESSIONS,
+
+        /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
          * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
@@ -4655,6 +4830,14 @@ public class EsqlCapabilities {
          * does for a search on an indexed field, rather than the score from before it.
          */
         RUNTIME_SCORE_FIX,
+
+        /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} decodes straight
+         * to milliseconds. The read this widens is {@code TIMESTAMP(MICROS)}: older nodes scaled to nanoseconds
+         * first, so a value outside 1677-09-21 .. 2262-04-11 answered {@code null} although {@code date} covers it.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
 
         /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms
@@ -4678,6 +4861,13 @@ public class EsqlCapabilities {
         SCORE_IN_OR_SEES_OTHER_SEARCHES,
 
         /**
+         * Folding a function that returns {@code null} if any argument is {@code null} no longer fails when an
+         * argument is a constant expression folding to {@code null}, like {@code CASE} without a match, {@code 1/0}
+         * or a typed {@code null}. See <a href="https://github.com/elastic/elasticsearch/issues/162639">#162639</a>.
+         */
+        FIX_FOLD_NULL_ARGUMENTS,
+
+        /**
          * The {@code Project}s of a chain of {@code LOOKUP JOIN} blocks are hoisted in ONE optimizer pass.
          */
         HOIST_PROJECTS_PAST_LOOKUP_JOINS,
@@ -4694,6 +4884,143 @@ public class EsqlCapabilities {
          * where it can query that field, or matches every document for the filter to check.
          */
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
+
+        /**
+         * Loading a field that a pushed down {@code ROUND_TO} (or the {@code DATE_TRUNC} / {@code BUCKET} date histograms rewritten
+         * to it) also buckets no longer assumes the source query filtered out the documents without a value. The pushdown runs one
+         * query per rounding point plus one for the documents without a value, and older nodes only looked at the first of them.
+         * On an index whose doc values read nulls column-at-a-time (such as {@code columnar}) that failed the query, or the whole
+         * node when assertions are enabled.
+         */
+        FIX_NULLS_FILTERED_WITH_QUERY_AND_TAGS_PUSHDOWN,
+
+        /**
+         * The implicit {@code @timestamp} of an aggregation, e.g. in {@code rate()} or {@code latest()}, resolves to the
+         * {@code @timestamp} of the {@code STATS} input, even when a grouping of the same {@code STATS} is named
+         * {@code @timestamp}. Before, {@code STATS rate(x) BY @timestamp = TBUCKET(1 minute)} read the time bucket as the
+         * sample timestamp and returned wrong values that changed between runs.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
+         */
+        FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
+
+        /**
+         * Run time-series aggregation single pass on data nodes when possible
+         */
+        TIME_SERIES_SINGLE_PASS,
+
+        /**
+         * {@code COUNT}, {@code PRESENT}, {@code ABSENT} and their {@code *_OVER_TIME} variants accept counter fields, since they only
+         * look at whether values exist. In {@code PROMQL}, {@code count_over_time}, {@code present_over_time} and
+         * {@code absent_over_time} read a counter as is.
+         */
+        COUNT_PRESENT_ABSENT_COUNTER_SUPPORT,
+
+        /**
+         * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
+         */
+        COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
+         * a sibling branch has, with one type in every branch that has it, reads that column from its own {@code _source}, cast to
+         * that type, instead of null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a
+         * {@code RENAME} or a union or {@code FORK} nested in it. A branch that drops the column still null-fills it. Only meaningful
+         * when {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} and {@link #OPTIONAL_FIELDS_LOAD_ALL_FORK} are available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/162512">#162512</a> and
+         * <a href="https://github.com/elastic/elasticsearch/issues/164545">#164545</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SIBLING_COLUMN_FROM_SOURCE,
+
+        /**
+         * {@code DESCRIBE} and {@code column_metadata} keep the field semantics and units that merged branches agree on,
+         * for views next to indices, {@code FORK} and subqueries.
+         */
+        COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+
+        /**
+         * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
+         * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
+         * they merge indices.
+         */
+        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+
+        /**
+         * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
+         * that is rounded or converted to another date type.
+         */
+        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+
+        /**
+         * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
+         */
+        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
+         * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
+         */
+        FIX_TS_FILTER_ON_EXPRESSION_OF_AGGREGATES,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries grouping by {@code _tsid}, such as
+         * {@code TS k8s METADATA _tsid | STATS BY _tsid}, failed with an {@link IllegalStateException}.
+         */
+        FIX_TS_STATS_BY_TSID,
+
+        /**
+         * A {@code FORK} between the {@code TS} source and the first aggregation is rejected with a clear error. Before, the
+         * {@code STATS} failed in the planner with "optimized incorrectly due to missing references [_tsid]".
+         * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+         */
+        TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
+
+        /**
+         * Fixes a bug in the planner where aggregations over columns produced by earlier {@code STATS}, {@code INLINE STATS},
+         * {@code TS_COLLAPSE} or {@code RERANK}, such as {@code MIN(a), MIN(b)} with {@code a} and {@code b} both computed as
+         * {@code COUNT(*)} over different rows, were deduplicated and returned the value of one aggregation for both.
+         */
+        FIX_DEDUPLICATE_AGGS_OVER_AGGREGATE_OUTPUTS,
+
+        /**
+         * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
+         */
+        INTO_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
+         */
+        NESTED_EXPAND(Build.current().isSnapshot()),
+
+        /**
+         * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
+         * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Also covers the body fields {@code max_rows} and {@code max_bytes}, which end the response early, and
+         * {@code store}, of which only {@code none} is accepted.
+         * Snapshot-only while the streaming protocol is still changing.
+         */
+        STREAMING_V2(Build.current().isSnapshot()),
+
+        /** The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays as live score when every
+         * branch either asked for {@code METADATA _score} or leaves the column null, so a scoring search after the merge,
+         * such as a runtime {@code MATCH}, adds to it instead of being dropped. Rows from a branch without a score stay
+         * {@code null} through that search. A branch that computed its own {@code _score} keeps the merged column out
+         * of scoring, as it does for a single source.
+         */
+        FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * A filter with should clauses still requires one of them when other filters are pushed next to it.
+         */
+        FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER,
+
+        /**
+         * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
+         * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
+         * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
+         */
+        FIX_TS_FIRST_LAST_SAMPLES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

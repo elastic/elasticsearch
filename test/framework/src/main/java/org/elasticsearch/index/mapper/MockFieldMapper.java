@@ -33,11 +33,6 @@ public class MockFieldMapper extends FieldMapper {
         super(findSimpleName(fullName), fieldType, params);
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName());
-    }
-
     static String findSimpleName(String fullName) {
         int ndx = fullName.lastIndexOf('.');
         return fullName.substring(ndx + 1);

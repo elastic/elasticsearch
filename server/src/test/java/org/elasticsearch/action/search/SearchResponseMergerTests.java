@@ -22,6 +22,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -160,7 +161,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomNonNegativeLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponseTests.randomClusters()
                 );
                 try {
@@ -203,7 +204,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomNonNegativeLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponseTests.randomClusters()
                 );
                 searchResponse.setDirectoryMetrics(storeMetrics(bytesRead));
@@ -259,12 +260,12 @@ public class SearchResponseMergerTests extends ESTestCase {
                 String clusterAlias = entry.getKey();
                 Index[] indices = entry.getValue();
                 int numFailures = randomIntBetween(1, 10);
-                ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+                List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(numFailures);
                 for (int j = 0; j < numFailures; j++) {
                     ShardId shardId = new ShardId(randomFrom(indices), j);
                     SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias);
                     ShardSearchFailure failure = new ShardSearchFailure(new IllegalArgumentException(), searchShardTarget);
-                    shardSearchFailures[j] = failure;
+                    shardSearchFailures.add(failure);
                     priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
@@ -292,8 +293,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
+                List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
+                assertEquals(priorityQueue.size(), shardFailures.size());
                 for (ShardSearchFailure shardFailure : shardFailures) {
                     ShardSearchFailure expected = priorityQueue.poll().v2();
                     assertSame(expected, shardFailure);
@@ -320,14 +321,14 @@ public class SearchResponseMergerTests extends ESTestCase {
             PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
             for (int i = 0; i < numResponses; i++) {
                 int numFailures = randomIntBetween(1, 10);
-                ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+                List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(numFailures);
                 for (int j = 0; j < numFailures; j++) {
                     String index = "index-" + i;
                     ShardId shardId = new ShardId(index, index + "-uuid", j);
                     ElasticsearchException elasticsearchException = new ElasticsearchException(new IllegalArgumentException());
                     elasticsearchException.setShard(shardId);
                     ShardSearchFailure failure = new ShardSearchFailure(elasticsearchException);
-                    shardSearchFailures[j] = failure;
+                    shardSearchFailures.add(failure);
                     priorityQueue.add(Tuple.tuple(shardId, failure));
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
@@ -355,8 +356,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(priorityQueue.size(), mergedResponse.getFailedShards());
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertEquals(priorityQueue.size(), shardFailures.length);
+                List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
+                assertEquals(priorityQueue.size(), shardFailures.size());
                 for (ShardSearchFailure shardFailure : shardFailures) {
                     ShardSearchFailure expected = priorityQueue.poll().v2();
                     assertSame(expected, shardFailure);
@@ -383,12 +384,12 @@ public class SearchResponseMergerTests extends ESTestCase {
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
             for (int i = 0; i < numResponses; i++) {
                 int numFailures = randomIntBetween(1, 50);
-                ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
+                List<ShardSearchFailure> shardSearchFailures = new ArrayList<>(numFailures);
                 for (int j = 0; j < numFailures; j++) {
                     ShardSearchFailure shardSearchFailure = new ShardSearchFailure(
                         new ElasticsearchException(new IllegalArgumentException())
                     );
-                    shardSearchFailures[j] = shardSearchFailure;
+                    shardSearchFailures.add(shardSearchFailure);
                     expectedFailures.add(shardSearchFailure);
                 }
                 SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
@@ -410,8 +411,8 @@ public class SearchResponseMergerTests extends ESTestCase {
             assertEquals(numResponses, merger.numResponses());
             var mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                ShardSearchFailure[] shardFailures = mergedResponse.getShardFailures();
-                assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+                List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
+                assertThat(shardFailures, containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
             } finally {
                 mergedResponse.decRef();
             }
@@ -448,7 +449,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     100L,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -467,7 +468,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 assertEquals(expectedProfile, mergedResponse.getSearchProfileShardResults());
             } finally {
                 mergedResponse.decRef();
@@ -552,7 +553,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     100L,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -587,7 +588,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             1,
             0,
             100L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }
@@ -658,7 +659,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 hit.decRef(); // transfer creation ref so the response is the sole owner
@@ -678,7 +679,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion =
                     mergedResponse.getSuggest().getSuggestion(suggestionName);
                 assertEquals(1, suggestion.getEntries().size());
@@ -746,7 +747,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 searchHit.decRef(); // transfer creation ref so the response is the sole owner
@@ -766,7 +767,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 CompletionSuggestion suggestion = mergedResponse.getSuggest().getSuggestion(suggestionName);
                 assertEquals(1, suggestion.getEntries().size());
                 CompletionSuggestion.Entry options = suggestion.getEntries().get(0);
@@ -830,7 +831,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -899,7 +900,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
 
@@ -919,7 +920,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(numResponses, mergedResponse.getSuccessfulShards());
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
-                assertEquals(0, mergedResponse.getShardFailures().length);
+                assertEquals(0, mergedResponse.getShardFailures().size());
                 assertEquals(0, mergedResponse.getHits().getHits().length);
                 assertEquals(2, mergedResponse.getAggregations().asList().size());
                 Max max = mergedResponse.getAggregations().get(maxAggName);
@@ -978,7 +979,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             topHits,
@@ -1199,7 +1200,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     successful,
                     skipped,
                     randomLong(),
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponseTests.randomClusters()
                 );
 
@@ -1220,7 +1221,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(expectedTotal, searchResponse.getTotalShards());
                 assertEquals(expectedSuccessful, searchResponse.getSuccessfulShards());
                 assertEquals(expectedSkipped, searchResponse.getSkippedShards());
-                assertEquals(0, searchResponse.getShardFailures().length);
+                assertEquals(0, searchResponse.getShardFailures().size());
                 assertEquals(expectedReducePhases, searchResponse.getNumReducePhases());
                 assertEquals(expectedTimedOut, searchResponse.isTimedOut());
                 assertEquals(expectedTerminatedEarly, searchResponse.isTerminatedEarly());
@@ -1307,7 +1308,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertNull(response.getSuggest());
                 assertEquals(0, response.getSearchProfileShardResults().size());
                 assertNull(response.isTerminatedEarly());
-                assertEquals(0, response.getShardFailures().length);
+                assertEquals(0, response.getShardFailures().size());
             } finally {
                 response.decRef();
             }
@@ -1367,7 +1368,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     1L,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1391,7 +1392,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     1L,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1457,7 +1458,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     1L,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1581,6 +1582,27 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    /**
+     * A local response holds the charge for its aggregations until it is released, which the merger does when it closes, so the merger does
+     * not charge those aggregations again while it holds the response.
+     */
+    public void testAggregationsWithAChargeAreNotChargedAgain() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        AtomicBoolean aggregationChargeReleased = new AtomicBoolean();
+        SearchResponse local = responseWithHitsAndAggregations("", 3, 100f);
+        long withAggregations = TransportMultiSearchAction.estimateActualBytes(local);
+        long aggregationBytes = DelayableWriteable.getUncompressedSerializedSize(local.getAggregations());
+        assertThat(aggregationBytes, greaterThan(0L));
+        local.adoptAggregationCharge(() -> assertTrue(aggregationChargeReleased.compareAndSet(false, true)));
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            addAndRelease(merger, local);
+            assertThat(breaker.getUsed(), equalTo(withAggregations - aggregationBytes));
+            assertFalse(aggregationChargeReleased.get());
+        }
+        assertTrue(aggregationChargeReleased.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     /** Only the first merged response takes the hits charge, so merging again cannot release it twice. */
     public void testOnlyFirstMergedResponseTakesHitsCharge() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
@@ -1626,7 +1648,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         try {
             assertNotNull(merged.getAggregations().get("max"));
-            assertThat(merged.getShardFailures().length, equalTo(2));
+            assertThat(merged.getShardFailures().size(), equalTo(2));
             assertThat(breaker.getUsed(), equalTo(SearchResponseMerger.estimateHitBytes(merged.getHits().getHits(), Set.of())));
         } finally {
             assertTrue(merged.decRef());
@@ -1721,7 +1743,7 @@ public class SearchResponseMergerTests extends ESTestCase {
      * Records the label of every charge and release. A test double, because {@link LimitedBreaker} ignores labels, and checking the
      * per-category metric of a real breaker would need a meter registry.
      */
-    private static final class LabelRecordingBreaker extends NoopCircuitBreaker {
+    static final class LabelRecordingBreaker extends NoopCircuitBreaker {
         final List<String> charged = new ArrayList<>();
         final List<String> released = new ArrayList<>();
 
@@ -1782,7 +1804,35 @@ public class SearchResponseMergerTests extends ESTestCase {
                 1,
                 0,
                 0,
-                new ShardSearchFailure[] { failure },
+                List.of(failure),
+                SearchResponse.Clusters.EMPTY,
+                null,
+                null,
+                null
+            );
+        } finally {
+            hitsOnly.decRef();
+        }
+    }
+
+    /** Like {@link #responseWithHits}, with a {@code max} aggregation. */
+    private static SearchResponse responseWithHitsAndAggregations(String clusterAlias, int numHits, float topScore) {
+        SearchResponse hitsOnly = responseWithHits(clusterAlias, numHits, topScore);
+        try {
+            return new SearchResponse(
+                hitsOnly.getHits(),
+                InternalAggregations.from(List.of(new Max("max", topScore, DocValueFormat.RAW, Map.of()))),
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -1912,7 +1962,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             2,
             0,
             33,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
 
@@ -1938,7 +1988,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             successful,
             skipped,
             44,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
         hitsRemote1.decRef(); // transfer ownership to searchResponseRemote1
@@ -1965,21 +2015,12 @@ public class SearchResponseMergerTests extends ESTestCase {
             successful,
             skipped,
             55,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
         hitsRemote2.decRef(); // transfer ownership to searchResponseRemote2
         try {
-            SearchResponse.Clusters clusters = SearchResponseTests.createCCSClusterObject(
-                3,
-                2,
-                true,
-                2,
-                1,
-                0,
-                0,
-                new ShardSearchFailure[0]
-            );
+            SearchResponse.Clusters clusters = SearchResponseTests.createCCSClusterObject(3, 2, true, 2, 1, 0, 0, List.of());
 
             // merge partial aggs with remote1, check, then merge in remote2, check
             try (

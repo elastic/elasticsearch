@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -48,6 +49,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -101,10 +103,9 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     @Before
     public void createThreadPool() {
-        Settings settings = Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build();
         // TODO: Eventually we will move to more complicated scheduling logic than scheduleAtFixedRate. At that time switch to
         // DeterministicTaskQueue (which does not support scheduleAtFixedRate)
-        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new TestThreadPool(TranslogReplicatorTests.class.getSimpleName());
     }
 
     @After
@@ -756,11 +757,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         // create a new thread pool to that has specific time so we can check the total duration histogram
         AtomicLong time = new AtomicLong(0);
-        ThreadPool newThreadPool = new ThreadPool(
-            Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        ) {
+        ThreadPool newThreadPool = new TestThreadPool(TranslogReplicatorTests.class.getSimpleName()) {
             @Override
             public long relativeTimeInMillis() {
                 return time.get();
@@ -1120,6 +1117,81 @@ public class TranslogReplicatorTests extends ESTestCase {
         });
 
         assertThat(expectThrows(AlreadyClosedException.class, future::actionGet).getMessage(), containsString("primary term is stale"));
+        translogReplicator.unregister(shardId);
+    }
+
+    /**
+     * The primary term is looked up in the live cluster state, so the index may be deleted while an upload is being validated. Here the
+     * deletion lands just after the sync has been accepted, at which point the lookup starts returning {@link Long#MIN_VALUE}. The sync
+     * must still complete rather than tripping an assertion on the changed term.
+     */
+    public void testIndexDeletedAfterSyncAccepted() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+        AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> currentPrimaryTerm.get()
+        );
+        translogReplicator.doStart();
+        // The persisted seqNos consumer runs after the sync has been accepted, so use it to simulate the index deletion at that point
+        translogReplicator.register(shardId, primaryTerm, seqNos -> currentPrimaryTerm.set(Long.MIN_VALUE));
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        safeGet(future);
+
+        assertThat(currentPrimaryTerm.get(), equalTo(Long.MIN_VALUE));
+        translogReplicator.unregister(shardId);
+    }
+
+    /**
+     * If the index is deleted before an upload is validated, the primary term lookup returns {@link Long#MIN_VALUE}. The shard's pending
+     * sync listeners must then be failed rather than left waiting for the shard to close.
+     */
+    public void testListenerCompletionWithDeletedIndex() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            false,
+            (sId) -> Long.MIN_VALUE
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+
+        assertThat(
+            expectThrows(AlreadyClosedException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT)).getMessage(),
+            containsString("primary term is stale")
+        );
         translogReplicator.unregister(shardId);
     }
 
@@ -1524,8 +1596,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
+            // we do `incrementAndGet` (and set `firstUpload`) before the `run` to guarantee that it's not the test thread that
+            // waits on the `firstUploadHangs` latch below but the normal (i.e., non-hedged) upload
+            final boolean firstUpload = uploads.incrementAndGet() == 1;
             invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
-            if (uploads.incrementAndGet() == 1) {
+            if (firstUpload) {
                 safeAwait(firstUploadHangs); // hang the first upload so that the hedge completes the upload
             }
             invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
@@ -1543,7 +1618,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {
@@ -1621,7 +1701,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {
@@ -1662,6 +1747,27 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(uploads.get(), equalTo(1));
     }
 
+    public void testConsistencyCheckDurationIsRecorded() throws Exception {
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(3).run();
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
+
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        safeGet(syncOneOperation(Settings.EMPTY, objectStoreService, meterRegistry, unused -> {}, unused -> {}));
+
+        // the sync listener is completed only after the consistency check finished, which is when its duration is recorded
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, TranslogReplicator.TRANSLOG_UPLOAD_CONSISTENCY_CHECK_DURATION_HISTOGRAM)
+                .size(),
+            equalTo(1)
+        );
+    }
+
     // test that when one of the two uploads (normal or hedge) has completed the upload the translog file is not yet deleted while the other
     // upload is still ongoing, but is deleted once both have finished
     public void testTranslogFileIsDeletedOnlyAfterBothUploadsComplete() throws Exception {
@@ -1688,7 +1794,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {

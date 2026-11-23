@@ -171,11 +171,33 @@ public enum StringData {
     },
 
     /**
+     * The values of {@link #CLUSTERED_SERVICE} as the primary sort of the index: a handful of values in term
+     * order, each in one run of about an eighth of the column. A run is longer than a chunk, so a term or a
+     * prefix matches whole chunks between the chunk it starts in and the chunk it ends in.
+     */
+    SORTED_SERVICE {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return CLUSTERED_SERVICE.generate(count, random);
+        }
+    },
+
+    /**
      * A host name on an index sorted by it: thousands of values, each in one run, in term order. This is
      * the shape a primary sort produces, and the one where a filter can find its documents by bisection
      * rather than by comparing every value.
      */
     SORTED_HOSTNAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
         @Override
         BytesRef[] generate(int count, Random random) {
             final String[] vocabulary = new String[5_000];
@@ -193,12 +215,39 @@ public enum StringData {
     },
 
     /**
+     * A host name on an index sorted by it, descending: the values of {@link #SORTED_HOSTNAME} in reverse term
+     * order. Each host holds a long run, so a chunk is often wholly inside a range.
+     */
+    DESCENDING_HOSTNAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = SORTED_HOSTNAME.generate(count, random);
+            for (int i = 0, j = count - 1; i < j; i++, j--) {
+                final BytesRef swap = values[i];
+                values[i] = values[j];
+                values[j] = swap;
+            }
+            return values;
+        }
+    },
+
+    /**
      * A pod name on an index sorted by it: the same large vocabulary as {@link #POD_NAME}, in term order,
      * each name in one run. A vocabulary this large is beyond what a bounded dictionary can hold, so the
      * column stays plain — but the values arrive in runs, which is the shape both the compressor and the
      * bisection over a sorted column exploit best.
      */
     SORTED_POD_NAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
         @Override
         BytesRef[] generate(int count, Random random) {
             final String[] vocabulary = new String[50_000];
@@ -209,6 +258,28 @@ public enum StringData {
             final BytesRef[] values = new BytesRef[count];
             for (int i = 0; i < count; i++) {
                 values[i] = bytes(vocabulary[Math.min((int) ((long) i * vocabulary.length / count), vocabulary.length - 1)]);
+            }
+            return values;
+        }
+    },
+
+    /**
+     * A pod name on an index sorted by it, descending: the values of {@link #SORTED_POD_NAME} in reverse term
+     * order. A descending column is not bisected, so a plain skip index is the only thing that narrows a search.
+     */
+    DESCENDING_POD_NAME {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = SORTED_POD_NAME.generate(count, random);
+            for (int i = 0, j = count - 1; i < j; i++, j--) {
+                final BytesRef swap = values[i];
+                values[i] = values[j];
+                values[j] = swap;
             }
             return values;
         }
@@ -305,6 +376,11 @@ public enum StringData {
     };
 
     abstract BytesRef[] generate(int count, Random random);
+
+    /** Whether the values are in term order, ascending or descending, which is what a plain skip index needs to be written. */
+    boolean ordered() {
+        return false;
+    }
 
     /** {@code headPercent} of the values drawn from sixteen repeated paths, the rest distinct to the index. */
     private static BytesRef[] headOverDistinctTail(int headPercent, int count, Random random) {

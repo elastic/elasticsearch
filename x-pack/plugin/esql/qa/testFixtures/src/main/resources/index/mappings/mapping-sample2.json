@@ -1,0 +1,33 @@
+{
+    "properties": {
+        "ip": {
+            "type": "ip"
+        },
+        "event_type": {
+            "type": "keyword"
+        },
+        "event": {
+            "properties": {
+                "category": {
+                    "type": "alias",
+                    "path": "event_type"
+                }
+            }
+        },
+        "host": {
+            "type": "keyword"
+        },
+        "op_sys": {
+            "type": "keyword"
+        },
+        "bool": {
+            "type": "boolean"
+        },
+        "uptime": {
+            "type": "long"
+        },
+        "port": {
+            "type": "long"
+        }
+    }
+}

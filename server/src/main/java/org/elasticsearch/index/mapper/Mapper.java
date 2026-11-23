@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -30,9 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+public abstract class Mapper implements Iterable<Mapper> {
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -159,6 +160,24 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          */
         @Override
         public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+
+        /**
+         * Collect all leaf Builders under this Builder and pass them to a consumer.
+         * <p>
+         * Like serializing, it expects a normalized tree.
+         *
+         * @param parentPath the full path of the object or field this builder is in, or null if it is a child of the root
+         * @param consumer   receives each field builder with its full path
+         */
+        public abstract void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer);
+
+        /**
+         * The full path of this builder given the full path of its container
+         * @see MapperBuilderContext#buildFullName(String)
+         */
+        protected final String fullPath(@Nullable String parentPath) {
+            return parentPath == null ? leafName() : parentPath + "." + leafName();
+        }
 
         /**
          * Returns the total number of fields that this builder will create.
@@ -345,7 +364,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return getClass().getSimpleName() + "[" + fullPath() + "]";
     }
 
     private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();

@@ -49,6 +49,7 @@ import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireType;
 import static org.elasticsearch.compute.gen.Methods.requireVoidType;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
+import static org.elasticsearch.compute.gen.Types.AGGREGATOR_MODE;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
@@ -110,6 +111,7 @@ public class GroupingAggregatorImplementer {
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
     private final boolean supportsPartitioning;
+    private final boolean hasCombinePartition;
     /**
      * True when partition values are {@code BytesRefSequence} and must be merged via
      * {@code combineIntermediate} rather than {@code combine}. This applies when the state
@@ -183,6 +185,19 @@ public class GroupingAggregatorImplementer {
         this.anyArgumentSupportsVectors = aggParams.stream().anyMatch(a -> a instanceof StandardArgument && a.supportsVectorReadAccess());
         this.processNulls = processNulls;
         this.supportsPartitioning = supportsPartitioning;
+        this.hasCombinePartition = optionalStaticMethod(
+            declarationType,
+            requireVoidType(),
+            requireName("combinePartition"),
+            requireArgs(
+                requireType(aggState.type()),
+                requireType(PARTITIONED_STATE),
+                requireType(TypeName.INT),
+                requireType(TypeName.BOOLEAN),
+                requireType(ArrayTypeName.of(TypeName.INT)),
+                requireType(TypeName.INT)
+            )
+        ) != null;
         this.useIntermediateForPartitions = supportsPartitioning
             && aggState.declaredType().isPrimitive() == false
             && (aggParams.isEmpty() || (aggParams.get(0) instanceof StandardArgument sa && sa.type().equals(BYTES_REF)) == false);
@@ -915,6 +930,7 @@ public class GroupingAggregatorImplementer {
         return MethodSpec.methodBuilder("supportPartitioning")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
+            .addParameter(AGGREGATOR_MODE, "mode")
             .returns(TypeName.BOOLEAN)
             .addStatement("return true")
             .build();
@@ -948,6 +964,10 @@ public class GroupingAggregatorImplementer {
             .addParameter(TypeName.BOOLEAN, "appendOnly")
             .addParameter(ArrayTypeName.of(TypeName.INT), "dstIds")
             .addParameter(TypeName.INT, "length");
+        if (hasCombinePartition) {
+            builder.addStatement("$T.combinePartition(state, source, partition, appendOnly, dstIds, length)", declarationType);
+            return builder.build();
+        }
         builder.beginControlFlow("if (length == 0)");
         builder.addStatement("return");
         builder.endControlFlow();

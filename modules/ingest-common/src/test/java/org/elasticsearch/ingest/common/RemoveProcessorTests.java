@@ -9,9 +9,11 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.ingest.common.RemoveProcessor.shouldKeep;
 import static org.hamcrest.Matchers.containsString;
@@ -161,6 +164,69 @@ public class RemoveProcessorTests extends ESTestCase {
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, null, null, config, null);
         processor.execute(document);
         assertThat(document.hasField("some.array.path"), is(false));
+    }
+
+    /**
+     * An empty field is treated as one that is missing rather than as an invalid path. That matters for a template that renders as
+     * nothing when the document doesn't have something that it refers to, combined with ignore_missing: the processor does nothing if
+     * ignore_missing is set, and otherwise it fails because the field doesn't exist. A field that is empty for every document is
+     * treated the same way. This is the same for the kv, rename and remove processors.
+     */
+    public void testEmptyFieldIsTreatedAsMissing() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RemoveProcessor.TYPE,
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyField : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("foo", "bar");
+            new RemoveProcessor("tag", null, List.of(emptyField), List.of(), true).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+            // and it doesn't get in the way of the other fields to remove, just like a field that is missing doesn't
+            ingestDocument.setFieldValue("baz", "qux");
+            List<TemplateScript.Factory> fields = List.of(emptyField, new TestTemplateService.MockTemplateScript.Factory("foo"));
+            new RemoveProcessor("tag", null, fields, List.of(), true).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("baz", "qux")));
+
+            RemoveProcessor notIgnoringMissing = new RemoveProcessor("tag", null, List.of(emptyField), List.of(), false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> notIgnoringMissing.execute(ingestDocument));
+            assertThat(e.getMessage(), equalTo("field [] doesn't exist"));
+        }
+    }
+
+    /**
+     * Each field that is a template is rendered once for every document, whether or not the document has the field.
+     */
+    public void testTemplatedFieldsAreRenderedOncePerExecute() throws Exception {
+        AtomicInteger presentRenders = new AtomicInteger();
+        AtomicInteger missingRenders = new AtomicInteger();
+        List<TemplateScript.Factory> fields = List.of(
+            countingTemplate("present", presentRenders),
+            countingTemplate("missing", missingRenders)
+        );
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("present", "value");
+        ingestDocument.setFieldValue("other", "value");
+        new RemoveProcessor("tag", null, fields, List.of(), true).execute(ingestDocument);
+        assertThat(ingestDocument.getSource(), equalTo(Map.of("other", "value")));
+        assertThat(presentRenders.get(), equalTo(1));
+        assertThat(missingRenders.get(), equalTo(1));
+    }
+
+    private static TemplateScript.Factory countingTemplate(String rendersAs, AtomicInteger renders) {
+        return params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return rendersAs;
+            }
+        };
     }
 
     public void testKeepFields() throws Exception {

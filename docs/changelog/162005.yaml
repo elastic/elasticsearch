@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 162005
+summary: "Speed up full-text queries on `text` fields searched from their values, such as a `text` field with `index: false` in a columnar index or ES|QL `MATCH` on a computed or external text column. Values that cannot contain the query's terms are skipped without being analyzed, and simple term queries are often answered without analysis. This applies to the `standard`, `simple`, `stop`, `whitespace` and `keyword` analyzers, and makes selective queries up to an order of magnitude faster."
+type: enhancement

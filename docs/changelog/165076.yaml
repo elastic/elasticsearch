@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165076
+summary: Fix integer overflow in `SwissHash` tables
+type: bug

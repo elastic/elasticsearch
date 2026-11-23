@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -743,7 +744,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     static void prohibitAppendWritesInBackingIndices(
         DocWriteRequest<?> writeRequest,
         IndexAbstraction indexAbstraction,
-        Function<Index, IndexMetadata> indexMetadataProvider
+        Function<Index, IndexMetadata> indexMetadataProvider,
+        Settings nodeSettings
     ) {
         DocWriteRequest.OpType opType = writeRequest.opType();
         if ((opType == DocWriteRequest.OpType.CREATE || opType == DocWriteRequest.OpType.INDEX) == false) {
@@ -783,7 +785,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // so we allow writes with an explicit document ID directly to backing indices.
         if (writeRequest.id() != null) {
             IndexMetadata targetMetadata = indexMetadataProvider.apply(indexAbstraction.getWriteIndex());
-            if (targetMetadata != null && targetMetadata.sequenceNumbersDisabled()) {
+            // The node settings are needed because the default of the setting depends on whether the node is stateless.
+            if (targetMetadata != null && targetMetadata.sequenceNumbersDisabled(nodeSettings)) {
                 return;
             }
         }

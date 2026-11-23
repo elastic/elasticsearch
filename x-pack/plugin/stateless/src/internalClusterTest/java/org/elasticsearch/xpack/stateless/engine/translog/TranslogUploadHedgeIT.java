@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,6 +38,14 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/// Translog uploads (see [ObjectStoreService.TranslogFileUploadTask#doRun]) use `writeBlob` and not `writeBlobAtomic`.
+/// With hedging, in [org.elasticsearch.common.blobstore.fs.FsBlobContainer#writeBlob(OperationPurpose, String, BytesReference, boolean)]
+/// two uploads of the same translog file can run in parallel: the first writes the file and, before it `fsync`s it,
+/// the second hits `FileAlreadyExistsException`, deletes the file and recreates it. The first upload's `fsync` then reopens a file that
+/// was replaced underneath it, which fails a Lucene's `WindowsFS` assertion (`AssertionError: no open file for key ...`, see #164751).
+/// Because of this we suppress `WindowsFS`. Note that this on is NOT an issue for Azure, GCS, and S3 where the actual blobs
+/// are written atomically.
+@LuceneTestCase.SuppressFileSystems(value = { "WindowsFS" })
 public class TranslogUploadHedgeIT extends AbstractStatelessPluginIntegTestCase {
     private static final AtomicInteger uploadCalls = new AtomicInteger();
     private static volatile IntConsumer afterOnBeforeUpload;

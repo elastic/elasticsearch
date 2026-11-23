@@ -31,6 +31,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -54,27 +54,30 @@ public class ExecutionChargeTests extends ESTestCase {
     private static final XYPolygon XY_POLYGON = new XYPolygon(new float[] { 0, 10, 10, 0, 0 }, new float[] { 0, 0, 10, 10, 0 });
 
     public void testPointRange() {
-        assertCharged(LongPoint.newRangeQuery(FIELD, 1, 10));
+        assertCharged(LongPoint.newRangeQuery(FIELD, 1, 10), PointRangeExecutionEstimator.class);
     }
 
     public void testMultiTerm() {
-        assertCharged(new WildcardQuery(new Term(FIELD, "a*b")));
+        assertCharged(new WildcardQuery(new Term(FIELD, "a*b")), MultiTermExecutionEstimator.class);
     }
 
     public void testPointInSet() {
-        assertCharged(LongPoint.newSetQuery(FIELD, 1, 5, 7));
-        assertCharged(IntPoint.newSetQuery(FIELD, 1, 5, 7));
-        assertCharged(InetAddressPoint.newSetQuery(FIELD, InetAddresses.forString("10.0.0.1"), InetAddresses.forString("::1")));
+        assertCharged(LongPoint.newSetQuery(FIELD, 1, 5, 7), PointsExecutionEstimator.class);
+        assertCharged(IntPoint.newSetQuery(FIELD, 1, 5, 7), PointsExecutionEstimator.class);
+        assertCharged(
+            InetAddressPoint.newSetQuery(FIELD, InetAddresses.forString("10.0.0.1"), InetAddresses.forString("::1")),
+            PointsExecutionEstimator.class
+        );
     }
 
     public void testRangeField() {
         long[] min = { 1 };
         long[] max = { 10 };
-        assertCharged(LongRange.newIntersectsQuery(FIELD, min, max));
-        assertCharged(LongRange.newWithinQuery(FIELD, min, max));
-        assertCharged(LongRange.newContainsQuery(FIELD, min, max));
-        assertCharged(LongRange.newCrossesQuery(FIELD, min, max));
-        assertCharged(IntRange.newIntersectsQuery(FIELD, new int[] { 1 }, new int[] { 10 }));
+        assertCharged(LongRange.newIntersectsQuery(FIELD, min, max), PointsExecutionEstimator.class);
+        assertCharged(LongRange.newWithinQuery(FIELD, min, max), PointsExecutionEstimator.class);
+        assertCharged(LongRange.newContainsQuery(FIELD, min, max), PointsExecutionEstimator.class);
+        assertCharged(LongRange.newCrossesQuery(FIELD, min, max), PointsExecutionEstimator.class);
+        assertCharged(IntRange.newIntersectsQuery(FIELD, new int[] { 1 }, new int[] { 10 }), PointsExecutionEstimator.class);
     }
 
     public void testRangeFieldIsFoundThroughVisit() {
@@ -131,15 +134,20 @@ public class ExecutionChargeTests extends ESTestCase {
         }
     }
 
-    public void testBoostAndIndexOrDocValuesAreUnwrapped() {
+    public void testPassThroughWrappersAreUnwrapped() {
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 1, 10);
         for (Query indexQuery : new Query[] {
             LongPoint.newRangeQuery(FIELD, 1, 10),
             LongPoint.newSetQuery(FIELD, 1, 5, 7),
             LongRange.newIntersectsQuery(FIELD, new long[] { 1 }, new long[] { 10 }) }) {
+            Query indexOrDocValues = new IndexOrDocValuesQuery(indexQuery, dvQuery);
             assertCharged(new BoostQuery(indexQuery, 2f));
-            assertCharged(new IndexOrDocValuesQuery(indexQuery, dvQuery));
-            assertCharged(new BoostQuery(new IndexOrDocValuesQuery(indexQuery, dvQuery), 2f));
+            assertCharged(indexOrDocValues);
+            assertCharged(new BoostQuery(indexOrDocValues, 2f));
+            assertCharged(indexSortRange(indexQuery));
+            assertCharged(indexSortRange(indexOrDocValues));
+            assertCharged(new BoostQuery(indexSortRange(indexOrDocValues), 2f));
+            assertCharged(indexSortRange(new BoostQuery(indexOrDocValues, 2f)));
         }
     }
 
@@ -147,8 +155,14 @@ public class ExecutionChargeTests extends ESTestCase {
         assertNotCharged(new TermQuery(new Term(FIELD, "a")));
         assertNotCharged(MatchAllDocsQuery.INSTANCE);
         assertNotCharged(SortedNumericDocValuesField.newSlowSetQuery(FIELD, 1, 5));
+        assertNotCharged(indexSortRange(SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 1, 10)));
         // ConstantScoreQuery creates its child's weight through the searcher, which looks the child up on its own.
         assertNotCharged(new ConstantScoreQuery(LongPoint.newSetQuery(FIELD, 1, 5)));
+        assertNotCharged(new BoostQuery(new ConstantScoreQuery(LongPoint.newRangeQuery(FIELD, 1, 10)), 2f));
+    }
+
+    private static Query indexSortRange(Query fallback) {
+        return new IndexSortSortedNumericDocValuesRangeQuery(FIELD, 1, 10, fallback);
     }
 
     private static void assertCharged(Query query) {
@@ -158,7 +172,7 @@ public class ExecutionChargeTests extends ESTestCase {
     private static void assertCharged(Query query, Class<? extends LeafExecutionEstimator> estimatorClass) {
         ExecutionCharge charge = ExecutionCharge.forQuery(query);
         assertThat("no charge for " + query, charge, notNullValue());
-        assertThat(query.toString(), charge.estimator(), instanceOf(estimatorClass));
+        assertThat(query.toString(), charge.estimator().getClass(), equalTo(estimatorClass));
     }
 
     private static void assertNotCharged(Query query) {

@@ -25,8 +25,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
@@ -35,6 +37,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -111,6 +116,52 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     public void testBoostedRangeChargesAndReleasesAcrossSearch() throws IOException {
         assertChargesThenReleases(new BoostQuery(denseRangeQuery(), 2f));
+    }
+
+    public void testBoostedIndexOrDocValuesRangeChargesAndReleasesAcrossSearch() throws IOException {
+        assertChargesThenReleases(new BoostQuery(denseIndexOrDocValuesRangeQuery(), 2f));
+    }
+
+    /** On an index not sorted on the field, the index-sort range runs its fallback, which builds the points result set. */
+    public void testIndexSortRangeChargesWhenFallbackRuns() throws IOException {
+        assertChargesThenReleases(indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()));
+        assertChargesThenReleases(new BoostQuery(indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), 2f));
+    }
+
+    /** The constant score query hands its boosted child back to the searcher, which charges it there and only there. */
+    public void testConstantScoreOverBoostedRangeIsChargedOnce() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        try (ContextIndexSearcher searcher = newContextIndexSearcher(reader)) {
+            searcher.setCircuitBreaker(breaker);
+            Query query = new ConstantScoreQuery(new BoostQuery(denseRangeQuery(), 2f));
+            // Not rewritten: the rewrite would drop the boost under the constant score query.
+            Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            assertThat(reader.leaves(), hasSize(1));
+            chargeAgainst(weight, reader.leaves().get(0));
+            assertThat(breaker.charges(), hasSize(1));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Single-valued doc values on the primary sort field are answered from the index sort, which allocates nothing. */
+    public void testIndexSortRangeAnsweredFromSortChargesNothing() throws Exception {
+        withIndexSortedReader(false, sortedReader -> {
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+            int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), breaker);
+            assertThat(hits, equalTo(NUM_DOCS * 3 / 4 + 1));
+            assertThat("a range answered from the index sort builds no result set", breaker.peak(), equalTo(0L));
+        });
+    }
+
+    /** Multi-valued doc values cannot be answered from the index sort, so the fallback builds the points result set. */
+    public void testMultiValuedIndexSortRangeChargesFallback() throws Exception {
+        withIndexSortedReader(true, sortedReader -> {
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+            int hits = BreakerWeightTestUtils.runSearch(sortedReader, indexSortRangeQuery(denseIndexOrDocValuesRangeQuery()), breaker);
+            assertThat(hits, greaterThan(0));
+            assertThat("the fallback must charge execution RAM while it runs", breaker.peak(), greaterThan(0L));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        });
     }
 
     public void testMatchAllRangeChargesNothing() throws IOException {
@@ -769,6 +820,40 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
     private static Query denseRangeQuery() {
         return LongPoint.newRangeQuery(FIELD, 0L, (long) (NUM_DOCS * 3 / 4));
+    }
+
+    private static Query denseIndexOrDocValuesRangeQuery() {
+        return new IndexOrDocValuesQuery(denseRangeQuery(), SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L));
+    }
+
+    /** Wraps {@code fallback} the way the number and date mappers do when the index is sorted on the field. */
+    private static Query indexSortRangeQuery(Query fallback) {
+        return new IndexSortSortedNumericDocValuesRangeQuery(FIELD, 0L, NUM_DOCS * 3L / 4L, fallback);
+    }
+
+    /** A single-segment index sorted on {@link #FIELD}, with one value per document or, if {@code multiValued}, two. */
+    private static void withIndexSortedReader(boolean multiValued, CheckedConsumer<DirectoryReader, Exception> body) throws Exception {
+        try (Directory sortedDirectory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig(null).setIndexSort(
+                new Sort(new SortedNumericSortField(FIELD, SortField.Type.LONG))
+            );
+            try (IndexWriter writer = new IndexWriter(sortedDirectory, config)) {
+                for (int docId = 0; docId < NUM_DOCS; docId++) {
+                    Document doc = new Document();
+                    doc.add(new LongPoint(FIELD, docId));
+                    doc.add(new SortedNumericDocValuesField(FIELD, docId));
+                    if (multiValued) {
+                        doc.add(new LongPoint(FIELD, docId + NUM_DOCS));
+                        doc.add(new SortedNumericDocValuesField(FIELD, docId + NUM_DOCS));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader sortedReader = DirectoryReader.open(sortedDirectory)) {
+                body.accept(sortedReader);
+            }
+        }
     }
 
     private void assertChargesThenReleases(Query query) throws IOException {

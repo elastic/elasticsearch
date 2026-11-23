@@ -168,6 +168,16 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         };
     }
 
+    /**
+     * Every positional query this field answers reads its values, which carry the positions, so a query built for it
+     * may ask about them. The values come from this field's own doc values rather than from {@code _source}, so they
+     * are readable whatever the source is mapped as.
+     */
+    @Override
+    public boolean answersPositionsFromValues(SearchExecutionContext context) {
+        return true;
+    }
+
     private Query maybeSourceConfirmQuery(Query query, SearchExecutionContext context) {
         // Disable scoring similarly to match_only_text
         if (hasPositions) {

@@ -10,10 +10,13 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
@@ -540,6 +543,33 @@ public class ReanalyzingTextQueryTests extends ESTestCase {
     public void testMatches() throws Exception {
         checkMatches(new TermQuery(new Term("body", "d")), "a b c d e", new int[] { 3, 3 }, false);
         checkMatches(new PhraseQuery("body", "b", "c"), "a b c d c b c a", new int[] { 1, 2, 5, 6 }, true);
+    }
+
+    /**
+     * A highlighter re-indexes a value with offsets and asks the query to match it there. Where the field holds no
+     * terms the query is left as it was built, so one naming a range of terms is rewritten before it is asked for a
+     * weight: such a query answers through the query it rewrites to and not on its own.
+     */
+    public void testMatchesARangeOfTermsWhereTheFieldHoldsNoTerms() throws Exception {
+        final FieldType withOffsets = new FieldType(TextField.TYPE_STORED);
+        withOffsets.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        withOffsets.freeze();
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            final Document doc = new Document();
+            doc.add(new Field("body", "a quick brown fox", withOffsets));
+            w.addDocument(doc);
+            try (IndexReader ir = DirectoryReader.open(w)) {
+                final IndexSearcher searcher = new IndexSearcher(ir);
+                final Query query = new ReanalyzingTextQuery(
+                    new PrefixQuery(new Term("body", "qui")),
+                    sourceFetcherProvider(),
+                    Lucene.STANDARD_ANALYZER,
+                    true
+                );
+                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1);
+                assertNotNull(weight.matches(getOnlyLeafReader(ir).getContext(), 0));
+            }
+        }
     }
 
     private static void checkMatches(Query query, String inputDoc, int[] expectedMatches, boolean expectedFetch) throws IOException {

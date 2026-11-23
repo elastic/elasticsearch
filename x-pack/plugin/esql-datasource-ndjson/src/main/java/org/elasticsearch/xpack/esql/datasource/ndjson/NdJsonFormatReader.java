@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -41,7 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -120,6 +121,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    private final long schemaSampleBytes;
     private final int schemaMaxFields;
     private final long segmentSizeBytes;
     private final DateFormatter datetimeFormatter;
@@ -150,6 +152,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             resolvedSchema,
             schemaSampleSize(settings),
+            ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes(),
             ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings == null ? Settings.EMPTY : settings),
             segmentSize(settings),
             null,
@@ -168,6 +171,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         BlockFactory blockFactory,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
+        long schemaSampleBytes,
         int schemaMaxFields,
         long segmentSizeBytes,
         DateFormatter datetimeFormatter,
@@ -179,6 +183,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.settings = settings == null ? Settings.EMPTY : settings;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
+        this.schemaSampleBytes = schemaSampleBytes;
         this.schemaMaxFields = schemaMaxFields;
         this.segmentSizeBytes = segmentSizeBytes;
         this.datetimeFormatter = datetimeFormatter;
@@ -194,7 +199,33 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             schema,
             schemaSampleSize,
+            schemaSampleBytes,
             schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    /**
+     * A declared schema names the columns it reads, so the file's own width is not the field cap's concern: the cap
+     * bounds what inference materialises when nothing declares the schema. Inference over a declared dataset (the
+     * COUNT(*) and chunk-0 binds) is bounded by the circuit breaker the inferrer charges field by field instead.
+     */
+    @Override
+    public NdJsonFormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        if (declaredProvenanceBinding == false || schemaMaxFields == Integer.MAX_VALUE) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            schemaSampleBytes,
+            Integer.MAX_VALUE,
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
@@ -213,6 +244,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             resolvedSchema,
             schemaSampleSize,
+            schemaSampleBytes,
             schemaMaxFields,
             segmentSizeBytes,
             datetimeFormatter,
@@ -220,6 +252,87 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             newReadConfig
         );
+    }
+
+    @Override
+    public NdJsonFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            factory,
+            resolvedSchema,
+            schemaSampleSize,
+            schemaSampleBytes,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    @Override
+    public NdJsonFormatReader withSchemaSampleShare(int files) {
+        int sharedRows = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        // The schema-cache key is the effective row count. Divide the byte cap only when that count
+        // actually moves, so two listings that share a key also share the byte budget they inferred under.
+        long sharedBytes = sharedRows == schemaSampleSize
+            ? schemaSampleBytes
+            : FormatReader.sharedSchemaSampleBytes(schemaSampleBytes, files);
+        if (sharedRows == schemaSampleSize && sharedBytes == schemaSampleBytes) {
+            return this;
+        }
+        // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            sharedRows,
+            sharedBytes,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    /**
+     * Test wither: pins a decoded-byte sample cap without a dataset key. Production always uses
+     * {@link ExternalSourceSettings#DEFAULT_SCHEMA_SAMPLE_BYTES}, shared via {@link #withSchemaSampleShare}.
+     */
+    public NdJsonFormatReader withSchemaSampleBytes(long bytes) {
+        Check.clientError(bytes > 0, "schema sample bytes must be positive, got: {}", bytes);
+        if (bytes == schemaSampleBytes) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            bytes,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return schemaSampleSize;
+    }
+
+    @Override
+    public long schemaSampleBytes() {
+        return schemaSampleBytes;
     }
 
     @Override
@@ -232,6 +345,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             resolvedSchema,
             schemaSampleSize,
+            schemaSampleBytes,
             schemaMaxFields,
             segmentSizeBytes,
             datetimeFormatter,
@@ -265,6 +379,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             resolvedSchema,
             newSampleSize,
+            schemaSampleBytes,
             newMaxFields,
             newSegmentSize,
             newDatetimeFormatter,
@@ -290,21 +405,24 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
 
         try (var stream = openForSchemaInference(object, skipFirstLine)) {
+            CountingInputStream counted = new CountingInputStream(stream);
+            InputStream limited = Streams.limitStream(counted, schemaSampleBytes);
             List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();
-            List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(
-                stream,
+            NdJsonSchemaInferrer.SampledSchema sampled = NdJsonSchemaInferrer.inferSampledSchema(
+                limited,
                 schemaSampleSize,
                 schemaMaxFields,
                 datetimeFormatter,
                 blockFactory.breaker(),
                 widenings
             );
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
             // No SourceMetadata reaches a reconciliation step from this read-time inference path (unlike
             // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
             // for schema_resolution: strict to read here — only the warning, so a user reading through
             // this path is told the same thing a cold metadata() resolve would have told them.
             reportWidenings(widenings, ExternalFailures.redactHttpUrl(object.path().toString()), warningSink);
-            return schema;
+            return sampled.schema();
         }
     }
 
@@ -334,7 +452,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
             } catch (IOException e) {
                 try {
-                    object.abortStream(raw);
+                    raw.close();
                 } catch (IOException ignored) {}
                 throw e;
             }
@@ -355,7 +473,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 closed = true;
                 // only abort the raw stream; the PushbackInputStream/BufferedInputStream wrappers hold no external resources
-                object.abortStream(raw);
+                raw.close();
             }
         };
     }
@@ -473,6 +591,19 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         parseSchemaMaxFields(config.get(CONFIG_SCHEMA_MAX_FIELDS), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS);
     }
 
+    /**
+     * A prefix that hits the decoded-byte sample cap without a complete record cannot infer a schema:
+     * the first line is wider than the budget. Declaring the schema is the way out — retrying the
+     * same request cannot succeed.
+     */
+    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead) {
+        Check.clientError(
+            sampleRows > 0 || bytesRead < schemaSampleBytes,
+            "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
+            ByteSizeValue.ofBytes(schemaSampleBytes)
+        );
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         InputStream stream = object.newStream();
@@ -480,17 +611,19 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // the connection (the schema sample touches only a small prefix). Wrapping the abort in
         // a Closeable lets try-with-resources attach any abort-time error as a suppressed
         // exception on the primary failure rather than replacing it.
-        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+        try (stream) {
             CountingInputStream counted = new CountingInputStream(stream);
+            InputStream limited = Streams.limitStream(counted, schemaSampleBytes);
             List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();
             NdJsonSchemaInferrer.SampledSchema sampled = NdJsonSchemaInferrer.inferSampledSchema(
-                counted,
+                limited,
                 schemaSampleSize,
                 schemaMaxFields,
                 datetimeFormatter,
                 blockFactory.breaker(),
                 widenings
             );
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
             List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
             String sourceLocation = ExternalFailures.redactHttpUrl(location);
@@ -667,6 +800,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsStripeSize(),
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsStripeSink(),
             context.informationalWarningSink()
         );
     }
@@ -691,8 +825,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH {...}} config, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
+     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the per-dataset
+     * {@code segment_size} setting, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
      * {@link #effectiveSegmentSize(long)}.
      */
     @Override

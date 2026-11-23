@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_
 public class PlanExecutorTests extends ESTestCase {
 
     /**
-     * Locks the PR-A wiring invariants that would otherwise only hold implicitly across
+     * Locks the wiring invariants that would otherwise only hold implicitly across
      * {@link TransportEsqlQueryAction} and {@link PlanExecutor#esql}: external discovery must run on the dedicated
      * {@code esql_external_io} pool (isolated from {@code SEARCH}, so a wide wildcard cannot starve regular searches,
      * and separate from {@code esql_worker} so the parse pipeline cannot starve compute) and its multi-file metadata
@@ -83,6 +83,7 @@ public class PlanExecutorTests extends ESTestCase {
         AtomicInteger maxDiscoveredFiles = new AtomicInteger(2);
         AtomicInteger maxGlobExpansion = new AtomicInteger(3);
         AtomicInteger maxListedObjects = new AtomicInteger(4);
+        AtomicInteger maxDirectoryListings = new AtomicInteger(5);
         ExternalSourceResolver resolver = PlanExecutor.createExternalSourceResolver(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             null,
@@ -93,16 +94,20 @@ public class PlanExecutorTests extends ESTestCase {
             null,
             maxDiscoveredFiles::get,
             maxGlobExpansion::get,
-            maxListedObjects::get
+            maxListedObjects::get,
+            maxDirectoryListings::get
         );
         assertEquals(2, resolver.maxDiscoveredFiles());
         assertEquals(3, resolver.maxGlobExpansion());
         assertEquals(4, resolver.maxListedObjects());
+        assertEquals(5, resolver.maxDirectoryListings());
         maxDiscoveredFiles.set(10);
         maxGlobExpansion.set(11);
         maxListedObjects.set(12);
+        maxDirectoryListings.set(13);
         assertEquals(10, resolver.maxDiscoveredFiles());
         assertEquals(11, resolver.maxGlobExpansion());
         assertEquals(12, resolver.maxListedObjects());
+        assertEquals(13, resolver.maxDirectoryListings());
     }
 }

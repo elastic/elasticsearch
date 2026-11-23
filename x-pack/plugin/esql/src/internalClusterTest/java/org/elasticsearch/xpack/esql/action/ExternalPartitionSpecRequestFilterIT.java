@@ -126,6 +126,43 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         );
     }
 
+    public void testGteOnlyRequestFilterMatchesTwinAndScansFewerFiles() throws Exception {
+        Pair pair = registerPair(Layout.HIVE_DAILY, specFor(Layout.HIVE_DAILY), "gte_only");
+        var filter = QueryBuilders.rangeQuery("@timestamp").gte(NY_DAY.toString());
+        Result spec = queryIds(pair.spec, filter, null);
+        Result twin = queryIds(pair.twin, filter, null);
+        assertThat(spec.ids, equalTo(twin.ids));
+        assertThat(spec.ids, equalTo(List.of((long) ID_NY_DAY)));
+        assertThat("spec scans fewer files than the twin", spec.filesScanned, lessThan(twin.filesScanned));
+    }
+
+    public void testWhereNowMinusOneDayMatchesTwinAndScansFewerFiles() throws Exception {
+        Instant now = Instant.now();
+        LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
+        Path root = createTempDir().resolve("one_sided_now");
+        writeCsv(root.resolve("year=2020").resolve("month=01").resolve("day=01"), List.of(row(1, Instant.parse("2020-01-01T12:00:00Z"))));
+        writeCsv(
+            root.resolve("year=" + today.getYear())
+                .resolve("month=" + pad2(today.getMonthValue()))
+                .resolve("day=" + pad2(today.getDayOfMonth())),
+            List.of(row(2, today.atTime(12, 0).toInstant(ZoneOffset.UTC)))
+        );
+        String glob = StoragePath.fileUri(root) + "/year=*/month=*/day=*/*.csv";
+        LinkedHashMap<String, DatasetFieldMapping> properties = mapping();
+        String specName = registerStrictDataset(
+            "spec_now_minus_1d",
+            glob,
+            properties,
+            Map.of("partition_detection", "hive", "partition_spec", "year(@timestamp), month(@timestamp), day(@timestamp)")
+        );
+        String twinName = registerStrictDataset("twin_now_minus_1d", glob, properties, Map.of("partition_detection", "hive"));
+        Result spec = queryIdsWhere(specName, "WHERE @timestamp >= NOW() - 1 day");
+        Result twin = queryIdsWhere(twinName, "WHERE @timestamp >= NOW() - 1 day");
+        assertThat(spec.ids, equalTo(twin.ids));
+        assertThat(spec.ids, equalTo(List.of(2L)));
+        assertThat("spec scans fewer files than the twin", spec.filesScanned, lessThan(twin.filesScanned));
+    }
+
     public void testMidnightRangeSkipsNextDayFolderHoldingLateEvent() throws Exception {
         // start=23:59:50 of day D lives under day D+1. Without lag the split drops that file.
         String dataset = registerParquetTree("spec_rf_midnight");
@@ -357,6 +394,21 @@ public class ExternalPartitionSpecRequestFilterIT extends AbstractExternalDataSo
         properties.put("@timestamp", DatasetFieldMapping.withFormat("date", "start", "epoch_second"));
         properties.put("end", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
         return properties;
+    }
+
+    private Result queryIdsWhere(String dataset, String whereClause) {
+        String query = "FROM " + dataset + " | " + whereClause + " | KEEP id | SORT id";
+        var request = syncEsqlQueryRequest(query);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
+        request.acceptedPragmaRisks(true);
+        request.profile(true);
+        try (var response = run(request)) {
+            List<Long> ids = new ArrayList<>();
+            for (List<Object> row : getValuesList(response)) {
+                ids.add(((Number) row.get(0)).longValue());
+            }
+            return new Result(ids, response.getExecutionInfo().queryProfile().filesScanned());
+        }
     }
 
     private Result queryIds(String dataset, Object filter, QueryParams params) {

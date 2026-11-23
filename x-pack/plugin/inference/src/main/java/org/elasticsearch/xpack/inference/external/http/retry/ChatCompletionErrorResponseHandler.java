@@ -40,7 +40,7 @@ public class ChatCompletionErrorResponseHandler {
         HttpResult result,
         UnifiedChatCompletionErrorResponse errorResponse
     ) {
-        var statusCode = result.response().getStatusLine().getStatusCode();
+        var statusCode = result.response().getCode();
         var errorMessage = BaseResponseHandler.constructErrorMessage(message, outboundRequest, errorResponse, statusCode);
         var restStatus = toRestStatus(statusCode);
 

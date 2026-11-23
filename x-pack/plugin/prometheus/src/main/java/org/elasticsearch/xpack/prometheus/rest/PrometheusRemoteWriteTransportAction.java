@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -44,7 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.prometheus.PrometheusPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Exemplar;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Label;
@@ -86,6 +87,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private final Client client;
     private final ThreadPool threadPool;
     private final long maxExpandedContentLength;
+    private volatile boolean exemplarIngestionEnabled;
 
     @Inject
     public PrometheusRemoteWriteTransportAction(
@@ -93,12 +95,15 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
+        ClusterService clusterService,
         Settings settings
     ) {
         super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
         this.threadPool = threadPool;
         this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
+        clusterService.getClusterSettings()
+            .initializeAndWatch(XPackSettings.METRIC_EXEMPLARS_ENABLED, enabled -> exemplarIngestionEnabled = enabled);
     }
 
     @Override
@@ -108,7 +113,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             request.releaseBody();
 
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            boolean exemplarIngestionEnabled = PrometheusPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
+            boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;
             // Exemplars without a timestamp are stamped with the time the request was received. A re-sent request (e.g. after a
             // 429) therefore assigns a new timestamp to such exemplars, so they are indexed again instead of being rejected as
             // duplicates. We accept this limitation.
@@ -203,7 +208,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 logExemplarProblems(exemplarCounters, null);
                 if (droppedSamplesMissingName > 0) {
-                    String message = buildFailureSummary(totalSamples, droppedSamplesMissingName, droppedSamplesMissingName, null);
+                    String message = buildFailureSummary(totalSamples, droppedSamplesMissingName, droppedSamplesMissingName, 0, null);
                     listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
                 } else {
                     // No indexable data points remain, which is not a client error.
@@ -352,12 +357,23 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         // Default to 400 per the remote write spec for requests that should not be retried.
         RestStatus responseStatus = RestStatus.BAD_REQUEST;
         int sampleFailures = droppedSamplesMissingName;
+        int sampleDuplicates = 0;
+        String sampleDuplicateMessage = null;
 
         BulkItemResponse[] items = bulkResponse.getItems();
         for (int i = 0; i < items.length; i++) {
             BulkItemResponse.Failure failure = items[i].getFailure();
             if (failure != null) {
-                if (i < firstExemplarDocumentPosition) {
+                if (i < firstExemplarDocumentPosition && failure.getStatus() == RestStatus.CONFLICT) {
+                    // The _id is derived from the series and the timestamp, so a conflict means a sample for the same series and
+                    // timestamp has already been indexed. This is almost always caused by a client retrying a request that was
+                    // already (partially) indexed, e.g. after a timeout. We don't treat these as failures, as remote write clients
+                    // would consider the samples to be dropped even though they are stored.
+                    sampleDuplicates++;
+                    if (sampleDuplicateMessage == null) {
+                        sampleDuplicateMessage = failure.getMessage();
+                    }
+                } else if (i < firstExemplarDocumentPosition) {
                     sampleFailures++;
                     if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
                         // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
@@ -378,9 +394,23 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }
         }
 
+        if (sampleDuplicates > 0) {
+            logger.debug(
+                "skipped [{}] duplicate samples out of [{}] samples. Sample error: [{}]",
+                sampleDuplicates,
+                totalSamples,
+                sampleDuplicateMessage
+            );
+        }
         logExemplarProblems(exemplarCounters, exemplarFailureGroups);
         if (sampleFailures > 0) {
-            String message = buildFailureSummary(totalSamples, sampleFailures, droppedSamplesMissingName, sampleFailureGroups);
+            String message = buildFailureSummary(
+                totalSamples,
+                sampleFailures,
+                droppedSamplesMissingName,
+                sampleDuplicates,
+                sampleFailureGroups
+            );
             listener.onFailure(new ElasticsearchStatusException(message, responseStatus));
         } else {
             listener.onResponse(new RemoteWriteResponse());
@@ -416,6 +446,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         int totalSamples,
         int sampleFailures,
         int droppedSamplesMissingName,
+        int sampleDuplicates,
         @Nullable Map<String, Map<RestStatus, FailureGroup>> sampleFailureGroups
     ) {
         StringBuilder failureMessage = new StringBuilder();
@@ -426,6 +457,10 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             .append(" samples failed.\n");
         if (droppedSamplesMissingName > 0) {
             failureMessage.append(droppedSamplesMissingName).append(" sample(s) dropped due to missing __name__ label\n");
+        }
+        if (sampleDuplicates > 0) {
+            failureMessage.append(sampleDuplicates)
+                .append(" sample(s) skipped as duplicates of already indexed samples with the same series and timestamp\n");
         }
         appendFailureGroups(failureMessage, sampleFailureGroups);
         return failureMessage.toString();

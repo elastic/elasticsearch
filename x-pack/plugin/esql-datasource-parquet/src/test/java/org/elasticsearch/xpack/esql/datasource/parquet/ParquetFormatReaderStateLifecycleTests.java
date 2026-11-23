@@ -49,6 +49,8 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         "parsedFooters",
         "footerBytes",
         "maxFooterReadBytes",
+        "schemaMaxFields",
+        "externalIoThreads",
         "ioWatermark",
         "blockFactory",
         "pushedFilter",
@@ -81,11 +83,14 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDynamicThreshold", WitherLifecycle.CREATES_COPY),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.CREATES_COPY),
         Map.entry("withDeclaredTypeColumns", WitherLifecycle.CREATES_COPY),
-        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.CREATES_COPY),
+        Map.entry("withConfig", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY)
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withBlockFactory", WitherLifecycle.CREATES_COPY),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
     public void testEveryInstanceFieldIsClassified() {
@@ -175,6 +180,33 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
                             fieldOf(product, field)
                         );
                     }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
+                        );
+                        assertSame(
+                            "footer byte cache stays the node instance",
+                            fieldOf(receiver, "footerBytes"),
+                            fieldOf(product, "footerBytes")
+                        );
+                        assertSame(
+                            "parsed footer cache stays the node instance",
+                            fieldOf(receiver, "parsedFooters"),
+                            fieldOf(product, "parsedFooters")
+                        );
+                        assertSame(
+                            "I/O watermark stays the node instance",
+                            fieldOf(receiver, "ioWatermark"),
+                            fieldOf(product, "ioWatermark")
+                        );
+                        assertSame(
+                            "heap buffer pool stays the node instance",
+                            fieldOf(receiver, "heapBufferPool"),
+                            fieldOf(product, "heapBufferPool")
+                        );
+                    }
                 }
             }
         }
@@ -217,10 +249,15 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDynamicThreshold" -> new Object[] { null };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("x", "yyyy-MM-dd") };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("x") };
-            case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of() };
+            // An empty config takes the identity shortcut; a cap that differs from the default forces the copy.
+            case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of("schema_max_fields", 7) };
             case "withSchema" -> new Object[] { List.of() };
-            case "withDeclaredProvenanceBinding" -> new Object[] { false };
+            case "withDeclaredProvenanceBinding" -> new Object[] { true };
+            case "withHeaderBindingByProvenance" -> new Object[] { false };
             case "withReadConfig" -> new Object[] { "" };
+            case "withBlockFactory" -> new Object[] {
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };
+            case "withSchemaSampleShare" -> new Object[] { 8 };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

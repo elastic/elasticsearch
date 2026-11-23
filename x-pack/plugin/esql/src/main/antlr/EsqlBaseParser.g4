@@ -26,7 +26,7 @@ import Expression,
        Promql;
 
 statements
-    : setCommand* singleStatement EOF
+    : setCommand* letCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -47,6 +47,7 @@ sourceCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 processingCommand
@@ -80,9 +81,13 @@ processingCommand
     | mmrCommand
     | highlightCommand
     | denseVectorCommand
+    | describeCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
+    | {this.isDevVersion()}? fillNullCommand
+    | {this.isDevVersion()}? intoCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     ;
 
 whereCommand
@@ -117,6 +122,10 @@ externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
+eqlCommand
+    : DEV_EQL indexPattern (COMMA indexPattern)* stringOrParameter metadata? commandNamedParameters
+    ;
+
 indexPatternAndMetadataFields
     : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
     ;
@@ -134,6 +143,7 @@ subquerySourceCommand
     : fromCommand
     | rowCommand
     | timeSeriesCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 indexPattern
@@ -297,6 +307,10 @@ mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
+nestedExpandCommand
+    : DEV_NESTED_EXPAND qualifiedName
+    ;
+
 explainCommand
     : DEV_EXPLAIN subqueryExpression
     ;
@@ -392,6 +406,10 @@ tsCollapseCommand
     : TS_COLLAPSE
     ;
 
+describeCommand
+    : DESCRIBE
+    ;
+
 //
 // In development
 //
@@ -403,12 +421,24 @@ dedupCommand
     : DEDUP
     ;
 
+intoCommand
+    : DEV_INTO indexPattern
+    ;
+
 highlightCommand
     : HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryExpression=booleanExpression? (ON highlightFields=qualifiedNamePatterns)? commandNamedParameters
     ;
 
 qualifiedNames
     : qualifiedName (COMMA qualifiedName)*
+    ;
+
+fillNullCommand
+    : DEV_FILLNULL fillNullValue ON qualifiedNamePatterns
+    ;
+
+fillNullValue
+    : NULL | DEFAULT | integerValue | decimalValue | booleanValue | string | parameter
     ;
 
 uriPartsCommand
@@ -433,6 +463,14 @@ setCommand
 
 setField
     : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+letCommand
+    : LET letBinding SEMICOLON
+    ;
+
+letBinding
+    : UNQUOTED_IDENTIFIER ASSIGN subquery
     ;
 
 mmrCommand

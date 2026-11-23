@@ -14,15 +14,20 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 
 /**
- * Decorates a {@link StorageProvider} with concurrency limiting. Each cloud API call
- * acquires a permit from a shared {@link ConcurrencyLimiter} before executing and
- * releases it when the call completes. Permits are per-API-call, not held across
- * retries or backoff sleeps.
+ * Decorates a {@link StorageProvider} with concurrency limiting. {@link #listObjects}, {@link #listChildren} and
+ * {@link #exists} acquire a permit from a shared {@link ConcurrencyLimiter} before executing and release it when the
+ * call completes; byte transfers acquire theirs inside the {@link StorageObject} that {@link #newObject} wraps.
+ * Permits are per-API-call, not held across retries or backoff sleeps, except for a listing's, which is held until
+ * its iterator is closed.
+ * <p>
+ * {@code objectMetadata} is deliberately not permit-governed: it is left to the base's forward, matching
+ * {@code ConcurrencyLimitedStorageObject#length}, which the resolve path called before this and which forwards
+ * without a permit. Parking a metadata request behind the permits that long-lived streams hold starved the threads
+ * the resolve runs on.
  */
-class ConcurrencyLimitedStorageProvider implements StorageProvider {
+class ConcurrencyLimitedStorageProvider extends DelegatingStorageProvider {
 
     private final StorageProvider delegate;
     private final ConcurrencyLimiter limiter;
@@ -30,6 +35,11 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     ConcurrencyLimitedStorageProvider(StorageProvider delegate, ConcurrencyLimiter limiter) {
         this.delegate = delegate;
         this.limiter = limiter;
+    }
+
+    @Override
+    protected StorageProvider delegate() {
+        return delegate;
     }
 
     @Override
@@ -48,10 +58,21 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new ConcurrencyLimitedStorageObject(delegate.newObject(path, length, lastModified, version), limiter);
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /** One permit per listing either way; the prefix only narrows what the delegate returns. */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         limiter.acquireChecked();
         try {
-            StorageIterator delegateIterator = delegate.listObjects(prefix, recursive);
+            StorageIterator delegateIterator = delegate.listObjects(prefix, namePrefix, recursive);
             return new ConcurrencyLimitedStorageIterator(delegateIterator, limiter);
         } catch (Exception e) {
             limiter.release();
@@ -78,21 +99,6 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
         } finally {
             limiter.release();
         }
-    }
-
-    @Override
-    public List<String> supportedSchemes() {
-        return delegate.supportedSchemes();
-    }
-
-    @Override
-    public boolean supportsStableMetadata() {
-        return delegate.supportsStableMetadata();
-    }
-
-    @Override
-    public boolean listsInKeyOrder() {
-        return delegate.listsInKeyOrder();
     }
 
     @Override

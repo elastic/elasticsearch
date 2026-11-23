@@ -93,7 +93,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
 
     public void testUsesTotalHeapAndJvmCapacity() {
         final var decider = createEstimatedHeapUsageAllocationDecider(true, 85, 90);
-        final var metrics = new NodeHeapMetrics(NODE_ID, 1000, new NodeHeapEstimates(900, 100));
+        final var metrics = new NodeHeapMetrics(NODE_ID, 1000, new NodeHeapEstimates(900, 100, randomNonNegativeLong()));
         final var shard = createShardRouting();
         final var allocation = createRoutingAllocation(
             decider,
@@ -200,6 +200,45 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         assertThat(
             decider.canAllocate(shardRouting, node, routingAllocation),
             isNoDecisionWithNoExplanation(EstimatedHeapUsageAllocationDecider.NAME)
+        );
+    }
+
+    /**
+     * A shard without metrics yet, such as one of a newly created index, has no entry in the cluster info's per-shard estimates. It
+     * must be charged the cluster info's default estimate rather than nothing, so it cannot push a node past the low watermark.
+     */
+    public void testCanAllocateChargesDefaultEstimateToShardWithoutMetrics() {
+        final int watermarkPercent = 85;
+        final var decider = createEstimatedHeapUsageAllocationDecider(true, watermarkPercent, watermarkPercent);
+
+        final ByteSizeValue totalHeap = ByteSizeValue.ofGb(10);
+        final ShardRouting shardRouting = createShardRouting();
+
+        // Set the node to 80% heap used, with a default estimate that would push the node to 90%. The low watermark percent is 85%.
+        final long largeDefaultBytes = (long) (totalHeap.getBytes() * 0.10);
+        final ClusterInfo clusterInfoWithLargeDefault = ClusterInfo.builder()
+            .nodeHeapMetrics(Map.of(NODE_ID, createNodeHeapMetrics(NODE_ID, 80, totalHeap)))
+            .defaultShardHeapUsageForShardsWithoutMetrics(new ShardAndIndexHeapUsage(largeDefaultBytes / 2, largeDefaultBytes / 2, 0L))
+            .build();
+        final RoutingAllocation allocationWithLargeDefault = createRoutingAllocation(decider, shardRouting, clusterInfoWithLargeDefault);
+        assertThat(
+            decider.canAllocate(shardRouting, allocationWithLargeDefault.routingNodes().node(NODE_ID), allocationWithLargeDefault),
+            isNoDecisionWithExplanationMatching(
+                EstimatedHeapUsageAllocationDecider.NAME,
+                containsString("insufficient estimated heap available on node [" + NODE_ID + "/" + NODE_ID + "]")
+            )
+        );
+
+        // A default estimate that leaves the node below the low watermark still allows the shard
+        final long smallDefaultBytes = (long) (totalHeap.getBytes() * 0.02);
+        final ClusterInfo clusterInfoWithSmallDefault = ClusterInfo.builder()
+            .nodeHeapMetrics(Map.of(NODE_ID, createNodeHeapMetrics(NODE_ID, 80, totalHeap)))
+            .defaultShardHeapUsageForShardsWithoutMetrics(new ShardAndIndexHeapUsage(smallDefaultBytes / 2, smallDefaultBytes / 2, 0L))
+            .build();
+        final RoutingAllocation allocationWithSmallDefault = createRoutingAllocation(decider, shardRouting, clusterInfoWithSmallDefault);
+        assertThat(
+            decider.canAllocate(shardRouting, allocationWithSmallDefault.routingNodes().node(NODE_ID), allocationWithSmallDefault).type(),
+            equalTo(Decision.Type.YES)
         );
     }
 
@@ -629,7 +668,11 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     private NodeHeapMetrics createNodeHeapMetrics(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
         final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
-        return new NodeHeapMetrics(nodeId, totalInBytes, new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes)));
+        return new NodeHeapMetrics(
+            nodeId,
+            totalInBytes,
+            new NodeHeapEstimates(usedInBytes, randomLongBetween(0, usedInBytes), randomNonNegativeLong())
+        );
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {

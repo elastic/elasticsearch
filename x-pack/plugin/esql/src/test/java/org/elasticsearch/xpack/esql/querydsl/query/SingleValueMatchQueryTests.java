@@ -17,6 +17,9 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -27,6 +30,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -38,16 +43,23 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +79,15 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     interface Setup {
         XContentBuilder mapping(XContentBuilder builder) throws IOException;
 
-        List<List<Object>> build(RandomIndexWriter iw) throws IOException;
+        List<List<Object>> build(MapperService mapperService, RandomIndexWriter iw) throws IOException;
+
+        /**
+         * Whether the index is written with the codec its mapping selects, rather than a randomized Lucene test codec. Setups that
+         * build their doc values by hand need the test codec to keep them as written.
+         */
+        default boolean writesWithIndexCodec() {
+            return false;
+        }
 
         void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException;
 
@@ -82,9 +102,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             return Settings.EMPTY;
         }
 
-        /** Whether this setup writes the ColumNAR codec's payload, which it can only do where the codec is available. */
-        default boolean needsColumnarCodec() {
-            return false;
+        /** The version the index is created at, which in a strict-columnar mode decides whether the ColumNAR codec is used. */
+        default IndexVersion indexVersion() {
+            return IndexVersion.current();
         }
     }
 
@@ -117,6 +137,17 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 }
             }
         }
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
+            for (boolean indexed : new boolean[] { true, false }) {
+                for (boolean multivaluedField : new boolean[] { true, false }) {
+                    for (boolean allowEmpty : new boolean[] { true, false }) {
+                        for (boolean indexCodec : new boolean[] { true, false }) {
+                            params.add(new Object[] { new ColumnarLongSetup(indexed, multivaluedField, allowEmpty, indexCodec, 100) });
+                        }
+                    }
+                }
+            }
+        }
         return params;
     }
 
@@ -136,25 +167,32 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
     }
 
     public void testQuery() throws IOException {
-        assumeCodecAvailable();
-        MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
+        MapperService mapper = createMapperService(setup.indexVersion(), setup.indexSettings(), mapping(setup::mapping));
+        if (setup.writesWithIndexCodec()) {
+            List<List<Object>> fieldValues = new ArrayList<>();
+            withLuceneIndex(mapper, iw -> fieldValues.addAll(setup.build(mapper, iw)), reader -> assertQuery(mapper, reader, fieldValues));
+            return;
+        }
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
-            List<List<Object>> fieldValues = setup.build(iw);
+            List<List<Object>> fieldValues = setup.build(mapper, iw);
             try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
-                IndexFieldData<?> fieldData = ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH);
-                setup.assertFieldData(fieldData, reader);
-                withBoundQuery(fieldData, query -> {
-                    runCase(fieldValues, ctx.searcher().count(query));
-                    setup.assertRewrite(ctx.searcher(), query);
-                });
+                assertQuery(mapper, reader, fieldValues);
             }
         }
     }
 
+    private void assertQuery(MapperService mapper, IndexReader reader, List<List<Object>> fieldValues) throws IOException {
+        SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+        IndexFieldData<?> fieldData = ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH);
+        setup.assertFieldData(fieldData, reader);
+        withBoundQuery(fieldData, query -> {
+            runCase(fieldValues, ctx.searcher().count(query));
+            setup.assertRewrite(ctx.searcher(), query);
+        });
+    }
+
     public void testEmpty() throws IOException {
-        assumeCodecAvailable();
-        MapperService mapper = createMapperService(setup.indexSettings(), mapping(setup::mapping));
+        MapperService mapper = createMapperService(setup.indexVersion(), setup.indexSettings(), mapping(setup::mapping));
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
@@ -164,14 +202,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
             }
         }
-    }
-
-    /** A setup that writes the codec's payload only runs where the codec can be turned on. */
-    private void assumeCodecAvailable() {
-        assumeTrue(
-            "columnar_codec feature flag must be enabled",
-            setup.needsColumnarCodec() == false || ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-        );
     }
 
     @FunctionalInterface
@@ -241,13 +271,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         @Override
         public Settings indexSettings() {
             // The HIGH-cardinality keyword setups rely on a strict-columnar index mode to default the field to binary doc values.
-            // Which of the two layouts it gets follows the codec setting, and these build the doc values by hand, so the setting is
-            // named rather than left to its default.
             return switch (docValuesMode) {
                 case DOC_VALUES_ONLY_HIGH_CARDINALITY, DOC_VALUES_ONLY_HIGH_CARDINALITY_PAYLOAD, DOC_VALUES_ONLY_SINGLE_VALUED,
                     DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), docValuesMode.columnarCodec())
                         .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), docValuesMode.singleValuedBlobs() == false)
                         .build();
                 case DEFAULT, DOC_VALUES_ONLY -> Settings.EMPTY;
@@ -255,15 +282,19 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public boolean needsColumnarCodec() {
-            return docValuesMode.columnarCodec();
+        public IndexVersion indexVersion() {
+            // Which of the two layouts a strict-columnar index gets follows its version, and these build the doc values by hand, so
+            // the setups without the codec are created just before every columnar index started using it.
+            return docValuesMode.highCardinality() && docValuesMode.columnarCodec() == false
+                ? IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+                : IndexVersion.current();
         }
 
         @Override
-        public List<List<Object>> build(RandomIndexWriter iw) throws IOException {
+        public List<List<Object>> build(MapperService mapperService, RandomIndexWriter iw) throws IOException {
             List<List<Object>> docs = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
-                List<Object> values = values(i);
+                List<Object> values = randomDocValues(i, fieldType, multivaluedField, empty);
                 docs.add(values);
                 iw.addDocument(docFor(values, docValuesMode));
             }
@@ -290,23 +321,95 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
             }
         }
+    }
 
-        private List<Object> values(int i) {
-            // i == 10 forces at least one multivalued field when we're configured for multivalued fields
-            boolean makeMultivalued = multivaluedField && (i == 10 || randomBoolean());
-            if (makeMultivalued) {
-                int count = between(2, 10);
-                Set<Object> set = new HashSet<>(count);
-                while (set.size() < count) {
-                    set.add(randomValue(fieldType));
+    /** The {@code i}-th document's values: several distinct ones, none, or one, as the setup allows. */
+    private static List<Object> randomDocValues(int i, String fieldType, boolean multivaluedField, boolean empty) {
+        // i == 10 forces at least one multivalued field when we're configured for multivalued fields
+        boolean makeMultivalued = multivaluedField && (i == 10 || randomBoolean());
+        if (makeMultivalued) {
+            int count = between(2, 10);
+            Set<Object> set = new HashSet<>(count);
+            while (set.size() < count) {
+                set.add(randomValue(fieldType));
+            }
+            return List.copyOf(set);
+        }
+        // i == 0 forces at least one empty field when we're configured for empty fields
+        if (empty && (i == 0 || randomBoolean())) {
+            return List.of();
+        }
+        return List.of(randomValue(fieldType));
+    }
+
+    /**
+     * A {@code long} field of a strict columnar index stored with the ColumNAR numeric codec: binary doc values holding each
+     * document's values, which the query can't read as {@code SORTED_NUMERIC} and so checks a document at a time. Documents go
+     * through the field's own mapper. Written with the index's codec, the field data reads the column; written with a test
+     * codec, it reads the payloads as the mapper wrote them.
+     */
+    private record ColumnarLongSetup(boolean indexed, boolean multivaluedField, boolean empty, boolean indexCodec, int count)
+        implements
+            Setup {
+        @Override
+        public XContentBuilder mapping(XContentBuilder builder) throws IOException {
+            return builder.startObject("foo").field("type", "long").field("index", indexed).endObject();
+        }
+
+        @Override
+        public Settings indexSettings() {
+            return Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
+                .build();
+        }
+
+        @Override
+        public boolean writesWithIndexCodec() {
+            return indexCodec;
+        }
+
+        @Override
+        public List<List<Object>> build(MapperService mapperService, RandomIndexWriter iw) throws IOException {
+            List<List<Object>> docs = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                List<Object> values = randomDocValues(i, "long", multivaluedField, empty);
+                docs.add(values);
+                XContentBuilder source = JsonXContent.contentBuilder().startObject().array("foo", values.toArray()).endObject();
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(new SourceToParse(Integer.toString(i), BytesReference.bytes(source), XContentType.JSON));
+                iw.addDocument(doc.rootDoc());
+            }
+            return docs;
+        }
+
+        @Override
+        public void assertFieldData(IndexFieldData<?> fieldData, IndexReader reader) throws IOException {
+            assertThat(fieldData, instanceOf(ColumnarLongIndexFieldData.class));
+            for (LeafReaderContext leaf : reader.leaves()) {
+                FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo("foo");
+                if (fieldInfo == null) {
+                    continue; // a segment of documents without a value
                 }
-                return List.copyOf(set);
+                assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.BINARY));
+                BinaryDocValues values = leaf.reader().getBinaryDocValues("foo");
+                assertThat(
+                    "read from the column only when written as one",
+                    values instanceof ColumnarNumericBinaryDocValues,
+                    equalTo(indexCodec)
+                );
             }
-            // i == 0 forces at least one empty field when we're configured for empty fields
-            if (empty && (i == 0 || randomBoolean())) {
-                return List.of();
+        }
+
+        @Override
+        public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
+            // Binary doc values say nothing of how many values a document holds, so only points that cover every document once
+            // let the query rewrite away.
+            if (indexed && empty == false && multivaluedField == false) {
+                assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
+            } else {
+                assertThat(query.rewrite(indexSearcher), sameInstance(query));
             }
-            return List.of(randomValue(fieldType));
         }
     }
 
@@ -350,7 +453,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public List<List<Object>> build(RandomIndexWriter iw) throws IOException {
+        public List<List<Object>> build(MapperService mapperService, RandomIndexWriter iw) throws IOException {
             Object first = randomValue(fieldType);
             Object second = randomValue(fieldType);
             List<Object> justFirst = List.of(first);

@@ -271,6 +271,106 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         );
     }
 
+    /**
+     * Late-mat double comparisons must match {@code Equals.processDoubles} and siblings: IEEE
+     * operators, not {@code Double.compare}. Positions: 0=-0.0, 1=0.0, 2=1.0, 3=-1.0, 4=NaN.
+     * Both zeros compare equal; NaN is unordered except {@code !=}.
+     */
+    public void testDoubleComparisonsMatchIeeeOperators() {
+        double[] values = { -0.0, 0.0, 1.0, -1.0, Double.NaN };
+        Block block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        WordMask reusable = new WordMask();
+        int rowCount = values.length;
+
+        for (double bound : new double[] { 0.0, -0.0 }) {
+            Literal lit = lit(bound, DataType.DOUBLE);
+            // == / != / ordered vs either zero are identical under IEEE.
+            assertSurvivors(pushed(new Equals(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 0, 1 });
+            assertSurvivors(pushed(new NotEquals(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 2, 3, 4 });
+            assertSurvivors(pushed(new LessThan(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 3 });
+            assertSurvivors(pushed(new LessThanOrEqual(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 0, 1, 3 });
+            assertSurvivors(pushed(new GreaterThan(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 2 });
+            assertSurvivors(pushed(new GreaterThanOrEqual(Source.EMPTY, d, lit, null)), blocks, rowCount, reusable, new int[] { 0, 1, 2 });
+
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new Equals(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 2, 3, 4 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new NotEquals(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 0, 1 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new LessThan(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 0, 1, 2, 4 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 0, 1, 3, 4 }
+            );
+            assertSurvivors(
+                pushed(new Not(Source.EMPTY, new GreaterThanOrEqual(Source.EMPTY, d, lit, null))),
+                blocks,
+                rowCount,
+                reusable,
+                new int[] { 3, 4 }
+            );
+        }
+
+        // NaN != v is true for every v, including NaN; every ordered comparison with NaN is false.
+        Literal nan = lit(Double.NaN, DataType.DOUBLE);
+        assertSurvivors(pushed(new Equals(Source.EMPTY, d, nan, null)), blocks, rowCount, reusable, new int[] {});
+        assertSurvivors(pushed(new NotEquals(Source.EMPTY, d, nan, null)), blocks, rowCount, reusable, new int[] { 0, 1, 2, 3, 4 });
+        assertSurvivors(pushed(new GreaterThan(Source.EMPTY, d, nan, null)), blocks, rowCount, reusable, new int[] {});
+        assertSurvivors(
+            pushed(new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), null))),
+            blocks,
+            rowCount,
+            reusable,
+            new int[] { 0, 1, 3, 4 }
+        );
+    }
+
+    public void testDoubleRangeRejectsNaNSoNotKeepsIt() {
+        double[] values = { -0.0, 0.0, 1.0, -1.0, Double.NaN };
+        Block block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        WordMask reusable = new WordMask();
+
+        Expression range = new Range(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), true, lit(1.0, DataType.DOUBLE), true, ZoneOffset.UTC);
+        assertSurvivors(pushed(range), blocks, 5, reusable, new int[] { 0, 1, 2 });
+        assertSurvivors(pushed(new Not(Source.EMPTY, range)), blocks, 5, reusable, new int[] { 3, 4 });
+    }
+
+    public void testDoubleInSeparatesSignedZerosMatchingEngineIn() {
+        // Engine In.process still uses Double.compare, so IN (0.0, 5.0) does not keep -0.0.
+        double[] values = { -0.0, 0.0, 1.0, 5.0, Double.NaN };
+        Block block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("d", block);
+        Expression in = new In(Source.EMPTY, attr("d", DataType.DOUBLE), List.of(lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE)));
+        assertSurvivors(pushed(in), blocks, 5, new WordMask(), new int[] { 1, 3 });
+        assertSurvivors(pushed(new Not(Source.EMPTY, in)), blocks, 5, new WordMask(), new int[] { 0, 2, 4 });
+    }
+
+    private static ParquetPushedExpressions pushed(Expression expr) {
+        return new ParquetPushedExpressions(List.of(expr));
+    }
+
     public void testEqualsWithBytesRefBlock() {
         try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
             builder.appendBytesRef(new BytesRef("foo"));
@@ -1765,7 +1865,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
      * When the predicate column is absent from the block map, a LIKE-family conjunct promoted to
      * {@code Pushability.YES} (dropped from FilterExec) must produce an empty survivor mask, not
      * the all-survive {@code null} sentinel. The column is null-filled above the reader under
-     * union_by_name, and no pattern matches null. See elastic/esql-planning#2052.
+    * union_by_name, and no pattern matches null.
      */
     public void testWildcardLikeWithMissingColumn() {
         Map<String, Block> blocks = new HashMap<>();
@@ -1885,7 +1985,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     /**
      * A LIKE on a virtual column (e.g. _file.name) that has no block still yields the conservative
      * all-survive sentinel. Virtual columns are materialized downstream with real values; returning
-     * an empty mask would drop every row of the file. See elastic/esql-planning#2052 and #149393.
+    * an empty mask would drop every row of the file. See and #149393.
      */
     public void testLikeOnVirtualColumnWithNoBlockYieldsNull() {
         Map<String, Block> blocks = new HashMap<>();
@@ -2461,7 +2561,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         return out;
     }
 
-    // ---- Multivalue block tests (esql-planning#1070) ----
+    // ---- Multivalue block tests ----
 
     // Block layout for most MV int tests: pos0=[1,2] (MV), pos1=[3] (SV), pos2=null, pos3=[7,5] (MV)
 
@@ -2699,8 +2799,8 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     }
 
     public void testMvFormsDeclineOnADoubleBlock() {
-        // The scalar arms order doubles with Double.compare; the mv_ functions use primitive operators, which equate
-        // -0.0 with 0.0 and never rank NaN. mv_contains(d, 0.0) is true on the -0.0 row, which the mask would drop.
+        // Scalar comparisons now use IEEE operators, matching the mv_ functions, but mv_ over a
+        // double block is still declined so that path stays conservative until proven with FilterExec.
         Block block;
         try (var builder = blockFactory.newDoubleBlockBuilder(3)) {
             builder.appendDouble(-0.0);

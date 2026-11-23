@@ -1,0 +1,5 @@
+FROM employees
+| EVAL x = COALESCE(null, null) * TO_DENSE_VECTOR([1.0, 2.0])
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 20

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -60,6 +61,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * The transport versions that are forbidden from joining a cluster with this node due to critical bugs with those versions
      */
     private static final Set<TransportVersion> FORBIDDEN_VERSIONS = Set.of();
+
+    public static final String POST_JOIN_REROUTE_REASON = "post-join reroute";
+
+    /**
+     * URGENT so that the {@link ShardStateAction#SHARD_STARTED_TASK_PRIORITY} tasks from shard relocations due to cluster rolling restart
+     * cannot starve the post-join reroute.
+     */
+    public static final Priority POST_JOIN_REROUTE_PRIORITY = Priority.URGENT;
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
@@ -231,8 +240,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         if (nodesChanged) {
             rerouteService.reroute(
-                "post-join reroute",
-                Priority.HIGH,
+                POST_JOIN_REROUTE_REASON,
+                POST_JOIN_REROUTE_PRIORITY,
                 ActionListener.wrap(r -> logger.trace("post-join reroute completed"), e -> logger.debug("post-join reroute failed", e))
             );
 

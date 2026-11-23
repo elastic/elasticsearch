@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -240,6 +241,11 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         return getAshProjectionMatrix(fieldInfo);
     }
 
+    /** Returns the bits per projected dimension the given field was written with in this segment, for tests. */
+    int getBitsPerDimForTest(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).ashBitsPerDim();
+    }
+
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
@@ -261,6 +267,10 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 yield widened;
             }
         };
+        // ASH does not build an IVF structure for byte vectors today, so byte queries are searched over the raw vectors
+        // and do not get here; should it, a widened byte query has the same values in every segment, so it can share
+        // projections as a float query does
+        QueryTransformCache transformCache = queryTarget.transformCache();
 
         var ashMatrix = getAshProjectionMatrix(fieldInfo);
         int dimension = fieldInfo.getVectorDimension();
@@ -299,8 +309,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 endDoc = sliceAcceptDocs.endDoc();
             }
             return AshPostingsVisitor.createSliced(
-                ashMatrix.wT(),
-                dimension,
+                ashMatrix,
                 target,
                 fieldInfo.getVectorSimilarityFunction(),
                 unwrappedInput,
@@ -310,19 +319,20 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 centroidReader,
                 values,
                 startDoc,
-                endDoc
+                endDoc,
+                transformCache
             );
         }
         return AshPostingsVisitor.create(
-            ashMatrix.wT(),
-            dimension,
+            ashMatrix,
             target,
             fieldInfo.getVectorSimilarityFunction(),
             unwrappedInput,
             needsScoring,
             entry.ashBitsPerDim(),
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            transformCache
         );
     }
 
@@ -410,7 +420,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters.clone()),
-            new QueryTarget.FloatQuery(query),
+            new QueryTarget.FloatQuery(query, QueryTransformCache.NONE),
             null,
             entry.centroidSlice(ivfCentroids.clone()),
             acceptDocs

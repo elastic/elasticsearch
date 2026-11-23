@@ -22,6 +22,9 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,6 +58,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
     private final String bucket;
     private final BiPredicate<String, String> authorizationPredicate;
     private S3HttpHandler handler;
+    private final List<String> requestLog = Collections.synchronizedList(new ArrayList<>());
 
     /**
      * When non-null, requests signed for a different region receive 400 AuthorizationHeaderMalformed
@@ -96,11 +100,21 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         deniedKeys.put("/" + bucket + "/" + key, message);
     }
 
+    /** Every request the fixture received, as {@code "<METHOD> <path>"}, in arrival order. */
+    public List<String> requestLog() {
+        return List.copyOf(requestLog);
+    }
+
+    public void clearRequestLog() {
+        requestLog.clear();
+    }
+
     @Override
     protected HttpHandler createHandler() {
         handler = new S3HttpHandler(bucket, "", S3ConsistencyModel.STRONG_MPUS);
         return exchange -> {
             try {
+                requestLog.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
                 // Region-validating mode: simulate a custom endpoint that rejects wrong-region signing.
                 final String cr = correctRegion;
                 if (cr != null) {
@@ -169,6 +183,19 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
             throw new IllegalStateException("S3 fixture has not been started yet; call seedBlob from @BeforeClass");
         }
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), storageClass));
+    }
+
+    /**
+     * Removes a blob from the fixture's in-memory store, the way a delete at the object store does: the key stops
+     * appearing in listings and every request for it answers 404 NoSuchKey. Like {@link #seedBlob(String, byte[])}
+     * it writes directly into the blob map rather than over HTTP, so it bypasses auth, and it may be called at any
+     * point after the fixture has started.
+     */
+    public void removeBlob(String key) {
+        if (handler == null) {
+            throw new IllegalStateException("S3 fixture has not been started yet; there is nothing to remove");
+        }
+        handler.blobs().remove("/" + bucket + "/" + key);
     }
 
     /** S3's refusal of a GET on an unrestored archived object; unlike {@code sendError}'s, its body carries the storage class. */

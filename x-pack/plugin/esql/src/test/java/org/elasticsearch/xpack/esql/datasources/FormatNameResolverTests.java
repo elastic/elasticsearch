@@ -57,7 +57,7 @@ public class FormatNameResolverTests extends ESTestCase {
     }
 
     /**
-     * Regression test for elastic/esql-planning#1854: a dotted query value in a presigned URL caused the
+    * Regression test for : a dotted query value in a presigned URL caused the
      * last-dot scan to land inside the query string, yielding the wrong extension ("2" instead of "csv").
      */
     public void testExtensionWithDottedQueryString() {

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -42,6 +43,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -52,10 +55,12 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -64,7 +69,31 @@ public class EsqlSecurityIT extends ESRestTestCase {
     protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "index-dynamic-disabled";
     private static final String LOOKUP_INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "lookup-index-dynamic-disabled";
+    private static final String INDEX_UNMAPPED_CONTAINER = "index-unmapped-container";
+    private static final String INDEX_UNMAPPED_SOURCE = "index-unmapped-source";
+    private static final String INDEX_FLATTENED_KEYS = "index-flattened-keys";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
+    /** The {@code _unmapped_fields} of the two {@link #INDEX_PARTIAL_MAPPING} documents for a user who may see all of them. */
+    private static final Map<String, Object> PARTIAL_MAPPING_SALES = Map.of(
+        "org",
+        "sales",
+        "salary",
+        100000,
+        "hire_date",
+        "2024-01-01",
+        "ip_addr",
+        "10.0.0.1"
+    );
+    private static final Map<String, Object> PARTIAL_MAPPING_ENGINEERING = Map.of(
+        "org",
+        "engineering",
+        "salary",
+        200000,
+        "hire_date",
+        "2023-06-15",
+        "ip_addr",
+        "10.0.0.2"
+    );
     private static final String SECURITY_IT_SHARED_DATASOURCE = "security_it_shared_ds";
     private static final String SECURITY_IT_OTHER_DATASOURCE = "other_tenant_ds";
 
@@ -81,14 +110,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
+        // Pinned so the data source and dataset authorization tests do not depend on the default, which is off on a
+        // stateless release build.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
-        .user("remote_fetch_dls_fls", "x-pack-test-password", "remote_fetch_dls_fls", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
@@ -107,6 +136,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
+        .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
+        .user("eql_fls_user", "x-pack-test-password", "eql_fls_user", false)
         .user("dls_partial_mapping_user", "x-pack-test-password", "dls_partial_mapping", false)
         .user("dls_fls_partial_mapping_user", "x-pack-test-password", "dls_fls_partial_mapping", false)
         .user("dls_unmapped_load_all_user", "x-pack-test-password", "dls_unmapped_load_all", false)
@@ -121,6 +152,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             false
         )
         .user("fls_unmapped_load_all_lookup_join_user", "x-pack-test-password", "read_unmapped_load_all,fls_user2", false)
+        .user("fls_unmapped_container_user", "x-pack-test-password", "fls_unmapped_container_except_k", false)
+        .user("fls_flattened_key_user", "x-pack-test-password", "fls_flattened_except_key", false)
         .user("lookup_unmapped_load_all_user", "x-pack-test-password", "read_unmapped_load_all,read_lookup_unmapped_load_all", false)
         .user(
             "fls_lookup_unmapped_load_all_user",
@@ -177,6 +210,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("org", org);
         builder.field("partial", org + value);
         indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
+        client().performRequest(indexDoc);
+    }
+
+    private void indexMinMaxDocument(int id, int n, String org) throws IOException {
+        Request indexDoc = new Request("PUT", "min-max-dls/_doc/" + id);
+        indexDoc.setJsonEntity("{\"n\":" + n + ",\"org\":\"" + org + "\"}");
         client().performRequest(indexDoc);
     }
 
@@ -273,7 +312,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Whether {@code dynamic:false} fields survive indexing and can therefore be expanded by {@code LOAD_ALL}
+     * Whether {@code dynamic:false} fields survive indexing and can therefore be discovered by {@code LOAD_ALL}
      */
     protected boolean unmappedDynamicFalseFieldsStored() {
         return true;
@@ -281,12 +320,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     protected void assumeUnmappedFieldsLoadAll() throws IOException {
         assumeTrue(
-            "Requires unmapped_fields=LOAD_ALL support",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
+            "Requires unmapped_fields=LOAD_ALL support with a single _unmapped_fields column",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.capabilityName()))
         );
     }
 
-    protected void assumeUnmappedFieldsLoadAllExpandable() throws IOException {
+    protected void assumeUnmappedFieldsLoadAllDiscoverable() throws IOException {
         assumeUnmappedFieldsLoadAll();
         assumeTrue("Requires dynamic:false fields to survive indexing", unmappedDynamicFalseFieldsStored());
     }
@@ -302,6 +341,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
+
+        String minMaxMapping = """
+            "properties":{"n": {"type": "integer"}, "org": {"type": "keyword"}}
+            """;
+        createIndex("min-max-dls", indexSettings(), mappingPrefix() + minMaxMapping);
+        indexMinMaxDocument(1, 5, "marketing");
+        indexMinMaxDocument(2, 100, "sales");
+        indexMinMaxDocument(3, 1, "sales");
+        refresh("min-max-dls");
 
         createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
@@ -575,6 +623,77 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
             assertMap(responseMap, matcher);
         }
+    }
+
+    /**
+     * With the fetch phase, a {@code TopN} loads the columns its sort doesn't need through fetch requests. Security
+     * authorizes those on their own, with the index expressions of the query, and they must return what the query returns
+     * without the fetch phase: the documents that document level security lets through, the fields that field level
+     * security grants, and an index that the role reads only through a filtered alias, matched with a wildcard. The
+     * cluster has one node, so every fetch request goes through the local transport.
+     */
+    public void testFetchPhaseReadsWhatTheQueryReads() throws Exception {
+        assumeTrue("the fetch_phase pragma needs a snapshot build", Build.current().isSnapshot());
+
+        // user3 reads the sales documents of index only
+        EsqlResult dls = assertFetchPhaseMatchesEager("user3", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(dls.values("org"), equalTo(List.of("sales")));
+
+        // fls_user reads value and partial of index, but not org. The values of partial depend on the index mode: synthetic
+        // source loads them from partial.keyword, which the role doesn't grant.
+        EsqlResult fls = assertFetchPhaseMatchesEager("fls_user", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(fls.columnNames(), not(hasItem("org")));
+        assertThat(fls.columnNames(), hasItem("partial"));
+
+        // alias_user1 reads index-user1 only through first-alias, whose filter keeps its sales documents
+        EsqlResult alias = assertFetchPhaseMatchesEager("alias_user1", "FROM first-*,index-* | SORT value DESC | LIMIT 10");
+        assertThat(alias.values("value"), equalTo(List.of(31.0d)));
+        assertThat(alias.values("org"), equalTo(List.of("sales")));
+    }
+
+    /**
+     * Runs {@code query} as {@code user} with the fetch phase and without it. Checks that both return the same columns and
+     * rows, and that the fetch phase fetched documents.
+     */
+    private EsqlResult assertFetchPhaseMatchesEager(String user, String query) throws IOException {
+        Map<String, Object> eager = entityAsMap(runWithFetchPhase(user, query, false));
+        Map<String, Object> fetched = entityAsMap(runWithFetchPhase(user, query, true));
+        assertThat(fetched.get("columns"), equalTo(eager.get("columns")));
+        assertThat(fetched.get("values"), equalTo(eager.get("values")));
+        assertThat("documents fetched by [" + query + "] as [" + user + "]", fetchedDocuments(fetched), greaterThan(0));
+        return EsqlResult.of(fetched);
+    }
+
+    /**
+     * Runs a profiled query that sets the {@code fetch_phase} pragma, and no other pragma.
+     */
+    private Response runWithFetchPhase(String user, String query, boolean fetchPhase) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder().startObject();
+        json.field("query", query);
+        json.field("profile", true);
+        json.startObject("pragma").field("fetch_phase", fetchPhase).endObject();
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.setOptions(runAsUserOptions(user, null));
+        request.addParameter("error_trace", "true");
+        return client().performRequest(request);
+    }
+
+    /**
+     * The documents that the fetch operators of a profiled query fetched.
+     */
+    @SuppressWarnings("unchecked")
+    private static int fetchedDocuments(Map<String, Object> result) {
+        int documents = 0;
+        for (Map<String, Object> driver : (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers")) {
+            for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
+                if (((String) operator.get("operator")).startsWith("FetchOperator")) {
+                    documents += ((Number) ((Map<String, Object>) operator.get("status")).get("documents")).intValue();
+                }
+            }
+        }
+        return documents;
     }
 
     public void testUnauthorizedIndices() throws IOException {
@@ -913,39 +1032,101 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
     }
 
-    public void testRemoteFetchUsesRetainedDlsAndFlsContext() throws Exception {
-        setRemoteFetchTopNEnabled(true);
-        try {
-            Request request = new Request("POST", "_query");
-            XContentBuilder json = JsonXContent.contentBuilder();
-            json.startObject();
-            json.field("query", "FROM index,indexpartial | SORT value DESC | LIMIT 2 | KEEP value, org");
-            json.field("profile", true);
-            json.field("accept_pragma_risks", true);
-            json.startObject("pragma");
-            json.field("node_level_reduction", true);
-            json.field("data_partitioning", "shard");
-            json.endObject();
-            json.endObject();
-            request.setJsonEntity(Strings.toString(json));
-            request.setOptions(runAsUserOptions("remote_fetch_dls_fls", null));
-
-            Response response = client().performRequest(request);
-            assertOK(response);
-            Map<String, Object> responseMap = entityAsMap(response);
-            assertThat(responseMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null), List.of(10.0, "sales"))));
-            assertTrue("query profile must contain the remote fetch operator", containsRemoteFetchOperator(responseMap.get("profile")));
-        } finally {
-            setRemoteFetchTopNEnabled(null);
-        }
-    }
-
     public void testDocumentLevelSecurityFromStar() throws Exception {
         Response resp = runESQLCommand("user3", "from in*x | stats sum=sum(value)");
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    /**
+     * The EQL source command delegates to the EQL search action. That delegated search must run in the caller's security
+     * context — same identity, index authorization and document-level security as any other ES|QL command, never a
+     * privileged origin user. Here {@code eql_dls_user} can read {@code eql-events} but DLS exposes only its process
+     * events: an EQL query for the process events returns them, an EQL query for the (existing) network event comes back
+     * empty rather than leaking it, and {@code user2} — with no privilege on the index — is denied just like FROM.
+     */
+    public void testEqlSourceCommandRunsInCallerSecurityContext() throws IOException {
+        assumeTrue(
+            "requires the EQL source command",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName()))
+        );
+        createIndex("eql-events", Settings.EMPTY, """
+            "properties":{"@timestamp":{"type":"date"},"event":{"properties":{"category":{"type":"keyword"}}},\
+            "message":{"type":"keyword"}}
+            """);
+        for (String doc : List.of("""
+            {"@timestamp":"2024-01-01T00:00:01Z","event":{"category":"process"},"message":"a"}""", """
+            {"@timestamp":"2024-01-01T00:00:02Z","event":{"category":"process"},"message":"b"}""", """
+            {"@timestamp":"2024-01-01T00:00:03Z","event":{"category":"network"},"message":"c"}""")) {
+            Request indexDoc = new Request("POST", "/eql-events/_doc");
+            indexDoc.setJsonEntity(doc);
+            assertOK(client().performRequest(indexDoc));
+        }
+        refresh("eql-events");
+
+        // DLS lets eql_dls_user see only the process events, and the delegated EQL search honors that filter.
+        Response process = runESQLCommand(
+            "eql_dls_user",
+            "EQL eql-events \"process where true\" WITH {\"size\": 100} | KEEP message | SORT message"
+        );
+        assertOK(process);
+        assertThat(entityAsMap(process).get("values"), equalTo(List.of(List.of("a"), List.of("b"))));
+
+        // The network event exists but is hidden by DLS, so querying for it returns nothing rather than leaking the row.
+        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" WITH {\"size\": 100} | KEEP message");
+        assertOK(network);
+        assertThat(entityAsMap(network).get("values"), equalTo(List.of()));
+
+        // user2 has no privilege on eql-events: the EQL command is denied at resolution exactly like FROM.
+        ResponseException denied = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "EQL eql-events \"process where true\"")
+        );
+        assertThat(denied.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(denied.getMessage(), containsString("Unknown index [eql-events]"));
+    }
+
+    /**
+     * Field-level security must apply to the delegated EQL search as well: {@code eql_fls_user} is denied the
+     * {@code message} field, so the {@code _source} the command fetches and converts to rows must not carry it — the
+     * same {@code FieldSubsetReader} filtering a {@code FROM} source gets.
+     */
+    public void testEqlSourceCommandHonorsFieldLevelSecurity() throws IOException {
+        assumeTrue(
+            "requires the EQL source command",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName()))
+        );
+        createIndex("eql-events-fls", Settings.EMPTY, """
+            "properties":{"@timestamp":{"type":"date"},"event":{"properties":{"category":{"type":"keyword"}}},\
+            "message":{"type":"keyword"}}
+            """);
+        for (String doc : List.of("""
+            {"@timestamp":"2024-01-01T00:00:01Z","event":{"category":"process"},"message":"secret-a"}""", """
+            {"@timestamp":"2024-01-01T00:00:02Z","event":{"category":"process"},"message":"secret-b"}""")) {
+            Request indexDoc = new Request("POST", "/eql-events-fls/_doc");
+            indexDoc.setJsonEntity(doc);
+            assertOK(client().performRequest(indexDoc));
+        }
+        refresh("eql-events-fls");
+
+        // The delegated EQL search fetches _source, which security filters, so the hidden message field must be absent
+        // from every converted row while the granted fields remain.
+        Response resp = runESQLCommand(
+            "eql_fls_user",
+            "EQL eql-events-fls \"process where true\" METADATA _source WITH {\"size\": 100} | KEEP _source"
+        );
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        assertThat(values, hasSize(2));
+        for (List<Object> row : values) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) row.get(0);
+            assertThat("FLS-hidden field leaked into the EQL _source: " + source, source, not(hasKey("message")));
+            assertThat("granted field must remain in the EQL _source: " + source, source, hasKey("@timestamp"));
+        }
     }
 
     public void testFieldLevelSecurityAllow() throws Exception {
@@ -1262,10 +1443,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: no unmapped field is
-     * referenced, so every unmapped {@code _source} key becomes a column of its own. An FLS-denied field must not become one of
-     * them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither may show
-     * up as a column, while the admin running the same query sees both.
+     * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: only {@code salary} is
+     * referenced, so it is a column, and every unmapped {@code _source} key, {@code salary} included, lands in the
+     * {@code _unmapped_fields} object. An FLS-denied field must not be one of them. {@code fls_deny_value_org_user} is denied the mapped
+     * {@code value} and the unmapped {@code org}, so neither may show up, while the admin running the same query sees both.
      */
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
         assumeUnmappedFieldsLoadAll();
@@ -1280,21 +1461,81 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(adminResp),
             matchesMap().extraOk()
+                .entry("columns", List.of(column("value", "double"), column("salary", "keyword"), unmappedFieldsColumn()))
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales", "salary", 100000)),
+                        List.of(
+                            20.0,
+                            "200000",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry("columns", List.of(column("salary", "keyword"), unmappedFieldsColumn()))
+                .entry(
+                    "values",
+                    List.of(
+                        List.of("100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "salary", 100000)),
+                        List.of("200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000))
+                    )
+                )
+        );
+    }
+
+    /**
+     * Naming an FLS-denied field does not make its key reappear. A named field keeps its key in {@code _unmapped_fields}, as any column
+     * does, so the denial is what has to keep it out: {@code fls_deny_value_org_user} gets {@code org} as a column of nulls, and no
+     * {@code org} key, while the admin gets both. A regression would be silent here, since naming the field used to hide its key.
+     */
+    public void testFieldLevelSecurityFieldDeniedAndNamedWithUnmappedFieldsLoadAll() throws Exception {
+        // The query filters on unmapped fields, so there are no rows where they are not stored (columnar logsdb).
+        assumeUnmappedFieldsLoadAllDiscoverable();
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | WHERE org == \"sales\" OR org == \"engineering\" OR salary IS NOT NULL | EVAL named = org | SORT salary | LIMIT 10"
+            + dropModeSpecificColumns();
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
                 .entry(
                     "columns",
                     List.of(
-                        matchesMap().entry("name", "value").entry("type", "double"),
-                        matchesMap().entry("name", "salary").entry("type", "keyword"),
-                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
-                        matchesMap().entry("name", "ip_addr").entry("type", "keyword"),
-                        matchesMap().entry("name", "org").entry("type", "keyword")
+                        column("value", "double"),
+                        column("org", "keyword"),
+                        column("salary", "keyword"),
+                        column("named", "keyword"),
+                        unmappedFieldsColumn()
                     )
                 )
                 .entry(
                     "values",
                     List.of(
-                        List.of(10.0, "100000", "2024-01-01", "10.0.0.1", "sales"),
-                        List.of(20.0, "200000", "2023-06-15", "10.0.0.2", "engineering")
+                        List.of(
+                            10.0,
+                            "sales",
+                            "100000",
+                            "sales",
+                            Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales", "salary", 100000)
+                        ),
+                        List.of(
+                            20.0,
+                            "engineering",
+                            "200000",
+                            "engineering",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
                     )
                 )
         );
@@ -1306,29 +1547,46 @@ public class EsqlSecurityIT extends ESRestTestCase {
             matchesMap().extraOk()
                 .entry(
                     "columns",
+                    List.of(column("org", "keyword"), column("salary", "keyword"), column("named", "keyword"), unmappedFieldsColumn())
+                )
+                .entry(
+                    "values",
                     List.of(
-                        matchesMap().entry("name", "salary").entry("type", "keyword"),
-                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
-                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                        Arrays.asList(null, "100000", null, Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "salary", 100000)),
+                        Arrays.asList(null, "200000", null, Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000))
                     )
                 )
-                .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
         );
     }
 
+    /**
+     * An ungrouped {@code MIN}/{@code MAX} over an integer field can be answered from segment metadata, which spans every document
+     * of the segment. Document-level security hides documents without deleting them from the segment, so the answer must still
+     * come from the documents the role may see.
+     */
+    public void testDLS_MinMaxIgnoresFilteredDocuments() throws Exception {
+        String query = "FROM min-max-dls | STATS min_n = MIN(n), max_n = MAX(n)";
+        List<MapMatcher> expectedColumns = List.of(column("min_n", "integer"), column("max_n", "integer"));
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(1, 100)))
+        );
+
+        Response dlsResp = runESQLCommand("dls_user", query);
+        assertOK(dlsResp);
+        assertMap(entityAsMap(dlsResp), matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(5, 5))));
+    }
+
     public void testDLS_DoesNotExposeFilteredDocuments_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | SORT value | LIMIT 10"
             + dropModeSpecificColumns();
-        List<MapMatcher> expectedColumns = List.of(
-            column("value", "double"),
-            column("hire_date", "keyword"),
-            column("ip_addr", "keyword"),
-            column("org", "keyword"),
-            column("salary", "keyword")
-        );
+        List<MapMatcher> expectedColumns = List.of(column("value", "double"), unmappedFieldsColumn());
 
         Response adminResp = runESQLCommand("test-admin", query);
         assertOK(adminResp);
@@ -1336,27 +1594,19 @@ public class EsqlSecurityIT extends ESRestTestCase {
             entityAsMap(adminResp),
             matchesMap().extraOk()
                 .entry("columns", expectedColumns)
-                .entry(
-                    "values",
-                    List.of(
-                        List.of(10.0, "2024-01-01", "10.0.0.1", "sales", "100000"),
-                        List.of(20.0, "2023-06-15", "10.0.0.2", "engineering", "200000")
-                    )
-                )
+                .entry("values", List.of(List.of(10.0, PARTIAL_MAPPING_SALES), List.of(20.0, PARTIAL_MAPPING_ENGINEERING)))
         );
 
         Response dlsResp = runESQLCommand("dls_partial_mapping_user", query);
         assertOK(dlsResp);
         assertMap(
             entityAsMap(dlsResp),
-            matchesMap().extraOk()
-                .entry("columns", expectedColumns)
-                .entry("values", List.of(List.of(10.0, "2024-01-01", "10.0.0.1", "sales", "100000")))
+            matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(10.0, PARTIAL_MAPPING_SALES)))
         );
     }
 
-    public void testDLS_DoesNotLeakColumnOfFilteredDocument_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+    public void testDLS_DoesNotLeakFieldOfFilteredDocument_WithUnmappedFieldsLoadAll() throws Exception {
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + " | SORT value | LIMIT 10"
@@ -1369,22 +1619,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(dlsResp),
             matchesMap().extraOk()
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
                 .entry(
-                    "columns",
+                    "values",
                     List.of(
-                        column("value", "double"),
-                        column("org", "keyword"),
-                        column("profile.public_id", "keyword"),
-                        column("profile.ssn", "keyword"),
-                        column("tags", "keyword")
+                        List.of(
+                            10.0,
+                            Map.of("org", "sales", "profile.public_id", "p1", "profile.ssn", "111-11-1111", "tags", List.of("red", "blue"))
+                        )
                     )
                 )
-                .entry("values", List.of(List.of(10.0, "sales", "p1", "111-11-1111", List.of("red", "blue"))))
         );
     }
 
     public void testDLS_LoadAllFilterOnUnmappedField() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | WHERE org == \"engineering\" | SORT value | LIMIT 10"
@@ -1395,17 +1644,17 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(adminResp),
             matchesMap().extraOk()
+                .entry("columns", List.of(column("value", "double"), column("org", "keyword"), unmappedFieldsColumn()))
                 .entry(
-                    "columns",
+                    "values",
                     List.of(
-                        column("value", "double"),
-                        column("org", "keyword"),
-                        column("hire_date", "keyword"),
-                        column("ip_addr", "keyword"),
-                        column("salary", "keyword")
+                        List.of(
+                            20.0,
+                            "engineering",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
                     )
                 )
-                .entry("values", List.of(List.of(20.0, "engineering", "2023-06-15", "10.0.0.2", "200000")))
         );
 
         Response dlsResp = runESQLCommand("dls_partial_mapping_user", query);
@@ -1414,34 +1663,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testFLS_SourceDisabled_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | SORT value | LIMIT 10"
             + dropModeSpecificColumns();
+        List<MapMatcher> expectedColumns = List.of(column("value", "double"), unmappedFieldsColumn());
 
         Response adminResp = runESQLCommand("test-admin", query);
         assertOK(adminResp);
         assertMap(
             entityAsMap(adminResp),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(
-                        column("value", "double"),
-                        column("hire_date", "keyword"),
-                        column("ip_addr", "keyword"),
-                        column("org", "keyword"),
-                        column("salary", "keyword")
-                    )
-                )
-                .entry(
-                    "values",
-                    List.of(
-                        List.of(10.0, "2024-01-01", "10.0.0.1", "sales", "100000"),
-                        List.of(20.0, "2023-06-15", "10.0.0.2", "engineering", "200000")
-                    )
-                )
+                .entry("columns", expectedColumns)
+                .entry("values", List.of(List.of(10.0, PARTIAL_MAPPING_SALES), List.of(20.0, PARTIAL_MAPPING_ENGINEERING)))
         );
 
         Response noSourceResp = runESQLCommand("fls_partial_no_source_user", query);
@@ -1449,13 +1684,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(noSourceResp),
             matchesMap().extraOk()
-                .entry("columns", List.of(column("value", "double")))
-                .entry("values", List.of(List.of(10.0), List.of(20.0)))
+                .entry("columns", expectedColumns)
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
         );
     }
 
-    public void testFLS_GrantList_DoesNotExpandUngrantedFields_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+    public void testFLS_GrantList_DoesNotReturnUngrantedFields_WithUnmappedFieldsLoadAll() throws Exception {
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + " | SORT value | LIMIT 10"
@@ -1468,13 +1703,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(grantedResp),
             matchesMap().extraOk()
-                .entry("columns", List.of(column("value", "double")))
-                .entry("values", List.of(List.of(10.0), List.of(15.0), List.of(20.0)))
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(15.0, null), Arrays.asList(20.0, null)))
         );
     }
 
-    public void testFLS_GrantListExpandsGrantedField_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+    public void testFLS_GrantListReturnsGrantedField_WithUnmappedFieldsLoadAll() throws Exception {
+        assumeUnmappedFieldsLoadAllDiscoverable();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_grant_value_org_user",
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
@@ -1486,13 +1721,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(resp),
             matchesMap().extraOk()
-                .entry("columns", List.of(column("value", "double"), column("org", "keyword")))
-                .entry("values", List.of(List.of(10.0, "sales"), List.of(15.0, "marketing"), List.of(20.0, "engineering")))
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, Map.of("org", "sales")),
+                        List.of(15.0, Map.of("org", "marketing")),
+                        List.of(20.0, Map.of("org", "engineering"))
+                    )
+                )
         );
     }
 
     public void testFLS_ExceptNestedLeaf_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_except_ssn_user",
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
@@ -1504,29 +1746,23 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(resp),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(
-                        column("value", "double"),
-                        column("org", "keyword"),
-                        column("profile.public_id", "keyword"),
-                        column("secret_note", "keyword"),
-                        column("tags", "keyword")
-                    )
-                )
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
                 .entry(
                     "values",
                     List.of(
-                        Arrays.asList(10.0, "sales", "p1", null, List.of("red", "blue")),
-                        Arrays.asList(15.0, "marketing", "p3", null, "yellow"),
-                        Arrays.asList(20.0, "engineering", "p2", "quarterly-forecast", "green")
+                        List.of(10.0, Map.of("org", "sales", "profile.public_id", "p1", "tags", List.of("red", "blue"))),
+                        List.of(15.0, Map.of("org", "marketing", "profile.public_id", "p3", "tags", "yellow")),
+                        List.of(
+                            20.0,
+                            Map.of("org", "engineering", "profile.public_id", "p2", "secret_note", "quarterly-forecast", "tags", "green")
+                        )
                     )
                 )
         );
     }
 
     public void testFLS_WildcardProjections_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String prefix = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL;
 
         // org* is inside the pattern, so the denied `org` has to be excluded by FLS rather than by the projection.
@@ -1538,13 +1774,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(keepResp),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(column("profile.public_id", "keyword"), column("profile.ssn", "keyword"), column("value", "double"))
-                )
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
                 .entry(
                     "values",
-                    List.of(List.of("p1", "111-11-1111", 10.0), List.of("p3", "333-33-3333", 15.0), List.of("p2", "222-22-2222", 20.0))
+                    List.of(
+                        List.of(10.0, Map.of("profile.public_id", "p1", "profile.ssn", "111-11-1111")),
+                        List.of(15.0, Map.of("profile.public_id", "p3", "profile.ssn", "333-33-3333")),
+                        List.of(20.0, Map.of("profile.public_id", "p2", "profile.ssn", "222-22-2222"))
+                    )
                 )
         );
 
@@ -1553,26 +1790,28 @@ public class EsqlSecurityIT extends ESRestTestCase {
             prefix + " | DROP profile* | SORT value | LIMIT 10" + dropModeSpecificColumns()
         );
         assertOK(dropResp);
-        assertThat(esqlResult(dropResp).columnNames(), containsInAnyOrder("value", "secret_note", "tags"));
+        EsqlResult dropResult = esqlResult(dropResp);
+        assertThat(dropResult.columnNames(), containsInAnyOrder("value", "_unmapped_fields"));
+        assertThat(dropResult.unmappedFieldNames(), equalTo(Set.of("secret_note", "tags")));
     }
 
     public void testNetZeroProjection_OnUnmappedField_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_except_org_user",
-            // Wildcards keep the pattern non-NONE, so the synthetic column is still planned; every leaf is then filtered out
-            // before expansion, leaving the rows with no columns at all.
+            // Wildcards keep the pattern non-NONE, so the synthetic column is still planned; every leaf is then filtered out,
+            // leaving the rows with nothing but an all-null _unmapped_fields column.
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
                 + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
                 + " | KEEP profile*, tags | DROP profile*, tags | LIMIT 10"
         );
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
-        assertThat(result.columnNames(), hasSize(0));
-        assertThat(result.rows(), hasSize(3));
+        assertThat(result.columnNames(), equalTo(List.of("_unmapped_fields")));
+        assertThat(result.values("_unmapped_fields"), equalTo(Arrays.asList(null, null, null)));
     }
 
-    public void testFLS_DeniedFieldNotExpandedAsColumn_WithUnmappedFieldsLoadAll() throws Exception {
+    public void testFLS_DeniedFieldNotInUnmappedFields_WithUnmappedFieldsLoadAll() throws Exception {
         assumeUnmappedFieldsLoadAll();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM index | SORT value | LIMIT 10" + dropModeSpecificColumns();
 
@@ -1582,7 +1821,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         Response resp = runESQLCommand("fls_user", query);
         assertOK(resp);
-        assertThat(esqlResult(resp).columnNames(), containsInAnyOrder("value", "partial"));
+        EsqlResult result = esqlResult(resp);
+        assertThat(result.columnNames(), containsInAnyOrder("value", "partial", "_unmapped_fields"));
+        assertThat(result.unmappedFieldNames(), equalTo(Set.of()));
     }
 
     public void testFLS_Filter_OnDeniedFieldMatchesNothing_WithUnmappedFieldsLoadAll() throws Exception {
@@ -1599,12 +1840,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Response resp = runESQLCommand("fls_user", query);
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
-        assertThat(result.columnNames(), containsInAnyOrder("value", "partial", "org"));
+        assertThat(result.columnNames(), containsInAnyOrder("value", "partial", "org", "_unmapped_fields"));
         assertThat(result.rows(), equalTo(List.of()));
     }
 
     public void testFLS_And_DSL_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | SORT value | LIMIT 10"
@@ -1614,21 +1855,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(resp),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(
-                        column("value", "double"),
-                        column("hire_date", "keyword"),
-                        column("ip_addr", "keyword"),
-                        column("salary", "keyword")
-                    )
-                )
-                .entry("values", List.of(List.of(10.0, "2024-01-01", "10.0.0.1", "100000")))
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
+                .entry("values", List.of(List.of(10.0, Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "salary", 100000))))
         );
     }
 
     public void testFLS_SourceDisabled_MultiIndex_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + ", "
@@ -1638,26 +1871,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         Response adminResp = runESQLCommand("test-admin", query);
         assertOK(adminResp);
+        EsqlResult adminResult = esqlResult(adminResp);
         assertThat(
-            esqlResult(adminResp).columnNames(),
-            containsInAnyOrder(
-                "_index",
-                "value",
-                "org",
-                "salary",
-                "hire_date",
-                "ip_addr",
-                "profile.public_id",
-                "profile.ssn",
-                "secret_note",
-                "tags"
-            )
+            adminResult.columnNames(),
+            containsInAnyOrder("_index", "value", "org", "salary", "hire_date", "ip_addr", "_unmapped_fields")
         );
+        // org is mapped on the full-mapping index only, so the unmapped index keeps its key.
+        assertThat(adminResult.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
 
         Response resp = runESQLCommand("fls_unmapped_load_all_per_index_access_user", query);
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
-        assertThat(result.columnNames(), containsInAnyOrder("_index", "value", "org", "salary", "hire_date", "ip_addr"));
+        assertThat(
+            result.columnNames(),
+            containsInAnyOrder("_index", "value", "org", "salary", "hire_date", "ip_addr", "_unmapped_fields")
+        );
+        assertThat(result.unmappedFieldNames(), equalTo(Set.of()));
         // `org` is mapped on the full-mapping index, so the column exists; the source-denied index must contribute nulls, not values.
         assertThat(result.values("org"), equalTo(Arrays.asList(null, null, null, "marketing", "support")));
         assertThat(
@@ -1675,7 +1904,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testDLS_InlineStats_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+        assumeUnmappedFieldsLoadAllDiscoverable();
         assumeTrue(
             "Requires INLINE STATS under unmapped_fields=LOAD_ALL",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName()))
@@ -1688,21 +1917,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Response adminResp = runESQLCommand("test-admin", query);
         assertOK(adminResp);
         EsqlResult adminResult = esqlResult(adminResp);
-        assertThat(
-            adminResult.columnNames(),
-            containsInAnyOrder("value", "org", "profile.public_id", "profile.ssn", "secret_note", "tags", "total")
-        );
+        assertThat(adminResult.columnNames(), containsInAnyOrder("value", "_unmapped_fields", "total"));
+        assertThat(adminResult.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
         assertThat(adminResult.values("total"), equalTo(List.of(3, 3, 3)));
 
         Response dlsResp = runESQLCommand("dls_unmapped_load_all_user", query);
         assertOK(dlsResp);
         EsqlResult dlsResult = esqlResult(dlsResp);
-        assertThat(dlsResult.columnNames(), containsInAnyOrder("value", "org", "profile.public_id", "profile.ssn", "tags", "total"));
+        assertThat(dlsResult.columnNames(), containsInAnyOrder("value", "_unmapped_fields", "total"));
+        assertThat(dlsResult.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "tags")));
         assertThat(dlsResult.values("total"), equalTo(List.of(1)));
     }
 
-    public void testLookupJoin_OnUnmappedKey_StillExpandsLeftSide_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+    public void testLookupJoin_OnUnmappedKey_StillReturnsLeftSide_WithUnmappedFieldsLoadAll() throws Exception {
+        assumeUnmappedFieldsLoadAllDiscoverable();
         Response resp = runESQLCommand(
             "fls_unmapped_load_all_lookup_join_user",
             "SET unmapped_fields=\"LOAD_ALL\"; FROM "
@@ -1712,17 +1940,151 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertOK(resp);
         EsqlResult result = esqlResult(resp);
-        assertThat(result.columnNames(), containsInAnyOrder("value", "org", "profile.public_id", "profile.ssn", "secret_note", "tags"));
+        assertThat(result.columnNames(), containsInAnyOrder("value", "org", "profile.public_id", "_unmapped_fields"));
         assertThat(result.values("profile.public_id"), equalTo(List.of("p1", "p2", "p3")));
-        assertThat(result.values("profile.ssn"), equalTo(List.of("111-11-1111", "222-22-2222", "333-33-3333")));
-        assertThat(result.values("secret_note"), equalTo(Arrays.asList(null, "quarterly-forecast", null)));
-        assertThat(result.values("tags"), equalTo(List.of(List.of("red", "blue"), "green", "yellow")));
+        assertThat(
+            result.values("_unmapped_fields"),
+            equalTo(
+                List.of(
+                    Map.of("org", "sales", "profile.public_id", "p1", "profile.ssn", "111-11-1111", "tags", List.of("red", "blue")),
+                    Map.of(
+                        "org",
+                        "engineering",
+                        "profile.public_id",
+                        "p2",
+                        "profile.ssn",
+                        "222-22-2222",
+                        "secret_note",
+                        "quarterly-forecast",
+                        "tags",
+                        "green"
+                    ),
+                    Map.of("org", "marketing", "profile.public_id", "p3", "profile.ssn", "333-33-3333", "tags", "yellow")
+                )
+            )
+        );
         assertThat(result.values("org"), equalTo(List.of("sales", "engineering", "marketing")));
         assertThat(result.values("value"), equalTo(Arrays.asList(40.0, null, 32.0)));
     }
 
-    public void testLookupJoin_UnmappedSourceField_NotExpanded_WithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAllExpandable();
+    /**
+     * A columnar index with flattened unmapped fields keeps them in its {@code _unmapped} field, which field-level security does
+     * not filter by key. Every unmapped field read or searched there is checked against the role on its own.
+     */
+    public void testFLS_HidesUnmappedFieldKeptInTheUnmappedField() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "unmapped fields are read from the _unmapped field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        Settings settings = Settings.builder().put("index.mode", "columnar").put("index.number_of_shards", 1).build();
+        createIndex(
+            INDEX_UNMAPPED_CONTAINER,
+            settings,
+            "\"dynamic\": \"flattened\", \"properties\": { \"other\": { \"type\": \"keyword\" } }"
+        );
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_CONTAINER + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_CONTAINER;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
+    }
+
+    /**
+     * Field-level security hides a key of a flattened field as it hides a mapped field: it reads as null and no filter on it
+     * matches, while the other keys read as usual.
+     */
+    public void testFLS_HidesAKeyOfAFlattenedField() throws Exception {
+        assumeTrue(
+            "a name under a flattened field is a field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FLATTENED_KEYS.capabilityName()))
+        );
+        createIndex(INDEX_FLATTENED_KEYS, Settings.EMPTY, "\"properties\": { \"attrs\": { \"type\": \"flattened\" } }");
+        Request indexDoc = new Request("PUT", INDEX_FLATTENED_KEYS + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "attrs": { "bar": "a", "baz": "b" } }""");
+        client().performRequest(indexDoc);
+
+        String from = "FROM " + INDEX_FLATTENED_KEYS;
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", from + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", from + " | WHERE attrs.bar == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+
+        // Under load, an index that does not map attrs makes the key a field some shards may not map
+        createIndex(INDEX_FLATTENED_KEYS + "-other", Settings.EMPTY, "\"dynamic\": false, \"properties\": {}");
+        String load = "SET unmapped_fields=\"load\"; FROM " + INDEX_FLATTENED_KEYS + "*";
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", load + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", load + " | WHERE attrs.bar == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+    }
+
+    /**
+     * An index that does not map {@code k} keeps it in {@code _source}, where the shard reads it and runs a pushed filter on it.
+     * Field-level security hides it there as it hides a mapped field: it reads as null and no filter on it matches.
+     */
+    public void testFLS_HidesUnmappedFieldReadFromSource() throws Exception {
+        assumeTrue(
+            "unmapped fields are resolved by each shard",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        createIndex(INDEX_UNMAPPED_SOURCE, Settings.EMPTY, "\"dynamic\": false, \"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_SOURCE + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_SOURCE;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
+    }
+
+    public void testLookupJoin_UnmappedSourceField_NotReturned_WithUnmappedFieldsLoadAll() throws Exception {
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL
             + " | LOOKUP JOIN "
@@ -1733,10 +2095,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         for (String user : List.of("test-admin", "lookup_unmapped_load_all_user", "fls_lookup_unmapped_load_all_user")) {
             Response resp = runESQLCommand(user, query);
             assertOK(resp);
-            assertThat(
-                esqlResult(resp).columnNames(),
-                containsInAnyOrder("value", "org", "profile.public_id", "profile.ssn", "secret_note", "tags")
-            );
+            EsqlResult result = esqlResult(resp);
+            assertThat(result.columnNames(), containsInAnyOrder("value", "org", "_unmapped_fields"));
+            // org is the join key, which the query names, and it keeps its key.
+            assertThat(result.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
         }
     }
 
@@ -2199,12 +2561,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
             // Verify we have the expected columns
-            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.size(), equalTo(6));
             assertThat(columns.get(0).get("name"), equalTo("cluster"));
             assertThat(columns.get(1).get("name"), equalTo("node"));
             assertThat(columns.get(2).get("name"), equalTo("role"));
             assertThat(columns.get(3).get("name"), equalTo("type"));
             assertThat(columns.get(4).get("name"), equalTo("plan"));
+            assertThat(columns.get(5).get("name"), equalTo("plan_json"));
 
             @SuppressWarnings("unchecked")
             List<List<Object>> values = (List<List<Object>>) respMap.get("values");
@@ -3191,6 +3554,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         return matchesMap().entry("name", name).entry("type", type);
     }
 
+    /** The single column {@code LOAD_ALL} returns every discovered unmapped field in, as one flattened JSON object per row. */
+    private static MapMatcher unmappedFieldsColumn() {
+        return column("_unmapped_fields", "_source");
+    }
+
     /** The unrestricted view of {@link #INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL}, so each FLS/DLS test can show what it is being denied. */
     private void assertAdminBaselineForLoadAllTests(String query) throws IOException {
         Response adminResp = runESQLCommand("test-admin", query);
@@ -3198,24 +3566,34 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(
             entityAsMap(adminResp),
             matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(
-                        column("value", "double"),
-                        column("org", "keyword"),
-                        column("profile.public_id", "keyword"),
-                        column("profile.ssn", "keyword"),
-                        column("secret_note", "keyword"),
-                        column("tags", "keyword")
-                    )
-                )
+                .entry("columns", List.of(column("value", "double"), unmappedFieldsColumn()))
                 .entry(
                     "values",
                     List.of(
-                        Arrays.asList(10.0, "sales", "p1", "111-11-1111", null, List.of("red", "blue")),
+                        List.of(
+                            10.0,
+                            Map.of("org", "sales", "profile.public_id", "p1", "profile.ssn", "111-11-1111", "tags", List.of("red", "blue"))
+                        ),
                         // A single-valued `tags` comes back as a scalar, not a one-element list.
-                        Arrays.asList(15.0, "marketing", "p3", "333-33-3333", null, "yellow"),
-                        Arrays.asList(20.0, "engineering", "p2", "222-22-2222", "quarterly-forecast", "green")
+                        List.of(
+                            15.0,
+                            Map.of("org", "marketing", "profile.public_id", "p3", "profile.ssn", "333-33-3333", "tags", "yellow")
+                        ),
+                        List.of(
+                            20.0,
+                            Map.of(
+                                "org",
+                                "engineering",
+                                "profile.public_id",
+                                "p2",
+                                "profile.ssn",
+                                "222-22-2222",
+                                "secret_note",
+                                "quarterly-forecast",
+                                "tags",
+                                "green"
+                            )
+                        )
                     )
                 )
         );
@@ -3237,6 +3615,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
             int idx = columnNames.indexOf(name);
             assertThat("missing column [" + name + "] in " + columnNames, idx, greaterThanOrEqualTo(0));
             return rows.stream().map(row -> row.get(idx)).toList();
+        }
+
+        /** Every key of the {@code _unmapped_fields} objects across all rows: the unmapped fields {@code LOAD_ALL} returned at all. */
+        Set<String> unmappedFieldNames() {
+            Set<String> names = new TreeSet<>();
+            for (Object unmapped : values("_unmapped_fields")) {
+                assertThat(unmapped, anyOf(nullValue(), instanceOf(Map.class)));
+                if (unmapped instanceof Map<?, ?> fields) {
+                    fields.keySet().forEach(name -> names.add((String) name));
+                }
+            }
+            return names;
         }
     }
 
@@ -3596,36 +3986,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         setUser(request, "test-admin");
         assertOK(client().performRequest(request));
-    }
-
-    private void setRemoteFetchTopNEnabled(@Nullable Boolean enabled) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            "{\"persistent\":{\"esql.query.remote_fetch_topn.enabled\":" + (enabled == null ? "null" : enabled.toString()) + "}}"
-        );
-        setUser(request, "test-admin");
-        assertOK(client().performRequest(request));
-    }
-
-    private static boolean containsRemoteFetchOperator(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            Object operator = map.get("operator");
-            if (operator instanceof String operatorName && operatorName.startsWith("RemoteFetchOperator")) {
-                return true;
-            }
-            for (Object child : map.values()) {
-                if (containsRemoteFetchOperator(child)) {
-                    return true;
-                }
-            }
-        } else if (value instanceof List<?> list) {
-            for (Object child : list) {
-                if (containsRemoteFetchOperator(child)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private void deleteIndexQuietly(String indexName) {
@@ -4049,7 +4409,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 ResponseException.class,
                 () -> runESQLCommand(
                     "ds_dataset_query_ok_plus_dls",
-                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + " | STATS COUNT(*)"
+                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + "* | STATS COUNT(*)"
                 )
             );
             assertThat(
@@ -4059,6 +4419,74 @@ public class EsqlSecurityIT extends ESRestTestCase {
             );
         } finally {
             deleteDatasetAsAdmin(dls);
+        }
+    }
+
+    /**
+     * A view over an authorized dataset is expanded and the inner dataset is reached. The dataset's missing S3
+     * resource fails the query with 400 naming that dataset — the same discriminator as a direct {@code FROM <dataset>}.
+     */
+    public void testViewOverDatasetAuthorized() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String view = "security_it_ds_keep_view_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        createView("test-admin", view, "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + view + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString(dataset));
+        } finally {
+            deleteView("test-admin", view);
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * {@code user1} can read {@code other-view-user1} but not the dataset in its body. The expanded name is hidden
+     * the same way an unauthorized exact dataset is: 400 {@code Unknown index}, not a 403 existence leak.
+     */
+    public void testViewOverDatasetUnauthorizedIsUnknownIndex() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        createView("test-admin", "other-view-user1", "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("user1", "FROM other-view-user1 | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + dataset + "]"));
+        } finally {
+            deleteView("test-admin", "other-view-user1");
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * DLS on the underlying dataset (or a view name in {@code security_it_ds_*}) rejects {@code FROM <view>} the same
+     * way a direct {@code FROM <dataset>} is rejected.
+     */
+    public void testViewOverDatasetDeniedWithDls() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        final String view = "security_it_ds_view_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        createView("test-admin", view, "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_dls", "FROM " + view + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteView("test-admin", view);
+            deleteDatasetAsAdmin(dataset);
         }
     }
 

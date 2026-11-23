@@ -48,9 +48,10 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
     private static final Set<String> TOKENS_WHITELIST = Set.of();
     /**
      * Generated keywords to omit from the docs.
-     * {@code INLINESTATS} is the deprecated spelling of {@code INLINE STATS}.
+     * {@code INLINESTATS} is the deprecated spelling of {@code INLINE STATS}. {@code DEFAULT} only lexes inside
+     * {@code FILLNULL_MODE}, which is entered solely through the snapshot-only {@code DEV_FILLNULL}, so it is not reserved in a release.
      */
-    private static final Set<String> TOKENS_BLACKLIST = Set.of("INLINESTATS", "UNKNOWN_CMD");
+    private static final Set<String> TOKENS_BLACKLIST = Set.of("DEFAULT", "INLINESTATS", "UNKNOWN_CMD");
     /**
      * Keywords grouped by introduction version, in display order.
      * {@code null} is the 9.0 base.
@@ -107,6 +108,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         KEYWORDS_BY_VERSION.put("9.4+", Set.of("METRICS_INFO", "MMR", "PROMQL", "REGISTERED_DOMAIN", "TS_INFO", "URI_PARTS", "USER_AGENT"));
         KEYWORDS_BY_VERSION.put("9.5+", Set.of("IP_LOCATION", "TS_COLLAPSE"));
         KEYWORDS_BY_VERSION.put("9.6+", Set.of("DEDUP", "DENSE_VECTOR", "HIGHLIGHT"));
+        KEYWORDS_BY_VERSION.put("9.7+", Set.of("DESCRIBE", "LET"));
     }
 
     /**
@@ -141,7 +143,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         Vocabulary vocabulary = EsqlBaseLexer.VOCABULARY;
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic == null || DEV_TOKEN.matcher(symbolic).matches() == false) {
+            if (symbolic == null || DEV_TOKEN.matcher(symbolic).find() == false) {
                 continue;
             }
             String literal = vocabulary.getLiteralName(tokenType);
@@ -214,7 +216,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         Set<String> keywords = new TreeSet<>();
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic != null && DEV_TOKEN.matcher(symbolic).matches()) {
+            if (symbolic != null && DEV_TOKEN.matcher(symbolic).find()) {
                 continue;
             }
             String word = keywordText(vocabulary, tokenType, symbolic);

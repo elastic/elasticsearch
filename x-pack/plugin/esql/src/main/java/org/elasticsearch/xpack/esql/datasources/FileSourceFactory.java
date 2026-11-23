@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -35,11 +36,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -138,6 +139,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     /**
+     * Whether a headered text file binds as a node before {@code esql_external_text_header_every_split} does, because
+     * such a node may be in the cluster and read part of the query.
+     */
+    static boolean bindsHeaderByProvenance(TransportVersion minTransportVersion) {
+        return minTransportVersion.supports(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT) == false;
+    }
+
+    /**
      * The identity of the coordinator's contribution to how a cached record was produced: the error policy, the
      * partitioning, the schema-resolution strategy, the listing order.
      * <p>
@@ -175,16 +184,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
-     * Node-level (root) {@link BlockFactory}, threaded into
-     * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} so that
-     * producer-thread allocations performed by iterator wrappers ({@link VirtualColumnIterator},
-     * {@link SchemaAdaptingIterator}) route through the global request circuit breaker rather than
-     * the driver-local breaker. May be {@code null} in tests where the factory falls back to
-     * {@link org.elasticsearch.compute.operator.DriverContext#blockFactory()}.
-     */
-    @Nullable
-    private final BlockFactory blockFactory;
-    /**
      * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
      * test-only constructors; production always goes through the full-arg constructor via {@link DataSourceModule}.
      */
@@ -193,7 +192,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final ExternalSourceMetrics externalSourceMetrics;
     /**
      * Per-node gate bounding concurrent stream-only-compressed segmentators on the shared {@code esql_external_io}
-     * pool so their per-chunk parser tasks always have a free thread (elastic/esql-planning #1093, item 4). This
+     * pool so their per-chunk parser tasks always have a free thread. This
      * factory is a per-node singleton (built once in {@link DataSourceModule}) and every read resolves to the same
      * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
      */
@@ -214,16 +213,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
-        this(
-            storageRegistry,
-            formatRegistry,
-            codecRegistry,
-            settings,
-            null,
-            null,
-            LocalFileAccess.UNRESTRICTED,
-            ExternalSourceMetrics.NOOP
-        );
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null, LocalFileAccess.UNRESTRICTED, ExternalSourceMetrics.NOOP);
     }
 
     FileSourceFactory(
@@ -239,7 +229,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            null,
             LocalFileAccess.UNRESTRICTED,
             ExternalSourceMetrics.NOOP
         );
@@ -251,27 +240,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory
-    ) {
-        this(
-            storageRegistry,
-            formatRegistry,
-            codecRegistry,
-            settings,
-            splitDiscoveryExecutor,
-            blockFactory,
-            LocalFileAccess.UNRESTRICTED,
-            ExternalSourceMetrics.NOOP
-        );
-    }
-
-    FileSourceFactory(
-        StorageProviderRegistry storageRegistry,
-        FormatReaderRegistry formatRegistry,
-        DecompressionCodecRegistry codecRegistry,
-        Settings settings,
-        @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
@@ -281,7 +249,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            blockFactory,
             localFileAccess,
             externalSourceMetrics,
             null
@@ -294,7 +261,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService
@@ -305,7 +271,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            blockFactory,
             localFileAccess,
             externalSourceMetrics,
             listingService,
@@ -319,7 +284,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService,
@@ -332,7 +296,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
-        this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(
@@ -450,8 +413,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
+        FormatReader prototype = null;
+        Configured<FormatReader> resolvedReader = null;
         try {
-            Configured<FormatReader> resolvedReader = unwrappedDatasetReader(location, config).withConfigTrackingConsumedKeys(config);
+            prototype = unwrappedDatasetReader(location, config);
+            resolvedReader = prototype.withConfigTrackingConsumedKeys(config);
             ConfigKeyValidator.check(
                 config,
                 List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
@@ -469,6 +435,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             FileOrderConfig.validate(config);
         } finally {
+            if (resolvedReader != null) {
+                FormatReaders.closeDistinctFrom(resolvedReader.value(), prototype);
+            }
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
     }
@@ -476,18 +445,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         StorageProvider provider = null;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            FormatReader reader;
+            prototype = unwrappedDatasetReader(location, config);
+            reader = readerForListedObject(location, storagePath.objectName(), config);
             if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
@@ -500,6 +470,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // own diagnosis and never names the path.
             throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
+            FormatReaders.closeDistinctFrom(reader, prototype);
             StorageProviderCache.closeLease(provider);
         }
     }
@@ -509,7 +480,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * listing: the storage object is built with those values (so {@code length()} serves the cached
      * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
      * runs on the executor before the async footer read. When {@code hint} is null the object is
-     * created bare and its existence is verified up front, matching the synchronous path.
+     * created bare and its existence is verified up front, matching the synchronous path. The hint's
+     * {@link ListingHint#schemaSampleShare()} is handed to the reader (see {@link FormatReader#withSchemaSampleShare}).
      */
     @Override
     public void resolveMetadataAsync(
@@ -520,8 +492,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
-        final StorageObject storageObject;
-        final FormatReader reader;
+        StorageObject storageObject;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         StorageProvider provider = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         boolean setupComplete = false;
@@ -538,14 +511,20 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     settings,
                     ExternalSourceResolver.storageConfig(config)
                 ).value();
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
+            int schemaSampleShare = hint != null ? hint.schemaSampleShare() : 1;
+            prototype = unwrappedDatasetReader(location, config);
+            reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
-                storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
+                storageObject = provider.newObject(
+                    storagePath,
+                    hint.length(),
+                    Instant.ofEpochMilli(hint.lastModifiedMillis()),
+                    hint.version()
+                );
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
@@ -560,6 +539,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return;
         } finally {
             if (setupComplete == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -570,6 +550,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 l.onFailure(e);
             }
         });
+        FormatReader minted = reader;
+        FormatReader mintedFrom = prototype;
+        completion = ActionListener.runAfter(completion, () -> FormatReaders.closeDistinctFrom(minted, mintedFrom));
         if (StorageProviderCache.isPooledLease(provider)) {
             StorageProvider leased = provider;
             completion = ActionListener.runAfter(completion, () -> StorageProviderCache.closeLease(leased));
@@ -583,6 +566,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         } finally {
             // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent.
             if (started == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -628,10 +612,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     storage = storageRegistry.provider(path);
                 }
 
-                FormatReader format = formatRegistry.byName(
+                FormatReader prototype = formatRegistry.byName(
                     FormatNameResolver.datasetFormat(config, datasetResource(context), formatRegistry)
-                )
-                    .withConfig(config)
+                );
+                FormatReader format = prototype.withConfig(config)
                     .withPushedFilter(context.pushedFilter())
                     .withSchema(context.attributes())
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
@@ -642,7 +626,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED)
+                    // A node that predates header binding on every split may read a sibling split of this query (the
+                    // coordinator keeps such files whole, but an older coordinator does not): bind a headered file as it
+                    // does, so one result never mixes rows bound by name with rows bound by position.
+                    .withHeaderBindingByProvenance(bindsHeaderByProvenance(context.minTransportVersion()));
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();
@@ -675,8 +663,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+                TaskId queryId = context.queryId();
+                QueryConcurrencyBudget budget;
                 if (allocator != null) {
-                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                    budget = allocator.register(queryId);
+                } else if (queryId != null && queryId.isSet()) {
+                    budget = new QueryConcurrencyBudget(0, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, null, AdmissionTracker.NOOP, queryId);
+                } else {
+                    budget = null;
+                }
+                if (budget != null) {
+                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, budget);
                     storage = budgeted;
                     Closeable lease = onClose;
                     onClose = lease == null ? budgeted : () -> IOUtils.close(budgeted, lease);
@@ -717,7 +714,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .schemaMap(context.schemaMap())
                     .partitionColumnNames(context.partitionColumnNames())
                     .partitionValues(partitionValues)
-                    .producerBlockFactory(blockFactory)
                     .sliceQueue(context.sliceQueue())
                     .errorPolicy(errorPolicy)
                     .parsingParallelism(context.parsingParallelism())
@@ -727,6 +723,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                     .streamingSegmentatorAdmission(segmentatorAdmission)
                     .formatReaderRegistry(formatRegistry)
+                    .registryPrototype(prototype)
                     .parallelism(context.parallelism())
                     .pushedExpressions(pushedExpressions)
                     .pushdownSupport(pushdownSupport)
@@ -806,7 +803,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     /** Metadata/config for one listed object: dataset reader plus this object's wrap. */
     private FormatReader readerForListedObject(String location, String objectName, Map<String, Object> config) {
-        return formatRegistry.wrapForObject(unwrappedDatasetReader(location, config).withConfig(config), objectName);
+        return formatRegistry.readerForListedObject(location, objectName, config);
     }
 
     private static String datasetResource(SourceOperatorContext context) {
@@ -824,7 +821,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
-    private static final class DeferredPoolLease implements StorageProvider {
+    static final class DeferredPoolLease extends DelegatingStorageProvider {
         private final Supplier<StorageProvider> supplier;
         private StorageProvider inner;
         private boolean closed;
@@ -833,7 +830,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             this.supplier = supplier;
         }
 
-        private StorageProvider inner() {
+        /**
+         * Borrowed on first use rather than when the factory is built, so a driver that is planned and never
+         * started does not pin an SDK client. Every forwarded call resolves through here.
+         */
+        @Override
+        protected StorageProvider delegate() {
             synchronized (this) {
                 if (closed) {
                     throw new IllegalStateException("storage lease already returned");
@@ -845,51 +847,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
         }
 
-        @Override
-        public StorageObject newObject(StoragePath path) {
-            return inner().newObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length) {
-            return inner().newObject(path, length);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return inner().newObject(path, length, lastModified);
-        }
-
-        @Override
-        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            return inner().listObjects(prefix, recursive);
-        }
-
-        @Override
-        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-            return inner().listChildren(prefix, limit);
-        }
-
-        @Override
-        public boolean exists(StoragePath path) throws IOException {
-            return inner().exists(path);
-        }
-
-        @Override
-        public List<String> supportedSchemes() {
-            return inner().supportedSchemes();
-        }
-
-        @Override
-        public boolean supportsStableMetadata() {
-            return inner().supportsStableMetadata();
-        }
-
-        @Override
-        public boolean listsInKeyOrder() {
-            return inner().listsInKeyOrder();
-        }
-
+        /** Returns the lease to the pool. Never borrows one to close: an unused lease has nothing to return. */
         @Override
         public void close() {
             StorageProvider current;

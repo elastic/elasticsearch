@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,11 +22,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsStaging;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -56,9 +60,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Coordinates parallel parsing of a sequential (non-seekable) decompressed stream
@@ -570,9 +576,14 @@ public final class StreamingParallelParsingCoordinator {
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
 
         private static final Page POISON = new Page(0);
+        /** Capacity of each {@link #pageQueues} slot. Parsers block in {@code put} once this many pages sit undrained. */
+        static final int PAGE_QUEUE_CAPACITY = 16;
         private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
         /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
         private static final int POOL_CLOSED_MARKER = -1;
+        private static final String RETAINED_SCHEMA_BREAKER_LABEL = "streaming-parse-retained-schema";
+        /** Value of {@link #retainedSchemaBytes} once {@link #close()} has refunded it; a charge can never be negative. */
+        private static final long RETAINED_SCHEMA_CLOSED_MARKER = -1;
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
 
         /**
@@ -637,6 +648,14 @@ public final class StreamingParallelParsingCoordinator {
          * whatever is still here.
          */
         private final Set<GrowBuffer> growBuffers = ConcurrentHashMap.newKeySet();
+        /**
+         * Heap charged to {@link #breaker} for what chunk 0 leaves held for the rest of the read: the schema
+         * {@link #bindInferredSchema} binds and the {@link #fileHeaderColumns}, when the planner bound a schema. Their
+         * builders release their own charge on return, and a declared read is not capped by the file's width, so without
+         * this the breaker would bound them only while they are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
+         * {@link #close()} has refunded it.
+         */
+        private final AtomicLong retainedSchemaBytes = new AtomicLong();
         private final CircuitBreaker breaker;
         /**
          * Node-wide I/O byte tickets. {@code null} in tests. The first pooled buffer is an ungated
@@ -685,6 +704,13 @@ public final class StreamingParallelParsingCoordinator {
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
+         * Where the chunks of this read hand their pieces of a stripe, so a stripe several chunks observed is
+         * staged once rather than once per chunk. {@code null} when there is no sink to stage into or no stripe
+         * grid to address pieces on, and each chunk then publishes its own pieces. Shared across parser threads.
+         */
+        @Nullable
+        private final StripeStatsStaging stripeStaging;
+        /**
          * Grow-loop bound. In production it comes from the {@code external_max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
          */
@@ -698,14 +724,20 @@ public final class StreamingParallelParsingCoordinator {
          * Total outstanding tasks for this iterator: the segmentator (1, started at construction) plus
          * one per parser that has started ({@link #consumeChunk}, including inline parse). Increment
          * happens at the start of parse work, not at submit, so a rejected {@code execute} never leaves a
-         * stuck count. EOF: {@code currentChunk >= chunksDispatched} (every POISON consumed) and this
-         * counter is 0 (segmentator exited and every started parser finished). A queued unparsed chunk
+         * stuck count. EOF reads this counter first: a 0 means the segmentator has exited, so a later
+         * {@code chunksDispatched} read is final. The reverse order can pair a stale dispatch count
+         * with a later zero and report EOF while chunks are still unconsumed. A queued unparsed chunk
          * is not EOF: the consumer still sits behind {@code chunksDispatched}.
          */
         private final AtomicInteger tasksOutstanding;
         /** Executor used to spawn one parser task per dispatched chunk. */
         private final Executor executor;
         private final AtomicInteger chunksDispatched = new AtomicInteger();
+        /**
+         * Test-only. Invoked after a chunk is offered and before {@link #chunksDispatched} is
+         * incremented. Null in production.
+         */
+        volatile IntConsumer afterOfferBeforeDispatchCount;
         /**
          * Bounds how far ahead of the consumer the segmentator may dispatch. {@link #pageQueues} is
          * indexed by {@code chunk.index % pageQueueRingSize}; without this semaphore a fast parser
@@ -912,6 +944,7 @@ public final class StreamingParallelParsingCoordinator {
             this.maxRecordBytes = maxRecordBytes;
             this.captureSink = captureSink;
             this.statsStripeSize = statsStripeSize;
+            this.stripeStaging = captureSink != null && statsStripeSize > 0 ? new StripeStatsStaging(captureSink) : null;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.warningSinks = warningSinks;
             this.bufferPoolSize = parallelism + 1;
@@ -931,7 +964,7 @@ public final class StreamingParallelParsingCoordinator {
             ArrayBlockingQueue<Page>[] queues = (ArrayBlockingQueue<Page>[]) new ArrayBlockingQueue<?>[pageQueueRingSize];
             this.pageQueues = queues;
             for (int i = 0; i < pageQueueRingSize; i++) {
-                pageQueues[i] = new ArrayBlockingQueue<>(16);
+                pageQueues[i] = new ArrayBlockingQueue<>(PAGE_QUEUE_CAPACITY);
             }
 
             // One-task-per-chunk model: the segmentator counts as one outstanding task, plus one per
@@ -983,7 +1016,7 @@ public final class StreamingParallelParsingCoordinator {
                     // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
                     // and exit on their own after processing. Segmentator's done; decrement and signal
                     // so the consumer wakes if it's the last task standing (EOF condition is
-                    // currentChunk >= chunksDispatched && tasksOutstanding == 0).
+                    // tasksOutstanding == 0 then currentChunk >= chunksDispatched).
                     if (tasksOutstanding.decrementAndGet() == 0) {
                         signalReady();
                     }
@@ -1008,29 +1041,69 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
+         * Cancels an in-flight {@code newStream} GET. Safe on the closer thread: it does not
+         * tear down a decoder the segmentator may still be reading.
+         */
+        private void cancelStorageOpen() {
+            if (storageObject != null) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                }
+            }
+        }
+
+        /**
          * Releases {@link #decompressedStream} exactly once regardless of which path reaches it first
-         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}).
-         * Uses abort semantics via {@link StorageObject#abortStream} when a {@link #storageObject} is
-         * available, so providers such as S3 can discard the underlying HTTP connection without draining
-         * the remaining response body. A no-op when the opener never ran ({@code decompressedStream} is
-         * still null) — does not CAS {@link #streamClosed} in that case so a racing segmentator can still
-         * close the stream it is about to assign.
+         * ({@link #runSegmentator}'s finally, {@link #onSegmentatorLaunchRejected}, or {@link #close()}
+         * after tasks have exited). Always {@link StorageObject#close()} so a hung {@code newStream}
+         * GET is cancelled even when {@code decompressedStream} is still null. Then closes the
+         * assigned stream; the leaf decides drain vs drop. A no-op when the opener never ran
+         * ({@code decompressedStream} is still null) — does not CAS {@link #streamClosed} in that case
+         * so a racing segmentator can still close the stream it is about to assign.
+         * <p>
+         * Must run on the thread that owns the decoder (the segmentator) once a {@code DecompressedStream}
+         * exists. Parse {@link #close()} cancels hung opens via {@link StorageObject#close()} and aborts
+         * only the raw GET via {@link #abortTransport()}, leaving this CAS unset so this method still
+         * closes gzip/zstd on the owner thread.
          */
         private void closeStream() {
+            cancelStorageOpen();
             InputStream stream = decompressedStream;
             if (stream == null) {
                 return;
             }
             if (streamClosed.compareAndSet(false, true)) {
                 try {
-                    if (storageObject != null) {
-                        storageObject.abortStream(stream);
-                    } else {
-                        stream.close();
-                    }
-                } catch (IOException e) {
+                    stream.close();
+                } catch (Exception e) {
                     logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
                 }
+            }
+        }
+
+        /**
+         * Wakes a segmentator blocked in {@code stream.read()} without closing a gzip/zstd decoder
+         * from this thread and without claiming {@link #streamClosed}. For {@link DecompressingStorageObject}
+         * that is {@code rawOwner.abortStream(raw)}; otherwise {@link StorageObject#abortStream}.
+         */
+        private void abortTransport() {
+            InputStream stream = decompressedStream;
+            if (stream == null) {
+                return;
+            }
+            try {
+                if (DecompressingStorageObject.isDecompressedStream(stream)) {
+                    // Wrapper owns the raw GET even when this coordinator has no StorageObject.
+                    DecompressingStorageObject.abortRawTransport(stream);
+                } else if (storageObject != null) {
+                    storageObject.abortStream(stream);
+                } else {
+                    stream.close();
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to abort transport for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
             }
         }
 
@@ -1130,6 +1203,10 @@ public final class StreamingParallelParsingCoordinator {
                         pooled = takeOrAllocateBuffer();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        // Same as dispatchChunk's permit wait: interrupt is a failure, not EOF.
+                        // A silent break left producersDoneAndDrained true, so the drain completed
+                        // with a prefix and no error.
+                        recordFirstError(e);
                         break;
                     }
                     if (pooled == null) {
@@ -1148,7 +1225,9 @@ public final class StreamingParallelParsingCoordinator {
                     int bytesRead = readFromStream(stream, buf, offset, buf.length - offset);
                     if (bytesRead <= 0 && offset == 0) {
                         pooled.release();
-                        reachedEof = true;
+                        if (closed.get() == false) {
+                            reachedEof = true;
+                        }
                         break;
                     }
 
@@ -1289,7 +1368,11 @@ public final class StreamingParallelParsingCoordinator {
                     // parser pool cannot stall the consumer on missing POISON.
                 }
             } catch (Exception e) {
-                recordFirstError(e);
+                // close() aborts the stream to unblock a parked read(); the resulting failure is
+                // teardown, not a query failure. LIMIT / cancellation already has its rows.
+                if (closed.get() == false) {
+                    recordFirstError(e);
+                }
             } finally {
                 // Parser tasks may sit behind a pinned pool thread and never run. Inline whatever is
                 // still queued so EOF (including non-strict truncation) does not depend on those tasks.
@@ -1307,13 +1390,13 @@ public final class StreamingParallelParsingCoordinator {
          * wins on type, so the inference cannot retype a column — it only contributes columns the projection
          * does not name, which some readers need in order to decode the ones it does.
          * <p>
-         * A header-bearing file whose declared schema binds by name additionally has to tell later chunks what
-         * its columns are called, since only chunk 0 can see the header.
+         * A header-bearing file bound against a pinned schema additionally has to tell later chunks what its
+         * columns are called, since only chunk 0 can see the header.
          */
         private void prepareFromFirstChunk(byte[] buffer, int length) throws IOException {
             // Capture before binding: the header names must come from the reader as the planner configured it,
             // not from one already swapped for a schema inferred from this chunk.
-            if (readSchema != null && readSchema.isEmpty() == false) {
+            if (readSchema != null && readSchema.isEmpty() == false && reader.readsHeaderLine()) {
                 captureFileHeaderColumns(buffer, length);
             }
             bindInferredSchema(buffer, length);
@@ -1336,6 +1419,15 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             if (bound instanceof SegmentableFormatReader segBound) {
+                // Only a planner-bound read can be a declared one, whose inference the file's width does not cap.
+                // Per-file inference is held to schema_max_fields, so what it binds is already bounded.
+                if (readSchema != null) {
+                    long bytes = 0;
+                    for (Attribute attribute : schema) {
+                        bytes += HeapEstimates.columnBytes(attribute.name().length());
+                    }
+                    chargeRetainedSchema(bytes);
+                }
                 this.reader = segBound;
             } else {
                 throw new IllegalStateException(
@@ -1345,26 +1437,53 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Reads the file's column names from chunk 0 so chunks 1..N can bind a declared schema by name.
+         * Charges {@code bytes} to {@link #breaker} for the rest of the read, refunded by {@link #close()}. A charge that
+         * lands after a close that has already refunded (the segmentator racing a close that stopped waiting early)
+         * undoes itself instead of leaking.
+         */
+        private void chargeRetainedSchema(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, RETAINED_SCHEMA_BREAKER_LABEL);
+            long current;
+            do {
+                current = retainedSchemaBytes.get();
+                if (current == RETAINED_SCHEMA_CLOSED_MARKER) {
+                    breaker.addWithoutBreaking(-bytes);
+                    return;
+                }
+            } while (retainedSchemaBytes.compareAndSet(current, current + bytes) == false);
+        }
+
+        /**
+         * Reads the file's header column names from chunk 0 so chunks 1..N can bind the pinned schema by name.
          * <p>
-         * Only a header-bearing format whose declared schema binds by name needs this, and only when the
-         * planner bound a schema — otherwise the reader either has no names to match or reads its own header.
-         * Chunk 0 always reads its own header and ignores what is captured here.
+         * Only when the planner bound a schema; otherwise the reader reads its own header. Chunk 0 always reads its own
+         * header and ignores what is captured here.
          * <p>
          * Runs on the segmentator thread before any chunk is dispatched, so every parser sees a fully
          * populated value. Failure is not fatal: chunks 1..N then find no names and fail loudly rather than
          * binding by position, which would shift every column silently.
          */
         private void captureFileHeaderColumns(byte[] buffer, int length) {
-            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+            if (fileHeaderColumns != null) {
                 return;
             }
             try {
-                SourceMetadata metadata = reader.metadata(chunkStorageObject(0, buffer, 0, length));
-                List<Attribute> schema = metadata == null ? null : metadata.schema();
-                if (schema != null && schema.isEmpty() == false) {
-                    fileHeaderColumns = schema.stream().map(Attribute::name).toList();
+                List<String> columns = reader.fileHeaderColumns(chunkStorageObject(0, buffer, 0, length));
+                // An empty list means chunk 0 holds no whole header line (a skip_rows or comment run longer than the chunk, or
+                // a header the chunk's end cut short), which says nothing about the file: it stays unset so later chunks
+                // fail loudly, as the javadoc above promises.
+                if (columns != null && columns.isEmpty() == false) {
+                    long bytes = 0;
+                    for (String name : columns) {
+                        bytes += HeapEstimates.stringBytes(name);
+                    }
+                    chargeRetainedSchema(bytes);
+                    fileHeaderColumns = columns;
                 }
+            } catch (CircuitBreakingException e) {
+                // A breaker trip is the real answer (429); swallowing it would turn it into every later chunk
+                // failing with "no header columns".
+                throw e;
             } catch (IOException | RuntimeException e) {
                 // Every later chunk will now fail with "no header columns", which says nothing about why they
                 // are missing. Log the real cause at WARN so the two can be connected — this is the only place
@@ -1384,8 +1503,10 @@ public final class StreamingParallelParsingCoordinator {
          * behind a parser task that cannot run.
          * <p>
          * Never {@code put}s a chunk and then parses that same chunk inline: the inlined chunk is
-         * always the current FIFO head, which was offered with a matching {@code execute} (that
-         * task then empty-polls). Rejected {@code execute} does not increment {@link #tasksOutstanding}.
+         * always the current FIFO head, which was offered with a matching {@code execute}. That leftover
+         * task may empty-poll, or it may pick up a later chunk that has been offered but not yet counted
+         * in {@link #chunksDispatched}. {@link #pageReadyNow()} must ignore pages from uncounted chunks.
+         * Rejected {@code execute} does not increment {@link #tasksOutstanding}.
          *
          * @return {@link DispatchOutcome#SUBMITTED} if a parser task was submitted (caller must not
          *         release {@code buffer}); {@link DispatchOutcome#ABORTED} if dispatch stopped before
@@ -1424,6 +1545,10 @@ public final class StreamingParallelParsingCoordinator {
                     runOneQueuedInline();
                     continue;
                 }
+                IntConsumer afterOffer = afterOfferBeforeDispatchCount;
+                if (afterOffer != null) {
+                    afterOffer.accept(index);
+                }
                 chunksDispatched.incrementAndGet();
                 // Wake any consumer that was previously parked at currentChunk == chunksDispatched.
                 signalReady();
@@ -1436,7 +1561,7 @@ public final class StreamingParallelParsingCoordinator {
                     recordFirstError(e);
                     return DispatchOutcome.QUEUED_FAILED;
                 }
-                if (last) {
+                if (last && closed.get() == false) {
                     reachedEof = true;
                 }
                 return DispatchOutcome.SUBMITTED;
@@ -1500,10 +1625,12 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * One-shot parser: takes one queued chunk, parses it, emits its pages and POISON, and exits.
-         * An empty poll is the inline-steal case: {@link #runOneQueuedInline} already parsed the
-         * FIFO head this task was submitted for.
+         * An empty poll is the usual inline-steal case: {@link #runOneQueuedInline} already parsed the
+         * FIFO head this task was submitted for. A leftover task can also poll a later chunk that has
+         * been offered but not yet counted; {@link #pageReadyNow()} treats that slot as not ready until
+         * {@link #chunksDispatched} catches up.
          */
-        private void runParserOnce() {
+        void runParserOnce() {
             consumeChunk(chunkQueue.poll());
         }
 
@@ -1565,6 +1692,7 @@ public final class StreamingParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .stats(chunkFileGlobalStart, statsStripeSize, chunk.last())
                 .statsColumnScope(statsColumnScope)
+                .statsStripeSink(stripeStaging)
                 .informationalWarningSink(warningSinks.informationalWarningSink())
                 .readCounters(formatCounters)
                 .build();
@@ -1995,7 +2123,7 @@ public final class StreamingParallelParsingCoordinator {
          * is empty AND the chunk for {@code slot} hasn't finished producing. The signal here is what
          * transitions the listener from pending to fired — without it the consumer would park
          * indefinitely while pages accumulate in the queue. The post-publish signal is also necessary
-         * for the case where the parser fills {@code pageQueues[slot]} to its capacity (16 pages):
+         * for the case where the parser fills {@code pageQueues[slot]} to {@link #PAGE_QUEUE_CAPACITY}:
          * {@code queue.put} would block, and if the consumer hasn't been woken to start draining there
          * is no one to free a slot. Signaling on every page put (one cheap {@code AtomicReference.getAndSet})
          * is the simplest correct choice; consolidating to "signal only on 0→1 transitions" is a valid
@@ -2015,18 +2143,32 @@ public final class StreamingParallelParsingCoordinator {
          * chunks emitting zero pages), the POISON signal is what unblocks the consumer to advance
          * {@code currentChunk} and release a dispatchPermit. Without this signal a healthy parse can
          * stall after the last chunk in a slot.
+         * <p>
+         * {@link InterruptedException} during {@code queue.put} is retried while the iterator is
+         * open. Once {@link #closed}, the put is skipped: close drains remaining slot pages, so a
+         * stuck put would never complete. An iterator abandoned without {@code close()} can pin
+         * the parser in {@code queue.put} until the slot drains — a caller leak, not this loop.
          */
         private void putPoisonAndSignal(ArrayBlockingQueue<Page> queue) {
-            boolean poisoned = false;
-            while (poisoned == false) {
-                try {
-                    queue.put(POISON);
-                    poisoned = true;
-                } catch (InterruptedException ie) {
+            boolean interrupted = false;
+            try {
+                while (true) {
+                    try {
+                        queue.put(POISON);
+                        return;
+                    } catch (InterruptedException ie) {
+                        interrupted = true;
+                        if (closed.get()) {
+                            return;
+                        }
+                    }
+                }
+            } finally {
+                if (interrupted) {
                     Thread.currentThread().interrupt();
                 }
+                signalReady();
             }
-            signalReady();
         }
 
         /**
@@ -2066,7 +2208,7 @@ public final class StreamingParallelParsingCoordinator {
                     if (buffered != null) {
                         return true;
                     }
-                    if (currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0) {
+                    if (producersDoneAndDrained()) {
                         return false;
                     }
                     // Not EOF — page may have advanced past POISON; loop to re-register a listener
@@ -2106,25 +2248,28 @@ public final class StreamingParallelParsingCoordinator {
                 buffered = null;
                 return result;
             }
-            // Release POISON-held permits before throwing so a segmentator parked in acquire()
-            // does not wait for close(). Open 403/404 still surface via checkError() afterwards.
+            // Skip POISON before the closed check so a concurrent close still releases dispatch
+            // permits. takeNextPage() repeats skip+checkError; that is idle on the live path.
             skipDrainedPoison();
             checkError();
             if (closed.get()) {
                 checkError();
                 return null;
             }
-            if (currentChunk >= chunksDispatched.get()) {
-                return null;
-            }
-            int slot = currentChunk % pageQueueRingSize;
-            Page page = pageQueues[slot].poll();
-            if (page == POISON) {
-                currentChunk++;
-                dispatchPermits.release();
-                return null;
-            }
-            return page;
+            // Same bounded POISON-then-next-slot loop as {@link #takeNextPage}: a lone POISON is not
+            // async EOF. Returning null here with a page already in the next slot used to make
+            // {@code tryAdvanceOrPark} treat the gap as terminal; {@link #isExhausted()} keeps the
+            // drain retrying until producers are done.
+            return takeNextPage();
+        }
+
+        /**
+         * Consumer-thread only: may skip POISON and mutate {@code currentChunk}/{@code dispatchPermits}.
+         */
+        @Override
+        public boolean isExhausted() {
+            checkError();
+            return closed.get() || producersDoneAndDrained();
         }
 
         /**
@@ -2146,13 +2291,49 @@ public final class StreamingParallelParsingCoordinator {
             if (closed.get() || buffered != null || firstError.get() != null || openFailure.get() != null) {
                 return true;
             }
-            skipDrainedPoison();
-            int slot = currentChunk % pageQueueRingSize;
-            if (pageQueues[slot].peek() != null) {
+            if (pageReadyNow()) {
                 return true;
             }
-            // EOF: consumer has drained every dispatched chunk AND every producer has exited.
-            return currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0;
+            if (tasksOutstanding.get() != 0) {
+                return false;
+            }
+            // Producers have exited: chunksDispatched is final. Re-peek so a page that landed in the
+            // empty-slot window is readiness, not a lost signal after the last signalReady.
+            return pageReadyNow() || currentChunk >= chunksDispatched.get();
+        }
+
+        /**
+         * EOF: every producer has exited and every dispatched chunk is consumed. Read
+         * {@code tasksOutstanding} first — a 0 means the segmentator has exited, so
+         * {@code chunksDispatched} afterwards is final. Re-skip POISON and re-peek so a page that
+         * landed after the first empty peek is not reported as EOF.
+         */
+        private boolean producersDoneAndDrained() {
+            if (tasksOutstanding.get() != 0) {
+                return false;
+            }
+            return pageReadyNow() == false && currentChunk >= chunksDispatched.get();
+        }
+
+        private boolean pageReadyNow() {
+            skipDrainedPoison();
+            // A leftover parser task can publish into the slot of a chunk that is offered but not yet
+            // counted (dispatchChunk offers before incrementing chunksDispatched). takeNextPage will not
+            // read that slot until the count catches up, so readiness must not report it either.
+            return currentChunk < chunksDispatched.get() && pageQueues[currentChunk % pageQueueRingSize].peek() != null;
+        }
+
+        /** Test-only: consumer-thread chunk cursor after POISON skips. */
+        int consumerChunkIndex() {
+            return currentChunk;
+        }
+
+        /**
+         * Test-only: unguarded peek of the consumer slot. The old {@link #pageReadyNow()} predicate;
+         * used to prove a leftover parser published into an offered-but-uncounted chunk.
+         */
+        boolean uncountedSlotHasPage() {
+            return pageQueues[currentChunk % pageQueueRingSize].peek() != null;
         }
 
         /**
@@ -2160,7 +2341,8 @@ public final class StreamingParallelParsingCoordinator {
          * consumer's slot, advancing {@link #currentChunk} and releasing one {@link #dispatchPermits}
          * permit per marker — identical accounting to {@link #takeNextPage()}'s POISON branch. Stops at
          * the first real page, an empty slot, or once no chunk is dispatched for the slot. Only ever
-         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()}), so the
+         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()} /
+         * {@link #isExhausted()}), so the
          * unsynchronized peek/poll/advance is safe: producers only append to the tail and never advance
          * {@code currentChunk}. Releasing the permit here (rather than deferring to {@code takeNextPage})
          * keeps the segmentator unblocked even when the async drain parks across the inter-chunk gap.
@@ -2180,25 +2362,34 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public SubscribableListener<Void> waitForReady() {
-            if (isReadyNow()) {
-                return SubscribableListener.newSucceeded(null);
+            while (true) {
+                if (isReadyNow()) {
+                    return SubscribableListener.newSucceeded(null);
+                }
+                // Install a listener for the next state-change event (page enqueued, POISON enqueued,
+                // chunk dispatched, EOF, or error). Re-check after CAS to close the gap where state
+                // flipped to ready between the first {@link #isReadyNow} call and the install.
+                SubscribableListener<Void> existing = pendingReady.get();
+                if (existing != null) {
+                    return existing;
+                }
+                SubscribableListener<Void> fresh = new SubscribableListener<>();
+                if (pendingReady.compareAndSet(null, fresh) == false) {
+                    return pendingReady.get();
+                }
+                if (isReadyNow()) {
+                    signalReady();
+                    return SubscribableListener.newSucceeded(null);
+                }
+                // A leftover parser can signal on a page in an offered-but-uncounted slot.
+                // That fires {@code fresh} while {@link #isReadyNow()} is still false. Do not
+                // hand a done listener to the drain; install a new one. Increment's signalReady
+                // is the wakeup that makes the replacement complete for real.
+                if (fresh.isDone()) {
+                    continue;
+                }
+                return fresh;
             }
-            // Install a listener for the next state-change event (page enqueued, POISON enqueued,
-            // chunk dispatched, EOF, or error). Re-check after CAS to close the gap where state
-            // flipped to ready between the first {@link #isReadyNow} call and the install.
-            SubscribableListener<Void> existing = pendingReady.get();
-            if (existing != null) {
-                return existing;
-            }
-            SubscribableListener<Void> fresh = new SubscribableListener<>();
-            if (pendingReady.compareAndSet(null, fresh) == false) {
-                return pendingReady.get();
-            }
-            if (isReadyNow()) {
-                signalReady();
-                return SubscribableListener.newSucceeded(null);
-            }
-            return fresh;
         }
 
         /**
@@ -2215,16 +2406,13 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Single-shot non-blocking page retrieval. Never spins, never holds the calling thread
          * waiting for upstream production — returns {@code null} as soon as no page is available
-         * in the current slot. Callers must use {@link #waitForReady()} to know when to retry;
-         * a {@code null} return value paired with an immediately-done {@link #waitForReady()}
-         * indicates terminal EOF (no further chunks will ever be dispatched), while {@code null}
-         * paired with a non-done {@link #waitForReady()} indicates the iterator is still
-         * producing but no page is in the current slot at this instant. This separation lets the
-         * producer-loop driver yield its executor slot back to the pool during the gap between
-         * draining one chunk's POISON and the segmenter+parser delivering the next chunk's pages —
-         * which is the deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
-         * The previous spinning implementation held the consumer thread across that gap, blocking
-         * sub-tasks (segmenter, parsers) queued behind it on the same executor.
+         * in the current slot. A {@code null} is not EOF: a page can land in the current slot
+         * after this poll, and {@link #waitForReady()} is also done when that page (or a page in
+         * another slot) is already sitting there. Callers retry while {@link #waitForReady()} is
+         * done and {@link #isExhausted()} is false, and park on a non-done {@link #waitForReady()}
+         * across the gap between draining one chunk's POISON and the next chunk's first page.
+         * That park lets the producer-loop driver yield its executor slot — the
+         * deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
          */
         private Page takeNextPage() {
             // Bounded loop — at most one POISON-advance plus one peek per call. Each POISON observed
@@ -2235,10 +2423,8 @@ public final class StreamingParallelParsingCoordinator {
                 skipDrainedPoison();
                 checkError();
                 if (currentChunk >= chunksDispatched.get()) {
-                    // No new chunk yet — either EOF (allDone fired) or we're between dispatches.
-                    // {@link #waitForReady} will return immediately-done in the EOF case (covered by
-                    // its EOF branch) and a non-done listener otherwise. Either way the caller knows
-                    // what to do next without us holding the thread.
+                    // No new chunk yet — either EOF or a dispatch is still in flight. A page can
+                    // land after this return; a done {@link #waitForReady()} is not EOF.
                     return null;
                 }
                 int slot = currentChunk % pageQueueRingSize;
@@ -2327,7 +2513,10 @@ public final class StreamingParallelParsingCoordinator {
          * <p>
          * Phase 1: CAS {@code closed} to {@code true} (causes any in-flight parser task to bail on
          * its {@code firstError || closed} check and the segmentator to skip its next iteration), wake
-         * any segmentator parked on {@link #dispatchPermits}, and drain whatever is already queued.
+         * any segmentator parked on {@link #dispatchPermits}, abort the raw GET so a segmentator
+         * blocked in {@code stream.read()} (slow S3, retry, zstd decode) can exit, and drain whatever
+         * is already queued. Abort is transport-only: a {@code DecompressedStream} decoder is closed
+         * later on the segmentator thread, not here.
          * <p>
          * Phase 2: poll {@link #tasksOutstanding} for up to {@link #CLOSE_TIMEOUT_SECONDS} so all
          * one-shot parser tasks (and the segmentator) have a chance to exit cleanly, then drain again
@@ -2337,8 +2526,10 @@ public final class StreamingParallelParsingCoordinator {
          * deadline we log a warning and run the second drain anyway, but parser tasks may still be
          * alive at return time. Any pages they publish after that — and any blocks those pages
          * reference — are leaked. We do not interrupt the parser executor: it is shared and an
-         * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
-         * the leak window an exceptional condition; production workloads should not hit it.
+         * interrupt could disrupt unrelated tasks. Aborting the stream first makes the 60s wait apply
+         * to parser tasks that cannot be interrupted, not to a blocked upstream read. The timeout is
+         * intentionally generous to make the leak window an exceptional condition; production
+         * workloads should not hit it.
          */
         @Override
         public void close() throws IOException {
@@ -2357,6 +2548,12 @@ public final class StreamingParallelParsingCoordinator {
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();
+            // Cancel a hung {@code newStream} and abort an assigned body GET before waiting.
+            // A segmentator blocked in stream.read() never observes {@code closed} until the read
+            // returns. Do not close the decompressed stream on this thread: the segmentator may
+            // still be inside the decoder.
+            cancelStorageOpen();
+            abortTransport();
             drainAllQueues();
             boolean neverStarted = admissionHandle.cancel();
             if (neverStarted) {
@@ -2383,10 +2580,20 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 drainAllQueues();
             }
-            // Backstop for never-started (no-op while the stream is still null) and for any path that
-            // did not closeStream itself. Skip-CAS-when-null lets a racing segmentator still close
-            // a stream it assigns after this read.
-            closeStream();
+            // Stage whatever stripes this read left partly covered, for the coordinator's interval cover —
+            // the only place that can tell whether another read completes them. The wait above USUALLY means
+            // every parser has finished, but it can time out and leave one running, so a piece may arrive after
+            // this and never be staged. That costs coverage, not correctness, and only on a path that has
+            // already failed cleanCompletion and poisons the file anyway.
+            if (stripeStaging != null) {
+                stripeStaging.flush();
+            }
+            // Backstop: early cancelStorageOpen cancelled a hung GET. Close the decompressed stream
+            // only once the segmentator has exited so this thread does not free native decoder
+            // state still in use. A timed-out segmentator closes the stream in its own finally.
+            if (neverStarted || tasksOutstanding.get() == 0) {
+                closeStream();
+            }
             // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
             // parser, including any dispatched in the close race window) and the consumer's currentChunk
             // is fixed. Clean = no error, the segmentator reached EOF, and the consumer drained every
@@ -2420,12 +2627,17 @@ public final class StreamingParallelParsingCoordinator {
                     extra.close();
                 }
             }
+            long retained = retainedSchemaBytes.getAndSet(RETAINED_SCHEMA_CLOSED_MARKER);
+            if (retained > 0) {
+                breaker.addWithoutBreaking(-retained);
+            }
             // Grow buffers still held by the segmentator or a parser when the wait above ended early (timeout or
             // interrupt); queued chunks were already released by drainAllQueues(). GrowBuffer#release() is
             // single-shot against a concurrent release.
             for (GrowBuffer buf : growBuffers) {
                 buf.release();
             }
+            FormatReaders.closeDistinctFrom(reader, originalReader);
         }
 
         private void poisonCapturedStats(String path) {
@@ -2475,6 +2687,10 @@ public final class StreamingParallelParsingCoordinator {
         InputStreamStorageObject(InputStream stream) {
             this.stream = stream;
         }
+
+        /** A caller-supplied stream produces no storage I/O, so there are no counters to attach. */
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
         @Override
         public InputStream newStream() {

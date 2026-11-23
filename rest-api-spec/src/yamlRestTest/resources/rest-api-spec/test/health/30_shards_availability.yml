@@ -65,8 +65,9 @@
   - do:
       indices.create:
         index: red_index
-        master_timeout: 1s
-        timeout: 1s
+        master_timeout: 2s
+        timeout: 2s
+        wait_for_active_shards: 0
         body:
           settings:
             number_of_shards: 1

@@ -2,12 +2,17 @@
 
 ### `wildcards_match_views` [esql-wildcards_match_views]
 ```{applies_to}
-serverless: unavailable
-stack: experimental 9.6+
+serverless: ga
+stack: ga 9.6+
 ```
 When enabled, a wildcard in `FROM` also matches registered views. Defaults to `false`, so a wildcard does not match a view and a view is reached by its exact name. Other abstractions a wildcard matches are unaffected.
 
-The default itself is configurable. If a query does not specify a value, the `esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`. {applies_to}`{"stack": "ga 9.6+", "serverless": "ga"}`
+{applies_to}`{"serverless": "unavailable"}` The default itself is configurable. If a query does not specify a value, the `esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not configured either, the value is `false`.
 
 **Type**: `boolean`
+
+**Can also be set in**:
+- the request body, as `settings.wildcards_match_views` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.wildcards_match_views` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
+- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 

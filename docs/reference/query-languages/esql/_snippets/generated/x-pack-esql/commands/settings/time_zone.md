@@ -7,9 +7,13 @@ stack: ga 9.4+
 ```
 The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones).
 
-The default itself is configurable. If a query does not specify a timezone, the `esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured either, the timezone is UTC. {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
+{applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}` The default itself is configurable. If a query does not specify a timezone, the `esql.query.settings.time_zone` cluster setting supplies it. If that cluster setting is not configured either, the timezone is UTC.
 
 **Type**: `keyword`
+
+**Can also be set in**:
+- the request body, as `settings.time_zone` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.time_zone` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
 
 #### Example
 

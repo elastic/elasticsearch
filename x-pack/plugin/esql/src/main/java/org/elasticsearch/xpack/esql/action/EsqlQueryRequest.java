@@ -30,9 +30,12 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -67,8 +70,19 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private boolean allowPartialResultsDefaulted;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
+    /**
+     * The settings the query resolved to, if it got far enough to resolve them.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient ResolvedSettings resolvedSettings;
+    /**
+     * The settings each resolved view's definition applies to its own body, by view name, once views are resolved.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
@@ -117,6 +131,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.allowPartialResultsDefaulted = source.allowPartialResultsDefaulted;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -179,14 +194,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Parses the query string into an {@link EsqlStatement} and validates its settings.
      * Overridden by {@link PreparedEsqlQueryRequest} to return a pre-built statement directly.
      */
-    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings);
+    public EsqlStatement parse(
+        EsqlParser parser,
+        SettingsValidationContext settingsValidationCtx,
+        InferenceSettings inferenceSettings,
+        EsqlFlags flags
+    ) {
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, pragmas(), flags);
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }
 
     public boolean async() {
         return async;
+    }
+
+    /**
+     * Whether execution stops once the query is analyzed. Such a request returns the analyzed columns and no rows, and does not
+     * count towards query logs or metrics. Only {@link PreparedEsqlQueryRequest} can request this.
+     */
+    public boolean analyzeOnly() {
+        return false;
     }
 
     public EsqlQueryRequest columnar(boolean columnar) {
@@ -331,7 +359,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = false;
         return this;
+    }
+
+    /** Applies the cluster default, for a request that did not set {@code allow_partial_results}. */
+    public EsqlQueryRequest defaultAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = true;
+        return this;
+    }
+
+    /** Whether the request itself asked for partial results, as opposed to getting them from the cluster default. */
+    public boolean allowPartialResultsRequested() {
+        return Boolean.TRUE.equals(allowPartialResults) && allowPartialResultsDefaulted == false;
     }
 
     @Override
@@ -395,6 +436,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public Map<QuerySettingDef<?>, Object> requestSettings() {
         // Immutable snapshot: callers read (resolve, telemetry) but must go through set() to mutate (it enforces null-removes).
         return Map.copyOf(requestSettings);
+    }
+
+    /** Records the settings the query resolved to. Not serialized. */
+    public void setResolvedSettings(ResolvedSettings resolvedSettings) {
+        this.resolvedSettings = resolvedSettings;
+    }
+
+    /** The settings the query resolved to, or {@code null} if it has not resolved them (yet) */
+    @Nullable
+    public ResolvedSettings resolvedSettings() {
+        return resolvedSettings;
+    }
+
+    /** Records the settings each resolved view's definition applies to its own body. Not serialized. */
+    public void setViewSettings(Map<String, ViewQuerySettings> viewSettings) {
+        this.viewSettings = Map.copyOf(viewSettings);
+    }
+
+    /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

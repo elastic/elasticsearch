@@ -20,7 +20,6 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
 import org.gradle.api.provider.MapProperty;
@@ -174,7 +173,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 LOGGER.error(fullMessage);
                 problems.add(
                     reporter.create(
-                        ProblemId.create("split-package", "Split package detected", ElasticsearchBuildProblems.SPLIT_PACKAGES),
+                        ElasticsearchBuildProblems.SPLIT_PACKAGES.problemId(getProblems(), "Split package detected"),
                         spec -> spec.contextualLabel("Split package '" + packageName + "' in project " + projectPath)
                             .details(fullMessage)
                             .solution("Choose a new package name for the classes added. DO NOT add these to the ignore list.")

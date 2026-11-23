@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -61,15 +62,18 @@ public final class FilteredDenseVectorQuery extends Query {
         BooleanQuery booleanFilter = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER).build();
         Query rewrittenFilter = searcher.rewrite(booleanFilter);
         Weight filterWeight = rewrittenFilter.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        return innerQuery.denseVectorWeight(boost, filterWeight);
+
+        // the weight reports this query, the query cache keys its entries on it
+        return new FilterWeight(this, innerQuery.denseVectorWeight(boost, filterWeight)) {};
     }
 
     @Override
     public void visit(QueryVisitor queryVisitor) {
-        // Delegate straight to the inner query so visitors see the same leaf (and the same
-        // DenseVectorQuery.Floats/Bytes instanceof checks succeed) whether or not a filter is
-        // present, matching pre-extraction behavior where the filter was never itself visited.
-        innerQuery.visit(queryVisitor);
+        // Visit the inner query so visitors see the same leaf (and the same DenseVectorQuery.Floats/Bytes
+        // instanceof checks succeed) whether or not a filter is present, matching pre-extraction behavior
+        // where the filter was never itself visited.
+        // The sub-visitor's parent lets visitors tell that the query is filtered.
+        innerQuery.visit(queryVisitor.getSubVisitor(BooleanClause.Occur.MUST, this));
     }
 
     @Override

@@ -222,7 +222,8 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         def bwcishTarget = projectTargets("bwcish").resolved[0].target
         bwcishTarget.runnableTasks == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest"]
         bwcishTarget.runnableTasks.every { it != ":bwcish:test" }
-        bwcishTarget.candidateTasks == 3
+        bwcishTarget.candidateTaskPaths == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest", ":bwcish:v9.4.0#altTest"]
+        bwcishTarget.candidateTaskPaths.size() == 3
         bwcishTarget.skipReason == null
 
         and: "the class-dir union spans EVERY project, not just the three that own a ref"
@@ -337,7 +338,10 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         // OtherTests), and capBatch=3, so they slice into two batches rather than one.
         def unitCmds = plan.commands.findAll { it.key == "flakiness-detection:unit" }
         unitCmds.size() == 2
-        unitCmds.every { it.command.startsWith("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000!") }
+        // The default 100 iterations exceed the per-run cap of 25, so each batch is split into 4 gradle runs.
+        unitCmds.every {
+            it.command.startsWith(".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 -Dtests.timeoutSuite=3600000!")
+        }
         def allUnit = unitCmds.collect { it.command }.join(" ")
         allUnit.contains("--tests com.example.BarTests")
         allUnit.contains("--tests com.other.OtherTests")
@@ -405,7 +409,7 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
 
         then:
         def defaultPlan = new JsonSlurper().parse(file("custom-plan.json"))
-        defaultPlan.commands.any { it.command.contains("-Dtests.iters=100") }
+        defaultPlan.commands.any { it.command.contains("repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 ") }
         defaultPlan.commands.every { !it.command.contains("-Dtests.iters=7") }
     }
 

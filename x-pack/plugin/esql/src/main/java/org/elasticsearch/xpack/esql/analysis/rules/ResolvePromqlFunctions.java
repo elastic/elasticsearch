@@ -12,9 +12,13 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
@@ -32,6 +37,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -126,6 +133,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (metadata == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO) {
             validateLimitRatio(unresolved, extraParams);
         }
+        if (metadata == PromqlBuiltinFunctionDefinitions.COUNT_VALUES) {
+            validateCountValues(unresolved, extraParams);
+        }
         if (grouping != null) {
             if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
                 && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
@@ -143,11 +153,11 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             if (metadata.functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
                 return new AcrossSeriesReduction(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
             }
-            return new AcrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
+            return acrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
         }
 
         return switch (metadata.functionType()) {
-            case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
+            case ACROSS_SERIES_AGGREGATION -> acrossSeriesAggregate(
                 unresolved.source(),
                 child,
                 metadata,
@@ -177,10 +187,24 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 ? new ScalarFunction(unresolved.source(), metadata)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case METADATA_MANIPULATION -> resolveMetadataManipulation(unresolved, child, metadata, extraParams);
+            case RESULT_ORDERING -> resolveResultOrdering(unresolved, child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );
         };
+    }
+
+    private static AcrossSeriesAggregate acrossSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        PromqlFunctionDefinition metadata,
+        List<Expression> params,
+        AcrossSeriesAggregate.Grouping grouping,
+        List<Attribute> groupings
+    ) {
+        return metadata == PromqlBuiltinFunctionDefinitions.COUNT_VALUES
+            ? new CountValuesAggregate(source, child, metadata, params, grouping, groupings)
+            : new AcrossSeriesAggregate(source, child, metadata, params, grouping, groupings);
     }
 
     /**
@@ -239,6 +263,44 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         return new MetadataManipulationFunction(unresolved.source(), child, metadata, extraParams);
     }
 
+    /**
+     * Resolves {@code sort}/{@code sort_desc} into {@link SortFunction} and {@code sort_by_label}/{@code sort_by_label_desc}
+     * into {@link SortByLabelFunction}. Every sort-by-label argument after the vector is a label name: an empty name is
+     * skipped, other invalid names are rejected here, and each remaining name is minted as an {@link UnresolvedAttribute}
+     * so later PromQL ref-resolution binds it to a stored dimension (or nullifies it when the label is absent).
+     */
+    private static LogicalPlan resolveResultOrdering(
+        UnresolvedPromqlFunction unresolved,
+        LogicalPlan child,
+        PromqlFunctionDefinition metadata,
+        List<Expression> extraParams
+    ) {
+        if (metadata == PromqlBuiltinFunctionDefinitions.SORT || metadata == PromqlBuiltinFunctionDefinitions.SORT_DESC) {
+            return new SortFunction(unresolved.source(), child, metadata, extraParams);
+        }
+        if (child == null) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "[{}] requires an instant vector as its first argument", unresolved.functionName()))
+            );
+        }
+        String name = unresolved.functionName();
+        List<Attribute> sortLabels = new ArrayList<>(extraParams.size());
+        for (Expression extraParam : extraParams) {
+            String label = literalString(extraParam);
+            if (label != null && label.isEmpty()) {
+                // No series carries a label named "", so like Prometheus it compares equal everywhere and cannot affect the order.
+                continue;
+            }
+            if (PromqlLabels.isValidLabelName(label) == false) {
+                throw new VerificationException(
+                    List.of(Failure.fail(unresolved, "invalid label name [{}] in call to function [{}]", label, name))
+                );
+            }
+            sortLabels.add(new UnresolvedAttribute(extraParam.source(), label));
+        }
+        return new SortByLabelFunction(unresolved.source(), child, metadata, extraParams, sortLabels);
+    }
+
     private static String literalString(Expression e) {
         return BytesRefs.toString(((Literal) e).value());
     }
@@ -283,6 +345,34 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (folded instanceof Number == false) {
             throw new VerificationException(
                 List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
+            );
+        }
+    }
+
+    /**
+     * Validates the {@code label} argument of {@code count_values(label, v)} like Prometheus: it must be a string literal
+     * holding a valid label name. A number literal passes the generic parameter check, which types every literal as a
+     * scalar, so the string type is checked here.
+     */
+    private static void validateCountValues(UnresolvedPromqlFunction unresolved, List<Expression> extraParams) {
+        String name = unresolved.functionName();
+        Expression label = extraParams.getFirst();
+        if (label.resolved() == false || DataType.isString(label.dataType()) == false) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        unresolved,
+                        "expected a string literal as the label name in call to function [{}], got [{}]",
+                        name,
+                        label.sourceText()
+                    )
+                )
+            );
+        }
+        String labelName = literalString(label);
+        if (PromqlLabels.isValidLabelName(labelName) == false) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "invalid label name [{}] in call to function [{}]", labelName, name))
             );
         }
     }

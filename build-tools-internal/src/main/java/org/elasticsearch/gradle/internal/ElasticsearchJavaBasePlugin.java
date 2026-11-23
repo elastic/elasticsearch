@@ -13,18 +13,21 @@ import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension;
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension.Priority;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
-import org.elasticsearch.gradle.internal.test.TestUtil;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -33,9 +36,9 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -141,50 +144,75 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
     }
 
+    /**
+     * When a {@code Test} task forks a JVM, makes the task pass down the list of directories the JVM uses to load
+     * native libraries ({@code es.nativelibs.path}, see {@link NativeLibraryPathExtension}). The list holds the
+     * directory containing the native libraries of each project that the task's runtime classpath depends on,
+     * and builds them.
+     *
+     * <p><b>The contract:</b> the plugin takes the runtime classpath from a configuration, not from the task. A
+     * {@code Test} task named like a source set gets the libraries of that source set's runtime classpath
+     * configuration, so the task must run on the classpath of that configuration. If you give such a task
+     * a classpath that does not come from the configuration, for example with
+     * {@code runtimeClasspath += files(...)} on the source set, the libraries that the extra entries depend on
+     * are not found, and their native libraries are missing from the test JVM (see the {@code integTest} source
+     * set in {@code :test:framework}, which is wired through {@code integTestRuntimeClasspath} for that reason).
+     *
+     * <p>A {@code Test} task named after no source set gets, by default, the libraries of all the test source sets
+     * (see {@link #isTestSourceSet}). That is a superset, because the plugin cannot know the classpath of the task.
+     *
+     * <p>Both are defaults. A task that wants other libraries can set its directories with
+     * {@link NativeLibraryPathExtension#configureWithDirectories}, even if it is named like a source set. When
+     * several configurations apply to a task, the most specific one wins, no matter which runs first: an explicit
+     * one, then the source set of the same name, then the test source sets (see
+     * {@link NativeLibraryPathExtension.Priority}).
+     */
     private static void configureNativeLibraryPath(Project project) {
-        String nativeProject = ":libs:native:native-libraries";
-        // Skip on the producer itself: that project already declares its own (consumable) `nativeLibs`
-        // configuration, and there is no test JVM in that project that needs `es.nativelibs.path`.
-        // Without this guard the names collide ("a configuration with that name already exists").
-        if (project.getPath().equals(nativeProject)) {
-            return;
-        }
-        // Gradle 9.x enforces strict configuration roles: a single configuration cannot both declare
-        // dependencies and be resolved. We therefore use a pair:
-        // - `nativeLibsDeclared` (dependency-scope) holds the declaration of the producer's variant.
-        // - `resolvedNativeLibs` (resolvable) extends it and is what we resolve files from.
-        // We intentionally request the producer's dedicated `nativeLibs` consumable variant by name
-        // rather than relying on the `default` configuration of `:libs:native:native-libraries`: if
-        // any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
-        // silently rebound to the Java runtime variant and corrupt `es.nativelibs.path` for every test JVM.
-        //
-        // The project-path dependency is added lazily via `defaultDependencies` so that builds which
-        // apply this plugin but do not contain `:libs:native:native-libraries` as a local project
-        // (e.g. the elasticsearch-serverless composite build, where the producer lives in an included
-        // build and is supplied via the module coordinate `org.elasticsearch:native-libraries`) can
-        // override the dependency before resolution. Adding it eagerly would fail at plugin-apply
-        // time with "Project with path ':libs:native:native-libraries' could not be found".
-        Configuration nativeLibsDeclared = project.getConfigurations()
-            .dependencyScope(
-                "nativeLibsDeclared",
-                c -> c.defaultDependencies(
-                    deps -> deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")))
-                )
-            )
-            .get();
-        Configuration nativeConfig = project.getConfigurations()
-            .resolvable("resolvedNativeLibs", c -> c.extendsFrom(nativeLibsDeclared))
-            .get();
-        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
-        FileCollection nativeConfigFiles = nativeConfig;
+        NativeLibraryPathExtension nativeLibraryPath = NativeLibraryPathExtension.of(project);
+        SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
+        ConfigurationContainer configurations = project.getConfigurations();
+        TaskContainer tasks = project.getTasks();
 
-        project.getTasks().withType(Test.class).configureEach(test -> {
-            var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
-            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
+        // A task named like a source set is bound as soon as both exist, whichever was created first. Checking the
+        // name inside configureEach, and not filtering with matching(), keeps the tasks from being created early.
+        sourceSets.configureEach(sourceSet -> tasks.withType(Test.class).configureEach(test -> {
+            if (test.getName().equals(sourceSet.getName())) {
+                nativeLibraryPath.configureWithDirectories(
+                    test,
+                    nativeLibraryPath.libraryDirectoriesOf(configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName())),
+                    Priority.SOURCE_SET
+                );
+            }
+        }));
 
-            test.dependsOn(nativeConfigFiles);
-            systemProperties.systemProperty("es.nativelibs.path", libraryPath);
-        });
+        // The other tasks get the libraries of the test source sets: the plugin cannot know which classpath such a task
+        // runs on (REST test tasks, for example, run on the classpath of one of several source sets, and a project can
+        // have an empty test source set next to them). Source sets for production code, benchmarks or fixtures are left
+        // out, because no test task runs on their classpath. This is looked up when the task graph is built, not now,
+        // because the source sets may not exist yet. A more specific configuration of the task wins over this one,
+        // no matter which runs first.
+        Callable<List<FileCollection>> defaultLibraryDirectories = () -> {
+            List<FileCollection> libraryDirectories = new ArrayList<>();
+            for (SourceSet sourceSet : sourceSets) {
+                if (isTestSourceSet(sourceSet)) {
+                    libraryDirectories.add(
+                        nativeLibraryPath.libraryDirectoriesOf(configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName()))
+                    );
+                }
+            }
+            return libraryDirectories;
+        };
+        tasks.withType(Test.class)
+            .configureEach(test -> nativeLibraryPath.configureWithDirectories(test, defaultLibraryDirectories, Priority.FALLBACK));
+    }
+
+    /**
+     * Whether tests run on the classpath of the source set, going by its name: {@code test}, the {@code test<N>} source
+     * sets of multi-release projects, and the ones named {@code <something>Test}, such as {@code javaRestTest},
+     * {@code yamlRestTest} or {@code internalClusterTest}.
+     */
+    private static boolean isTestSourceSet(SourceSet sourceSet) {
+        return sourceSet.getName().matches("test\\d*|.*Test");
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

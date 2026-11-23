@@ -33,11 +33,11 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -64,7 +64,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -146,7 +146,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             // let's have an empty cache
             cacheService.forceEvict(key -> true);
             FileCacheKey cacheKey = new FileCacheKey(indexShard.shardId(), maxBlobLocation.primaryTerm(), maxBlobLocation.blobName());
-            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.blobFile());
+            CacheBlobReader blobReader = searchDirectory.getCacheBlobReaderForWarming(maxBlobLocation.bccBlob());
             // aligning the writer offset to be a factor of page size when writing to the cache
             int writerOffset = randomFrom(PAGE_SIZE, 2 * PAGE_SIZE, 3 * PAGE_SIZE);
             logger.info("-> writer offset: {}, blob file: {}", writerOffset, maxBlobLocation);
@@ -180,7 +180,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     blobReader,
                     () -> writeBuffer.get().clear(),
                     bytes -> {},
-                    StatelessPlugin.PREWARM_THREAD_POOL
+                    StatelessThreadPools.PREWARM_THREAD_POOL
                 ) {
                     @Override
                     public void fillCacheRange(
@@ -201,6 +201,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 },
                 threadPool.executor(PREWARM_THREAD_POOL),
                 randomRegionTimestampMillis(),
+                false,
                 future
             );
             future.get(10, TimeUnit.SECONDS);
@@ -267,10 +268,11 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 blobReader,
                 () -> writeBuffer.get().clear(),
                 bytes -> {},
-                StatelessPlugin.PREWARM_THREAD_POOL
+                StatelessThreadPools.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
             randomRegionTimestampMillis(),
+            false,
             future
         );
         future.get(10, TimeUnit.SECONDS);
@@ -318,7 +320,6 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
@@ -327,7 +328,6 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -336,9 +336,10 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    WarmingRatioProvider warmingRatioProvider,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
-                    org.elasticsearch.action.ActionListener<Void> listener
+                    ActionListener<Void> listener
                 ) {
                     listener.onResponse(null);
                 }

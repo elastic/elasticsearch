@@ -166,7 +166,7 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
      * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
      */
     public ClusterSearchShardsRequest searchSlice(String searchSlice) {
-        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        Objects.requireNonNull(searchSlice, "[_slice] must not be null");
         return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
     }
 

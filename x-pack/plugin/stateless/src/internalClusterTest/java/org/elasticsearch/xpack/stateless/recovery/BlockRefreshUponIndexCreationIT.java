@@ -90,6 +90,9 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
             .put("cluster.routing.allocation.node_concurrent_incoming_recoveries", 3)
             .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 3)
+            // This test holds the commit registration of every search shard recovering on the single search node and only
+            // releases them once all of them are held, so all of those recoveries must be able to run at the same time.
+            .put(unthrottledIncomingRecoveryNodeSettings())
             .build();
         startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
@@ -182,7 +185,9 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
                 .build()
         );
         var maxNumberOfReplicas = randomIntBetween(2, 4);
-        var searchNodes = startSearchNodes(maxNumberOfReplicas);
+        // This test holds the commit registration of every recovering search shard and only releases them once all of
+        // them are held, so all of those recoveries must be able to run at the same time.
+        var searchNodes = startSearchNodes(maxNumberOfReplicas, unthrottledIncomingRecoveryNodeSettings());
 
         var numberOfIndices = randomIntBetween(2, 4);
         var indices = new ArrayList<String>();
@@ -378,8 +383,9 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             assertThat(removeRefreshClusterBlockService.blockedIndices(), hasSize(0));
         });
 
-        blockedIndices.forEach(
-            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(false))
+        awaitClusterState(
+            state -> blockedIndices.stream()
+                .noneMatch(index -> state.blocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK))
         );
     }
 

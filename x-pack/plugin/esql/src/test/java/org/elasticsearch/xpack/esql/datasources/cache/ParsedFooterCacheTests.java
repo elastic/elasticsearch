@@ -76,6 +76,100 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertSame(expected, cache.get(k));
     }
 
+    /**
+     * Reading a parsed footer renews it, on the same clock as the bytes it was parsed from. The reads below
+     * span more than twice the TTL, so under a write clock the entry would be gone by the last one.
+     */
+    public void testReadingAnEntryRenewsIt() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
+        while (System.nanoTime() < readUntil) {
+            assertEquals("an entry read at least once per TTL is still served past one TTL", "footer", shortLived.get(k));
+            safeSleep(50);
+        }
+    }
+
+    /**
+     * The two caches take the same TTL but do not age out together, and this pins that rather than leaving
+     * it to a javadoc. A reader that answers from the parsed cache does not touch the bytes, so renewing the
+     * parsed entry alone lets its byte entry go cold. Sharing the TTL value is not co-expiry.
+     */
+    public void testRenewingTheParsedEntryDoesNotRenewItsBytes() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> parsed = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache bytes = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        byte[] tail = randomByteArrayOfLength(64);
+
+        parsed.put(k, "footer");
+        bytes.put(k, tail);
+        assertNotNull("both entries must be stored, or the assertions below pass vacuously", parsed.get(k));
+        assertNotNull(bytes.get(k));
+
+        // Read only the parsed side, as a reader answering from the parsed cache does.
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
+        while (System.nanoTime() < readUntil) {
+            assertEquals("the parsed entry is renewed by its own reads", "footer", parsed.get(k));
+            safeSleep(100);
+        }
+
+        assertNull("its bytes were not read, so they are released on their own clock", bytes.get(k));
+    }
+
+    /**
+     * The clock still releases a parsed footer nothing is reading. Without this the test above would pass on
+     * a cache with no clock at all.
+     */
+    public void testAnEntryNobodyReadsExpires() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
+        safeSleep(ttl.millis() * 3);
+
+        assertNull("an entry unread for a TTL is released", shortLived.get(k));
+    }
+
+    /**
+     * The write cap expires a parsed entry even when it is being continuously read, bounding how long a stale
+     * footer (from a same-length overwrite) may be served. TTL=500ms → write cap=3s (6×). Reads every 50ms
+     * keep the access clock alive; the entry must be present at 2.5s (access clock renewal confirmed, cap
+     * not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
+     */
+    public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
+        TimeValue ttl = TimeValue.timeValueMillis(500);
+        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+
+        shortLived.put(k, "footer");
+        long writeNanos = System.nanoTime();
+        assertNotNull("the entry must be stored to begin with", shortLived.get(k));
+
+        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
+        while (System.nanoTime() < priorCapDeadline) {
+            shortLived.get(k);
+            safeSleep(50);
+        }
+        assertNotNull(
+            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
+            shortLived.get(k)
+        );
+
+        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
+        while (System.nanoTime() < postCapDeadline) {
+            shortLived.get(k);
+            safeSleep(50);
+        }
+        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(k));
+    }
+
     public void testPutThenGetReturnsSameInstance() {
         FooterByteCache.Key k = key("file.parquet", 1000);
         String footer = "seeded";
@@ -399,6 +493,38 @@ public class ParsedFooterCacheTests extends ESTestCase {
         FooterByteCache.Key k = key("file.parquet", 1000);
         assertSame("v", fromSettings.getOrLoad(k, ignore -> "v"));
         assertSame("v", fromSettings.get(k));
+    }
+
+    public void testFromSettingsDefaults() {
+        ParsedFooterCache<String> defaults = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(30), defaults.expireAfterWrite());
+    }
+
+    public void testWriteCapIsSixTimesAccessTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "3m").build();
+        ParsedFooterCache<String> configured = ParsedFooterCache.fromSettings(settings, ignored -> ENTRY_WEIGHT);
+        assertEquals(TimeValue.timeValueMinutes(3), configured.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
+    }
+
+    public void testWriteCapSaturatesOnLargeTtl() {
+        // 20000 days exceeds Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanoseconds;
+        // without the saturation guard, WRITE_CAP_MULTIPLIER * ttl_nanos wraps negative.
+        ParsedFooterCache<String> large = new ParsedFooterCache<>(
+            8 * ENTRY_WEIGHT,
+            TimeValue.timeValueDays(20000),
+            ignored -> ENTRY_WEIGHT
+        );
+        assertEquals(Long.MAX_VALUE, large.expireAfterWrite().nanos());
+        // Boundary: exactly Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanos does not saturate.
+        long boundaryNanos = Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER;
+        ParsedFooterCache<String> boundary = new ParsedFooterCache<>(
+            8 * ENTRY_WEIGHT,
+            TimeValue.timeValueNanos(boundaryNanos),
+            ignored -> ENTRY_WEIGHT
+        );
+        assertEquals(boundaryNanos * FooterByteCache.WRITE_CAP_MULTIPLIER, boundary.expireAfterWrite().nanos());
     }
 
     public void testFromSettingsReadsCoalesceSetting() {
@@ -924,7 +1050,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     private static FooterByteCache.Key key(String path, long length) {
-        return new FooterByteCache.Key(AbstractTestStorageObject.NOOP, path, length);
+        return new FooterByteCache.Key(AbstractTestStorageObject.NOOP, path, length, "v1");
     }
 
     private static Thread startHerdThread(String name, AtomicReference<AssertionError> failure, CheckedRunnable<Exception> body) {

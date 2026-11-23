@@ -52,7 +52,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -654,10 +653,10 @@ public class JobResultsProvider {
                         return;
                     }
                     SearchResponse searchResponse = itemResponse.getResponse();
-                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                    List<ShardSearchFailure> shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                    if (CollectionUtils.isEmpty(shardFailures) == false) {
-                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                    if (shardFailures.isEmpty() == false) {
+                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, shardFailures);
                         listener.onFailure(
                             new ElasticsearchStatusException(
                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
@@ -763,10 +762,10 @@ public class JobResultsProvider {
                         return;
                     }
                     SearchResponse searchResponse = itemResponse.getResponse();
-                    ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                    List<ShardSearchFailure> shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
-                    if (CollectionUtils.isEmpty(shardFailures) == false) {
-                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                    if (shardFailures.isEmpty() == false) {
+                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, shardFailures);
                         errorHandler.accept(
                             new ElasticsearchStatusException(
                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),

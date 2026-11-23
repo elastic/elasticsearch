@@ -167,6 +167,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return parsedFooters.get(key);
     }
 
+    /** The footer byte cache shared by this reader and all readers derived from it. Test assertions only. */
+    FooterByteCache footerBytesForTests() {
+        return footerBytes;
+    }
+
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
@@ -342,6 +347,24 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     @Override
+    public OrcFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        // Footer caches stay the node instances created by the root constructor.
+        return new OrcFormatReader(
+            factory,
+            pushedFilter,
+            pushedExpressions,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes
+        );
+    }
+
+    @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
@@ -375,7 +398,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     /**
      * Opens an ORC {@link Reader} using the shared {@link #parsedFooters} cache so that the
      * tail (postscript + footer + types + stripe directory) is deserialized at most once per
-     * {@code (path, length)} key. On a cache miss the loader parses the tail by opening a reader
+     * {@code (path, length, version)} key. On a cache miss the loader parses the tail by opening a reader
      * once and extracting the {@link OrcTail} from its serialized footer buffer; the parsed result
      * is then handed to subsequent {@code OrcFile.createReader} calls via
      * {@link OrcFile.ReaderOptions#orcTail}. When ORC sees a pre-supplied tail it skips
@@ -391,6 +414,24 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
+     * Opens a reader once, extracts the parsed tail, then closes the reader. The OrcTail itself retains the serialized
+     * buffer + parsed protobuf footer and is safe to share across threads (treated as immutable by all callers).
+     * <p>
+     * This deliberately parses the tail twice on a cache miss: once inside OrcFile.createReader (which calls the
+     * protected ReaderImpl.extractFileTail(FileSystem, Path, long) to fetch and parse from storage) and once via the
+     * public ReaderImpl.extractFileTail(ByteBuffer) to produce a shareable OrcTail. The single-parse alternative would
+     * require re-implementing ORC's tail-fetch protocol (variable-length postscript, optional metadata sections,
+     * version handling) outside the library — fragile across ORC versions. Since this only runs on the cold path
+     * (first producer per file per TTL window), the second parse is a small cost that pays off as every subsequent
+     * producer hits the cache and skips both the parse and the remote read entirely.
+     */
+    private OrcTail readTailFromStorage(OrcStorageObjectAdapter fs, Path path) throws IOException {
+        try (Reader r = OrcFile.createReader(path, orcReaderOptions(fs))) {
+            return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
+        }
+    }
+
+    /**
      * Loads the parsed ORC tail for {@code fs} via the shared {@link #parsedFooters} cache,
      * parsing on a cache miss. The first call for a given key opens an ORC reader (which parses
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
@@ -400,26 +441,22 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
-            OrcTail tail = parsedFooters.getOrLoad(fs.cacheKey(), key -> {
+            OrcTail tail;
+            if (fs.cacheKey() == null) {
+                // An unversioned object has no key to cache under, so its tail is read from storage every time.
                 missed[0] = true;
-                // Open a reader once, extract the parsed tail, then close the reader. The
-                // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
-                // safe to share across threads (treated as immutable by all callers).
-                //
-                // This deliberately parses the tail twice on a cache miss: once inside
-                // OrcFile.createReader (which calls the protected ReaderImpl.extractFileTail
-                // (FileSystem, Path, long) to fetch and parse from storage) and once via the
-                // public ReaderImpl.extractFileTail(ByteBuffer) to produce a shareable OrcTail.
-                // The single-parse alternative would require re-implementing ORC's tail-fetch
-                // protocol (variable-length postscript, optional metadata sections, version
-                // handling) outside the library — fragile across ORC versions. Since this only
-                // runs on the cold path (first producer per file per TTL window), the second
-                // parse is a small cost that pays off as every subsequent producer hits the
-                // cache and skips both the parse and the remote read entirely.
-                try (Reader r = OrcFile.createReader(path, orcReaderOptions(fs))) {
-                    return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
+                try {
+                    tail = readTailFromStorage(fs, path);
+                } catch (IOException | RuntimeException e) {
+                    // Mapped exactly as a failed cache load is, by the catch below.
+                    throw new ExecutionException(e);
                 }
-            });
+            } else {
+                tail = parsedFooters.getOrLoad(fs.cacheKey(), key -> {
+                    missed[0] = true;
+                    return readTailFromStorage(fs, path);
+                });
+            }
             if (counters != null) {
                 counters.recordFooterCache(missed[0] == false);
             }
@@ -716,7 +753,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
         // lookup; carries the parsed tail across successive splits of the same file on one
         // thread.
-        // 2. parsedFooters: reader-shared cache keyed by (path, length); shared across producer
+        // 2. parsedFooters: reader-shared cache keyed by (path, length, version); shared across producer
         // threads and across queries within the access TTL.
         long footerStartNanos = System.nanoTime();
         OrcTail tail;
@@ -1683,7 +1720,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             String[] names = pendingAbsentWarnings;
             pendingAbsentWarnings = null;
             for (String name : names) {
-                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+                sink.accept(SkipWarnings.absentColumnMessage(name));
             }
         }
 
@@ -1907,10 +1944,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             // coercionWarnings()). Mirrors the Parquet readers so the two columnar formats cannot
             // drift.
             DataType fileType = leafType != null ? convertOrcTypeToEsql(leafType) : null;
-            if (fileType != null
-                && dataType != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, dataType, dateFormatter != null) == false
-                && DeclaredTypeCoercions.supports(fileType, dataType)) {
+            if (DeclaredTypeCoercions.needsBlockCast(fileType, dataType, dateFormatter != null)) {
                 Block physical = createBlockAs(vector, fileType, rowCount, ancestorNulls, leafType, dateFormatter, columnName, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(

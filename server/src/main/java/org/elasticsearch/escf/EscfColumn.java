@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SliceableColumn;
@@ -76,7 +77,12 @@ public abstract class EscfColumn implements SliceableColumn {
         FixedBitSet validity = windowValidity(col.validity(), 0, docCount);
         return switch (col.kind()) {
             case EscfColumnKind.LONG -> new EscfLongColumn(docCount, validity, col.data());
-            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, validity, col.data());
+            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(
+                docCount,
+                validity,
+                col.data(),
+                col.lexicalForms() == null ? null : (EscfStringColumn) from(col.lexicalForms())
+            );
             case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, validity, windowBitSet(col.values(), 0, docCount));
             case EscfColumnKind.STRING -> new EscfStringColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
             case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
@@ -128,11 +134,19 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /**
      * Returns {@code true} if any document in this column carries more than one value. Always
-     * {@code false} for scalar columns; {@link EscfArrayColumn} overrides this to scan its
-     * per-row element-range offsets. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
-     * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
+     * {@code false} for scalar columns; {@link EscfArrayColumn} and {@link EscfUnionColumn} override this. Used by
+     * {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch} to enforce
+     * {@code multi_value=false} before delegating to the field-specific implementation.
      */
-    public boolean hasMultiValueDoc() {
+    public final boolean hasMultiValueDoc() {
+        return hasMultiValueDoc(true);
+    }
+
+    /**
+     * As {@link #hasMultiValueDoc()}, but a {@code null} array element counts as a value only when {@code countNulls} is {@code true}.
+     * An implementation may over-report, since the caller then just falls back to the row path.
+     */
+    public boolean hasMultiValueDoc(boolean countNulls) {
         return false;
     }
 
@@ -168,6 +182,31 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /** The {@link SourceValueType} byte for document {@code row}, which is known to be present. */
     abstract byte typeByteForPresent(int row);
+
+    /**
+     * The size in bytes of document {@code row}'s value in this column, as a proxy for the bytes the
+     * value took in the original source: the payload length of a variable-length value, the element
+     * sizes of a columnar array, {@link SourceValueType#elemDataSize} for a fixed-width scalar, and
+     * {@code 0} for an absent, null or boolean value. {@link #addSizesInBytes} sums the same number
+     * for every document in one column sweep, so both must apply exactly the same formula.
+     */
+    public abstract int sizeInBytes(int row);
+
+    /**
+     * Adds {@link #sizeInBytes(int)} of every document to {@code sizes[row]}, in one sweep over this
+     * column. This is the column-major counterpart of summing {@code sizeInBytes(row)} over the columns of
+     * a row: a batch that sizes every row touches each column once instead of once per document, and
+     * each subtype sizes its documents from its offsets or type vector without materializing values.
+     *
+     * @param sizes an array of at least {@link #docCount()} entries; only entries of present documents are changed
+     */
+    public abstract void addSizesInBytes(int[] sizes);
+
+    /**
+     * Adds the size {@code model} charges for every present document's value to {@code sizes[row]}, in one sweep over this
+     * column.
+     */
+    public abstract void addMeteredSizes(long[] sizes, MeteringModel model);
 
     /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
     public final boolean isNull(int row) {
@@ -207,9 +246,18 @@ public abstract class EscfColumn implements SliceableColumn {
         return (float) getDoubleValue(row);
     }
 
-    /** Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING}. */
+    /**
+     * Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING} or
+     * {@link EscfColumnKind#DOUBLE}; a DOUBLE column answers with the value's stored spelling when it has one and
+     * with its canonical {@code Double.toString} rendering otherwise.
+     */
     public Text getStringValue(int row) {
         throw notA("string");
+    }
+
+    /** The payload length in bytes of document {@code row}'s value; only a string or binary column has one. */
+    public int getValueLength(int row) {
+        throw notA("variable-length");
     }
 
     /** Returns the binary value at {@code row}. The column kind must be {@link EscfColumnKind#BINARY}. */

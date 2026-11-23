@@ -187,6 +187,20 @@ public class NodeByteBudgetTests extends ESTestCase {
         }
     }
 
+    public void testGrowCreditsRemainingWithoutWaiting() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        NodeByteBudget.Hold hold = budget.tryAdmit(4);
+        assertNotNull(hold);
+        hold.grow(6);
+        assertEquals(10, budget.used());
+        assertEquals(10, hold.remaining());
+        hold.grow(5);
+        assertEquals("grow never waits, even past the cap", 15, budget.used());
+        hold.close();
+        hold.grow(4);
+        assertEquals("grow is a no-op after close", 0, budget.used());
+    }
+
     public void testHoldCloseIsIdempotent() {
         NodeByteBudgetService budget = new NodeByteBudgetService(10);
         NodeByteBudget.Hold hold = budget.tryAdmit(4);
@@ -336,6 +350,118 @@ public class NodeByteBudgetTests extends ESTestCase {
         assertThat(error.get(), instanceOf(EsRejectedExecutionException.class));
         assertEquals(0, budget.used());
         assertEquals(0, budget.waiterCount());
+    }
+
+    public void testAddReleaseCountsUntracked() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        budget.add(40);
+        assertEquals(40, budget.used());
+        assertEquals(40, budget.untracked());
+        budget.release(40);
+        assertEquals(0, budget.used());
+        assertEquals(0, budget.untracked());
+    }
+
+    public void testHoldGrowIsTicketedNotUntracked() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        NodeByteBudget.Hold hold = budget.tryAdmit(10);
+        assertNotNull(hold);
+        hold.grow(5);
+        assertEquals(15, budget.used());
+        assertEquals(0, budget.untracked());
+        hold.close();
+        assertEquals(0, budget.used());
+        assertEquals(0, budget.untracked());
+    }
+
+    public void testAddAttributesUntrackedToAffinityLease() {
+        NodeByteBudgetService budget = new NodeByteBudgetService(100);
+        RowGroupIo lease = new RowGroupIo();
+        try (var ignored = org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity.open(lease, false)) {
+            budget.add(8);
+        }
+        assertEquals(8, lease.untracked());
+        assertEquals(8, budget.untracked());
+        try (var ignored = org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity.open(lease, false)) {
+            budget.release(8);
+        }
+        assertEquals(0, lease.untracked());
+        assertEquals(0, budget.untracked());
+    }
+
+    public void testAdmitAsyncWhileLeaseHoldsUntrackedTrips() throws Exception {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        RowGroupIo lease = new RowGroupIo();
+        try (var ignored = org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity.open(lease, false)) {
+            budget.add(4);
+        }
+        NodeByteBudget.Hold owner = occupyOvershoot(budget, 15);
+        try {
+            Exception error = awaitAdmitFailure(budget, 5, lease);
+            assertThat(error, instanceOf(IllegalStateException.class));
+            assertTrue(error.getMessage(), error.getMessage().contains("untracked bytes"));
+            assertEquals(1, budget.waitingUntrackedCount());
+            assertEquals(0, budget.waiterCount());
+        } finally {
+            owner.close();
+            budget.clearOwner(owner.lease());
+            try (var ignored = org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity.open(lease, false)) {
+                budget.release(4);
+            }
+        }
+    }
+
+    public void testAdmitAsyncAfterExplicitAddWithoutAffinityTrips() throws Exception {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        RowGroupIo lease = new RowGroupIo();
+        budget.add(4, lease);
+        NodeByteBudget.Hold owner = occupyOvershoot(budget, 15);
+        try {
+            Exception error = awaitAdmitFailure(budget, 5, lease);
+            assertThat(error, instanceOf(IllegalStateException.class));
+            assertTrue(error.getMessage(), error.getMessage().contains("untracked bytes"));
+            assertEquals(1, budget.waitingUntrackedCount());
+            assertEquals(0, budget.waiterCount());
+        } finally {
+            owner.close();
+            budget.clearOwner(owner.lease());
+            budget.release(4, lease);
+        }
+    }
+
+    public void testPerGetPolicyAllowsUntrackedWait() throws Exception {
+        NodeByteBudgetService budget = new NodeByteBudgetService(10);
+        RowGroupIo lease = new RowGroupIo();
+        budget.add(4, lease);
+        NodeByteBudget.Hold owner = occupyOvershoot(budget, 15);
+        AtomicReference<NodeByteBudget.Hold> granted = new AtomicReference<>();
+        try {
+            budget.admitAsync(5, lease, () -> false, Runnable::run, NodeByteBudget.UntrackedWait.PER_GET)
+                .addListener(ActionListener.wrap(granted::set, e -> fail(e.getMessage())));
+            assertBusy(() -> assertEquals(1, budget.waiterCount()));
+            assertEquals(0, budget.waitingUntrackedCount());
+        } finally {
+            owner.close();
+            budget.clearOwner(owner.lease());
+            assertBusy(() -> assertNotNull(granted.get()));
+            granted.get().close();
+            budget.release(4, lease);
+        }
+    }
+
+    private static Exception awaitAdmitFailure(NodeByteBudgetService budget, long bytes, RowGroupIo lease) throws Exception {
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        budget.admitAsync(bytes, lease, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            hold.close();
+            fail("waiting lease with untracked bytes must not grant");
+        }, e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertNotNull(error.get());
+        return error.get();
     }
 
     /**

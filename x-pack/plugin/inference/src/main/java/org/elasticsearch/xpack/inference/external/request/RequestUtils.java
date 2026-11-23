@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.Header;
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -71,14 +70,14 @@ public class RequestUtils {
      * Unlike {@code Strings.toString}, which swallows an {@link IOException} and returns a JSON error object that would then be sent to
      * the third-party service as the request body, this fails the request.
      * <p>
-     * Returns a {@link ByteArrayEntity} rather than a streaming entity on purpose: the entity must be repeatable for retries.
+     * Returns a byte array rather than a streaming body on purpose: the body must be repeatable for retries.
      */
-    public static ByteArrayEntity jsonEntity(ToXContentObject entity) {
+    public static byte[] jsonEntity(ToXContentObject entity) {
         try (var output = new BytesStreamOutput()) {
             try (var builder = XContentFactory.jsonBuilder(output)) {
                 entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
             }
-            return new ByteArrayEntity(BytesReference.toBytes(output.bytes()));
+            return BytesReference.toBytes(output.bytes());
         } catch (IOException e) {
             throw new UncheckedIOException(Strings.format("Failed to serialize [%s] request body", entity.getClass().getSimpleName()), e);
         }
@@ -87,7 +86,7 @@ public class RequestUtils {
     /**
      * Sets the {@code Content-Type} and {@code Authorization: Bearer} headers on the given request using the supplied API key.
      */
-    public static void decorateWithAuthHeader(HttpPost request, SecureString apiKey) {
+    public static void decorateWithAuthHeader(SimpleHttpRequest request, SecureString apiKey) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         request.setHeader(createAuthBearerHeader(apiKey));
     }

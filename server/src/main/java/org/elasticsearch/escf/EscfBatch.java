@@ -14,6 +14,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -28,6 +29,9 @@ import org.elasticsearch.sourcebatch.SourceSchema;
  */
 public final class EscfBatch implements SourceBatch {
 
+    /** What a batch holds besides its columns. */
+    static final long BASE_RAM_BYTES_USED = 64L;
+
     private final SourceSchema schema;
     private final int docCount;
     /** Original column data, kept for RAM accounting. {@code null} for slice views. */
@@ -36,6 +40,9 @@ public final class EscfBatch implements SourceBatch {
     private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
+    // computed once, since a batch does not change
+    private final long ramBytesUsed;
+    private boolean closed;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
@@ -50,6 +57,7 @@ public final class EscfBatch implements SourceBatch {
         this.columns = buildColumns(columnData);
         this.releasable = releasable;
         this.serialized = serialized;
+        this.ramBytesUsed = serialized != null ? serialized.length() + BASE_RAM_BYTES_USED : columnsRamBytes(columnData);
     }
 
     /** Slice construction — shares backing data with the parent via adjusted column bases. */
@@ -60,6 +68,7 @@ public final class EscfBatch implements SourceBatch {
         this.columns = columns;
         this.releasable = () -> {};
         this.serialized = serialized;
+        this.ramBytesUsed = BASE_RAM_BYTES_USED;
     }
 
     private static EscfColumn[] buildColumns(EscfColumnData[] data) {
@@ -75,6 +84,16 @@ public final class EscfBatch implements SourceBatch {
         return EscfBatchCodec.parse(data, releasable);
     }
 
+    /**
+     * In-memory construction path for builders outside this package that manage their own
+     * {@link SourceSchema} and {@link EscfColumnData} array — for example a domain-specific builder with a
+     * fixed, pre-registered schema (see {@code AbstractOTLPBatchBuilder} in the {@code otel-data} plugin).
+     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#buildPartition}.
+     */
+    public static EscfBatch of(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
+        return new EscfBatch(schema, docCount, columnData, releasable);
+    }
+
     @Override
     public int docCount() {
         return docCount;
@@ -87,6 +106,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        assertOpen();
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -105,14 +125,50 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
+        assertOpen();
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
         return new EscfRow(this, docIndex);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A slice view sizes only its own rows: its columns are already windowed to the slice, so every
+     * column adds exactly {@link #docCount()} entries.
+     */
+    @Override
+    public int[] rowSizesInBytes() {
+        assertOpen();
+        final int[] sizes = new int[docCount];
+        for (EscfColumn column : columns) {
+            column.addSizesInBytes(sizes);
+        }
+        return sizes;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Each column is charged in one sweep, and whether its root field is excluded is decided once per column, from the leaf's
+     * full name, rather than once per row. A slice view meters only its own rows, as its columns are already windowed to the slice.
+     */
+    @Override
+    public long[] meteredRowSizes(MeteringModel model) {
+        assertOpen();
+        final long[] sizes = new long[docCount];
+        for (int c = 0; c < columns.length; c++) {
+            if (model.hasExcludedRootField(schema.getFullPath(c)) == false) {
+                columns[c].addMeteredSizes(sizes, model);
+            }
+        }
+        return sizes;
+    }
+
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
+        assertOpen();
         return columns[columnIndex];
     }
 
@@ -123,6 +179,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
+        assertOpen();
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -139,7 +196,13 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
+        assertOpen();
+        closed = true;
         releasable.close();
+    }
+
+    private void assertOpen() {
+        assert closed == false : "batch already closed";
     }
 
     /**
@@ -164,8 +227,9 @@ public final class EscfBatch implements SourceBatch {
     /** Raw value bytes of one column: the payload ref length, or the kind-specific equivalent when there is no payload. */
     private static int valueBytes(EscfColumnData col) {
         return switch (col.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
-                (int) refLen(col.data());
+            case EscfColumnKind.LONG, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION -> (int) refLen(col.data());
+            // account for stored spellings too
+            case EscfColumnKind.DOUBLE -> (int) (refLen(col.data()) + (col.lexicalForms() == null ? 0 : refLen(col.lexicalForms().data())));
             // BOOL has no byte payload: values are one bit per document
             case EscfColumnKind.BOOL -> EscfBatchCodec.bitsetBytes(col.docCount());
             // ARRAY has no payload of its own: the elements live in the child column
@@ -184,20 +248,21 @@ public final class EscfBatch implements SourceBatch {
         return size;
     }
 
+    /**
+     * The memory of the batch: its columns when built, its bytes when received. A slice shares its parent's memory and only
+     * counts its base.
+     */
     @Override
     public long ramBytesUsed() {
-        if (serialized != null) {
-            return serialized.length() + 64L;
+        return ramBytesUsed;
+    }
+
+    private static long columnsRamBytes(EscfColumnData[] columnData) {
+        long total = BASE_RAM_BYTES_USED;
+        for (EscfColumnData col : columnData) {
+            total += columnRamBytes(col);
         }
-        if (columnData != null) {
-            long total = 64L;
-            for (EscfColumnData col : columnData) {
-                total += columnRamBytes(col);
-            }
-            return total;
-        }
-        // Slice views share the parent's backing; the parent already accounts for all RAM.
-        return 64L;
+        return total;
     }
 
     /** Sums a column's own live storage plus, for ARRAY, its nested {@code child} column's storage. */
@@ -206,6 +271,9 @@ public final class EscfBatch implements SourceBatch {
             .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         if (col.child() != null) {
             total += columnRamBytes(col.child());
+        }
+        if (col.lexicalForms() != null) {
+            total += columnRamBytes(col.lexicalForms());
         }
         return total;
     }

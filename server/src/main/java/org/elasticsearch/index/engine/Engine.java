@@ -24,7 +24,10 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -74,6 +77,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -722,6 +726,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    /**
+     * Perform a batch of document index operations on the engine
+     * @param batch operations to perform, with their mapped columns
+     * @return one {@link IndexResult} per operation, in batch order. Document specific failures are reported as failed
+     * results. So are operations the engine did not attempt because an earlier operation of the batch hit a failure
+     * while the engine stayed healthy; those carry no sequence number.
+     */
     public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
         throw new UnsupportedOperationException("batch indexing is not supported by this engine");
     }
@@ -873,10 +884,12 @@ public abstract class Engine implements Closeable {
     public static class IndexResult extends Result {
 
         private final boolean created;
+        private final boolean batchAborted;
 
         public IndexResult(long version, long term, long seqNo, boolean created, String id) {
             super(Operation.TYPE.INDEX, version, term, seqNo, id);
             this.created = created;
+            this.batchAborted = false;
         }
 
         /**
@@ -887,17 +900,38 @@ public abstract class Engine implements Closeable {
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo, String id) {
+            this(failure, version, term, seqNo, id, false);
+        }
+
+        private IndexResult(Exception failure, long version, long term, long seqNo, String id, boolean batchAborted) {
             super(Operation.TYPE.INDEX, failure, version, term, seqNo, id);
             this.created = false;
+            this.batchAborted = batchAborted;
         }
 
         public IndexResult(CompressedXContent requiredMappingUpdate, String id) {
             super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
+            this.batchAborted = false;
+        }
+
+        /**
+         * The failed result of an operation that {@link Engine#indexBatch} did not apply because planning failed for its
+         * sub-batch or an earlier one while the engine stayed healthy. Nothing was consumed for it: no sequence number,
+         * no Lucene or translog write. A caller that splits its request into several batches can fail the rest of the
+         * request the same way instead of attempting it.
+         */
+        public static IndexResult batchAborted(Exception failure, long term, String id) {
+            return new IndexResult(failure, Versions.MATCH_ANY, term, UNASSIGNED_SEQ_NO, id, true);
         }
 
         public boolean isCreated() {
             return created;
+        }
+
+        /** Whether this is a {@link #batchAborted} result. */
+        public boolean isBatchAborted() {
+            return batchAborted;
         }
     }
 
@@ -1128,8 +1162,17 @@ public abstract class Engine implements Closeable {
         return acquireSearcher(source, SearcherScope.EXTERNAL);
     }
 
+    public final Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         return acquireSearcher(source, scope, Function.identity());
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope, SplitShardCountSummary splitShardCountSummary)
+        throws EngineException {
+        return acquireSearcher(source, scope, splitShardCountSummary, Function.identity());
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
@@ -1268,8 +1311,11 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
-    /** get commits stats for the last commit */
-    public final CommitStats commitStats() {
+    /**
+     * Get commit stats for the last commit. Engines may override this to avoid reading the last committed segment infos, as long as
+     * the stats are the same as those built from {@link #getLastCommittedSegmentInfos()}.
+     */
+    public CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -1861,6 +1907,17 @@ public abstract class Engine implements Closeable {
          */
         public String source() {
             return source;
+        }
+
+        /**
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+         */
+        @Deprecated
+        @Override
+        public void search(Query query, Collector collector) {
+            throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
         }
 
         public DirectoryReader getDirectoryReader() {
@@ -2515,6 +2572,13 @@ public abstract class Engine implements Closeable {
     public XContentMeteringParserDecorator newMeteringParserDecorator() {
         return XContentMeteringParserDecorator.NOOP;
     }
+
+    /**
+     * Called once per columnar batch chunk before its columns are frozen, see
+     * {@link org.elasticsearch.plugins.internal.DocumentSizeReporter#onBatchParsingCompleted}. Engines that meter documents override this
+     * to hand the chunk to their reporter.
+     */
+    public void onBatchParsingCompleted(BatchMappingContext context) {}
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

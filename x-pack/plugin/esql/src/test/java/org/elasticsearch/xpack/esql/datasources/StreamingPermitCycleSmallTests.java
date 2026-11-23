@@ -104,6 +104,21 @@ public class StreamingPermitCycleSmallTests extends ESTestCase {
                 done.await(3, TimeUnit.SECONDS)
             );
             assertTrue("drain failures: " + failures, failures.isEmpty());
+            // Consumers can finish before the outer admission wrapper releases its slot in finally.
+            // Join the submitted work before checking ownership, within the original completion bound.
+            ioPool.shutdown();
+            drainPool.shutdown();
+            assertTrue(
+                "I/O tasks must finish within the 3s completion bound",
+                ioPool.awaitTermination(Math.max(0L, TimeUnit.SECONDS.toNanos(3) - (System.nanoTime() - startNanos)), TimeUnit.NANOSECONDS)
+            );
+            assertTrue(
+                "consumers must finish within the 3s completion bound",
+                drainPool.awaitTermination(
+                    Math.max(0L, TimeUnit.SECONDS.toNanos(3) - (System.nanoTime() - startNanos)),
+                    TimeUnit.NANOSECONDS
+                )
+            );
             assertEquals(FILE_COUNT * ROWS_PER_FILE, totalRows.get());
             assertEquals(PERMITS, limiter.availablePermits());
             assertEquals(0, budget.inFlight());
@@ -112,6 +127,8 @@ public class StreamingPermitCycleSmallTests extends ESTestCase {
         } finally {
             ioPool.shutdownNow();
             drainPool.shutdownNow();
+            ioPool.awaitTermination(3, TimeUnit.SECONDS);
+            drainPool.awaitTermination(3, TimeUnit.SECONDS);
         }
         assertTrue(
             "cycle-free completion must be well under the 3s bound",

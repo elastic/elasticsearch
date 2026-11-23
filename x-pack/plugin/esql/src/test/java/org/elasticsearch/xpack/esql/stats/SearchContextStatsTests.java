@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
@@ -18,23 +19,32 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,6 +54,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
@@ -1173,6 +1185,305 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /** The types the exact bounds support, with the range their values come from. */
+    private record ExactType(String name, DataType dataType, long lowest, long highest, boolean intPoints) {}
+
+    private static final List<ExactType> EXACT_TYPES = List.of(
+        new ExactType("date", DataType.DATETIME, -10_000_000_000L, 10_000_000_000L, false),
+        new ExactType("date_nanos", DataType.DATE_NANOS, 0L, 10_000_000_000L, false),
+        new ExactType("long", DataType.LONG, Long.MIN_VALUE, Long.MAX_VALUE, false),
+        new ExactType("integer", DataType.INTEGER, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+        new ExactType("short", DataType.INTEGER, Short.MIN_VALUE, Short.MAX_VALUE, true),
+        new ExactType("byte", DataType.INTEGER, Byte.MIN_VALUE, Byte.MAX_VALUE, true)
+    );
+
+    private static final Settings SKIPPER_SETTINGS = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+
+    private static final FieldAttribute.FieldName F = new FieldAttribute.FieldName("f");
+
+    /** Documents of values, each document holding one or more of them. */
+    private static List<List<Long>> randomDocuments(ExactType type) {
+        List<List<Long>> docs = new ArrayList<>();
+        for (int i = randomIntBetween(1, 30); i > 0; i--) {
+            List<Long> values = new ArrayList<>();
+            for (int v = randomIntBetween(1, 3); v > 0; v--) {
+                values.add(randomLongBetween(type.lowest, type.highest));
+            }
+            docs.add(values);
+        }
+        return docs;
+    }
+
+    private static List<IndexableField> pointsDocument(ExactType type, List<Long> values) {
+        List<IndexableField> fields = new ArrayList<>();
+        for (long value : values) {
+            fields.add(type.intPoints ? new IntField("f", (int) value, Field.Store.NO) : new LongField("f", value, Field.Store.NO));
+        }
+        return fields;
+    }
+
+    private static List<IndexableField> skipperDocument(List<Long> values) {
+        List<IndexableField> fields = new ArrayList<>();
+        for (long value : values) {
+            fields.add(SortedNumericDocValuesField.indexedField("f", value));
+        }
+        return fields;
+    }
+
+    private static long min(List<List<Long>> docs) {
+        return docs.stream().flatMap(List::stream).mapToLong(Long::longValue).min().getAsLong();
+    }
+
+    private static long max(List<List<Long>> docs) {
+        return docs.stream().flatMap(List::stream).mapToLong(Long::longValue).max().getAsLong();
+    }
+
+    /** A shard holding the documents, in as many segments as the random writer makes of them. */
+    private record Shard(MapperService mapperService, Directory dir, DirectoryReader reader) implements Closeable {
+        SearchExecutionContext context(MapperServiceTestCase helper) throws IOException {
+            return helper.createSearchExecutionContext(mapperService, newSearcher(reader));
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    private Shard shard(Settings settings, String mapping, List<List<IndexableField>> docs, boolean deleteFirst) throws IOException {
+        MapperService mapperService = createMapperService(settings, mapping);
+        Directory dir = newDirectory();
+        DirectoryReader reader;
+        // no merge, so that a deleted document stays a deletion of its segment
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            for (int i = 0; i < docs.size(); i++) {
+                List<IndexableField> withId = new ArrayList<>(docs.get(i));
+                withId.add(new StringField("_id_for_delete", "x" + i, Field.Store.NO));
+                writer.addDocument(withId);
+            }
+            if (deleteFirst) {
+                writer.deleteDocuments(new Term("_id_for_delete", "x0"));
+            }
+            reader = writer.getReader();
+        }
+        return new Shard(mapperService, dir, reader);
+    }
+
+    /** Statistics as the node plans with them, over shards that apply no filter, so that the metadata answers are exact. */
+    private static SearchStats exactStats(List<SearchExecutionContext> contexts) {
+        return SearchContextStats.from(contexts, false);
+    }
+
+    private static String mapping(String type, boolean index) {
+        return "{ \"doc\": { \"properties\": { \"f\": { \"type\": \"" + type + "\", \"index\": " + index + " } } } }";
+    }
+
+    public void testExactMinMaxFromPoints() throws IOException {
+        for (ExactType type : EXACT_TYPES) {
+            List<List<Long>> docs = randomDocuments(type);
+            try (
+                Shard shard = shard(
+                    Settings.EMPTY,
+                    mapping(type.name, true),
+                    docs.stream().map(d -> pointsDocument(type, d)).toList(),
+                    false
+                )
+            ) {
+                SearchStats stats = exactStats(List.of(shard.context(this)));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.dataType), stats.exactMinMax(F));
+            }
+        }
+    }
+
+    public void testExactMinMaxFromSkipper() throws IOException {
+        for (ExactType type : EXACT_TYPES) {
+            List<List<Long>> docs = randomDocuments(type);
+            try (
+                Shard shard = shard(SKIPPER_SETTINGS, mapping(type.name, false), docs.stream().map(d -> skipperDocument(d)).toList(), false)
+            ) {
+                assertNotNull(shard.reader.leaves().get(0).reader().getDocValuesSkipper("f"));
+                SearchStats stats = exactStats(List.of(shard.context(this)));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.dataType), stats.exactMinMax(F));
+            }
+        }
+    }
+
+    /** A field alias has no data of its own: its bounds are those of the field it points to, also in an object. */
+    public void testExactMinMaxThroughFieldAlias() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<Long>> docs = randomDocuments(type);
+        String mapping = """
+            { "doc": { "properties": {
+                "f": { "type": "long" },
+                "f_alias": { "type": "alias", "path": "f" },
+                "o": { "properties": { "f": { "type": "long" } } },
+                "o_alias": { "type": "alias", "path": "o.f" }
+            } } }""";
+        List<List<IndexableField>> fields = new ArrayList<>();
+        for (List<Long> values : docs) {
+            List<IndexableField> doc = new ArrayList<>(pointsDocument(type, values));
+            for (long value : values) {
+                doc.add(new LongField("o.f", -value / 2, Field.Store.NO));
+            }
+            fields.add(doc);
+        }
+        try (Shard shard = shard(Settings.EMPTY, mapping, fields, false)) {
+            SearchStats stats = exactStats(List.of(shard.context(this)));
+            var expected = new SearchStats.ExactMinMax(true, min(docs), max(docs), DataType.LONG);
+            assertEquals(expected, stats.exactMinMax(F));
+            assertEquals(expected, stats.exactMinMax(new FieldAttribute.FieldName("f_alias")));
+            long lowest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).min().getAsLong();
+            long highest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).max().getAsLong();
+            assertEquals(
+                new SearchStats.ExactMinMax(true, lowest, highest, DataType.LONG),
+                stats.exactMinMax(new FieldAttribute.FieldName("o.f"))
+            );
+            assertEquals(
+                new SearchStats.ExactMinMax(true, lowest, highest, DataType.LONG),
+                stats.exactMinMax(new FieldAttribute.FieldName("o_alias"))
+            );
+        }
+    }
+
+    public void testExactMinMaxThroughFieldAliasOfSkipperField() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<Long>> docs = randomDocuments(type);
+        String mapping = """
+            { "doc": { "properties": {
+                "f": { "type": "long", "index": false },
+                "f_alias": { "type": "alias", "path": "f" }
+            } } }""";
+        try (Shard shard = shard(SKIPPER_SETTINGS, mapping, docs.stream().map(d -> skipperDocument(d)).toList(), false)) {
+            SearchStats stats = exactStats(List.of(shard.context(this)));
+            assertEquals(
+                new SearchStats.ExactMinMax(true, min(docs), max(docs), DataType.LONG),
+                stats.exactMinMax(new FieldAttribute.FieldName("f_alias"))
+            );
+        }
+    }
+
+    public void testExactMinMaxOfFieldWithoutValues() throws IOException {
+        List<List<IndexableField>> docs = List.of(List.of(), List.of());
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {
+            SearchStats stats = exactStats(List.of(shard.context(this)));
+            assertEquals(SearchStats.ExactMinMax.noValues(DataType.LONG), stats.exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxWithDeletions() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<IndexableField>> docs = List.of(
+            pointsDocument(type, List.of(1L)),
+            pointsDocument(type, List.of(2L)),
+            pointsDocument(type, List.of(3L))
+        );
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, true)) {
+            assertTrue(shard.reader.leaves().stream().anyMatch(leaf -> leaf.reader().hasDeletions()));
+            assertNull(exactStats(List.of(shard.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxWithoutPointsOrSkipper() throws IOException {
+        List<List<IndexableField>> docs = List.of(List.of(new SortedNumericDocValuesField("f", 1L)));
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", false), docs, false)) {
+            assertNull(exactStats(List.of(shard.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxOfFloatingPoint() throws IOException {
+        for (String type : List.of("double", "float", "half_float")) {
+            List<List<IndexableField>> docs = List.of(List.of(new DoubleField("f", 1.5, Field.Store.NO)));
+            try (Shard shard = shard(Settings.EMPTY, mapping(type, true), docs, false)) {
+                assertNull(type, exactStats(List.of(shard.context(this))).exactMinMax(F));
+            }
+        }
+    }
+
+    public void testNoExactMinMaxWithShardFilters() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<IndexableField>> docs = List.of(pointsDocument(type, List.of(1L)));
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {
+            assertNotNull(SearchContextStats.from(List.of(shard.context(this)), false).exactMinMax(F));
+            assertNull(SearchContextStats.from(List.of(shard.context(this)), true).exactMinMax(F));
+            // without being told whether the shards filter, nothing is assumed exact
+            assertNull(SearchContextStats.from(List.of(shard.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testExactMinMaxAcrossShards() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<Long>> first = randomDocuments(type);
+        List<List<Long>> second = randomDocuments(type);
+        List<List<Long>> all = new ArrayList<>(first);
+        all.addAll(second);
+        // the first shard has points, the second a skipper, and a third shard does not map the field
+        try (
+            Shard pointsShard = shard(
+                Settings.EMPTY,
+                mapping("long", true),
+                first.stream().map(d -> pointsDocument(type, d)).toList(),
+                false
+            );
+            Shard skipperShard = shard(
+                SKIPPER_SETTINGS,
+                mapping("long", false),
+                second.stream().map(d -> skipperDocument(d)).toList(),
+                false
+            );
+            Shard otherShard = shard(
+                Settings.EMPTY,
+                "{ \"doc\": { \"properties\": { \"other\": { \"type\": \"long\" } } } }",
+                List.of(),
+                false
+            )
+        ) {
+            SearchStats stats = exactStats(List.of(pointsShard.context(this), skipperShard.context(this), otherShard.context(this)));
+            assertEquals(new SearchStats.ExactMinMax(true, min(all), max(all), DataType.LONG), stats.exactMinMax(F));
+        }
+    }
+
+    /** One shard that cannot tell makes the whole answer unavailable, whichever shard comes first. */
+    public void testNoExactMinMaxWhenOneShardHasNoMetadata() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<IndexableField>> docs = List.of(pointsDocument(type, List.of(1L)));
+        List<List<IndexableField>> docValuesOnly = List.of(List.of(new SortedNumericDocValuesField("f", 5L)));
+        try (
+            Shard withMetadata = shard(Settings.EMPTY, mapping("long", true), docs, false);
+            Shard withoutMetadata = shard(Settings.EMPTY, mapping("long", false), docValuesOnly, false)
+        ) {
+            assertNull(exactStats(List.of(withMetadata.context(this), withoutMetadata.context(this))).exactMinMax(F));
+            assertNull(exactStats(List.of(withoutMetadata.context(this), withMetadata.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testExactMinMaxAcrossShardsThatMapIntegerTypesDifferently() throws IOException {
+        List<List<IndexableField>> intDocs = List.of(pointsDocument(EXACT_TYPES.get(3), List.of(5L)));
+        List<List<IndexableField>> shortDocs = List.of(pointsDocument(EXACT_TYPES.get(4), List.of(2L)));
+        try (
+            Shard intShard = shard(Settings.EMPTY, mapping("integer", true), intDocs, false);
+            Shard shortShard = shard(Settings.EMPTY, mapping("short", true), shortDocs, false)
+        ) {
+            // both are read as integer, so the bounds of the two can be combined
+            assertEquals(
+                new SearchStats.ExactMinMax(true, 2L, 5L, DataType.INTEGER),
+                exactStats(List.of(intShard.context(this), shortShard.context(this))).exactMinMax(F)
+            );
+        }
+    }
+
+    public void testNoExactMinMaxWhenShardsMapDifferentTypes() throws IOException {
+        List<List<IndexableField>> longDocs = List.of(pointsDocument(EXACT_TYPES.get(2), List.of(1L)));
+        List<List<IndexableField>> intDocs = List.of(pointsDocument(EXACT_TYPES.get(3), List.of(2L)));
+        try (
+            Shard longShard = shard(Settings.EMPTY, mapping("long", true), longDocs, false);
+            Shard intShard = shard(Settings.EMPTY, mapping("integer", true), intDocs, false)
+        ) {
+            assertNull(exactStats(List.of(longShard.context(this), intShard.context(this))).exactMinMax(F));
+        }
+    }
+
     public void testUnsupportedTypeFieldIsMultiValued() throws IOException {
         final MapperService mapperService = createMapperService("""
             { "doc": { "properties": { "b": { "type": "boolean" } } } }""");
@@ -1193,10 +1504,237 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A shard whose mapping maps every field, and that skipped none, holds no field outside of its mapping. The keys of an
+     * object-valued field are part of its value and not fields either.
+     */
+    public void testMayHoldUnmappedFields() throws IOException {
+        MapperService mapsEverything = createMapperService("""
+            { "_doc": { "properties": { "field": { "type": "keyword" }, "range": { "type": "integer_range" } } } }""");
+        MapperService keepsUnmappedFields = createMapperService("""
+            { "_doc": { "dynamic": false, "properties": { "field": { "type": "keyword" }, "span": { "type": "integer_range" } } } }""");
+        try {
+            withLuceneIndex(
+                mapsEverything,
+                writer -> writer.addDocuments(
+                    mapsEverything.documentMapper().parse(source("{\"field\":\"a\",\"range\":{\"gte\":1,\"lt\":5}}")).docs()
+                ),
+                mappedReader -> withLuceneIndex(
+                    keepsUnmappedFields,
+                    writer -> writer.addDocuments(
+                        keepsUnmappedFields.documentMapper().parse(source("{\"field\":\"a\",\"unmapped\":\"b\"}")).docs()
+                    ),
+                    unmappedReader -> {
+                        SearchExecutionContext closed = createSearchExecutionContext(mapsEverything, newSearcher(mappedReader));
+                        SearchExecutionContext open = createSearchExecutionContext(keepsUnmappedFields, newSearcher(unmappedReader));
+
+                        SearchStats closedOnly = SearchContextStats.from(List.of(closed));
+                        assertFalse(closedOnly.mayHoldUnmappedFields());
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped.below")));
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("range.gte")));
+
+                        // One shard that may hold unmapped fields is enough for the whole node.
+                        SearchStats both = SearchContextStats.from(List.of(closed, open));
+                        assertTrue(both.mayHoldUnmappedFields());
+                        assertTrue(both.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+
+                        // A key of the value of a mapped field is not read, even where unmapped fields are kept.
+                        SearchStats openOnly = SearchContextStats.from(List.of(open));
+                        assertTrue(openOnly.mayHoldUnmappedFields());
+                        assertTrue(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+                        assertFalse(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("span.gte")));
+                        assertTrue(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("field.below")));
+                    }
+                )
+            );
+        } finally {
+            IOUtils.close(mapsEverything, keepsUnmappedFields);
+        }
+    }
+
     @After
     public void cleanup() throws IOException {
         IOUtils.close(readers);
         IOUtils.close(mapperServices);
         IOUtils.close(directory);
+    }
+
+    /** A shard can query a field from its doc values, as the type it holds the field. */
+    public void testShardQueriesDocValues() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword" }, "n": { "type": "long" } } } }""");
+        assertTrue(isQueryable(mapped, "kw", DataType.KEYWORD));
+        assertTrue(isQueryable(mapped, "n", DataType.LONG));
+        assertFalse(isQueryable(mapped, "n", DataType.KEYWORD));
+    }
+
+    /**
+     * A field without doc values cannot be queried as ES|QL reads it, as a filter checks from its doc values that a document holds a
+     * single value. The shard matches every document instead, and the filter checks the values it reads.
+     */
+    public void testShardCannotQueryWithoutDocValues() throws IOException {
+        SearchExecutionContext withoutDocValues = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "doc_values": false } } } }""");
+        assertFalse(isQueryable(withoutDocValues, "kw", DataType.KEYWORD));
+    }
+
+    /** A shard that cannot hold a field can query it, as nothing matches. */
+    public void testShardThatCannotHoldTheFieldCanQueryIt() throws IOException {
+        SearchExecutionContext without = statsContext("""
+            { "doc": { "properties": { "other": { "type": "keyword" } } } }""");
+        assertTrue(isQueryable(without, "kw", DataType.KEYWORD));
+    }
+
+    /** A sub-field of a nested object is a field ES|QL does not read, but a query on it could match the copy in the root document. */
+    public void testShardCannotQueryNestedSubfield() throws IOException {
+        SearchExecutionContext nested = statsContext("""
+            { "doc": { "properties": { "item": { "type": "nested", "include_in_root": true,
+              "properties": { "value": { "type": "keyword" } } } } } }""");
+        assertFalse(isQueryable(nested, "item.value", DataType.KEYWORD));
+    }
+
+    /**
+     * A field the plan reads that a shard does not map can be queried as the key of a flattened field. Read from {@code _source}, it
+     * cannot: the shard checks the values it reads.
+     */
+    public void testShardQueriesTheFieldsItResolves() throws IOException {
+        SearchExecutionContext unmapped = statsContext("""
+            { "doc": { "dynamic": false, "properties": { "other": { "type": "keyword" } } } }""");
+        assertFalse(isQueryable(new EsqlSearchExecutionContext(unmapped, QueryWarnings.EMIT, Set.of("kw")), "kw", DataType.KEYWORD));
+
+        SearchExecutionContext flattened = statsContext("""
+            { "doc": { "properties": { "attrs": { "type": "flattened" } } } }""");
+        assertTrue(
+            isQueryable(new EsqlSearchExecutionContext(flattened, QueryWarnings.EMIT, Set.of("attrs.bar")), "attrs.bar", DataType.KEYWORD)
+        );
+        assertFalse("a key the plan does not read is not a field ES|QL reads", isQueryable(flattened, "attrs.bar", DataType.KEYWORD));
+    }
+
+    /** A {@code keyword} with a normalizer cannot run a query that compares the values as read. */
+    public void testNormalizedKeywordDoesNotCompareValuesAsRead() throws IOException {
+        SearchExecutionContext normalized = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "normalizer": "lowercase" } } } }""");
+        assertTrue(SearchContextStats.isQueryable(normalized, "kw", DataType.KEYWORD, false));
+        assertFalse(SearchContextStats.isQueryable(normalized, "kw", DataType.KEYWORD, true));
+    }
+
+    /** The shards of a node can query a field when each of them can and at least one holds the field. */
+    public void testNodeQueriesWhenEveryShardCan() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        SearchExecutionContext without = statsContext("""
+            { "doc": { "properties": { "other": { "type": "keyword" } } } }""");
+        SearchExecutionContext withoutDocValues = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "doc_values": false } } } }""");
+        FieldAttribute.FieldName kw = new FieldAttribute.FieldName("kw");
+        assertTrue(SearchContextStats.from(List.of(mapped, without)).isQueryable(kw, DataType.KEYWORD, false));
+        assertFalse(SearchContextStats.from(List.of(mapped, withoutDocValues)).isQueryable(kw, DataType.KEYWORD, false));
+        assertFalse(SearchContextStats.from(List.of(without)).isQueryable(kw, DataType.KEYWORD, false));
+    }
+
+    /** Nested queries compare the child doc values, not a copy of all the children on the parent. */
+    public void testNestedChildQueryEligibility() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "price": { "type": "long" },
+              "sku": { "type": "keyword" },
+              "normalized": { "type": "keyword", "normalizer": "lowercase" },
+              "source_only": { "type": "long", "doc_values": false },
+              "note": { "type": "text" }
+            } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.sku"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.normalized"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.source_only"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.note"), DataType.TEXT));
+    }
+
+    public void testNestedQueriesAreAllowedOnlyWhenEveryShardAllowsExpensiveQueries() throws IOException {
+        SearchExecutionContext allowed = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": { "price": { "type": "long" } } } } } }""");
+        SearchExecutionContext refused = new SearchExecutionContext(allowed) {
+            @Override
+            public boolean allowExpensiveQueries() {
+                return false;
+            }
+        };
+
+        assertTrue(SearchContextStats.from(List.of(allowed)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(refused)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(allowed, refused)).nestedQueriesAllowed());
+    }
+
+    /** A runtime field under a nested path is read from the parent document, so a query on the child cannot match what is read. */
+    public void testNestedRuntimeChildIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.calc"), DataType.LONG));
+    }
+
+    public void testNestedChildThatIsARuntimeFieldOnOneShardIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "calc": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext runtime = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        var field = new FieldAttribute.FieldName("items.calc");
+        assertTrue(SearchContextStats.from(List.of(mapped)).nestedFieldIsQueryable(field, DataType.LONG));
+        assertFalse(SearchContextStats.from(List.of(mapped, runtime)).nestedFieldIsQueryable(field, DataType.LONG));
+    }
+
+    /** One incompatible shard must prevent a node-wide prefilter; an entirely unmapped collection is harmless. */
+    public void testNestedChildQueryEligibilityAcrossShards() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "sku": { "type": "keyword" }
+            } } } } }""");
+        SearchExecutionContext normalized = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "sku": { "type": "keyword", "normalizer": "lowercase" }
+            } } } } }""");
+        SearchExecutionContext missingField = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "other": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext unmapped = statsContext("""
+            { "doc": { "properties": { "id": { "type": "keyword" } } } }""");
+        var field = new FieldAttribute.FieldName("items.sku");
+        assertTrue(SearchContextStats.from(List.of(mapped, unmapped)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(mapped, normalized)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(mapped, missingField)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(unmapped)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+    }
+
+    private static boolean isQueryable(SearchExecutionContext context, String field, DataType type) {
+        return SearchContextStats.isQueryable(context, field, type, false);
+    }
+
+    /** The default analyzer, and a {@code lowercase} normalizer for the keywords that normalize their values. */
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+        );
+    }
+
+    private SearchExecutionContext statsContext(String mapping) throws IOException {
+        MapperService mapperService = createMapperService(mapping);
+        mapperServices.add(mapperService);
+        return createSearchExecutionContext(mapperService);
     }
 }

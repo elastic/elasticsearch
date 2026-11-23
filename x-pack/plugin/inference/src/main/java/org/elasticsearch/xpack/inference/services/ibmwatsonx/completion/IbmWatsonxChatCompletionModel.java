@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -109,7 +109,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         String service,
         IbmWatsonxChatCompletionServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
@@ -126,7 +126,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
     public IbmWatsonxChatCompletionModel(
         ModelConfigurations modelConfigurations,
         ModelSecrets modelSecrets,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(modelConfigurations, modelSecrets, authHeaderDecorator);
     }

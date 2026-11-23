@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -321,13 +322,23 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Probes the boundary of the direct path's char-range double parser (jackson-core's fast parser)
-     * against the Jackson baseline's {@link Double#parseDouble}. The cross-check inside {@code read}
-     * asserts the two paths agree; golden values pin {@code Double.parseDouble} semantics for the
-     * trickier accepted forms: float type suffixes, hex floats, leading sign, and bare-dot literals.
+     * against the Jackson baseline. The cross-check inside {@code read}
+     * asserts the two paths agree; golden values pin the accepted forms: leading sign and bare-dot literals.
      */
     public void testDoubleParserBoundaryForms() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "d:double\n1.5d\n2.5f\n3D\n4F\n0x1.8p1\n+1.5\n.5\n5.\n");
-        assertEquals(List.of(row(1.5), row(2.5), row(3.0), row(4.0), row(3.0), row(1.5), row(0.5), row(5.0)), rows);
+        List<List<Object>> rows = read(false, Map.of(), "d:double\n+1.5\n.5\n5.\n");
+        assertEquals(List.of(row(1.5), row(0.5), row(5.0)), rows);
+    }
+
+    /** Java's type suffixes, hexadecimal floats and non-ASCII digits are not numbers in a data file, on either path. */
+    public void testDoubleRefusesJavaOnlySpellings() throws IOException {
+        CsvFormatReader base = baseReader(false);
+        for (String text : List.of("1.5d", "2.5f", "3D", "4F", "0x1.8p1", "١٢٣")) {
+            for (boolean directBlock : List.of(false, true)) {
+                String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, "d:double\n" + text + "\n");
+                assertTrue("direct_block=" + directBlock + " [" + text + "]: " + message, message.contains("as [double]"));
+            }
+        }
     }
 
     /** NaN / Infinity forms accepted by {@link Double#parseDouble} must parse identically on both paths. */
@@ -388,7 +399,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     public void testQuotedEmbeddedNewline() throws IOException {
         String csv = "a:keyword,b:keyword\n\"line1\nline2\",tail\n";
-        List<List<Object>> rows = read(false, Map.of(), csv);
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), csv);
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
@@ -760,10 +771,12 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
+        String prefix = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
+        // Each path's own excerpt, so a guard that dropped one cannot pass unnoticed.
+        Map<Boolean, String> excerpt = Map.of(false, "col0=[1], col1=[not-a-date]", true, "1,not-a-date");
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
-            assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
+            assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(prefix + excerpt.get(directBlock)));
         }
     }
 
@@ -1377,17 +1390,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testEscapedNewlineUnquotedStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\\nb\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\na\\\nb\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testEscapedNewlineInQuotesStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n\"a\\\nb\"\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\n\"a\\\nb\"\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testTrailingLoneEscapeDropped() throws IOException {
-        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\nab\\\n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true, "multiline_fields", true), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
     }
 
@@ -1890,6 +1903,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     private record InMemoryStorageObject(byte[] bytes) implements StorageObject {
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
         @Override
         public InputStream newStream() {
             return new ByteArrayInputStream(bytes);

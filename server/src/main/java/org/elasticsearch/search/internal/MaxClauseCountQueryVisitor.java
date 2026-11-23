@@ -182,7 +182,11 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
                 s.field(),
                 f -> BinaryDocValuesScanCost.estimateDecodeBytes(f, reader)
             );
-            bytes = RamUsageEstimator.shallowSizeOf(query) + decodeBytes;
+            if (query instanceof Accountable a) {
+                bytes = a.ramBytesUsed() + decodeBytes;
+            } else {
+                bytes = RamUsageEstimator.shallowSizeOf(query) + decodeBytes;
+            }
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

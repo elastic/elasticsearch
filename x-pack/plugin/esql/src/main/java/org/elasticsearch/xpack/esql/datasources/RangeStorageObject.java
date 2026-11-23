@@ -108,6 +108,16 @@ class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject 
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
+    public String probedVersion() {
+        return delegate.probedVersion();
+    }
+
+    @Override
     public long lengthForFooterCacheKey() throws IOException {
         return delegate.lengthForFooterCacheKey();
     }
@@ -138,16 +148,13 @@ class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject 
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        // Forward to the underlying StorageObject so providers like S3 can perform a
-        // non-draining abort (e.g. Abortable.abort()). Falling through to the SPI default
-        // stream.close() would drain the entire response body for partial reads.
-        delegate.abortStream(stream);
+    public void close() throws IOException {
+        delegate.close();
     }
 
     @Override
     public InputStream withoutResume(InputStream stream) {
-        // Streams pass through unwrapped, so route to the delegate the same way abortStream does.
+        // Streams pass through unwrapped, so route to the delegate the same way close does.
         return ResumeBypassingStorageObject.withoutResume(delegate, stream);
     }
 

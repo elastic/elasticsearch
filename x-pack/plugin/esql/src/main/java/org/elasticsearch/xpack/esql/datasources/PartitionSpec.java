@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -38,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -512,36 +514,24 @@ public final class PartitionSpec {
     }
 
     /**
-     * Closed {@code @timestamp} bounds from the request filter, as listing hints, on paths whose
-     * spec binds that column. Other paths keep {@code hints}. An open range is not represented here:
-     * the extractor only returns bounds when both ends parsed.
+     * {@code hints} with the request filter's closed {@code @timestamp} bounds prepended, as listing hints, or
+     * {@code hints} unchanged when this spec does not bind that column or the range is not closed. An open range is
+     * not represented here: the extractor only returns bounds when both ends parsed.
      */
-    public static Map<String, List<PartitionFilterHint>> addTimestampBounds(
-        Map<String, List<PartitionFilterHint>> hints,
-        @Nullable Map<String, Map<String, Object>> pathConfigs,
+    public List<PartitionFilterHint> withTimestampBounds(
+        @Nullable List<PartitionFilterHint> hints,
         @Nullable Instant start,
         @Nullable Instant end
     ) {
-        if (start == null || end == null || start.isAfter(end) || pathConfigs == null || pathConfigs.isEmpty()) {
+        if (start == null || end == null || start.isAfter(end) || bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
             return hints;
         }
-        Map<String, List<PartitionFilterHint>> withBounds = null;
-        for (Map.Entry<String, Map<String, Object>> entry : pathConfigs.entrySet()) {
-            PartitionSpec spec = fromConfig(entry.getValue());
-            if (spec.bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
-                continue;
-            }
-            if (withBounds == null) {
-                withBounds = new LinkedHashMap<>(hints);
-            }
-            List<PartitionFilterHint> existing = withBounds.getOrDefault(entry.getKey(), List.of());
-            List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
-            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
-            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
-            merged.addAll(existing);
-            withBounds.put(entry.getKey(), List.copyOf(merged));
-        }
-        return withBounds == null ? hints : withBounds;
+        List<PartitionFilterHint> existing = hints == null ? List.of() : hints;
+        List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
+        merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
+        merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
+        merged.addAll(existing);
+        return List.copyOf(merged);
     }
 
     private boolean bindsColumn(String column) {
@@ -1281,6 +1271,102 @@ public final class PartitionSpec {
         );
     }
 
+    /**
+     * Folder-range predicate from a TEMPORAL extract, before {@code dropNonListingKeys}. Null when no temporal
+     * group has a usable bound (a point, or a one-sided or closed range). {@code @timestamp} / {@code NOW()}
+     * stay out of listing hints; this is the channel that still prunes them.
+     */
+    @Nullable
+    public FolderRangePredicate folderRangePredicate(@Nullable List<PartitionFilterHint> temporalHints) {
+        if (isEmpty() || temporalHints == null || temporalHints.isEmpty()) {
+            return null;
+        }
+        Transform finest = null;
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        StringBuilder id = new StringBuilder();
+        appendLengthPrefixed(id, toSpecString());
+        boolean usable = false;
+        for (Map.Entry<String, List<Field>> group : temporalGroups().entrySet()) {
+            if (hasHintOn(temporalHints, group.getKey()) == false) {
+                continue;
+            }
+            List<Field> binds = usable(group.getValue(), null);
+            if (binds.isEmpty()) {
+                continue;
+            }
+            Field finestBind = finestTemporalBind(binds);
+            if (finestBind == null) {
+                continue;
+            }
+            SourceBounds bounds = sourceBounds(temporalHints, group.getKey(), finestBind.unit());
+            InstantRange covering = coveringRange(bounds);
+            if (covering == null) {
+                continue;
+            }
+            usable = true;
+            for (Field field : binds) {
+                if (field.transform().isTemporal()) {
+                    keys.add(field.key());
+                    if (finest == null || grainRank(field.transform()) > grainRank(finest)) {
+                        finest = field.transform();
+                    }
+                }
+            }
+            appendLengthPrefixed(id, group.getKey());
+            appendBoundIdentity(id, bounds, covering, finestBind.transform());
+        }
+        if (usable == false) {
+            return null;
+        }
+        if (finest != null) {
+            appendLengthPrefixed(id, finest.token());
+        }
+        for (String key : keys) {
+            appendLengthPrefixed(id, key);
+        }
+        return new SpecFolderRangePredicate(this, List.copyOf(temporalHints), List.copyOf(keys), id.toString());
+    }
+
+    /**
+     * Cache-key fragment for one temporal group. A range stores the quantized hull (same folder set as
+     * {@link InstantRange#overlapsFolder} on grain-aligned folders). Points store each grain-truncated
+     * instant: {@link SourceBounds#overlaps} tests membership, so a hull would let two IN lists that
+     * share a year IN and the same min-max collide after complete month/day INs are omitted.
+     */
+    private static void appendBoundIdentity(StringBuilder id, SourceBounds bounds, InstantRange covering, Transform grain) {
+        if (bounds.points() != null) {
+            TreeSet<Long> truncated = new TreeSet<>();
+            for (Long point : bounds.points()) {
+                truncated.add(grainFloor(point, grain));
+            }
+            appendLengthPrefixed(id, "p");
+            id.append(truncated.size()).append(':');
+            for (Long point : truncated) {
+                appendLengthPrefixed(id, Long.toString(point));
+            }
+            return;
+        }
+        InstantRange quantized = quantizeRange(covering, grain);
+        appendLengthPrefixed(id, "r");
+        appendLengthPrefixed(id, quantized.startInclusiveMillis() == null ? "" : Long.toString(quantized.startInclusiveMillis()));
+        appendLengthPrefixed(id, quantized.endExclusiveMillis() == null ? "" : Long.toString(quantized.endExclusiveMillis()));
+    }
+
+    /**
+     * Round {@code range} to {@code grain}: lower down, exclusive upper up. Already-on-boundary values stay.
+     * Folder intervals sit on grain boundaries, so {@code overlapsFolder} on raw vs quantized bounds is identical.
+     */
+    static InstantRange quantizeRange(InstantRange range, Transform grain) {
+        if (grain.isTemporal() == false) {
+            return range;
+        }
+        Long lo = range.startInclusiveMillis();
+        Long hi = range.endExclusiveMillis();
+        Long qLo = lo == null ? null : grainFloor(lo, grain);
+        Long qHi = hi == null ? null : grainCeil(hi, grain);
+        return new InstantRange(qLo, qHi);
+    }
+
     /** Notices for unmatched keys and a numeric bound that lands outside 1971–2100. */
     public void emitListingNotices(@Nullable Set<String> detectedKeys, @Nullable List<PartitionFilterHint> hints, Consumer<String> sink) {
         emitListingNotices(detectedKeys, hints, null, sink);
@@ -1592,6 +1678,93 @@ public final class PartitionSpec {
         };
     }
 
+    @Nullable
+    private static Field finestTemporalBind(List<Field> binds) {
+        Field finest = null;
+        int finestRank = -1;
+        for (Field field : binds) {
+            int rank = grainRank(field.transform());
+            if (rank > finestRank) {
+                finest = field;
+                finestRank = rank;
+            }
+        }
+        return finest;
+    }
+
+    @Nullable
+    private static InstantRange coveringRange(SourceBounds bounds) {
+        if (bounds.points() != null) {
+            if (bounds.points().isEmpty()) {
+                return InstantRange.EMPTY;
+            }
+            long min = Long.MAX_VALUE;
+            long max = Long.MIN_VALUE;
+            for (Long point : bounds.points()) {
+                min = Math.min(min, point);
+                max = Math.max(max, point);
+            }
+            return new InstantRange(min, increment(max));
+        }
+        InstantRange range = bounds.range();
+        if (range.startInclusiveMillis() == null && range.endExclusiveMillis() == null) {
+            return null;
+        }
+        return range;
+    }
+
+    private static long grainFloor(long millis, Transform grain) {
+        ZonedDateTime z = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
+        return switch (grain) {
+            case YEAR -> LocalDate.of(z.getYear(), 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+            case MONTH -> LocalDate.of(z.getYear(), z.getMonthValue(), 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+            case DAY -> z.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+            case HOUR -> z.withMinute(0).withSecond(0).withNano(0).toInstant().toEpochMilli();
+            case IDENTITY -> millis;
+        };
+    }
+
+    private static long grainCeil(long millis, Transform grain) {
+        long floor = grainFloor(millis, grain);
+        if (floor == millis) {
+            return millis;
+        }
+        ZonedDateTime z = Instant.ofEpochMilli(floor).atZone(ZoneOffset.UTC);
+        return switch (grain) {
+            case YEAR -> z.plusYears(1).toInstant().toEpochMilli();
+            case MONTH -> z.plusMonths(1).toInstant().toEpochMilli();
+            case DAY -> z.plusDays(1).toInstant().toEpochMilli();
+            case HOUR -> z.plusHours(1).toInstant().toEpochMilli();
+            case IDENTITY -> millis;
+        };
+    }
+
+    private static void appendLengthPrefixed(StringBuilder sb, String value) {
+        sb.append(value.length()).append(':').append(value);
+    }
+
+    private record SpecFolderRangePredicate(PartitionSpec spec, List<PartitionFilterHint> hints, List<String> bindKeys, String identity)
+        implements
+            FolderRangePredicate {
+        @Override
+        public boolean mayContain(Map<String, String> boundKeyValues) {
+            if (boundKeyValues == null || boundKeyValues.isEmpty()) {
+                return true;
+            }
+            return spec.overlaps(new LinkedHashMap<>(boundKeyValues), hints);
+        }
+
+        @Override
+        public String identity() {
+            return identity;
+        }
+
+        @Override
+        public List<String> bindKeys() {
+            return bindKeys;
+        }
+    }
+
     private static boolean hasHintOn(List<PartitionFilterHint> hints, String column) {
         for (PartitionFilterHint hint : hints) {
             if (hint.columnName().equals(column)) {
@@ -1617,14 +1790,19 @@ public final class PartitionSpec {
                     }
                 }
                 case IN -> {
+                    // A value that does not convert can still match rows, so it leaves the whole IN unrestricted, as it
+                    // does for EQUALS. Keeping only the values that convert would drop that value's folders.
                     Set<Long> next = new LinkedHashSet<>();
+                    boolean allConverted = true;
                     for (Object value : hint.values()) {
                         Long millis = toUtcMillisForProjection(value, unit);
-                        if (millis != null) {
-                            next.add(millis);
+                        if (millis == null) {
+                            allConverted = false;
+                            break;
                         }
+                        next.add(millis);
                     }
-                    if (next.isEmpty() == false) {
+                    if (allConverted && next.isEmpty() == false) {
                         inPoints = intersectSets(inPoints, next);
                     }
                 }
@@ -1652,8 +1830,8 @@ public final class PartitionSpec {
                         range = range.intersect(new InstantRange(null, increment(millis)));
                     }
                 }
-                case NOT_EQUALS -> {
-                    // A single excluded instant cannot drop a folder.
+                case NOT_EQUALS, LIKE -> {
+                    // A single excluded instant cannot drop a folder. LIKE is a file-name pattern, not a time bound.
                 }
             }
         }

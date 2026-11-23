@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
@@ -21,8 +22,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends ESTestCase {
 
@@ -76,17 +81,27 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
             """, modelId, pdfDocValue1, imageDocValue, pdfDocValue2)));
     }
 
+    public void testToXContent_HtmlUrlDocument() throws IOException {
+        var htmlUrl = "https://example.com/" + randomAlphanumericOfLength(8) + ".html";
+        var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
+            List.of(new InferenceString(DataType.HTML, DataFormat.URL, htmlUrl)),
+            modelId,
+            ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS
+        );
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "model": "%s",
+                "input": [{"content": {"type":"html","format":"url","value":"%s"}}]
+            }""", modelId, htmlUrl)));
+    }
+
     public void testToXContent_WithTaskSettings() throws IOException {
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
             modelId,
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(
-                    List.of(".main-content", "#post-body"),
-                    List.of("nav")
-                )
-            )
+            // Sorted, so the parameters are written in a known order
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", new TreeMap<>(Map.of("preset", "ocr", "page", 2)))
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -94,8 +109,32 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
                 "model": "%s",
                 "input": [{"content": {"type":"pdf","format":"base64","value":"%s"}}],
                 "output_format": "markdown",
-                "css": {"extract_only": [".main-content", "#post-body"], "remove": ["nav"]}
+                "parameters": {"page": 2, "preset": "ocr"}
             }""", modelId, pdfDocValue1)));
+    }
+
+    public void testToXContent_WithEmbeddedParameterObjects() throws IOException {
+        // Embedded objects and arrays are inlined into the request body as they are.
+        // The parameters are made-up values only demonstrating the pass-through; they are not valid parameters.
+        var parameters = Map.<String, Object>of(
+            "preset",
+            "ocr",
+            "ocr",
+            Map.of("preferEndToEnd", true, "layout", Map.of("columns", 2, "regions", List.of("header", "body"))),
+            "targetSelector",
+            List.of("main", Map.of("css", "#post", "weight", 1.5))
+        );
+        var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
+            List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
+            modelId,
+            new ElasticInferenceServiceDocumentExtractionTaskSettings(null, parameters)
+        );
+
+        // Compared as a map, as the order of the keys of the embedded objects is not defined
+        var body = XContentHelper.convertToMap(XContentType.JSON.xContent(), xContentEntityToString(entity), false);
+
+        assertThat(body.get("parameters"), is(parameters));
+        assertThat(body.keySet(), is(Set.of("model", "input", "parameters")));
     }
 
     private String xContentEntityToString(ElasticInferenceServiceDocumentExtractionRequestEntity entity) throws IOException {

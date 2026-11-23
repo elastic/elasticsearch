@@ -87,10 +87,16 @@ import java.util.function.IntFunction;
  *       whole-number exact parse above is the same refuse-vs-cast pattern for numeric columns;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
  *       column's declared {@code format} (else the ISO default). A {@code date_nanos} source narrows
- *       nanos&rarr;millis ({@link DateUtils#toMilliSeconds}, truncating sub-millisecond precision) —
- *       the narrowing {@code ::datetime} performs. This is what lets an annotated
+ *       nanos&rarr;millis by floor division, losing sub-millisecond precision but never failing —
+ *       including below the epoch, where {@code ::datetime} nulls the value instead, because that
+ *       bound belongs to {@code date_nanos} and not to {@code date}. This is what lets an annotated
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
- *       {@code date}, the conventional dashboard type. Numeric sources follow the unit rule below
+ *       {@code date}, the conventional dashboard type. The readable range is the declared type's own, not
+ *       {@code date_nanos}': the pair is {@link #fusedInDecode fused}, so a reader that honors the predicate scales
+ *       microseconds straight to milliseconds and materialises no nanosecond intermediate, whose own domain
+ *       would confine the value to 1677-09-21 .. 2262-04-11. This arm still runs for a reader that does not, and for a
+ *       {@code date_nanos} column the planner itself produced.
+ *       Numeric sources follow the unit rule below
  *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest
  *       milli, the {@code ::datetime} semantic);</li>
  *   <li><b>{@code date_nanos}</b>: string sources parse via the column's declared {@code format}
@@ -109,7 +115,8 @@ import java.util.function.IntFunction;
  * decides it, and it is the same rule for every temporal target:
  * <ol>
  *   <li><b>The file's annotation wins.</b> A physically-typed temporal column (a parquet
- *       {@code TIMESTAMP(unit)}) is already an instant, not a raw number: its unit is known, a
+ *       {@code TIMESTAMP(unit)}, or a {@code TIME(unit)}, which is a time of day rendered as an
+ *       instant on 1970-01-01) is already an instant, not a raw number: its unit is known, a
  *       {@code format} on it is rejected at resolution rather than obeyed, and the declaration only
  *       chooses the target precision (nanos&rarr;millis narrows, millis&rarr;nanos widens).</li>
  *   <li><b>Else the declared {@code format} wins</b>, naming the unit / parse dialect of the number
@@ -170,6 +177,9 @@ import java.util.function.IntFunction;
  */
 public final class DeclaredTypeCoercions {
 
+    /** Nanoseconds per millisecond: the divisor of the {@code date_nanos -> date} narrowing. */
+    private static final long NANOS_PER_MILLI = 1_000_000L;
+
     private DeclaredTypeCoercions() {}
 
     /**
@@ -209,7 +219,8 @@ public final class DeclaredTypeCoercions {
             // declared, else the number is epoch millis. A double rounds to epoch millis (the
             // ::datetime semantic). A date_nanos source narrows nanos -> millis: it is not a raw
             // number whose unit is unknown but an instant the file already typed, so the conversion
-            // is unambiguous — the same narrowing ::datetime performs.
+            // is unambiguous. Above the epoch it is the same narrowing ::datetime performs; below it the two
+            // diverge deliberately, because ::datetime nulls a pre-epoch instant and the date mapper ingests it.
             case DATETIME -> fromString
                 || from == DataType.INTEGER
                 || from == DataType.LONG
@@ -238,14 +249,15 @@ public final class DeclaredTypeCoercions {
      * The coercible pairs the columnar decode loops implement directly (fused into the decode,
      * no {@link #castBlock} pass): the lossless {@code integer → long} widen, the
      * {@code long → datetime} epoch-millis reinterpret <b>of a column with no declared format</b>, the
-     * {@code string → datetime} parse with the column's declared {@code format}, and the
-     * {@code keyword ↔ text} relabel (same bytes). Every other {@link #supports supported} pair decodes at
-     * the file's own type and coerces through {@link #castBlock}.
+     * {@code string → datetime} parse with the column's declared {@code format}, the
+     * {@code date_nanos → datetime} unit scale, and the {@code keyword ↔ text} relabel (same bytes). Every other
+     * {@link #supports supported} pair decodes at the file's own type and coerces through {@link #castBlock}.
      * <p>
      * This no-format overload is the plain predicate; the readers call
      * {@link #fusedInDecode(DataType, DataType, boolean)} so that a format-carrying whole-number column
-     * defuses onto {@code castBlock}. Both Parquet and ORC consult that one predicate, so the two readers
-     * cannot disagree about which path a pair takes.
+     * defuses onto {@code castBlock}. Both Parquet and ORC consult that one predicate, so the two readers cannot
+     * disagree about which path a pair takes — though only Parquet can reach {@code date_nanos → datetime}, ORC
+     * having no leaf type that renders {@code date_nanos}.
      */
     public static boolean fusedInDecode(DataType from, DataType to) {
         return fusedInDecode(from, to, false);
@@ -258,7 +270,9 @@ public final class DeclaredTypeCoercions {
      * column defuses onto {@link #castBlock}, whose {@code DATETIME} arm parses the value through the
      * format (the epoch-unit / parse-dialect semantic the text readers already implement). The
      * {@code string → datetime} pair stays fused either way — its fused BINARY decode arm already threads
-     * the declared formatter.
+     * the declared formatter — and so does {@code date_nanos → datetime}, whose {@code castBlock} arm ignores
+     * the format because the annotation has already stated the unit. A caller that decodes a fused pair natively
+     * therefore has to carry the formatter: the flag says which path a pair takes, never that no format exists.
      */
     public static boolean fusedInDecode(DataType from, DataType to, boolean hasDeclaredFormat) {
         if (from == to) {
@@ -270,11 +284,31 @@ public final class DeclaredTypeCoercions {
         if (from == DataType.LONG && to == DataType.DATETIME) {
             return hasDeclaredFormat == false;
         }
+        // A column the file renders date_nanos, read as `date`. Fused because nanoseconds cap the value at
+        // 1677..2262 and milliseconds do not; the two scales agree wherever raw * 1_000 does not overflow, which is
+        // all the two-step route could carry. A declared format does not defuse it -- castBlock's arm ignores it.
+        if (from == DataType.DATE_NANOS && to == DataType.DATETIME) {
+            return true;
+        }
         boolean fromString = from == DataType.KEYWORD || from == DataType.TEXT;
         if (fromString && (to == DataType.KEYWORD || to == DataType.TEXT)) {
             return true;
         }
         return fromString && to == DataType.DATETIME;
+    }
+
+    /**
+     * Whether a column stored as {@code fileType} must be decoded at that type and then cast to reach
+     * {@code declared}. Every columnar read path asks this here rather than restating the terms, so none of
+     * them can answer it differently.
+     *
+     * @param fileType the stored type, or {@code null} from a caller with no stored type, which declines
+     */
+    public static boolean needsBlockCast(@Nullable DataType fileType, DataType declared, boolean hasDeclaredFormat) {
+        return fileType != null
+            && declared != fileType
+            && fusedInDecode(fileType, declared, hasDeclaredFormat) == false
+            && supports(fileType, declared);
     }
 
     /**
@@ -549,7 +583,7 @@ public final class DeclaredTypeCoercions {
             // the string-coercion arm was the lone path rejecting non-finite doubles. A string source
             // parses with Double.parseDouble (accepts NaN/Infinity, still rejects garbage via NFE); a
             // numeric source (declared double over a physical int/long/unsigned_long) widens.
-            case DOUBLE -> fromString ? v -> Double.parseDouble((String) v) : v -> ((Number) v).doubleValue();
+            case DOUBLE -> fromString ? v -> parseDoubleText((String) v) : v -> ((Number) v).doubleValue();
             case UNSIGNED_LONG -> DeclaredTypeCoercions::exactToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> {
@@ -558,11 +592,25 @@ public final class DeclaredTypeCoercions {
                 }
                 if (from == DataType.DATE_NANOS) {
                     // An annotated TIMESTAMP(MICROS|NANOS) column infers as date_nanos; declaring it `date` narrows
-                    // nanos -> millis, truncating sub-millisecond precision. Value-identical to ::datetime, which maps
-                    // DATE_NANOS through this same DateUtils.toMilliSeconds (ToDatetime's DATE_NANOS evaluator), so a
-                    // declared read and an explicit cast cannot disagree. A pre-epoch nanos instant throws and follows
-                    // the read's error policy. No format is involved: the annotation already states the unit.
-                    yield v -> DateUtils.toMilliSeconds((Long) v);
+                    // nanos -> millis, losing sub-millisecond precision. The narrowing is arithmetic and total: every
+                    // value a date_nanos block can hold is a representable epoch-millis instant, so it cannot fail,
+                    // and it must not borrow date_nanos' own 1970 floor. DateUtils.toMilliSeconds throws below the
+                    // epoch -- the same floor the date_nanos field mapper enforces at ingest (DateUtils.toLong), a fact
+                    // about the ingest path and not about `date`; that floor failed a pre-1970 TIMESTAMP(MICROS)
+                    // column under the default fail_fast mode
+                    // -- nulling the cell under null_field and dropping the row under skip_row, per onCoercionFailure
+                    // -- while the same column read correctly with no declaration at all.
+                    //
+                    // Floor division, not truncation toward zero: rawBoundFor's ScaleDown arithmetic -- the bounds the
+                    // planner pushes for this very column -- is derived from `decoded == floorDiv(raw, d)`, so
+                    // truncating would make the decode disagree with the pruning and skip row groups the query
+                    // matches.
+                    //
+                    // This is where a declared read diverges from ::datetime, which maps DATE_NANOS through
+                    // DateUtils.toMilliSeconds and so nulls a pre-epoch instant. The declared coercions answer to the
+                    // field mappers (see the class javadoc), and a `date` mapper ingests the instant happily. No
+                    // format is involved: the annotation already states the unit.
+                    yield v -> Math.floorDiv((Long) v, NANOS_PER_MILLI);
                 }
                 if (from == DataType.DOUBLE) {
                     // A declared double column reads as an epoch value the same way ::datetime treats a double
@@ -664,6 +712,65 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
+     * Whether {@code text} avoids the number spellings that only Java's parsers define: a type suffix
+     * ({@code 10D}), a hexadecimal float ({@code 0x1p3}) and digits outside ASCII. Text that fails this check
+     * is not a number in a data file, whatever {@code Double.parseDouble} or {@code Character.digit} accept.
+     */
+    public static boolean isPlainNumberText(String text) {
+        int end = text.length();
+        while (end > 0 && text.charAt(end - 1) <= ' ') {
+            end--;
+        }
+        if (end == 0) {
+            return false;
+        }
+        for (int i = 0; i < end; i++) {
+            if (isJavaOnlyNumberChar(text.charAt(i))) {
+                return false;
+            }
+        }
+        return isTypeSuffix(text.charAt(end - 1)) == false;
+    }
+
+    /** {@link #isPlainNumberText(String)} over the {@code len} chars of {@code buf} starting at {@code start}. */
+    public static boolean isPlainNumberText(char[] buf, int start, int len) {
+        int end = start + len;
+        while (end > start && buf[end - 1] <= ' ') {
+            end--;
+        }
+        if (end == start) {
+            return false;
+        }
+        for (int i = start; i < end; i++) {
+            if (isJavaOnlyNumberChar(buf[i])) {
+                return false;
+            }
+        }
+        return isTypeSuffix(buf[end - 1]) == false;
+    }
+
+    private static boolean isJavaOnlyNumberChar(char c) {
+        return c > 127 || c == 'x' || c == 'X' || c == 'p' || c == 'P';
+    }
+
+    private static boolean isTypeSuffix(char c) {
+        return c == 'd' || c == 'D' || c == 'f' || c == 'F';
+    }
+
+    /**
+     * {@link Double#parseDouble} restricted to {@link #isPlainNumberText plain number text}; {@code NaN} and
+     * {@code Infinity} still pass.
+     *
+     * @throws NumberFormatException if the text is not a plain number
+     */
+    public static double parseDoubleText(String text) {
+        if (text.isBlank() == false && isPlainNumberText(text) == false) {
+            throw new NumberFormatException("Cannot parse number [" + text + "]");
+        }
+        return Double.parseDouble(text);
+    }
+
+    /**
      * Exact conversion of a file value into a declared {@code integer} column. Accepts only values that
      * are mathematically whole and in {@code int} range ({@code 2.0}, {@code 1e5}, {@code 42}); refuses
      * a non-zero fractional part ({@code 1.9}) with a value error naming the value — never rounds the
@@ -734,6 +841,9 @@ public final class DeclaredTypeCoercions {
         if (value instanceof BigDecimal bigDecimal) {
             bd = bigDecimal;
         } else {
+            if (value.toString().isBlank() == false && isPlainNumberText(value.toString()) == false) {
+                throw new InvalidArgumentException("Cannot parse number [{}]", value);
+            }
             try {
                 bd = new BigDecimal(value.toString());
             } catch (NumberFormatException e) {
@@ -769,6 +879,7 @@ public final class DeclaredTypeCoercions {
      * Not used for reading a file value into a declared {@code unsigned_long} column — that path is
      * {@link #exactToUnsignedLong}. Kept for Hive partition folder names ({@code HivePartitionDetector})
      * and statistics serialization, where every value reaching this method is already integral.
+     * Text is parsed with {@link BigDecimal} as given; screening it with {@link #isPlainNumberText} is the caller's job.
      * <p>
      * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: callers
      * outside this class still need the truncate-toward-zero scalar.
@@ -926,7 +1037,7 @@ public final class DeclaredTypeCoercions {
      *
      * <p>The map has a direction, and the direction is NOT a property of the file alone. A {@code TIMESTAMP(MICROS)}
      * column decodes to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis
-     * ({@code raw / 1000}, truncating) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
+     * ({@code floorDiv(raw, 1000)}) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
      * declaration. That is why this takes the declared type, and why a per-consumer switch on the annotation cannot
      * express it.
      */

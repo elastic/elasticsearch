@@ -74,14 +74,29 @@ public abstract class AllocationTestCase extends ScriptTestCase {
         return ((PainlessScript) script).getAllocBytes();
     }
 
+    /** Runs {@code source} with {@code params} under a 1mb limit and returns what it charged. */
+    protected long allocatedBytes(String source, Map<String, Object> params) {
+        PainlessTestScript script = compile(source, "1mb", params);
+        script.execute();
+        return ((PainlessScript) script).getAllocBytes();
+    }
+
     /** Asserts that running {@code source} under a 1b limit trips the allocation limit. */
     protected void assertTripsLimit(String source) {
         assertTripsLimit(source, "1b");
     }
 
+    /** Asserts {@code source} with {@code params} trips {@code limit}. */
+    protected void assertTripsLimit(String source, String limit, Map<String, Object> params) {
+        assertTripsLimit(compile(source, limit, params), source, limit);
+    }
+
     /** Asserts that running {@code source} under {@code limit} trips the allocation limit. */
     protected void assertTripsLimit(String source, String limit) {
-        PainlessTestScript script = compile(source, limit);
+        assertTripsLimit(compile(source, limit), source, limit);
+    }
+
+    private void assertTripsLimit(PainlessTestScript script, String source, String limit) {
         ScriptException e = expectThrows(ScriptException.class, script::execute);
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t.getMessage() != null && t.getMessage().contains("allocation limit exceeded")) {

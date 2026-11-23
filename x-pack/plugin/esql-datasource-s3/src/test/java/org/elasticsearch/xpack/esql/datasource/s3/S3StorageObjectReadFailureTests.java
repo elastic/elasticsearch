@@ -80,9 +80,12 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
     /**
      * AWS Standard retry semantics (same classification and attempt budget as production) but with
-     * immediate backoff so failure-mapping tests do not sleep while the strategy spends its budget.
+     * immediate backoff so failure-mapping tests do not sleep while the strategy spends its budget. An instance
+     * field, not a static one: the strategy owns a retry-quota token bucket that failed retries drain and only
+     * successes refill, so sharing it across tests that enter the retry loop eventually exhausts the quota and
+     * cuts retries short.
      */
-    private static final RetryStrategy RETRY_STRATEGY = AwsRetryStrategy.standardRetryStrategy()
+    private final RetryStrategy retryStrategy = AwsRetryStrategy.standardRetryStrategy()
         .toBuilder()
         .backoffStrategy(BackoffStrategy.retryImmediately())
         .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
@@ -301,6 +304,49 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("not found"));
         assertThat(ex.getMessage(), containsString(PATH.objectName()));
         assertSame(missing, ex.getCause());
+    }
+
+    /**
+     * A bodyless HTTP 404 is what some fixtures and gateways return for a missing key. The SDK then raises a generic
+     * {@link S3Exception} rather than {@link NoSuchKeyException}; that must still be the not-found condition, or a
+     * deleted object under a cached listing fails the query as an opaque range-read error.
+     */
+    public void testBodyless404IsObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missing = (S3Exception) S3Exception.builder().statusCode(404).message("Not Found").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_NOT_FOUND, ex.condition());
+        assertThat(ex.getMessage(), containsString("not found"));
+        assertSame(missing, ex.getCause());
+    }
+
+    public void testCodedNoSuchKey404IsObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missing = s3Error(404, "NoSuchKey");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_NOT_FOUND, ex.condition());
+        assertSame(missing, ex.getCause());
+    }
+
+    /**
+     * A missing bucket is a 404 with a different error code. Treating it as a gone object would drop
+     * listings and retry, which cannot find a bucket that is not there.
+     */
+    public void testNoSuchBucket404IsNotObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missingBucket = s3Error(404, "NoSuchBucket");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missingBucket);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertNull(ExceptionsHelper.unwrap(thrown, ExternalClientException.class));
+        assertSame(missingBucket, thrown.getCause());
     }
 
     /**
@@ -635,8 +681,8 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
     }
 
     /** Reads {@code length} bytes through the native async path and returns the failure handed to the listener. */
-    private static Throwable readAsyncFailure(S3AsyncClient mockAsyncS3, int length) throws InterruptedException {
-        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, RETRY_STRATEGY, BUCKET, KEY, PATH);
+    private Throwable readAsyncFailure(S3AsyncClient mockAsyncS3, int length) throws InterruptedException {
+        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, retryStrategy, BUCKET, KEY, PATH);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> outcome = new AtomicReference<>();
 

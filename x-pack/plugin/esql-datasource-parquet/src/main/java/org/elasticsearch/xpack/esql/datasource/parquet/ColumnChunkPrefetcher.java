@@ -105,6 +105,19 @@ final class ColumnChunkPrefetcher {
         @Nullable FooterByteCache footerBytes,
         ParquetIoWatermark.ByteGate byteGate
     ) {
+        return fetchSync(storageObject, block, projectedColumns, breaker, ioWatermark, footerBytes, byteGate, null);
+    }
+
+    static PrefetchedChunks fetchSync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold
+    ) {
         try {
             List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
             if (ranges.isEmpty()) {
@@ -125,7 +138,8 @@ final class ColumnChunkPrefetcher {
                     breaker,
                     ioWatermark,
                     footerBytes,
-                    byteGate
+                    byteGate,
+                    admitHold
                 )
             );
         } catch (Exception e) {
@@ -451,6 +465,36 @@ final class ColumnChunkPrefetcher {
         @Nullable FooterByteCache footerBytes,
         ParquetIoWatermark.ByteGate byteGate
     ) {
+        return fetchSync(
+            storageObject,
+            block,
+            projectedColumns,
+            rowRanges,
+            metadata,
+            rowGroupOrdinal,
+            rowGroupRowCount,
+            breaker,
+            ioWatermark,
+            footerBytes,
+            byteGate,
+            null
+        );
+    }
+
+    static PrefetchedChunks fetchSync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupOrdinal,
+        long rowGroupRowCount,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold
+    ) {
         try {
             List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
                 block,
@@ -479,7 +523,8 @@ final class ColumnChunkPrefetcher {
                     breaker,
                     ioWatermark,
                     footerBytes,
-                    byteGate
+                    byteGate,
+                    admitHold
                 )
             );
         } catch (Exception e) {

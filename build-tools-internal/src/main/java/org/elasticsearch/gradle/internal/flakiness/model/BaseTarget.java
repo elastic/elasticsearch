@@ -30,16 +30,17 @@ import java.util.List;
  * <p>Serialized into each project's {@code <project>.json} (the resolve->scan hand-off), so it must
  * round-trip through Jackson.
  *
- * @param gradleProject   owning Gradle project path
- * @param sourceSet       owning source-set name
- * @param kind            wire kind (see {@link Kinds})
- * @param fqcn            fully-qualified class name, or {@code null} for yaml suite/runner targets
- * @param suitePath       yaml suite path, or {@code null}
- * @param yamlTest        parameterised yaml case descriptor, or {@code null}
- * @param runnableTasks   the task paths that actually run this target, capped and newest-first; empty when
- *                        {@code skipReason} is set
- * @param candidateTasks  how many enabled candidate tasks existed before the cap (for the plan's report)
- * @param skipReason      {@code null} when runnable, else why not (see {@link TestTaskSelector})
+ * @param gradleProject      owning Gradle project path
+ * @param sourceSet          owning source-set name
+ * @param kind               wire kind (see {@link Kinds})
+ * @param fqcn               fully-qualified class name, or {@code null} for yaml suite/runner targets
+ * @param suitePath          yaml suite path, or {@code null}
+ * @param yamlTest           parameterised yaml case descriptor, or {@code null}
+ * @param runnableTasks      the task paths that actually run this target, capped and newest-first; empty when
+ *                           {@code skipReason} is set
+ * @param candidateTaskPaths every enabled candidate task path before the cap, in deterministic order, for the
+ *                           plan's capped-task reporting
+ * @param skipReason         {@code null} when runnable, else why not (see {@link TestTaskSelector})
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record BaseTarget(
@@ -50,12 +51,17 @@ public record BaseTarget(
     String suitePath,
     String yamlTest,
     List<String> runnableTasks,
-    int candidateTasks,
+    List<String> candidateTaskPaths,
     String skipReason
 ) {
 
     /** Whether this target has at least one task that can re-run it on this agent. */
     public boolean runnable() {
         return skipReason == null;
+    }
+
+    /** How many enabled candidate tasks existed before the cap. */
+    public int candidateTasks() {
+        return candidateTaskPaths == null ? 0 : candidateTaskPaths.size();
     }
 }

@@ -1,0 +1,408 @@
+version: 9.5.7
+released: false
+generated: 2026-11-23T10:08:51.740153Z
+changelogs:
+  - pr: 155085
+    summary: Improve inferring non-null aggregation constraints
+    area: ES|QL
+    type: bug
+    issues:
+      - 154804
+  - pr: 156238
+    summary: Fix source filtering for fields containing backslashes
+    area: Search
+    type: bug
+    issues:
+      - 136302
+  - pr: 157112
+    summary: Fix coalesced range reader short-read hang
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157248
+    summary: "[ESQLDS] Fix streaming breaker accounting in `StreamingParallelIterator`"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 157398
+    summary: Fix cross-attempt use-after-free write race in `KnownLengthAsyncResponse`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 158693
+    summary: Fix `AggregationFunctions` with constant input
+    area: ES|QL
+    type: bug
+    issues:
+      - 158467
+  - pr: 159189
+    summary: Refactor aggs input
+    area: ES|QL
+    type: bug
+    issues:
+      - 158821
+  - pr: 159245
+    summary: "[ESQLDS][Parquet] Guard `filterBlock` call site for LIST columns"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 159731
+    summary: Fix block leak in `readBatchSparse` fast path when `skipRows` trips CBE
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 160375
+    summary: Scope Parquet/ORC footer cache by storage identity to prevent cross-data-source cache collisions
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 160437
+    summary: Fix `v_magnitude` with nulls
+    area: ES|QL
+    type: bug
+    issues:
+      - 160373
+  - pr: 160601
+    summary: Auto-stop datafeed after consecutive extraction failures
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 160679
+    summary: Improve performance of ES|QL CASE function with multiple conditions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 160760
+    summary: "ES|QL|DS: Prevent looping failures from OOMing node"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 160944
+    summary: "ES|QL|DS: Cap schema width for CSV, TSV and Parquet datasets"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 162700
+    summary: Fix unfolded null errors on functions
+    area: ES|QL
+    type: bug
+    issues:
+      - 162639
+  - pr: 162876
+    summary: Apply field visibility to `source_geometry`
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 163047
+    summary: Fail cancelled queries instead of returning partial results
+    area: ES|QL
+    type: bug
+    issues:
+      - 162919
+  - pr: 163290
+    summary: Preserve requested pagination in interim async cross-cluster search responses
+    area: CCS
+    type: bug
+    issues:
+      - 160954
+  - pr: 163347
+    summary: Truncate invalid input in ES|QL TO_IP warnings
+    area: ES|QL
+    type: bug
+    issues:
+      - 163299
+  - pr: 163541
+    summary: "Fix(security): hide doc values skippers of FLS-hidden fields"
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 163792
+    summary: Fix FIRST/LAST returning null when merging partial results
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 163903
+    summary: "Fix(tsdb): retain legacy `_id` breaker reservations"
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 163912
+    summary: Expand the tests to the entire combination of supported data types for SPARKLINE arguments
+    area: ES|QL
+    type: bug
+    issues:
+      - 163885
+  - pr: 163948
+    summary: Send system messages as top-level system field for Google Model Garden Anthropic chat completion
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 163955
+    summary: Omit empty unit from `_tsid` for OTLP ingested metrics
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 164088
+    summary: Fix a byte buffer leak on proxy nodes handling batched query responses
+    area: Search
+    type: bug
+    issues: []
+  - pr: 164102
+    summary: Fix `wait_for_checkpoints` hang when the timeout is -1
+    area: Search
+    type: bug
+    issues:
+      - 163312
+  - pr: 164144
+    summary: Fix wrapping queries that charge the breaker multiple times
+    area: Search
+    type: bug
+    issues:
+      - 164142
+  - pr: 164229
+    summary: Forbid changing searchable snapshot identity on restore
+    area: Searchable Snapshots
+    type: bug
+    issues: []
+  - pr: 164261
+    summary: Make FORK/UNION ALL column alignment linear
+    area: ES|QL
+    type: bug
+    issues:
+      - 163560
+  - pr: 164482
+    summary: Use confined arenas for temporary files when writing stored fields
+    area: Codec
+    type: bug
+    issues: []
+  - pr: 164491
+    summary: Read files inside compound files with normal advice
+    area: Store
+    type: bug
+    issues: []
+  - pr: 164526
+    summary: Fix knn `inner_hits` failing on `int8_hnsw` segments written before 9.2
+    area: Vector Search
+    type: bug
+    issues:
+      - 163972
+  - pr: 164529
+    summary: Make OTLP metric names hash order-independent
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 164595
+    summary: Emit the top docs of a driver that ends after the status interval
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 164602
+    summary: Keep implicit @timestamp off STATS groupings
+    area: ES|QL
+    type: bug
+    issues:
+      - 164599
+  - pr: 164604
+    summary: Fix race when reading reindex data stream status
+    area: Infra/Core
+    type: bug
+    issues:
+      - 164473
+  - pr: 164627
+    summary: Drop permanently rejected results documents from the anomaly detection persister queue
+    area: Machine Learning
+    type: bug
+    issues:
+      - 164625
+  - pr: 164634
+    summary: "Add S3 client setting to omit request body checksums, overriding the `AWS_REQUEST_CHECKSUM_CALCULATION` environment variable and the `aws.requestChecksumCalculation` system property."
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 164700
+    summary: Free reader contexts of cancelled query and DFS requests
+    area: Search
+    type: bug
+    issues:
+      - 164687
+  - pr: 164790
+    summary: Fix `StringIndexOutOfBoundsException` in EsqlCCSUtils
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 164829
+    summary: "Fix GET _transform never completing when size is 0, and honour timeout and cancellation in its dangling task check"
+    area: Transform
+    type: bug
+    issues:
+      - 164850
+  - pr: 164849
+    summary: Fix IVF kNN pruning rescore candidates when segment oversample differs
+    area: Vector Search
+    type: bug
+    issues:
+      - 164821
+  - pr: 164859
+    summary: Determinize `simple_pattern` tokenizer automaton
+    area: Analysis
+    type: bug
+    issues:
+      - 164857
+  - pr: 164870
+    summary: "[DiskBBQ] Wait for queue saturation in `DiversifyingNearestChildrenKnnCollector`"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 164883
+    summary: Fix get filters/data frame analytics/transforms completing the listener multiple times on a corrupt document
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 164884
+    summary: Share in-flight application privilege loads
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 164933
+    summary: Handle exception from `cloneShardSnapshot`
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 164949
+    summary: Fix handling degenerated polygons in vector tiles
+    area: Geo
+    type: bug
+    issues:
+      - 164908
+  - pr: 165133
+    summary: Filter `resolveStartedDeletionSnapshots` by repo
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 165267
+    summary: Reject index sort fields without an `IndexSorter`
+    area: Mapping
+    type: bug
+    issues:
+      - 165265
+  - pr: 165343
+    summary: Fix WindowFilter ClassCastException for PromQL rate/irate/increase over gauges when the window is shorter than the step
+    area: ES|QL
+    type: bug
+    issues:
+      - 164055
+  - pr: 165350
+    summary: Treat `SecurityExceptions` like `IndexNotFound`
+    area: Transform
+    type: bug
+    issues: []
+  - pr: 165495
+    summary: Keep the index sort's missing value when rounding composite sources
+    area: Aggregations
+    type: bug
+    issues:
+      - 165493
+  - pr: 165528
+    summary: Fix threading in SLM create-snapshot failure handling
+    area: SLM
+    type: bug
+    issues: []
+  - pr: 165610
+    summary: Return 400 for `significant_terms` on floating point values
+    area: Search
+    type: bug
+    issues: []
+  - pr: 165643
+    summary: Fix built-in roles synchronizer spinning forever on duplicate sync completion
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 165645
+    summary: Keep existing `semantic_text` inference_id on mapping updates that omit it
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 165694
+    summary: Fix `TS` planning failures with inline filters on aggregate expressions and `STATS BY _tsid`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 165840
+    summary: Fix hang on truncated compressed input
+    area: Search
+    type: bug
+    issues: []
+  - pr: 165875
+    summary: Upgrade commons-lang3 to 3.20.0
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 165885
+    summary: Retry CCR if remote unavailable
+    area: CCR
+    type: bug
+    issues: []
+  - pr: 165906
+    summary: Reject FORK before the first TS STATS instead of failing with missing `_tsid`
+    area: TSDB
+    type: bug
+    issues:
+      - 160269
+  - pr: 165935
+    summary: Fix NPE in transform stats without a node
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 166022
+    summary: Fix stale role cache after invalidation
+    area: Security
+    type: bug
+    issues: []
+  - pr: 166045
+    summary: "Fix `STATS` merging aggregations over columns from earlier `STATS`, `INLINE STATS`, `TS_COLLAPSE` or `RERANK`"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 166088
+    summary: Support packing double and float dimensions
+    area: ES|QL
+    type: bug
+    issues:
+      - 164382
+  - pr: 166189
+    summary: Publish lazily computed plan fields safely
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 166227
+    summary: Turn off ASM compute limits in Painless
+    area: Infra/Scripting
+    type: bug
+    issues: []
+  - pr: 166252
+    summary: Fix inverted page-split check in Block#lookup
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 166388
+    summary: Bump bundled JDK to 27.0.1.1
+    area: Infra/Core
+    type: upgrade
+    issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 166388
+  - pr: 166394
+    summary: Load stored fields of flattened mapped sub-fields
+    area: Mapping
+    type: bug
+    issues:
+      - 165637
+  - pr: 166435
+    summary: Avoid quadratic docIDRunEnd on cached bitsets
+    area: Search
+    type: bug
+    issues: []

@@ -233,7 +233,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * {@code And(realColLike, virtualColLike)} passes {@code canConvert} via the left arm even
      * though the right arm fails it; {@code isFullyEvaluable}'s {@code And} arm is conjunctive
      * ({@code left && right}), so without this guard the whole {@code And} would reach YES and
-     * drop {@code FilterExec} for the virtual-column conjunct. See elastic/esql-planning#2052.
+    * drop {@code FilterExec} for the virtual-column conjunct.
      */
     private static boolean isLikeFamily(Expression e) {
         Expression field;

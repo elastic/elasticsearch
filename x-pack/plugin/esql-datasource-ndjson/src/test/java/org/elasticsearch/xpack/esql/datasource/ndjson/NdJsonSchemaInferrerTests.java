@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 
 import java.io.ByteArrayInputStream;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     private Attribute field(String name, DataType type, boolean nullable) {
-        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.FALSE, null, false);
     }
 
     private Attribute field(String name, DataType type) {
@@ -264,7 +265,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     /**
      * A bare JSON number on its own line must not cause the following record to be dropped from the
-     * inference sample (elastic/esql-planning#1731). The record after the bare number is the only
+     * inference sample. The record after the bare number is the only
      * one that carries {@code email}, so if it is silently skipped the inferred schema omits it.
      * <p>
      * The bug: {@code nextToken()} succeeds (returning {@code VALUE_NUMBER_INT}), then
@@ -519,7 +520,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     /**
      * An invalid bare token (e.g. {@code not_json}) immediately followed by a valid record — with no blank
      * cushion line between them — must not cause the following record's columns to be lost from the inferred
-     * schema. Exercises the streaming-path guard added for elastic/esql-planning#1704: without the fix,
+    * schema. Exercises the streaming-path guard added for : without the fix,
      * {@link NdJsonUtils#moveToNextLine} consumes the following record as the remainder of the bad line, so
      * its columns never reach the schema sampler.
      * <p>
@@ -528,7 +529,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      * the over-eager forward scan eats — the subsequent good record is unharmed.
      */
     public void testInvalidBareTokenWithoutCushionLine() throws IOException {
-        // https://github.com/elastic/esql-planning/issues/1704
+        //
         // {"a":1} and {"b":2} are on consecutive lines with no blank between them.
         // Without the fix, "b" is never seen by the inferrer.
         check("{\"a\":1}\nnot_json\n{\"b\":2}\n", field("a", DataType.INTEGER, true), field("b", DataType.INTEGER, true));
@@ -724,8 +725,8 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         assertThat(infer(wideFlatRecord(maxFields), maxFields, breaker).size(), equalTo(maxFields));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
             () -> infer(wideFlatRecord(maxFields + 1), maxFields, breaker)
         );
         assertThat(e.getMessage(), containsString("more than [" + maxFields + "] fields"));
@@ -741,12 +742,12 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         for (String record : List.of("{\"a\":{\"b\":1}}\n", "{\"a.b\":1}\n")) {
             assertThat(infer(record, 2, breaker).size(), equalTo(1));
-            expectThrows(IllegalArgumentException.class, () -> infer(record, 1, breaker));
+            expectThrows(ExternalClientException.class, () -> infer(record, 1, breaker));
         }
-        // The esql-planning#2143 shape (36,000 leaves under deep nesting) is refused by the default cap at its 101st
+        // The shape (36,000 leaves under deep nesting) is refused by the default cap at its 101st
         // leaf, long before the dotted names are built.
         expectThrows(
-            IllegalArgumentException.class,
+            ExternalClientException.class,
             () -> infer(deeplyNestedRecord(900, 36_000), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS, breaker)
         );
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -758,7 +759,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      */
     public void testFieldCapIsNotSkippedAsAMalformedLine() {
         String ndjson = "not_json\n" + wideFlatRecord(3) + wideFlatRecord(5);
-        expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 4, new LimitedBreaker("test", ByteSizeValue.ofMb(16))));
+        expectThrows(ExternalClientException.class, () -> infer(ndjson, 4, new LimitedBreaker("test", ByteSizeValue.ofMb(16))));
     }
 
     /**
@@ -791,7 +792,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     public void testWellFormedLineCrossingTheCapMidRecordFails() {
         String ndjson = "{\"a\":1}\n{\"k0\":1,\"k1\":{\"x\":[1,{\"y\":2}]},\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1}\n";
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> infer(ndjson, 3, breaker));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> infer(ndjson, 3, breaker));
         assertThat(e.getMessage(), containsString("more than [3] fields"));
         assertThat(breaker.getUsed(), equalTo(0L));
     }

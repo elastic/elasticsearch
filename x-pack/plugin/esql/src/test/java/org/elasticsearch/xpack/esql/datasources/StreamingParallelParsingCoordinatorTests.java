@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import com.github.luben.zstd.ZstdOutputStream;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -32,22 +34,30 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget.UntrackedWait;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -74,6 +84,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -164,6 +175,81 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
             assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * The columns read from chunk 0 are handed to every later chunk, so each binds the pinned schema by name. Chunk 0
+     * reads its own header and is handed none.
+     */
+    public void testHeaderColumnsReadFromChunkZeroReachEveryLaterChunk() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of("line");
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertEquals(ctx.firstSplit() ? null : List.of("line"), ctx.fileHeaderColumns());
+        }
+    }
+
+    /**
+     * An empty answer means chunk 0 held no header line (a comment or skipped run longer than the chunk), which says
+     * nothing about the file. It must not be stored: later chunks are then handed no columns and fail loudly, rather
+     * than being handed "the file has no columns" and silently reading nothing.
+     */
+    public void testAnEmptyHeaderFromChunkZeroIsNotHandedToLaterChunks() throws Exception {
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of();
+
+        List<FormatReadContext> contexts = readAllPinned(reader);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertNull(ctx.fileHeaderColumns());
+        }
+    }
+
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
+        InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try (
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                pinned,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+        synchronized (reader.seenContexts) {
+            return new ArrayList<>(reader.seenContexts);
         }
     }
 
@@ -462,6 +548,746 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * {@code close()} must abort the upstream stream before waiting for {@code tasksOutstanding}, so a
+     * segmentator parked in {@code stream.read()} unblocks instead of pinning the closer for 60s.
+     * An abort-induced {@link IOException} is teardown, not a query failure: {@code tryAdvance} after
+     * close must return null.
+     */
+    public void testCloseAbortsBlockedUpstreamReadWithoutWaiting() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger closeCalls = new AtomicInteger();
+        InputStream stream = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                parked.countDown();
+                try {
+                    if (resume.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("read was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                throw new IOException("aborted");
+            }
+
+            @Override
+            public void close() {
+                closeCalls.incrementAndGet();
+                resume.countDown();
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            });
+            closer.start();
+            try {
+                assertTrue("close() must return promptly after aborting the blocked read", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting the stream", closer.isAlive());
+            assertNull(closeFailure.get());
+            assertThat(closeCalls.get(), Matchers.greaterThanOrEqualTo(1));
+            assertNull("abort during close must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Close while the segmentator is in {@code RetryableStorageObject} throttle backoff, not a raw
+     * {@code read()}. Abort-before-wait is not enough: {@code abortStream} must also cut the sleep or
+     * the closer still sits until the 30s hop (or the 60s poll). tryAdvance after close is not a failure.
+     */
+    public void testCloseAbortsRetryBackoffWithoutWaiting() throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        byte[] payload = "x\n".repeat(32).getBytes(StandardCharsets.UTF_8);
+        StorageObject inner = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return newStream(0, payload.length);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                // Always fail the first byte so resume parks in throttle backoff.
+                return new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
+                    }
+                };
+            }
+
+            @Override
+            public long length() {
+                return payload.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://retry-backoff-close");
+            }
+        };
+        RetryableStorageObject obj = new RetryableStorageObject(inner, policy);
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(4, runnable -> {
+            Thread thread = new Thread(runnable, "sppc-retry-backoff");
+            poolThreads.add(thread);
+            return thread;
+        });
+        try {
+            InputStream stream = obj.newStream();
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                obj,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            assertBusy(
+                () -> assertTrue(
+                    "segmentator must park in retry backoff",
+                    poolThreads.stream().anyMatch(t -> t.getState() == Thread.State.TIMED_WAITING)
+                )
+            );
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            });
+            closer.start();
+            try {
+                assertTrue("close() must return promptly after aborting retry backoff", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting retry backoff", closer.isAlive());
+            assertNull(closeFailure.get());
+            assertNull("abort during close must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Close while a zstd decoder is blocked on its raw GET. Aborting {@code DecompressedStream}
+     * from the closer would {@code Inflater}/{@code ZSTD_DStream} close on the wrong thread
+     * (use-after-free). Close must abort only the raw transport; the segmentator finally closes
+     * the decoder. tryAdvance after close is not a failure.
+     */
+    public void testCloseDuringZstdDecodeAbortsTransportNotDecoder() throws Exception {
+        byte[] original = "x\n".repeat(256).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = zstdBytes(original);
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger rawAborts = new AtomicInteger();
+        StorageObject raw = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(new ByteArrayInputStream(compressed)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parked.countDown();
+                        try {
+                            if (resume.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("raw read was not unblocked by close");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", e);
+                        }
+                        throw new IOException("aborted");
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        resume.countDown();
+                        super.close();
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                rawAborts.incrementAndGet();
+                stream.close();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return newStream();
+            }
+
+            @Override
+            public long length() {
+                return compressed.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://zstd-close-during-decode");
+            }
+        };
+        ThreadSensitiveZstdCodec codec = new ThreadSensitiveZstdCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, codec);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                decompressing::newStream,
+                decompressing,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            Thread closer = Thread.currentThread();
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closeThread = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "zstd-decode-closer");
+            closeThread.start();
+            try {
+                assertTrue("close() must return promptly after aborting the raw GET", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closeThread.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting the raw GET", closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertThat("raw GET must be aborted from close", rawAborts.get(), Matchers.greaterThanOrEqualTo(1));
+            assertFalse("decoder must not be closed while the segmentator is in read()", codec.closedWhileRead.get());
+            assertNotNull("segmentator finally must close the decoder", codec.decoderCloseThread.get());
+            assertNotEquals("decoder must close on the segmentator thread, not the closer", closeThread, codec.decoderCloseThread.get());
+            assertNotEquals(closer, codec.decoderCloseThread.get());
+            assertNull("abort during zstd decode must not be recorded as a failure", iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Same as {@link #testCloseDuringZstdDecodeAbortsTransportNotDecoder} but the iterator has no
+     * {@code StorageObject}. Close must still abort the raw GET through the {@code DecompressedStream}
+     * wrapper instead of skipping transport abort.
+     */
+    public void testCloseAbortsRawWhenDecompressedStreamHasNoStorageObject() throws Exception {
+        byte[] original = "x\n".repeat(256).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = zstdBytes(original);
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger rawAborts = new AtomicInteger();
+        StorageObject raw = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(new ByteArrayInputStream(compressed)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parked.countDown();
+                        try {
+                            if (resume.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("raw read was not unblocked by close");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", e);
+                        }
+                        throw new IOException("aborted");
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        resume.countDown();
+                        super.close();
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                rawAborts.incrementAndGet();
+                stream.close();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return newStream();
+            }
+
+            @Override
+            public long length() {
+                return compressed.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://zstd-close-no-storage-object");
+            }
+        };
+        ThreadSensitiveZstdCodec codec = new ThreadSensitiveZstdCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, codec);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                decompressing::newStream,
+                null,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closeThread = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "zstd-no-so-closer");
+            closeThread.start();
+            try {
+                assertTrue("close() must return promptly after aborting the raw GET", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closeThread.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse("closer must exit after aborting the raw GET", closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertThat("raw GET must be aborted from close without a StorageObject", rawAborts.get(), Matchers.greaterThanOrEqualTo(1));
+            assertFalse("decoder must not be closed while the segmentator is in read()", codec.closedWhileRead.get());
+            assertNotNull("segmentator finally must close the decoder", codec.decoderCloseThread.get());
+            assertNotEquals(closeThread, codec.decoderCloseThread.get());
+            assertNull(iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Interrupt the closer while the zstd segmentator is still in {@code read()}. Abort does not
+     * wake the GET, so {@code tasksOutstanding} stays above zero; close must skip the decoder backstop.
+     */
+    public void testCloseBackstopSkipsDecoderIfSegmentatorStillOutstanding() throws Exception {
+        byte[] original = "x\n".repeat(256).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = zstdBytes(original);
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicInteger rawAborts = new AtomicInteger();
+        StorageObject raw = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new FilterInputStream(new ByteArrayInputStream(compressed)) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        parked.countDown();
+                        try {
+                            if (resume.await(15, TimeUnit.SECONDS) == false) {
+                                throw new IOException("raw read was not unblocked");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", e);
+                        }
+                        throw new IOException("aborted");
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                rawAborts.incrementAndGet();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return newStream();
+            }
+
+            @Override
+            public long length() {
+                return compressed.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://zstd-skip-backstop");
+            }
+        };
+        ThreadSensitiveZstdCodec codec = new ThreadSensitiveZstdCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, codec);
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                decompressing::newStream,
+                decompressing,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closeThread = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "zstd-skip-backstop-closer");
+            closeThread.start();
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, closeThread.getState()));
+            closeThread.interrupt();
+            try {
+                assertTrue("interrupted close() must return without waiting out the 60s poll", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closeThread.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse(closeThread.isAlive());
+            assertNull(closeFailure.get());
+            assertThat(rawAborts.get(), Matchers.greaterThanOrEqualTo(1));
+            assertNull("backstop must not close the decoder while the segmentator is in read()", codec.decoderCloseThread.get());
+            assertFalse(codec.closedWhileRead.get());
+            resume.countDown();
+            assertBusy(() -> assertNotNull(codec.decoderCloseThread.get()));
+            assertNotEquals(closeThread, codec.decoderCloseThread.get());
+            assertNull(iter.tryAdvance());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * {@code abortStream} throwing a RuntimeException after the streamClosed CAS must not skip
+     * drain / breaker refund. ParallelParsingCoordinator already catches Exception around abort.
+     */
+    public void testCloseSurvivesAbortStreamRuntimeException() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        StorageObject boom = new AbstractTestStorageObject() {
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                stream.close();
+                throw new IllegalStateException("abort boom");
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return 1L;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://abort-boom");
+            }
+        };
+        InputStream stream = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                parked.countDown();
+                try {
+                    if (resume.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("read was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                throw new IOException("aborted");
+            }
+
+            @Override
+            public void close() {
+                resume.countDown();
+            }
+        };
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                boom,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                breaker,
+                ExternalReadCounters.NOOP,
+                null
+            );
+            safeAwait(parked);
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iter.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            });
+            closer.start();
+            try {
+                assertTrue("close() must return even when abortStream throws", closed.await(5, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(5));
+            }
+            assertFalse(closer.isAlive());
+            assertNull("abortStream RuntimeException must not escape close()", closeFailure.get());
+            assertNull(iter.tryAdvance());
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * An abort that surfaces as {@code read() == -1} must not set {@code reachedEof}. Otherwise
+     * close() treats a cancelled prefix as a clean full-file scan and caches under-count stats.
+     */
+    public void testAbortThatLooksLikeEofDoesNotCacheStats() throws Exception {
+        CountDownLatch parked = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        InputStream stream = new InputStream() {
+            @Override
+            public int read() {
+                throw new AssertionError("segmentator reads in bulk");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                parked.countDown();
+                try {
+                    if (resume.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("read was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                return -1;
+            }
+
+            @Override
+            public void close() {
+                resume.countDown();
+            }
+        };
+        String path = "mem://eof-like-abort";
+        StorageObject file = new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"));
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(512),
+                stream,
+                file,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            safeAwait(parked);
+            iter.close();
+        } finally {
+            resume.countDown();
+            executor.shutdownNow();
+        }
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("abort-as-EOF during close must poison stats, not cache an empty cover as complete", poisoned);
+    }
+
+    /**
      * An endless record that parks once mid-grow. With a 512-byte chunk and 256-byte reads, the stream parks
      * before its fourth read, while the segmentator is growing past the first chunk. If
      * {@code recordEndsAtGrowBufferFill}, that read ends the first record with a newline.
@@ -709,6 +1535,194 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * The guard on the {@code stripeStaging.flush()} that {@code close()} runs. A read whose byte range both
+     * begins and ends inside one stripe's grid cell — a mid-file macro-split over a decompressed stream, which
+     * is the shape a file-global stripe grid exists to tile — covers neither of that stripe's grid lines, so
+     * the staging area can never decide the stripe is whole and nothing it holds reaches the capture sink on
+     * its own. Only the flush publishes it, and without the flush the bytes this read genuinely covered never
+     * reach the coordinator's interval cover: the stripe stays uncommitted however many sibling reads tile the
+     * rest of it.
+     * <p>
+     * The control is the assertion inside the drain. Every chunk has handed its piece over by then and the sink
+     * is still empty, so the record below can only have come from the close path.
+     */
+    public void testClosingTheReadStagesTheStripeNoChunkCouldAnchor() throws Exception {
+        int lineCount = 1000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        // A grid cell wider than the whole read, entered one byte past its left grid line: no chunk covers
+        // either grid line, so no piece the staging area holds ever completes its cell.
+        long stripeSize = 1L << 30;
+        long baseFileOffset = 1L;
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        String path = "memory://staging-flush.txt";
+        // A small chunk size forces several chunks, so the pieces have to be joined before anything is left
+        // partly covered.
+        StripePieceLineReader reader = new StripePieceLineReader(1024, path);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                100,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                baseFileOffset,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                stripeSize,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            try (outer) {
+                while (outer.hasNext()) {
+                    outer.next().releaseBlocks();
+                }
+                assertEquals(
+                    "a stripe no chunk could anchor must be held, not published, while the read is still open",
+                    0,
+                    sink.getOrDefault(path, List.of()).size()
+                );
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(
+            "the read must be cut into several chunks, so their pieces have to be joined",
+            reader.chunksRead(),
+            Matchers.greaterThanOrEqualTo(2)
+        );
+        List<Map<String, Object>> staged = stagedFor(sink, path);
+        assertEquals("closing the read must stage the stripe it left without a cover: " + staged, 1, staged.size());
+        Map<String, Object> record = staged.get(0);
+        assertEquals("over every row the read did cover", (Long) (long) lineCount, SourceStatisticsSerializer.extractRowCount(record));
+        assertEquals(0L, record.get(ExternalStats.STRIPE_ORDINAL_KEY));
+        assertNotEquals(
+            "the read began inside the cell, so it anchors no left grid line",
+            Boolean.TRUE,
+            record.get(ExternalStats.STRIPE_AT_START_KEY)
+        );
+    }
+
+    /** A snapshot of the contributions staged for {@code path}, copied under the sink list's own monitor. */
+    private static List<Map<String, Object>> stagedFor(ConcurrentMap<String, List<Map<String, Object>>> sink, String path) {
+        List<Map<String, Object>> staged = sink.get(path);
+        if (staged == null) {
+            return List.of();
+        }
+        synchronized (staged) {
+            return List.copyOf(staged);
+        }
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} so each chunk harvests its piece of every stripe its byte range overlapped
+     * through the production {@link StripeStatsHarvester}, handing it to the stripe sink the read context
+     * carries — the same close-hook shape as the production {@code CsvFormatReader} / {@code NdJsonPageIterator},
+     * without their per-format column extraction. The geometry is the chunk's own: its file-global stats base
+     * and the byte length of its buffer, so sibling chunks' pieces tile contiguously exactly as production's do.
+     */
+    private static class StripePieceLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        private static final long MTIME = 1_700_000_000_000L;
+
+        private static final List<Attribute> SCHEMA = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StripePieceLineReader(long minSegment, String path) {
+            this.delegate = new LineFormatReader(minSegment);
+            this.path = path;
+        }
+
+        /** How many chunks the coordinator handed this reader. */
+        int chunksRead() {
+            synchronized (delegate.seenContexts) {
+                return delegate.seenContexts.size();
+            }
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            long chunkBytes = object.length();
+            CloseableIterator<Page> inner = delegate.read(object, context);
+            return new CloseableIterator<>() {
+                private long rows = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return inner.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    Page page = inner.next();
+                    rows += page.getPositionCount();
+                    return page;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        StripeStatsHarvester harvester = new StripeStatsHarvester(
+                            context.statsStripeSize(),
+                            context.statsFileFinal(),
+                            context.statsStripeSink()
+                        );
+                        harvester.getOrCreate(harvester.ordinalOf(context.statsBaseOffset())).rows = rows;
+                        harvester.emit(path, context.statsBaseOffset(), chunkBytes, MTIME, "cfg", "read", true, SCHEMA);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stripe-piece-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
      * Guards against reuse of {@code chunk.index % pageQueueRingSize} slots ahead of the consumer:
      * without {@code dispatchPermits} a fast parser could recycle buffers and interleave pages from
      * different chunk generations into the same queue while the consumer is still draining an earlier chunk.
@@ -796,11 +1810,151 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * {@code close()} must cancel a GET still inside {@code newStream} — {@code decompressedStream}
+     * is null, so stream close is a no-op. The leaf unblocks on {@link StorageObject#close()}.
+     */
+    public void testCloseWhileNewStreamBlocked() throws Exception {
+        CountDownLatch inOpen = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        StorageObject object = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                inOpen.countDown();
+                try {
+                    if (release.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("newStream was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(e);
+                }
+                throw new IOException("read aborted");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                return newStream();
+            }
+
+            @Override
+            public void close() {
+                release.countDown();
+            }
+
+            @Override
+            public long length() {
+                return 4L;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://hung");
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                object::newStream,
+                object,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            );
+            assertTrue("segmentator must enter newStream", inOpen.await(5, TimeUnit.SECONDS));
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            iterator.close();
+            assertTrue("close() must return while newStream is still in flight", System.nanoTime() <= deadlineNanos);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Production gzip/zstd files hang <em>after</em> the leaf GET returns, inside
+     * {@code codec.decompress} (header read), while {@code decompressedStream} is still null.
+     * {@code abortTransport()} is then a deliberate no-op; iterator {@code close()} must still
+     * return without waiting {@code CLOSE_TIMEOUT_SECONDS} by closing {@code inFlightRaw} through
+     * the Retryable → Decompressing chain. Decoder teardown stays on the segmentator.
+     */
+    public void testIteratorCloseUnblocksGzipHeaderReadWhileDecompressedStreamNull() throws Exception {
+        DecompressingStorageObjectTests.HeaderParkStorageObject leaf = new DecompressingStorageObjectTests.HeaderParkStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressionCodec codec = DecompressingStorageObjectTests.countingGzip(decoderClosesOnCloser, closer);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, codec);
+        RetryableStorageObject retryable = new RetryableStorageObject(decompressing, RetryPolicy.NONE);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                retryable::newStream,
+                retryable,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            );
+            assertTrue("segmentator must enter codec.decompress (gzip header parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            iterator.close();
+            assertTrue(
+                "close() must return while decompressing gzip header, not wait CLOSE_TIMEOUT_SECONDS",
+                System.nanoTime() <= deadlineNanos
+            );
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+        } finally {
+            leaf.release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * Closing must unblock the segmentator when parsers are parked on a full page queue holding
-     * every pool buffer. Before inline steal that was {@code bufferPool.take()}; after it the
-     * segmentator may instead park in {@code putPageAndSignal} while inlining the FIFO head.
+     * every pool buffer. The segmentator may wait in a timed {@code bufferPool.poll()} or in
+     * {@code putPageAndSignal} while inlining the FIFO head.
      * {@code close()} drains page queues in either case, so parsers (and an inlining segmentator)
-     * unblock and {@code take()} waiters wake when buffers return to the pool.
+     * unblock and pool waiters wake when buffers return or the timed poll observes close.
      * <p>
      * With parallelism 2 (1 falls back to a sequential read) the pool holds three buffers. Each chunk yields
      * more single-row pages than its page queue holds, and nothing consumes them, so parsers park
@@ -815,7 +1969,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             poolThreads.add(thread);
             return thread;
         });
-        try {
+        try (
             CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
                 new LineFormatReader(256),
                 new ByteArrayInputStream(payload),
@@ -824,9 +1978,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 2,
                 executor,
                 ErrorPolicy.STRICT
-            );
+            )
+        ) {
             assertBusy(
-                () -> assertTrue("segmentator not parked on take() or inline page-put", isParkedOnBufferTakeOrInlinePagePut(poolThreads)),
+                () -> assertTrue(
+                    "segmentator not parked on buffer poll or inline page-put",
+                    isParkedOnBufferPollOrInlinePagePut(poolThreads)
+                ),
                 5,
                 TimeUnit.SECONDS
             );
@@ -841,34 +1999,119 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     closed.countDown();
                 }
             });
-            closer.start();
-            assertTrue("close() must return within 10s of segmentator being parked", closed.await(10, TimeUnit.SECONDS));
+            try {
+                closer.start();
+                assertTrue("close() must return within 10s of segmentator being parked", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
             assertNull(closeFailure.get());
             executor.shutdown();
             assertTrue("segmentator and parsers must exit after close", executor.awaitTermination(10, TimeUnit.SECONDS));
         } finally {
+            // Resource closure drains full page queues even when the parking assertion fails.
+            // Interrupting first could leave parsers retrying the POISON put on a full queue.
             executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
-    private static boolean isParkedOnBufferTakeOrInlinePagePut(List<Thread> threads) {
+    /**
+     * An interrupt of the segmentator in {@code waitForRecycledBuffer} must fail the read.
+     * Parallelism 2 uses a 3-buffer pool. Every parser is gated so those buffers stay in flight;
+     * {@code execute} waits until the parser has entered the gate so the segmentator cannot inline
+     * the chunk and park on {@code putPage} instead. Production drain ({@code tryAdvanceOrPark} /
+     * {@code isExhausted}) must throw, not treat the exit as EOF.
+     */
+    public void testSegmentatorInterruptedWaitingForBufferFailsTheRead() throws Exception {
+        int lineCount = 2000;
+        int chunkSize = 64;
+        int parallelism = 2;
+        CountDownLatch gate = new CountDownLatch(1);
+        AtomicInteger parsersAtGate = new AtomicInteger();
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        AtomicBoolean segmentatorSubmitted = new AtomicBoolean();
+        Executor executor = command -> {
+            if (segmentatorSubmitted.compareAndSet(false, true)) {
+                pool.execute(command);
+                return;
+            }
+            int before = parsersAtGate.get();
+            pool.execute(command);
+            try {
+                assertBusy(() -> assertThat(parsersAtGate.get(), Matchers.greaterThan(before)), 5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new RuntimeException("parser never entered the read gate", e);
+            }
+        };
+        CloseableIterator<Page> iterator = null;
+        try {
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                new AllChunksGatedLineFormatReader(chunkSize, gate, parsersAtGate),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                8,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            iterator = it;
+            AtomicReference<Thread> segmentator = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedWaitForRecycledBufferThread(poolThreads);
+                assertNotNull("segmentator never parked in waitForRecycledBuffer", found);
+                segmentator.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            segmentator.get().interrupt();
+            gate.countDown();
+
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> drainLinesViaTryAdvanceOrPark(it));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertThat(chain, Matchers.containsString("InterruptedException"));
+        } finally {
+            gate.countDown();
+            if (iterator != null) {
+                try {
+                    iterator.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private static boolean isParkedOnBufferPollOrInlinePagePut(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
         for (Thread thread : threads) {
-            if (thread.getState() != Thread.State.WAITING) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
                 continue;
             }
             StackTraceElement[] stack = thread.getStackTrace();
-            boolean take = Arrays.stream(stack).anyMatch(frame -> frame.getMethodName().equals("takeOrAllocateBuffer"));
-            if (take) {
+            boolean bufferWait = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(iteratorClass) && frame.getMethodName().equals("waitForRecycledBuffer"));
+            boolean poll = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(ArrayBlockingQueue.class.getName()) && frame.getMethodName().equals("poll"));
+            if (state == Thread.State.TIMED_WAITING && bufferWait && poll) {
                 return true;
             }
-            boolean pagePut = Arrays.stream(stack).anyMatch(frame -> frame.getMethodName().equals("putPageAndSignal"));
+            boolean pagePut = Arrays.stream(stack)
+                .anyMatch(frame -> frame.getClassName().equals(iteratorClass) && frame.getMethodName().equals("putPageAndSignal"));
             boolean inline = Arrays.stream(stack)
                 .anyMatch(
-                    frame -> frame.getMethodName().equals("runOneQueuedInline")
-                        || frame.getMethodName().equals("dispatchChunk")
-                        || frame.getMethodName().equals("inlineLeftoverQueuedChunks")
+                    frame -> frame.getClassName().equals(iteratorClass)
+                        && (frame.getMethodName().equals("runOneQueuedInline")
+                            || frame.getMethodName().equals("dispatchChunk")
+                            || frame.getMethodName().equals("inlineLeftoverQueuedChunks"))
                 );
-            if (pagePut && inline) {
+            if (state == Thread.State.WAITING && pagePut && inline) {
                 return true;
             }
         }
@@ -1063,8 +2306,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Stress test the consumer's EOF predicate against the race between the segmentator's final
      * {@code chunksDispatched.incrementAndGet()} and the dispatched parser task's
      * {@code tasksOutstanding.decrementAndGet()} in its {@code finally} block. The EOF condition
-     * — {@code currentChunk >= chunksDispatched && tasksOutstanding == 0} — must be re-checked
-     * after the apparent-empty branch of {@code takeNextPage}; without the re-read, the consumer
+     * — {@code tasksOutstanding == 0} then {@code currentChunk >= chunksDispatched} — must be re-checked
+     * after the apparent-empty branch of {@code takeNextPage}. {@code isReadyNow} / {@code producersDoneAndDrained}
+     * read {@code tasksOutstanding} first; the reverse order is the race. Without the re-read, the consumer
      * can return false while a parser is mid-page-publish, dropping the last chunk's rows.
      * <p>
      * Tiny chunks plus a small input plus high parallelism maximises the chance the consumer
@@ -1075,7 +2319,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Lifted from <a href="https://github.com/elastic/elasticsearch/pull/148802">#148802</a>
      * (closed in favour of this PR's broader fix shape); the test is portable because it asserts
      * only the externally-visible contract (row count + ordering across {@code N} iterations),
-     * not the internal counter names.
+     * not the internal counter names. Production async drain uses {@code tryAdvanceOrPark} rather
+     * than {@code hasNext}; see {@link #testAsyncDrainGzipChunksKeepsEveryRow}.
      */
     public void testStressEofDetectionRace() throws Exception {
         int iterations = 1000;
@@ -1112,8 +2357,294 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Production BWC gzip/S3 STATS failures (#161557, #161664, #161666) lost whole decompressed
+     * chunks on the async drain path. Fill size is the compressed length, so a small gzip file
+     * becomes many chunks; {@code waitForReady} + {@code tryAdvanceOrPark} must still yield every
+     * row. {@link #testStressEofDetectionRace} drains via blocking {@code hasNext} and cannot
+     * catch a premature EOF there.
+     */
+    public void testAsyncDrainGzipChunksKeepsEveryRow() throws Exception {
+        int iterations = 50;
+        int parallelism = 3;
+        byte[] original = repeatingLines(32 * 1024);
+        int lineCount = newlineCount(original);
+        byte[] compressed = gzipBytes(original);
+        assertThat((long) compressed.length, Matchers.lessThan((long) original.length));
+
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism + 1);
+        try {
+            for (int iter = 0; iter < iterations; iter++) {
+                StorageObject raw = new KnownLengthBytesObject(compressed, compressed.length);
+                DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+                LineFormatReader reader = new LineFormatReader(4 * 1024 * 1024);
+                List<String> got;
+                try (
+                    InputStream stream = decompressing.newStream();
+                    CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                        reader,
+                        stream,
+                        decompressing,
+                        List.of("line"),
+                        16,
+                        parallelism,
+                        executor,
+                        ErrorPolicy.STRICT,
+                        null,
+                        0L,
+                        SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                        null,
+                        -1L,
+                        StripeColumnScope.PROJECTED,
+                        StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                        StreamingSegmentatorAdmission.unbounded(),
+                        new NoopCircuitBreaker("streaming-parse-test"),
+                        ExternalReadCounters.NOOP,
+                        null
+                    )
+                ) {
+                    got = drainLinesViaTryAdvanceOrPark(it);
+                }
+                assertEquals("iter " + iter, lineCount, got.size());
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Same gated inter-chunk gap as {@link #testProducerLoopDoesNotDropRowsAcrossDeterministicPoisonGap}
+     * but drained with production {@code tryAdvanceOrPark} (no {@code hasNext} fallback). A lone
+     * POISON must park, not declare EOF.
+     */
+    public void testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap() throws Exception {
+        int linesPerFile = 2000;
+        int chunkSize = 64;
+        int batchSize = 8;
+        int parsingParallelism = 4;
+
+        CountDownLatch gate = new CountDownLatch(1);
+        CountDownLatch gatedReached = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        PlainActionFuture<List<String>> done = new PlainActionFuture<>();
+        CloseableIterator<Page> it = null;
+        try {
+            GatedLineFormatReader reader = new GatedLineFormatReader(chunkSize, 1, gate, gatedReached);
+            InputStream s = new ByteArrayInputStream(buildContent(linesPerFile).getBytes(StandardCharsets.UTF_8));
+            it = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                s,
+                List.of("line"),
+                batchSize,
+                parsingParallelism,
+                pool,
+                ErrorPolicy.STRICT
+            );
+            CloseableIterator<Page> iter = it;
+            pool.execute(() -> {
+                try {
+                    done.onResponse(drainLinesViaTryAdvanceOrPark(iter));
+                } catch (Exception e) {
+                    done.onFailure(e);
+                }
+            });
+
+            assertTrue("gated chunk parser never reached", gatedReached.await(30, TimeUnit.SECONDS));
+            Thread.sleep(200);
+            assertFalse("tryAdvanceOrPark drain wrongly concluded EOF at a mid-stream POISON gap", done.isDone());
+
+            gate.countDown();
+            List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted());
+            assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
+            for (int i = 0; i < linesPerFile; i++) {
+                assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            gate.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+        }
+    }
+
+    /**
+     * Leftover parser after an inline steal can publish into a chunk that {@code dispatchChunk}
+     * has offered but not yet counted. Readiness must use the same {@code chunksDispatched} guard
+     * as {@code takeNextPage}, otherwise {@code tryAdvanceOrPark} sees done+null+not-exhausted and
+     * hits its retry-cap assert (#162111).
+     */
+    public void testPageReadyIgnoresUncountedOfferedChunk() throws Exception {
+        int lineCount = 40;
+        int chunkSize = 32;
+        int batchSize = 8;
+        int parallelism = 2;
+
+        CountDownLatch offeredChunk1 = new CountDownLatch(1);
+        CountDownLatch releaseChunk1 = new CountDownLatch(1);
+        AtomicReference<Runnable> segmentator = new AtomicReference<>();
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        Executor executor = command -> {
+            if (segmentator.compareAndSet(null, command)) {
+                return;
+            }
+            pool.execute(command);
+        };
+        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        try {
+            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                batchSize,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            it.afterOfferBeforeDispatchCount = index -> {
+                if (index != 1) {
+                    return;
+                }
+                offeredChunk1.countDown();
+                try {
+                    if (releaseChunk1.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out holding dispatch of chunk 1");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted holding dispatch of chunk 1", e);
+                }
+            };
+            Runnable start = segmentator.get();
+            assertNotNull("admission must submit the segmentator", start);
+            pool.execute(start);
+
+            assertTrue("chunk 1 never offered", offeredChunk1.await(30, TimeUnit.SECONDS));
+
+            List<String> rows = new ArrayList<>();
+            BytesRef scratch = new BytesRef();
+            // Drain chunk 0 with tryAdvance only. waitForReady would skip the chunk-0 POISON,
+            // sit on the uncounted gap, and park with no one to wake it.
+            long drainDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (it.consumerChunkIndex() < 1) {
+                if (System.nanoTime() > drainDeadline) {
+                    fail("timed out draining chunk 0 before the uncounted gap");
+                }
+                Page page = it.tryAdvance();
+                if (page != null) {
+                    BytesRefBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        rows.add(block.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                    continue;
+                }
+                Thread.onSpinWait();
+            }
+            assertEquals("consumer must sit on the uncounted gap", 1, it.consumerChunkIndex());
+            assertThat(rows.size(), Matchers.both(Matchers.greaterThan(0)).and(Matchers.lessThan(lineCount)));
+
+            it.runParserOnce();
+            assertTrue("leftover parser must have published into the uncounted slot", it.uncountedSlotHasPage());
+            assertFalse("gap is not EOF", it.isExhausted());
+
+            SubscribableListener<Void> ready = it.waitForReady();
+            assertFalse("page in an offered-but-uncounted slot must not report ready", ready.isDone());
+
+            Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+            Page raced = ExternalSourceDrainUtils.tryAdvanceOrPark(it, blockedOn);
+            if (raced != null) {
+                raced.releaseBlocks();
+            }
+            assertNull("uncounted chunk must not be readable yet", raced);
+            assertNotNull("drain must park until chunksDispatched catches up", blockedOn.get());
+            assertFalse("parked listener must not be done until dispatch count advances", blockedOn.get().isDone());
+
+            releaseChunk1.countDown();
+            awaitListener(blockedOn.get());
+
+            rows.addAll(drainLinesViaTryAdvanceOrPark(it));
+            assertEquals(lineCount, rows.size());
+            for (int i = 0; i < lineCount; i++) {
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            releaseChunk1.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * {@code putPoisonAndSignal} must not re-set the interrupt flag inside {@code queue.put}.
+     * After one interrupt that loop would throw immediately and the parser would spin until
+     * suite leak. Close drains the full slot, so the parser must exit and join promptly.
+     * Parallelism 2 is required: 1 falls back to a sequential read.
+     */
+    public void testPoisonPutInterruptExitsOnClose() throws Exception {
+        int pageQueueCapacity = StreamingParallelParsingCoordinator.StreamingParallelIterator.PAGE_QUEUE_CAPACITY;
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        try (
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(1024),
+                new ByteArrayInputStream(buildContent(pageQueueCapacity).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                1,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            AtomicReference<Thread> parser = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedPoisonPutThread(poolThreads);
+                assertNotNull("parser never blocked in putPoisonAndSignal", found);
+                parser.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            parser.get().interrupt();
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iterator.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "poison-put-closer");
+            try {
+                closer.start();
+                assertTrue("close() must return after poison-put interrupt", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
+            assertNull(closeFailure.get());
+            executor.shutdown();
+            assertTrue("parser spun after poison-put interrupt; pool did not terminate", executor.awaitTermination(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
      * Faithful reproduction of the production multi-file text-read deadlock (elastic/elasticsearch#153056),
-     * draining the RAW coordinator iterator. {@code F} real streaming iterators, each multi-chunk (small
+     * draining the RAW coordinator iterator. {@code F} real streaming iterators, each multi-chunk (small)
      * chunkSize, large content), are drained by a producer-loop emulator that mirrors
      * {@code AsyncExternalSourceOperatorFactory#drainHotPath} and runs on the SAME bounded pool as each
      * coordinator's segmentator + one-shot parser tasks — the production wiring collapse. A big machine's
@@ -1339,8 +2870,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard
-     * (elastic/esql-planning #1093, structural-fix item 4). Faithfully mirrors the post-#153074 two-pool
+     * Evidence-first repro for the {@code esql_external_io} segmentator-saturation hazard.
+     * Faithfully mirrors the post-#153074 two-pool
      * wiring: segmentators <em>and</em> their one-shot parser tasks share a single bounded pool of size
      * {@code K} (the production {@code esql_external_io} pool), while the consumer drains run on a
      * <strong>separate</strong> pool (the production {@code esql_worker} producer-loop drivers).
@@ -1434,7 +2965,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     + " never drained: their parser tasks starved. The admission gate ("
                     + admission.maxConcurrentSegmentators()
                     + " concurrent segmentators) must keep a pool thread free for parsers "
-                    + "(regression of the esql-planning #1093 item 4 fix).",
+                    + "(regression of the admission-gate fix).",
                 completed
             );
             assertTrue("no drain thread should have failed: " + failures, failures.isEmpty());
@@ -1451,7 +2982,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * T2 (C1): production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
+     * Production cap {@code maxConcurrentSegmentators=1} on a 2-thread pool, p=2, with the
      * non-segmentator thread pinned so parser tasks never run. Inline parse on the segmentator must
      * still drain. If this starves later, raise the cap and the pool together; do not drop the cap.
      * Do not use {@link StreamingSegmentatorAdmission#unbounded()}.
@@ -2102,9 +3633,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        public SubscribableListener<Hold> admitAsync(
+            long bytes,
+            RowGroupIo lease,
+            BooleanSupplier cancelSignal,
+            Executor executor,
+            UntrackedWait untrackedWait
+        ) {
             SubscribableListener<Hold> out = new SubscribableListener<>();
-            inner.admitAsync(bytes, lease, cancelSignal, executor).addListener(ActionListener.wrap(hold -> {
+            inner.admitAsync(bytes, lease, cancelSignal, executor, untrackedWait).addListener(ActionListener.wrap(hold -> {
                 record();
                 out.onResponse(wrap(hold));
             }, e -> {
@@ -2115,15 +3652,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public void add(long bytes) {
+        public void add(long bytes, RowGroupIo lease) {
             addCount.incrementAndGet();
-            inner.add(bytes);
+            inner.add(bytes, lease);
             record();
         }
 
         @Override
-        public void release(long bytes) {
-            inner.release(bytes);
+        public void release(long bytes, RowGroupIo lease) {
+            inner.release(bytes, lease);
             record();
         }
 
@@ -2145,6 +3682,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public long limit() {
             return inner.limit();
+        }
+
+        @Override
+        public long untracked() {
+            return inner.untracked();
         }
 
         @Override
@@ -2180,6 +3722,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 @Override
                 public void drop(long bytes) {
                     hold.drop(bytes);
+                    record();
+                }
+
+                @Override
+                public void grow(long bytes) {
+                    hold.grow(bytes);
                     record();
                 }
 
@@ -2314,6 +3862,69 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Gzip fill clamps to the compressed listing size. A false EOF after an exact-size fill would
+     * drop the decompressed tail of a tiny single-member object. Guards the coordinator fill/EOF
+     * path, not gzip member concat ({@code GzipDecompressionCodecTests}).
+     */
+    public void testTinyGzipClampedFillDoesNotDropTrailingRecords() throws Exception {
+        int requested = 4 * 1024 * 1024;
+        int parallelism = 2;
+        byte[] original = repeatingLines(8 * 1024);
+        int expectedLines = 0;
+        for (byte b : original) {
+            if (b == '\n') {
+                expectedLines++;
+            }
+        }
+        byte[] compressed = gzipBytes(original);
+        assertThat("fixture is the tiny-object clamp case", (long) compressed.length, Matchers.lessThan(64L * 1024));
+        assertThat(
+            "HTTP-like cap must actually short-read the compressed member",
+            (long) compressed.length,
+            Matchers.greaterThan((long) HttpLikeKnownLengthBytesObject.MAX_READ)
+        );
+        StorageObject raw = new HttpLikeKnownLengthBytesObject(compressed, compressed.length);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        assertEquals(compressed.length, StreamingParallelParsingCoordinator.streamingFillHint(decompressing));
+        assertThat((long) original.length, Matchers.greaterThan((long) compressed.length));
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        List<String> lines;
+        try (InputStream stream = decompressing.newStream()) {
+            lines = collectLinesTimed(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    new LineFormatReader(requested),
+                    stream,
+                    decompressing,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    0L,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    null,
+                    -1L,
+                    StripeColumnScope.PROJECTED,
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                    StreamingSegmentatorAdmission.unbounded(),
+                    breaker,
+                    ExternalReadCounters.NOOP,
+                    null
+                ),
+                30,
+                TimeUnit.SECONDS
+            );
+        } finally {
+            executor.shutdownNow();
+        }
+        assertEquals("clamped gzip fill must not drop the decompressed tail", expectedLines, lines.size());
+        assertEquals("line-" + (expectedLines - 1), lines.getLast());
         assertEquals(0L, breaker.getUsed());
     }
 
@@ -2529,6 +4140,96 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             }
         }
         return lines;
+    }
+
+    /**
+     * Production drain: {@code waitForReady} then {@link ExternalSourceDrainUtils#tryAdvanceOrPark}.
+     * Does not call {@code hasNext}. Does not close {@code iterator}.
+     */
+    private static List<String> drainLinesViaTryAdvanceOrPark(CloseableIterator<Page> iterator) throws Exception {
+        List<String> lines = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        while (true) {
+            awaitReady(iterator);
+            Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+            Page page = ExternalSourceDrainUtils.tryAdvanceOrPark(iterator, blockedOn);
+            if (blockedOn.get() != null) {
+                awaitListener(blockedOn.get());
+                continue;
+            }
+            if (page == null) {
+                return lines;
+            }
+            BytesRefBlock block = page.getBlock(0);
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                lines.add(block.getBytesRef(i, scratch).utf8ToString());
+            }
+            page.releaseBlocks();
+        }
+    }
+
+    private static void awaitReady(CloseableIterator<Page> pages) throws Exception {
+        SubscribableListener<Void> ready = pages.waitForReady();
+        if (ready.isDone() == false) {
+            awaitListener(ready);
+        }
+    }
+
+    private static Thread findParkedWaitForRecycledBufferThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            if (thread.getState() != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            StackTraceElement[] stack = thread.getStackTrace();
+            boolean bufferWait = Arrays.stream(stack)
+                .anyMatch(frame -> iteratorClass.equals(frame.getClassName()) && "waitForRecycledBuffer".equals(frame.getMethodName()));
+            boolean poll = Arrays.stream(stack)
+                .anyMatch(frame -> ArrayBlockingQueue.class.getName().equals(frame.getClassName()) && "poll".equals(frame.getMethodName()));
+            if (bufferWait && poll) {
+                return thread;
+            }
+        }
+        return null;
+    }
+
+    private static Thread findParkedPoisonPutThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            for (StackTraceElement frame : thread.getStackTrace()) {
+                if (iteratorClass.equals(frame.getClassName()) && "putPoisonAndSignal".equals(frame.getMethodName())) {
+                    return thread;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void awaitListener(SubscribableListener<Void> ready) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        ready.addListener(ActionListener.wrap(v -> latch.countDown(), e -> {
+            error.set(e instanceof Exception ex ? ex : new RuntimeException(e));
+            latch.countDown();
+        }));
+        assertTrue("parked drain did not resume", latch.await(30, TimeUnit.SECONDS));
+        if (error.get() != null) {
+            throw error.get();
+        }
+    }
+
+    private static int newlineCount(byte[] bytes) {
+        int n = 0;
+        for (byte b : bytes) {
+            if (b == '\n') {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**
@@ -2827,6 +4528,96 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A planner-bound read keeps the header names and the schema chunk 0 infers for the rest of the read, and a declared
+     * read is not capped by the file's width, so both stay charged to the breaker until the read closes.
+     */
+    public void testPlannerBoundReadChargesTheSchemaChunkZeroKeepsUntilClose() throws Exception {
+        int columns = 2_000;
+        long retained = WideHeaderLineFormatReader.retainedBytes(columns);
+        byte[] bytes = "a\nb\nc\nd\ne\nf\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(16));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadBoundWithBreaker(
+                new WideHeaderLineFormatReader(64, columns),
+                bytes,
+                breaker,
+                executor
+            );
+            int lines = 0;
+            try (it) {
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    lines += page.getPositionCount();
+                    page.releaseBlocks();
+                    assertThat(breaker.getUsed(), Matchers.greaterThanOrEqualTo(retained));
+                }
+            }
+            assertEquals(120, lines);
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * A schema too wide to keep under the breaker fails the read as a 429 and leaves nothing charged. The limit is
+     * below what capturing chunk 0's header names alone charges, so the trip happens in the capture, and the 429 the
+     * read fails with must be that one. Binding the schema charges more than the capture, so a swallowed capture trip
+     * would still fail the read with a 429, but for the bind's charge rather than the header names'.
+     */
+    public void testPlannerBoundReadTripsOnTheSchemaChunkZeroKeeps() throws Exception {
+        int columns = 2_000;
+        byte[] bytes = "a\nb\nc\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(WideHeaderLineFormatReader.headerNameBytes(columns) / 2));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> it = parallelReadBoundWithBreaker(
+                new WideHeaderLineFormatReader(64, columns),
+                bytes,
+                breaker,
+                executor
+            );
+            try (it) {
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> collectLines(it));
+                assertEquals(WideHeaderLineFormatReader.headerNameBytes(columns), e.getBytesWanted());
+            }
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static CloseableIterator<Page> parallelReadBoundWithBreaker(
+        SegmentableFormatReader reader,
+        byte[] bytes,
+        CircuitBreaker breaker,
+        Executor executor
+    ) throws IOException {
+        return StreamingParallelParsingCoordinator.parallelRead(
+            reader,
+            new ByteArrayInputStream(bytes),
+            null,
+            List.of("line"),
+            50,
+            2,
+            executor,
+            ErrorPolicy.STRICT,
+            List.of(new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)),
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null,
+            -1L,
+            StripeColumnScope.PROJECTED,
+            StreamingParallelParsingCoordinator.WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            breaker,
+            ExternalReadCounters.NOOP,
+            null
+        );
+    }
+
     public void testEarlyCloseReleasesGrowBuffers() throws Exception {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 50; i++) {
@@ -2938,8 +4729,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         ) {
             executor.shutdown();
             assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
-            ExternalClientException ex = expectThrows(ExternalClientException.class, iterator::hasNext);
-            assertThat(ExceptionsHelper.stackTrace(ex), Matchers.containsString(CircuitBreakingException.class.getSimpleName()));
+            // A breaker trip during schema inference is a resource failure: it surfaces as the breaker's own 429, not as
+            // a malformed-data ExternalClientException.
+            CircuitBreakingException ex = expectThrows(CircuitBreakingException.class, iterator::hasNext);
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, ex.status());
             assertEquals(HeapFootprint.byteArrayBytes(reader.minimumSegmentSize()), breaker.getUsed());
         } finally {
             executor.shutdownNow();
@@ -3179,6 +4972,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         return baos.toByteArray();
     }
 
+    private static byte[] zstdBytes(byte[] input) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZstdOutputStream zstd = new ZstdOutputStream(baos)) {
+            zstd.write(input);
+        }
+        return baos.toByteArray();
+    }
+
     /**
      * A {@code external_max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
      * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
@@ -3228,11 +5029,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         // Non-strict: truncate at the cap-hit and return the prefix records parsed so far.
+        // Drain through production tryAdvance/isExhausted so a reachedEof gate cannot
+        // mis-classify this opted-into truncation as a failure.
         ExecutorService lenientExecutor = Executors.newFixedThreadPool(6);
-        try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+        try (
             var lenientIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
-                reader,
+                new QuoteAwareLineFormatReader(512),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -3247,8 +5049,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 -1L,
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
-            );
-            List<String> got = collectLines(lenientIterator);
+            )
+        ) {
+            List<String> got = drainLinesViaTryAdvanceOrPark(lenientIterator);
             assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
             for (int i = 0; i < leadingRecords; i++) {
                 assertEquals("rec-" + String.format(Locale.ROOT, "%04d", i), got.get(i));
@@ -3806,6 +5609,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final AtomicInteger boundReadCalls;
         final AtomicInteger unboundReadCalls;
         final List<FormatReadContext> seenContexts;
+        /** What {@link #fileHeaderColumns} answers; {@code null} makes this a reader without a header line. */
+        volatile List<String> headerColumns;
 
         LineFormatReader(long minSegment) {
             this(
@@ -3855,7 +5660,26 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
-            return new LineFormatReader(minSegment, schema, metadataCalls, boundReadCalls, unboundReadCalls, seenContexts);
+            LineFormatReader bound = new LineFormatReader(
+                minSegment,
+                schema,
+                metadataCalls,
+                boundReadCalls,
+                unboundReadCalls,
+                seenContexts
+            );
+            bound.headerColumns = headerColumns;
+            return bound;
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return headerColumns != null;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            return headerColumns;
         }
 
         @Override
@@ -4011,6 +5835,181 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * Like {@link GatedLineFormatReader} but every chunk's parse waits on {@code gate}, so a test can
+     * pin all pool buffers in flight and park the segmentator in {@code waitForRecycledBuffer}.
+     */
+    private static final class AllChunksGatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final CountDownLatch gate;
+        private final AtomicInteger parsersAtGate;
+
+        AllChunksGatedLineFormatReader(long minSegment, CountDownLatch gate, AtomicInteger parsersAtGate) {
+            this(new LineFormatReader(minSegment), gate, parsersAtGate);
+        }
+
+        private AllChunksGatedLineFormatReader(LineFormatReader delegate, CountDownLatch gate, AtomicInteger parsersAtGate) {
+            this.delegate = delegate;
+            this.gate = gate;
+            this.parsersAtGate = parsersAtGate;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            parsersAtGate.incrementAndGet();
+            try {
+                gate.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted waiting on gate", e);
+            }
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new AllChunksGatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gate, parsersAtGate);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} whose inferred schema is {@code columns} wide and which binds a declared schema by name,
+     * the shape of a declared read over a wide headered file: chunk 0 captures the header names and binds the schema.
+     */
+    private static final class WideHeaderLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final int columns;
+
+        WideHeaderLineFormatReader(long minSegment, int columns) {
+            this(new LineFormatReader(minSegment), columns);
+        }
+
+        private WideHeaderLineFormatReader(LineFormatReader delegate, int columns) {
+            this.delegate = delegate;
+            this.columns = columns;
+        }
+
+        private static String name(int column) {
+            return "column_" + column;
+        }
+
+        /** What the coordinator charges for keeping the header names it captures from chunk 0. */
+        static long headerNameBytes(int columns) {
+            long bytes = 0;
+            for (int c = 0; c < columns; c++) {
+                bytes += HeapEstimates.stringBytes(name(c));
+            }
+            return bytes;
+        }
+
+        /** What the coordinator charges for keeping the header names and the bound schema. */
+        static long retainedBytes(int columns) {
+            long bytes = 0;
+            for (int c = 0; c < columns; c++) {
+                bytes += HeapEstimates.stringBytes(name(c)) + HeapEstimates.columnBytes(name(c).length());
+            }
+            return bytes;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            List<Attribute> schema = new ArrayList<>(columns);
+            for (int c = 0; c < columns; c++) {
+                schema.add(new ReferenceAttribute(Source.EMPTY, null, name(c), DataType.KEYWORD, Nullability.TRUE, null, false));
+            }
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public boolean readsHeaderLine() {
+            return true;
+        }
+
+        @Override
+        public List<String> fileHeaderColumns(StorageObject file) {
+            List<String> names = new ArrayList<>(columns);
+            for (int c = 0; c < columns; c++) {
+                names.add(name(c));
+            }
+            return names;
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new WideHeaderLineFormatReader((LineFormatReader) delegate.withSchema(schema), columns);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
         }
 
         @Override
@@ -4513,6 +6512,34 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * S3/HTTP body: {@code available()} is 0 and bulk {@code read} may short-return. Single-byte
+     * {@code read()} is uncapped so JDK gzip header/trailer byte reads keep leftover math.
+     * {@code MAX_READ = 256} is not a concat lock ({@code n} can exceed 26).
+     */
+    private static final class HttpLikeKnownLengthBytesObject extends KnownLengthBytesObject {
+        static final int MAX_READ = 256;
+
+        HttpLikeKnownLengthBytesObject(byte[] data, long knownLength) {
+            super(data, knownLength);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new FilterInputStream(super.newStream()) {
+                @Override
+                public int available() {
+                    return 0;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    return super.read(b, off, Math.min(len, MAX_READ));
+                }
+            };
+        }
+    }
+
     private static final class ReadCallCountingStream extends FilterInputStream {
         int singleByteReads;
         int lastSingleByte = Integer.MIN_VALUE;
@@ -4590,6 +6617,63 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return path;
+        }
+    }
+
+    /**
+     * Wraps the production zstd decoder so a cross-thread {@code close()} during {@code read()}
+     * is visible without calling native close while the segmentator is still in decompress
+     * (that would be the use-after-free this fixture exists to catch).
+     */
+    private static final class ThreadSensitiveZstdCodec implements DecompressionCodec {
+        private final ZstdDecompressionCodec inner = new ZstdDecompressionCodec();
+        final AtomicReference<Thread> decoderCloseThread = new AtomicReference<>();
+        final AtomicBoolean closedWhileRead = new AtomicBoolean();
+
+        @Override
+        public String name() {
+            return inner.name();
+        }
+
+        @Override
+        public List<String> extensions() {
+            return inner.extensions();
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) throws IOException {
+            return wrap(inner.decompress(raw));
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+            return wrap(inner.decompress(raw, breaker));
+        }
+
+        private InputStream wrap(InputStream decompressed) {
+            return new FilterInputStream(decompressed) {
+                volatile boolean inRead;
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    inRead = true;
+                    try {
+                        return super.read(b, off, len);
+                    } finally {
+                        inRead = false;
+                    }
+                }
+
+                @Override
+                public void close() throws IOException {
+                    decoderCloseThread.set(Thread.currentThread());
+                    if (inRead) {
+                        closedWhileRead.set(true);
+                        return;
+                    }
+                    super.close();
+                }
+            };
         }
     }
 }

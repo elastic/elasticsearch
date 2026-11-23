@@ -22,24 +22,32 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +67,15 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
+    /**
+     * Whether a shard applies a filter to its queries that the segments of {@link #contexts} do not reflect, such as an index alias
+     * filter. Statistics read from the segments then describe more documents than a query sees.
+     */
+    private final boolean shardFilters;
+
+    /** Computed on first use: it inspects the segments of every shard. */
+    private Boolean mayHoldUnmappedFields;
+
     private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues, MappedFieldType fieldType) {
         FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {
             this(exists, hasExactSubfield, indexed, hasDocValues, null);
@@ -68,6 +85,8 @@ public class SearchContextStats implements SearchStats {
     private static class FieldStats {
         private Long count;
         private Object min, max;
+        private ExactMinMax exactMinMax;
+        private boolean exactMinMaxComputed;
         private Boolean singleValue;
         private FieldConfig config;
     }
@@ -82,15 +101,39 @@ public class SearchContextStats implements SearchStats {
         }
     };
 
+    /**
+     * Statistics over {@code contexts}, which cannot tell whether a shard applies a filter to its queries, such as an index alias
+     * filter, so nothing that such a filter would invalidate is reported as exact. Use {@link #fromShards} when that is known.
+     */
     public static SearchStats from(List<SearchExecutionContext> contexts) {
+        return from(contexts, true);
+    }
+
+    /**
+     * Statistics over the shards a node searches. A shard filter, such as an index alias filter, is applied to the queries of a shard
+     * but not to its segments, so statistics that would otherwise describe documents the filter hides are not reported as exact.
+     */
+    public static SearchStats fromShards(Iterable<? extends ShardContext> shards) {
+        List<SearchExecutionContext> contexts = new ArrayList<>();
+        boolean shardFilters = false;
+        for (ShardContext shard : shards) {
+            DefaultShardContext defaultShard = (DefaultShardContext) shard;
+            contexts.add(defaultShard.executionContext());
+            shardFilters |= defaultShard.hasAliasFilter();
+        }
+        return from(contexts, shardFilters);
+    }
+
+    static SearchStats from(List<SearchExecutionContext> contexts, boolean shardFilters) {
         if (contexts == null || contexts.isEmpty()) {
             return SearchStats.EMPTY;
         }
-        return new SearchContextStats(contexts);
+        return new SearchContextStats(contexts, shardFilters);
     }
 
-    private SearchContextStats(List<SearchExecutionContext> contexts) {
+    private SearchContextStats(List<SearchExecutionContext> contexts, boolean shardFilters) {
         this.contexts = contexts;
+        this.shardFilters = shardFilters;
         assert contexts != null && contexts.isEmpty() == false;
     }
 
@@ -151,14 +194,39 @@ public class SearchContextStats implements SearchStats {
      * A field ES|QL can extract from this shard: present in the mapping and not under a nested
      * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
      * on the field-caps request, so treating nested subfields as present here would make
-     * {@code exists}/{@code count} disagree with extraction.
+     * {@code exists}/{@code count} or pushed-down predicates disagree with extraction.
      */
-    private static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
+    public static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
         return context.isMappedField(field) && isNestedSubfield(context, field) == false;
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
         return context.nestedLookup().hasNestedParent(field);
+    }
+
+    @Override
+    public boolean mayHoldUnmappedFields() {
+        if (mayHoldUnmappedFields == null) {
+            boolean mayHold = false;
+            for (SearchExecutionContext context : contexts) {
+                if (context.unmappedFields().mayExist()) {
+                    mayHold = true;
+                    break;
+                }
+            }
+            mayHoldUnmappedFields = mayHold;
+        }
+        return mayHoldUnmappedFields;
+    }
+
+    @Override
+    public boolean mayHoldUnmappedField(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.unmappedFields().mayExist(field.string())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -175,6 +243,115 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean hasDocValues(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
+    }
+
+    @Override
+    public boolean nestedQueriesAllowed() {
+        for (SearchExecutionContext context : contexts) {
+            if (context.allowExpensiveQueries() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean nestedFieldHasDocValues(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).hasDocValues() == false) {
+                    return false;
+                }
+                mapped = true;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsSearchable(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).isSearchable() == false) {
+                    return false;
+                }
+                mapped = true;
+            } else if (context.nestedLookup().hasNestedParent(field.string())) {
+                return false;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsQueryable(FieldName field, DataType type) {
+        if (nestedFieldIsSearchable(field) == false || nestedFieldHasDocValues(field) == false) {
+            return false;
+        }
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType fieldType = context.getFieldType(field.string());
+            if (fieldType != null
+                && (dataType(fieldType) != type
+                    || fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.hasNormalizer())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean readsKey(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context instanceof EsqlSearchExecutionContext esql && esql.readsKey(field.string())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
+        boolean held = false;
+        for (SearchExecutionContext context : contexts) {
+            if (isQueryable(context, field.string(), type, comparesValuesAsRead) == false) {
+                return false;
+            }
+            held |= isExtractableMappedField(context, field.string());
+        }
+        return held;
+    }
+
+    /**
+     * Whether the shard of {@code context} can query {@code field} as ES|QL reads it, as {@code type}: from its doc values, or from a
+     * runtime field where expensive queries are allowed. A shard that cannot hold the field can query it too, as nothing matches.
+     * A shard that reads the field from {@code _source} checks the values it reads instead.
+     *
+     * @param comparesValuesAsRead whether the query compares the values as read, which a {@code keyword} with a normalizer does not
+     */
+    public static boolean isQueryable(SearchExecutionContext context, String field, DataType type, boolean comparesValuesAsRead) {
+        MappedFieldType fieldType = context.getFieldType(field);
+        if (isExtractableMappedField(context, field) == false) {
+            // A sub-field of a nested object, say, is a field ES|QL does not read, but a query on it could match
+            return fieldType == null;
+        }
+        if (context instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(field)) {
+            return false;
+        }
+        return fieldType.isAggregatable()
+            && (fieldType instanceof AbstractScriptFieldType<?> == false || context.allowExpensiveQueries())
+            && dataType(fieldType) == type
+            && (comparesValuesAsRead == false
+                || (fieldType instanceof KeywordFieldMapper.KeywordFieldType k && k.hasNormalizer()) == false);
+    }
+
+    /** The type ES|QL reads a field of {@code fieldType} as. A key of a {@code flattened} field is a {@code keyword}. */
+    private static DataType dataType(MappedFieldType fieldType) {
+        if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
+            return DataType.KEYWORD;
+        }
+        return EsqlDataTypeRegistry.INSTANCE.fromEs(fieldType.familyTypeName(), fieldType.getMetricType()).widenSmallNumeric();
     }
 
     @Override
@@ -322,6 +499,132 @@ public class SearchContextStats implements SearchStats {
         return stat.max;
     }
 
+    @Override
+    public ExactMinMax exactMinMax(FieldName field) {
+        if (shardFilters) {
+            return null;
+        }
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        if (stat.exactMinMaxComputed == false) {
+            stat.exactMinMax = computeExactMinMax(field);
+            stat.exactMinMaxComputed = true;
+        }
+        return stat.exactMinMax;
+    }
+
+    private ExactMinMax computeExactMinMax(FieldName field) {
+        final String name = field.string();
+        // Before any segment is read: a shard that does not map the field may still hold it in its source, where a scan reads it
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(name) == false && context.unmappedFields().mayExist(name)) {
+                return null;
+            }
+        }
+        DataType dataType = null;
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        try {
+            for (SearchExecutionContext context : contexts) {
+                if (isExtractableMappedField(context, name) == false) {
+                    // reads as null in this shard, as it does in a scan
+                    continue;
+                }
+                MappedFieldType type = context.getFieldType(name);
+                DataType shardType = exactMinMaxDataType(type);
+                if (shardType == null || type.hasDocValues() == false) {
+                    return null;
+                }
+                var indexType = type.indexType();
+                if (indexType.hasDocValuesSkipper() == false && indexType.hasPoints() == false) {
+                    return null;
+                }
+                if (dataType == null) {
+                    dataType = shardType;
+                } else if (dataType != shardType) {
+                    // the shards disagree on how to read the field
+                    return null;
+                }
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    LeafReader reader = leafContext.reader();
+                    if (reader.hasDeletions()) {
+                        return null;
+                    }
+                    // the segments hold the field under its own name, which differs from the one asked for when that is an alias
+                    long[] leafBounds = leafBounds(indexType.hasDocValuesSkipper(), reader, type.name());
+                    if (leafBounds == null) {
+                        return null;
+                    }
+                    if (leafBounds.length > 0) {
+                        min = Math.min(min, leafBounds[0]);
+                        max = Math.max(max, leafBounds[1]);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+        return min > max ? ExactMinMax.noValues(dataType) : new ExactMinMax(true, min, max, dataType);
+    }
+
+    /**
+     * The type a field is read as, for the types whose segment metadata is the sortable form of a {@code long}, which is the value
+     * itself, and {@code null} for any other. The floating point types encode theirs differently and are not supported.
+     */
+    private static DataType exactMinMaxDataType(MappedFieldType type) {
+        if (type instanceof DateFieldType dateType) {
+            return switch (dateType.resolution()) {
+                case MILLISECONDS -> DataType.DATETIME;
+                case NANOSECONDS -> DataType.DATE_NANOS;
+            };
+        }
+        if (type instanceof NumberFieldType numberType) {
+            return switch (numberType.numberType()) {
+                case LONG -> DataType.LONG;
+                case INTEGER, SHORT, BYTE -> DataType.INTEGER;
+                case HALF_FLOAT, FLOAT, DOUBLE -> null;
+            };
+        }
+        return null;
+    }
+
+    /**
+     * The smallest and largest value of the field in the segment, an empty array if no document of it holds a value, or
+     * {@code null} if the metadata of the segment cannot tell.
+     */
+    private static long[] leafBounds(boolean skipper, LeafReader reader, String name) throws IOException {
+        final long[] noValues = new long[0];
+        if (skipper) {
+            DocValuesSkipper docValuesSkipper = reader.getDocValuesSkipper(name);
+            if (docValuesSkipper == null) {
+                return reader.getFieldInfos().fieldInfo(name) == null ? noValues : null;
+            }
+            return docValuesSkipper.docCount() == 0 ? noValues : new long[] { docValuesSkipper.minValue(), docValuesSkipper.maxValue() };
+        }
+        PointValues points = reader.getPointValues(name);
+        if (points == null) {
+            return reader.getFieldInfos().fieldInfo(name) == null ? noValues : null;
+        }
+        if (points.getNumDimensions() != 1) {
+            return null;
+        }
+        if (points.size() == 0) {
+            return noValues;
+        }
+        byte[] minPacked = points.getMinPackedValue();
+        byte[] maxPacked = points.getMaxPackedValue();
+        return switch (points.getBytesPerDimension()) {
+            case Long.BYTES -> new long[] {
+                NumericUtils.sortableBytesToLong(minPacked, 0),
+                NumericUtils.sortableBytesToLong(maxPacked, 0) };
+            case Integer.BYTES -> new long[] {
+                NumericUtils.sortableBytesToInt(minPacked, 0),
+                NumericUtils.sortableBytesToInt(maxPacked, 0) };
+            default -> throw new IllegalStateException(
+                "the points of [" + name + "] are [" + points.getBytesPerDimension() + "] bytes wide, which no supported type uses"
+            );
+        };
+    }
+
     private static Long nullableMin(final Long a, final Long b) {
         if (a == null) return b;
         if (b == null) return a;
@@ -451,6 +754,20 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public String constantValue(FieldAttribute.FieldName name) {
         String val = null;
         for (SearchExecutionContext ctx : contexts) {
@@ -573,14 +890,10 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public boolean canPartitionByTsidPrefix() {
-        try {
-            for (SearchExecutionContext context : contexts) {
-                if (PartitionedDocValues.canPartitionByTsidPrefix(context.searcher()) == false) {
-                    return false;
-                }
+        for (SearchExecutionContext context : contexts) {
+            if (PartitionedDocValues.canPartitionByTsidPrefix(context.getIndexSettings().getIndexVersionCreated()) == false) {
+                return false;
             }
-        } catch (IOException ex) {
-            throw new UncheckedIOException("failed to read time-series partition", ex);
         }
         return true;
     }

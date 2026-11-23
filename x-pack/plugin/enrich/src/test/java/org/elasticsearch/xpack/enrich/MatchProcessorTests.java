@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -113,7 +114,7 @@ public class MatchProcessorTests extends ESTestCase {
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
-        int numProperties = ingestDocument.getSourceAndMetadata().size();
+        int numProperties = ingestDocument.getSource().size();
         // Run
         IngestDocument[] holder = new IngestDocument[1];
         processor.execute(ingestDocument, (result, e) -> holder[0] = result);
@@ -134,7 +135,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
         assertThat(termQueryBuilder.value(), equalTo("elastic.com"));
         // Check result
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(numProperties));
+        assertThat(ingestDocument.getSource().size(), equalTo(numProperties));
     }
 
     public void testSearchFailure() throws Exception {
@@ -205,11 +206,11 @@ public class MatchProcessorTests extends ESTestCase {
             );
             IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
-            assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+            assertThat(ingestDocument.getSource().size(), equalTo(0));
             IngestDocument[] holder = new IngestDocument[1];
             processor.execute(ingestDocument, (result, e) -> holder[0] = result);
             assertThat(holder[0], notNullValue());
-            assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+            assertThat(ingestDocument.getSource().size(), equalTo(0));
         }
         {
             MatchProcessor processor = new MatchProcessor(
@@ -382,6 +383,39 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(entry.get("globalRank"), equalTo(451));
         assertThat(entry.get("tldRank"), equalTo(23));
         assertThat(entry.get("tld"), equalTo("co"));
+    }
+
+    public void testLookupRequestEquality() throws Exception {
+        int maxMatches = randomIntBetween(1, 8);
+        SearchRequest request = lookupRequest("domain", maxMatches, "elastic.co", ".enrich-_name-1");
+
+        SearchRequest same = lookupRequest("domain", maxMatches, "elastic.co", ".enrich-_name-1");
+        assertEquals(request, same);
+        assertEquals(request.hashCode(), same.hashCode());
+
+        assertNotEquals(request, lookupRequest("domain", maxMatches, "elastic.com", ".enrich-_name-1"));
+        assertNotEquals(request, lookupRequest("domain", maxMatches, List.of("elastic.co"), ".enrich-_name-1"));
+        assertNotEquals(request, lookupRequest("domain", maxMatches, "elastic.co", ".enrich-_name-2"));
+        assertNotEquals(request, lookupRequest("domain", maxMatches + 1, "elastic.co", ".enrich-_name-1"));
+        assertNotEquals(request, lookupRequest("other_field", maxMatches, "elastic.co", ".enrich-_name-1"));
+    }
+
+    private static SearchRequest lookupRequest(String matchField, int maxMatches, Object value, String enrichIndex) throws Exception {
+        AtomicReference<SearchRequest> captured = new AtomicReference<>();
+        MatchProcessor processor = new MatchProcessor("_tag", null, (v, max, requestBuilder, handler) -> {
+            captured.set(requestBuilder.apply(enrichIndex));
+            handler.accept(List.of(), null);
+        }, "_name", str("domain"), str("entry"), true, false, matchField, maxMatches);
+        IngestDocument document = new IngestDocument(
+            "_index",
+            "_id",
+            1L,
+            "_routing",
+            VersionType.INTERNAL,
+            new HashMap<>(Map.of("domain", value))
+        );
+        processor.execute(document, (result, e) -> assertNull(e));
+        return captured.get();
     }
 
     private static final class MockSearchFunction implements EnrichProcessorFactory.SearchRunner {

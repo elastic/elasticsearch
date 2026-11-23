@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,17 @@ public class SourceOperatorContextTests extends ESTestCase {
             .build();
 
         expectThrows(UnsupportedOperationException.class, () -> ctx.partitionColumnNames().add("extra"));
+    }
+
+    /** The reading node's minimum transport version reaches the factory; unset, it is this build's. */
+    public void testMinTransportVersionDefaultsToCurrent() {
+        SourceOperatorContext.Builder builder = SourceOperatorContext.builder()
+            .sourceType("file")
+            .path(StoragePath.of("s3://bucket/file.csv"))
+            .executor(DIRECT);
+        assertEquals(TransportVersion.current(), builder.build().minTransportVersion());
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
+        assertEquals(older, builder.minTransportVersion(older).build().minTransportVersion());
     }
 
     public void testBackwardCompatConstructorHasEmptyPartitionColumns() {

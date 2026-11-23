@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -343,40 +344,60 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertFalse(spec.overlaps(Map.of("year", 2024, "month", 2), List.of(hint("ts", Operator.GREATER_THAN, MARCH_15_2024))));
     }
 
+    /**
+     * The merge branch of the single-spec form, which the map form's own tests never reach because all three pass
+     * empty hints. The two bounds come first, in GTE-then-LTE order, with the query's own hints after them.
+     */
+    public void testWithTimestampBoundsPrependsBoundsToExistingHints() {
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2025-01-01T00:00:00Z");
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp)");
+        PartitionFilterHint existing = hint("region", Operator.EQUALS, "emea");
+
+        List<PartitionFilterHint> merged = spec.withTimestampBounds(List.of(existing), start, end);
+
+        assertEquals(3, merged.size());
+        assertEquals(MetadataAttribute.TIMESTAMP_FIELD, merged.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, merged.get(0).operator());
+        assertEquals(List.of(start), merged.get(0).values());
+        assertEquals(MetadataAttribute.TIMESTAMP_FIELD, merged.get(1).columnName());
+        assertEquals(Operator.LESS_THAN_OR_EQUAL, merged.get(1).operator());
+        assertEquals(List.of(end), merged.get(1).values());
+        assertEquals(existing, merged.get(2));
+    }
+
+    /** A spec that does not bind {@code @timestamp} gets its hints back by identity, bounds or no bounds. */
+    public void testWithTimestampBoundsLeavesAnUnboundSpecAlone() {
+        List<PartitionFilterHint> hints = List.of(hint("region", Operator.EQUALS, "emea"));
+        PartitionSpec spec = PartitionSpec.parse("year(ts)");
+
+        Instant start = Instant.parse("2024-06-01T00:00:00Z");
+        Instant end = Instant.parse("2025-01-01T00:00:00Z");
+
+        assertSame(hints, spec.withTimestampBounds(hints, start, end));
+        assertNull(spec.withTimestampBounds(null, start, end));
+        // The absent-bounds arm, which is what EsqlSession passes for every spec when the request carries no filter.
+        assertSame(hints, spec.withTimestampBounds(hints, null, null));
+        assertSame(hints, spec.withTimestampBounds(hints, end, start));
+    }
+
     public void testTimestampBoundsBecomeYearInForAtTimestamp() {
         Instant start = Instant.parse("2024-06-01T00:00:00Z");
         Instant end = Instant.parse("2025-01-01T00:00:00Z");
         PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp)");
-        Map<String, List<PartitionFilterHint>> hints = PartitionSpec.addTimestampBounds(
-            Map.of(),
-            Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")),
-            start,
-            end
-        );
-        List<PartitionFilterHint> projected = spec.projectListingHints(hints.get("s3://logs/**"));
+        List<PartitionFilterHint> projected = spec.projectListingHints(spec.withTimestampBounds(null, start, end));
         assertEquals(List.of(2024, 2025), inValues(projected, "year"));
         assertEquals(List.of(6, 7, 8, 9, 10, 11, 12, 1), inValues(projected, "month"));
-        assertTrue(
-            PartitionSpec.addTimestampBounds(
-                Map.of(),
-                Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(ts)")),
-                start,
-                end
-            ).isEmpty()
-        );
+        // A spec binding some other column earns no bounds at all, so its hints come back exactly as they went in.
+        assertNull(PartitionSpec.parse("year(ts)").withTimestampBounds(null, start, end));
     }
 
     public void testClosedRangeEndingAtYearStartStillIncludesThatYear() {
         Instant start = Instant.parse("2024-06-01T00:00:00Z");
         Instant end = Instant.parse("2026-01-01T00:00:00Z");
         PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp)");
-        Map<String, List<PartitionFilterHint>> hints = PartitionSpec.addTimestampBounds(
-            Map.of(),
-            Map.of("s3://logs/**", Map.of(PartitionSpec.CONFIG_PARTITION_SPEC, "year(@timestamp), month(@timestamp)")),
-            start,
-            end
-        );
-        assertEquals(List.of(2024, 2025, 2026), inValues(spec.projectListingHints(hints.get("s3://logs/**")), "year"));
+        List<PartitionFilterHint> bounds = spec.withTimestampBounds(null, start, end);
+        assertEquals(List.of(2024, 2025, 2026), inValues(spec.projectListingHints(bounds), "year"));
     }
 
     public void testDateNanosExclusiveGreaterThanKeepsContainingMillisecondFolder() {
@@ -571,6 +592,108 @@ public class PartitionSpecProjectorTests extends ESTestCase {
             hint("ts", Operator.LESS_THAN, elevenInstant)
         );
         assertTrue(nanos.overlaps(hourFolder(11), datetime));
+    }
+
+    public void testFolderRangeIdentityStableWithinUtcDayDiffersAcrossDays() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant morning = Instant.parse("2026-10-14T01:00:00Z");
+        Instant afternoon = Instant.parse("2026-10-14T23:00:00Z");
+        Instant nextDay = Instant.parse("2026-10-15T01:00:00Z");
+        var a = spec.folderRangePredicate(List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, morning)));
+        var b = spec.folderRangePredicate(List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, afternoon)));
+        var c = spec.folderRangePredicate(List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, nextDay)));
+        assertNotNull(a);
+        assertEquals(a.identity(), b.identity());
+        assertNotEquals(a.identity(), c.identity());
+        assertEquals(List.of("year", "month", "day"), a.bindKeys());
+        assertTrue(a.mayContain(Map.of("year", "2026", "month", "10", "day", "14")));
+        assertFalse(a.mayContain(Map.of("year", "2026", "month", "10", "day", "13")));
+    }
+
+    public void testFolderRangeIdentityDistinguishesInListsThatShareAHull() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant jan1 = Instant.parse("2024-01-01T00:00:00Z");
+        Instant jun15 = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dec31 = Instant.parse("2024-12-31T00:00:00Z");
+        var ends = spec.folderRangePredicate(List.of(hint("ts", Operator.IN, jan1, dec31)));
+        var mid = spec.folderRangePredicate(List.of(hint("ts", Operator.IN, jan1, jun15, dec31)));
+        assertNotNull(ends);
+        assertNotNull(mid);
+        assertNotEquals("IN lists with the same min-max must not share a listing cache entry", ends.identity(), mid.identity());
+        assertTrue(ends.mayContain(Map.of("year", "2024", "month", "1", "day", "1")));
+        assertFalse(ends.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
+        assertTrue(mid.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
+    }
+
+    /**
+     * ES|QL reads {@code "2024-06"} as 2024-06-01, but the projection cannot parse it. An {@code IN} holding it must not
+     * narrow to the values that do parse, or June's folders drop out. {@code ts == "2024-06"} alone already restricts
+     * nothing, and the {@code IN} must do the same.
+     */
+    public void testInWithAValueThatDoesNotConvertRestrictsNothing() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.IN, "2024-01-15", "2024-06"));
+
+        assertTrue(spec.overlaps(folder(2024, 6, 1), hints));
+        assertTrue(spec.overlaps(folder(2024, 1, 15), hints));
+        assertNull(spec.folderRangePredicate(hints));
+        assertEquals("no year, month or day hint may be derived", hints, spec.projectListingHints(hints));
+    }
+
+    public void testQuantizeRangeAgreesWithRawOnGrainFoldersIncludingLagLead() {
+        Instant min = Instant.parse("2000-01-01T00:00:00Z");
+        Instant max = Instant.parse("2030-12-31T23:00:00Z");
+        for (int i = 0; i < 200; i++) {
+            PartitionSpec.Transform grain = randomFrom(
+                PartitionSpec.Transform.YEAR,
+                PartitionSpec.Transform.MONTH,
+                PartitionSpec.Transform.DAY,
+                PartitionSpec.Transform.HOUR
+            );
+            long folderStart = randomAlignedFolderStart(grain, min, max);
+            long folderEnd = alignedFolderEnd(folderStart, grain);
+            Long start = randomBoolean() ? randomLongBetween(min.toEpochMilli(), max.toEpochMilli()) : null;
+            Long end = randomBoolean() ? randomLongBetween(min.toEpochMilli(), max.toEpochMilli()) : null;
+            if (start != null && end != null && start > end) {
+                long swap = start;
+                start = end;
+                end = swap;
+            }
+            long lead = randomBoolean() ? 0L : randomLongBetween(0, 48L * 3_600_000L);
+            long lag = randomBoolean() ? 0L : randomLongBetween(0, 48L * 3_600_000L);
+            Long widenedStart = start;
+            Long widenedEnd = end;
+            if (widenedStart != null && lead != 0) {
+                try {
+                    widenedStart = Math.subtractExact(widenedStart, lead);
+                } catch (ArithmeticException overflow) {
+                    widenedStart = null;
+                }
+            }
+            if (widenedEnd != null && lag != 0) {
+                try {
+                    widenedEnd = Math.addExact(widenedEnd, lag);
+                } catch (ArithmeticException overflow) {
+                    widenedEnd = null;
+                }
+            }
+            PartitionSpec.InstantRange raw = new PartitionSpec.InstantRange(widenedStart, widenedEnd);
+            PartitionSpec.InstantRange quantized = PartitionSpec.quantizeRange(raw, grain);
+            assertEquals(
+                "grain=" + grain + " folder=[" + folderStart + "," + folderEnd + ") raw=" + raw,
+                raw.overlapsFolder(folderStart, folderEnd),
+                quantized.overlapsFolder(folderStart, folderEnd)
+            );
+        }
+    }
+
+    private static long randomAlignedFolderStart(PartitionSpec.Transform grain, Instant min, Instant max) {
+        long millis = randomLongBetween(min.toEpochMilli(), max.toEpochMilli());
+        return PartitionSpec.quantizeRange(new PartitionSpec.InstantRange(millis, millis + 1), grain).startInclusiveMillis();
+    }
+
+    private static long alignedFolderEnd(long folderStart, PartitionSpec.Transform grain) {
+        return PartitionSpec.quantizeRange(new PartitionSpec.InstantRange(folderStart + 1, folderStart + 1), grain).endExclusiveMillis();
     }
 
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {

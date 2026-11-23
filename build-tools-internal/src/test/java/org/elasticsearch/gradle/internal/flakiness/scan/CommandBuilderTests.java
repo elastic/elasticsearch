@@ -32,7 +32,7 @@ public class CommandBuilderTests {
 
         List<PlanCommand> cmds = CommandBuilder.build(run, CommandBuilder.Config.defaults());
 
-        // cap for `test` is 3 -> two batches.
+        // cap for `test` is 3 -> two batches. 100 iterations exceed the 25-per-run cap -> 4 gradle runs of 25.
         assertThat(cmds, hasSize(2));
         PlanCommand first = cmds.get(0);
         assertThat(first.kind(), equalTo("test"));
@@ -40,9 +40,18 @@ public class CommandBuilderTests {
         assertThat(first.key(), equalTo("flakiness-detection:unit"));
         assertThat(
             first.command(),
-            equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.A --tests org.B --tests org.C")
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 "
+                    + "-Dtests.timeoutSuite=3600000! :server:test --tests org.A --tests org.B --tests org.C --rerun"
+            )
         );
-        assertThat(cmds.get(1).command(), equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.D"));
+        assertThat(
+            cmds.get(1).command(),
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 "
+                    + "-Dtests.timeoutSuite=3600000! :server:test --tests org.D --rerun"
+            )
+        );
         // The task paths travel as a field so the batch runner can scope its skipped-task check to exactly
         // the tasks this command invokes, without parsing them back out of the command string.
         assertThat(first.taskPaths(), contains(":server:test"));
@@ -73,12 +82,70 @@ public class CommandBuilderTests {
         CommandBuilder.Config cfg = CommandBuilder.Config.defaults().withIterOverride(7);
         List<PlanCommand> cmds = CommandBuilder.build(run, cfg);
 
-        assertThat(byKey(cmds, "flakiness-detection:unit").command(), containsString("-Dtests.iters=7 "));
+        // 7 is within both per-run caps, so the java kinds run once, unwrapped.
+        assertThat(
+            byKey(cmds, "flakiness-detection:unit").command(),
+            equalTo("__GRADLE__ -Dtests.iters=7 -Dtests.timeoutSuite=3600000! :server:test --tests org.A")
+        );
         assertThat(byKey(cmds, "flakiness-detection:integ").command(), containsString("-Dtests.iters=7 "));
-        // rest kinds use the repeat-rest wrapper with the override as the loop count.
+        // rest kinds use the repeat wrapper with the override as the loop count.
         assertThat(
             byKey(cmds, "flakiness-detection:java-rest").command(),
-            containsString(".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 7 __GRADLE__ ")
+            containsString(".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 7 __GRADLE__ ")
+        );
+    }
+
+    /** Exactly at the cap stays one plain run; one above it is the smallest split. */
+    @Test
+    public void testIterCountAtCapStaysInOneRunAndOneAboveSplits() {
+        List<PlanEntry> run = List.of(unit(":server", "org.A"));
+
+        assertThat(
+            CommandBuilder.build(run, CommandBuilder.Config.defaults().withIterOverride(25)).get(0).command(),
+            equalTo("__GRADLE__ -Dtests.iters=25 -Dtests.timeoutSuite=3600000! :server:test --tests org.A")
+        );
+        assertThat(
+            CommandBuilder.build(run, CommandBuilder.Config.defaults().withIterOverride(26)).get(0).command(),
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 2 __GRADLE__ -Dtests.iters=13 "
+                    + "-Dtests.timeoutSuite=3600000! :server:test --tests org.A --rerun"
+            )
+        );
+    }
+
+    @Test
+    public void testInternalClusterTestDefaultItersStayInOneRun() {
+        List<PlanCommand> cmds = CommandBuilder.build(List.of(integ(":server", "org.BIT")), CommandBuilder.Config.defaults());
+
+        assertThat(
+            cmds.get(0).command(),
+            equalTo("__GRADLE__ -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.BIT")
+        );
+    }
+
+    /**
+     * An override above the per-run caps splits both java kinds. Iterations are spread evenly and rounded
+     * up, so 70 becomes 3 x 24 for unit tests (cap 25) and 4 x 18 for internalClusterTest (cap 20).
+     */
+    @Test
+    public void testIterOverrideAboveCapSplitsEvenlyRoundingUp() {
+        List<PlanEntry> run = List.of(unit(":server", "org.A"), integ(":server", "org.BIT"));
+
+        List<PlanCommand> cmds = CommandBuilder.build(run, CommandBuilder.Config.defaults().withIterOverride(70));
+
+        assertThat(
+            byKey(cmds, "flakiness-detection:unit").command(),
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 3 __GRADLE__ -Dtests.iters=24 "
+                    + "-Dtests.timeoutSuite=3600000! :server:test --tests org.A --rerun"
+            )
+        );
+        assertThat(
+            byKey(cmds, "flakiness-detection:integ").command(),
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=18 "
+                    + "-Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.BIT --rerun"
+            )
         );
     }
 
@@ -95,7 +162,7 @@ public class CommandBuilderTests {
         assertThat(cmds, hasSize(1));
         assertThat(
             cmds.get(0).command(),
-            equalTo(".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ :x:javaRestTest --tests org.FooIT --rerun")
+            equalTo(".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ :x:javaRestTest --tests org.FooIT --rerun")
         );
     }
 
@@ -109,6 +176,21 @@ public class CommandBuilderTests {
         assertThat(cmds, hasSize(2));
         assertThat(cmds.get(0).command(), containsString(":x:yamlRestTest --rerun"));
         assertThat(cmds.get(1).command(), containsString(":y:yamlRestTest --rerun"));
+    }
+
+    @Test
+    public void testYamlRunnerDedupingPreservesTaskUnion() {
+        List<PlanCommand> cmds = CommandBuilder.build(
+            List.of(
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_RUNNER, null, null, null, List.of(":x:yamlRestTestA")),
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_RUNNER, null, null, null, List.of(":x:yamlRestTestB"))
+            ),
+            CommandBuilder.Config.defaults()
+        );
+
+        assertThat(cmds, hasSize(2));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlRestTestA --rerun"));
+        assertThat(cmds.get(1).command(), containsString(":x:yamlRestTestB --rerun"));
     }
 
     /**
@@ -152,6 +234,21 @@ public class CommandBuilderTests {
     }
 
     @Test
+    public void testYamlSuiteCollapsePreservesTaskUnion() {
+        List<PlanCommand> cmds = CommandBuilder.build(
+            List.of(
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_SUITE, null, "esql/10_a", null, List.of(":x:yamlA")),
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_SUITE, null, "esql/20_b", null, List.of(":x:yamlB"))
+            ),
+            CommandBuilder.Config.defaults()
+        );
+
+        assertThat(cmds, hasSize(1));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlA --rerun"));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlB --rerun"));
+    }
+
+    @Test
     public void testYamlCaseUsesQuotedFqcnDotYamlTest() {
         List<PlanCommand> cmds = CommandBuilder.build(
             List.of(yamlCase(":x", "org.EsqlIT", "test {yaml=esql/10_a/Case}")),
@@ -167,7 +264,30 @@ public class CommandBuilderTests {
         List<PlanCommand> cmds = CommandBuilder.build(List.of(unit(":s", "org.A"), unit(":s", "org.A")), CommandBuilder.Config.defaults());
         assertThat(cmds, hasSize(1));
         // Only one --tests org.A after dedupe.
-        assertThat(cmds.get(0).command(), equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :s:test --tests org.A"));
+        assertThat(
+            cmds.get(0).command(),
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 "
+                    + "-Dtests.timeoutSuite=3600000! :s:test --tests org.A --rerun"
+            )
+        );
+    }
+
+    @Test
+    public void testDedupePreservesTaskUnionForTheSameTarget() {
+        PlanEntry first = runOn(":s", "test", Kinds.TEST, "org.A", null, null, List.of(":s:testA"));
+        PlanEntry second = runOn(":s", "test", Kinds.TEST, "org.A", null, null, List.of(":s:testB"));
+
+        List<PlanCommand> cmds = CommandBuilder.build(List.of(first, second), CommandBuilder.Config.defaults());
+
+        assertThat(cmds, hasSize(1));
+        assertThat(
+            cmds.get(0).command(),
+            equalTo(
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 "
+                    + "-Dtests.timeoutSuite=3600000! :s:testA --tests org.A --rerun :s:testB --tests org.A --rerun"
+            )
+        );
     }
 
     /**
@@ -196,7 +316,10 @@ public class CommandBuilderTests {
         assertThat(cmds.get(0).command(), not(containsString(":qa:rolling:javaRestTest")));
     }
 
-    /** A multi-task unit-test entry shares one invocation when the per-kind batch cap allows it. */
+    /**
+     * A multi-task unit-test entry shares one invocation when the per-kind batch cap allows it. {@code --rerun}
+     * is a per-task option, so a split run needs it after every task's filters.
+     */
     @Test
     public void testMultiTaskUnitEntryBatchesTasksIntoOneInvocation() {
         PlanEntry twoTasks = runOn(":qa:p", "test", Kinds.TEST, "org.ATests", null, null, List.of(":qa:p:altTestA", ":qa:p:altTestB"));
@@ -207,8 +330,9 @@ public class CommandBuilderTests {
         assertThat(
             cmds.get(0).command(),
             equalTo(
-                "__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! "
-                    + ":qa:p:altTestA --tests org.ATests :qa:p:altTestB --tests org.ATests"
+                ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 4 __GRADLE__ -Dtests.iters=25 "
+                    + "-Dtests.timeoutSuite=3600000! "
+                    + ":qa:p:altTestA --tests org.ATests --rerun :qa:p:altTestB --tests org.ATests --rerun"
             )
         );
     }

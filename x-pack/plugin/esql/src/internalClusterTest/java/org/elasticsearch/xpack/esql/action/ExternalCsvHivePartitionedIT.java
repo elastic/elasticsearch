@@ -128,7 +128,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Collision regression for elastic/esql-planning#959: a Hive partition key ({@code year}) and a
+    * Collision regression for : a Hive partition key ({@code year}) and a
      * physical CSV column share the name {@code year}. The data files live under
      * {@code year=2024/month=01/} but their bodies carry a different physical {@code year} value
      * (1999). Reads previously failed with "output schema size does not match mapping width" because

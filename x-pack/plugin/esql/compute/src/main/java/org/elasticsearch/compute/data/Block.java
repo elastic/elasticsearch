@@ -238,6 +238,11 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     void allowPassingToDifferentDriver();
 
     /**
+     * Lets the driver reuse the values array once this is released.
+     */
+    default void enablePooling() {}
+
+    /**
      * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
      * @return true iff the block's reference count is zero.
      * */
@@ -265,6 +270,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * @return true if all values in this block are guaranteed to be null.
      */
     boolean areAllValuesNull();
+
+    /**
+     * @return the number of positions that are null. Note that this counts positions, not values: a null position has no values.
+     * Implementations should use the cheapest way to compute this; {@link BlockUtils#nullValuesCount(Block)} is the fallback
+     * when there is no specialized one.
+     */
+    int nullValuesCount();
 
     /**
      * Can this block have multivalued fields? Blocks that return {@code false}
@@ -525,6 +537,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
+        if (block instanceof DocBlock && out.getTransportVersion().supports(DocVector.ESQL_DOC_ORIGINS) == false) {
+            // older nodes know the element type but can't read it
+            throw new IllegalStateException("can't send documents to a node on [" + out.getTransportVersion() + "]");
+        }
         if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
             block = a.asCompositeBlock();
         }

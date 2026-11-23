@@ -22,12 +22,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -102,6 +106,96 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
         buffer.finish(true);
         assertTrue("waitForSpace should complete when buffer is finished (cancelled)", space.isDone());
+    }
+
+    /**
+     * A producer parked on a signal the buffer does not own (the iterator's {@code waitForReady()})
+     * must still be woken by a hard finish (cancel / DELETE), without that signal ever completing.
+     */
+    public void testWaitForReadyOrFinishedCompletesOnHardFinish() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertNotSame("a pending signal must be wrapped", signal, park);
+        assertFalse(park.isDone());
+
+        buffer.finish(true);
+        assertTrue("finish(true) must end a park on the iterator's readiness", park.isDone());
+        assertTrue("wake is a successful completion, the producer exits on noMoreInputs", park.isSuccess());
+        assertFalse("the upstream signal is not touched", signal.isDone());
+    }
+
+    /** STOP ({@code finish(false)}) wakes the park too: buffered pages stay, un-started work is dropped. */
+    public void testWaitForReadyOrFinishedCompletesOnStop() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page queued = createTestPage(1, 4);
+        buffer.addPage(queued);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertFalse(park.isDone());
+
+        assertTrue(buffer.finish(false));
+        assertTrue(park.isDone());
+        assertTrue(park.isSuccess());
+        assertFalse(signal.isDone());
+        assertSame("STOP keeps the queued page reachable", queued, buffer.pollPage());
+        queued.releaseBlocks();
+        buffer.finish(true);
+    }
+
+    public void testWaitForReadyOrFinishedCompletesOnFailure() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertFalse(park.isDone());
+
+        buffer.onFailure(new IOException("boom"));
+        assertTrue(park.isDone());
+        assertTrue("the park itself succeeds; the failure is reported through the buffer", park.isSuccess());
+        assertFalse(signal.isDone());
+        buffer.finish(true);
+    }
+
+    /** The iterator's own completion, success or failure, is forwarded unchanged so a failing read still fails the producer. */
+    public void testWaitForReadyOrFinishedForwardsSignal() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+
+        SubscribableListener<Void> ok = new SubscribableListener<>();
+        SubscribableListener<Void> okPark = buffer.waitForReadyOrFinished(ok);
+        ok.onResponse(null);
+        assertTrue(okPark.isDone());
+        assertTrue(okPark.isSuccess());
+
+        SubscribableListener<Void> failing = new SubscribableListener<>();
+        SubscribableListener<Void> failingPark = buffer.waitForReadyOrFinished(failing);
+        IOException failure = new IOException("read failed");
+        failing.onFailure(failure);
+        assertTrue(failingPark.isDone());
+        assertFalse(failingPark.isSuccess());
+        AtomicReference<Exception> seen = new AtomicReference<>();
+        failingPark.addListener(ActionListener.wrap(v -> fail("expected failure"), seen::set));
+        assertSame(failure, seen.get());
+
+        // A late completion of the signal after the buffer woke the park is a no-op.
+        SubscribableListener<Void> late = new SubscribableListener<>();
+        SubscribableListener<Void> latePark = buffer.waitForReadyOrFinished(late);
+        buffer.finish(true);
+        assertTrue(latePark.isSuccess());
+        late.onFailure(new IOException("too late"));
+        assertTrue("a wake already won; the late failure must not flip the park", latePark.isSuccess());
+    }
+
+    public void testWaitForReadyOrFinishedIsDoneWhenAlreadyFinished() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        buffer.finish(true);
+        SubscribableListener<Void> signal = new SubscribableListener<>();
+        SubscribableListener<Void> park = buffer.waitForReadyOrFinished(signal);
+        assertTrue("a park registered after finish must be complete (publish-then-recheck)", park.isDone());
+        assertTrue(park.isSuccess());
+        assertFalse(signal.isDone());
+
+        SubscribableListener<Void> done = SubscribableListener.newSucceeded(null);
+        assertSame("an already-done signal is returned as is", done, buffer.waitForReadyOrFinished(done));
     }
 
     public void testBufferConsistentAfterFullAndDrain() {
@@ -525,6 +619,40 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertEquals("finish must stop following later increments", 250L, buffer.bytesRead());
     }
 
+    /**
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream} holds the last
+     * partial 256 KiB until close. Finishing after that close folds the tail; finishing first
+     * drops it.
+     */
+    public void testFinishAfterMeteredStreamCloseIncludesRemainder() throws Exception {
+        byte[] payload = randomByteArrayOfLength(between(1, 1024));
+        RemainderStorageObject object = new RemainderStorageObject(payload);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.trackStorageObject(object);
+        try (InputStream in = object.newStream()) {
+            assertEquals(payload.length, in.read(payload));
+            assertEquals("unpublished tail is invisible until close", 0L, buffer.bytesRead());
+        }
+        assertEquals("close publishes the tail while the object is still tracked", payload.length, buffer.bytesRead());
+        buffer.finishInFlightBytes();
+        assertEquals(payload.length, buffer.bytesRead());
+    }
+
+    public void testFinishBeforeMeteredStreamCloseDropsRemainder() throws Exception {
+        byte[] payload = randomByteArrayOfLength(between(1, 1024));
+        RemainderStorageObject object = new RemainderStorageObject(payload);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.trackStorageObject(object);
+        InputStream in = object.newStream();
+        try {
+            assertEquals(payload.length, in.read(payload));
+            buffer.finishInFlightBytes();
+        } finally {
+            in.close();
+        }
+        assertEquals("untracking before close drops the unpublished tail", 0L, buffer.bytesRead());
+    }
+
     public void testCommitIgnoresThrowAndDoesNotResetBaseline() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         MutableMetricsStorageObject object = new MutableMetricsStorageObject();
@@ -871,6 +999,48 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("s3://bucket/test");
+        }
+    }
+
+    /** Leaf object whose {@code newStream} is wrapped in {@code MeteredInputStream}. */
+    private static final class RemainderStorageObject extends AbstractMeteredStorageObject {
+        private final byte[] payload;
+
+        RemainderStorageObject(byte[] payload) {
+            this.payload = payload;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.unique();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int from = Math.toIntExact(position);
+            int len = length == StorageObject.READ_TO_END ? payload.length - from : Math.toIntExact(length);
+            int to = Math.min(payload.length, from + Math.max(0, len));
+            return metered(new ByteArrayInputStream(payload, from, Math.max(0, to - from)));
+        }
+
+        @Override
+        public long length() {
+            return payload.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/test.csv");
         }
     }
 }

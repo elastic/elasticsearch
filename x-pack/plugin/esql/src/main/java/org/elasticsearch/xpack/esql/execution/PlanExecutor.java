@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -19,9 +20,11 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
@@ -35,11 +38,15 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -71,6 +78,7 @@ public class PlanExecutor {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
+    private final List<QuerySettingDef<?>> applicableSettings;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
@@ -83,6 +91,8 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    @Nullable
+    private final IntSupplier maxDirectoryListings;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -134,6 +144,44 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
@@ -141,6 +189,7 @@ public class PlanExecutor {
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
+        this.applicableSettings = QuerySettings.applicableIn(Build.current().isSnapshot(), crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
@@ -150,6 +199,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.maxDirectoryListings = maxDirectoryListings;
     }
 
     /**
@@ -185,6 +235,7 @@ public class PlanExecutor {
             threadContext,
             null,
             null,
+            null,
             null
         );
     }
@@ -201,6 +252,34 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -211,7 +290,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
     }
 
@@ -246,7 +326,11 @@ public class PlanExecutor {
         BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
-        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry, applicableSettings);
+        // The client label is read from the calling thread's context, before the query goes async, so every outcome of this
+        // query (success, failure, cancellation) is attributed to the same client.
+        final ThreadContext threadContext = services.transportService().getThreadPool().getThreadContext();
+        final String client = clientOf(threadContext);
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
@@ -264,10 +348,11 @@ public class PlanExecutor {
             cacheService,
             cancellation,
             externalSourceConcurrency,
-            services.transportService().getThreadPool().getThreadContext(),
+            threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
         final var session = new EsqlSession(
             sessionId,
@@ -284,7 +369,7 @@ public class PlanExecutor {
             promqlFunctionRegistry,
             analysisRegistry,
             mapper,
-            verifier,
+            request.analyzeOnly() ? verifier.withoutMetrics() : verifier,
             metrics,
             planTelemetry,
             indicesExpressionGrouper,
@@ -292,20 +377,35 @@ public class PlanExecutor {
             services.plannerSettings().get(),
             services
         );
-        QueryMetric clientId = QueryMetric.fromString("rest");
-        metrics.total(clientId);
-
-        var begin = System.nanoTime();
         ActionListener<Versioned<Result>> releasingListener = bindPlanningReservation(
             services,
             executionInfo,
             externalSourceResolver,
             listener
         );
-        ActionListener<Versioned<Result>> executeListener = wrap(
-            x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin),
-            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin)
-        );
+        ActionListener<Versioned<Result>> executeListener = releasingListener;
+
+        if (request.analyzeOnly() == false) {
+            QueryMetric clientId = QueryMetric.fromString("rest");
+            metrics.total(clientId);
+            var begin = System.nanoTime();
+            executeListener = wrap(
+                x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
+                ex -> onQueryFailure(
+                    request,
+                    session.planSnapshot().settings(),
+                    releasingListener,
+                    ex,
+                    clientId,
+                    planTelemetry,
+                    executionInfo,
+                    begin,
+                    client,
+                    externalSourceResolver
+                )
+            );
+        }
+
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, cancellation, l));
@@ -338,22 +438,24 @@ public class PlanExecutor {
     private void onQuerySuccess(
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
-        Versioned<Result> x,
+        Versioned<Result> result,
         PlanTelemetry planTelemetry,
         UsageService usageService,
         EsqlExecutionInfo executionInfo,
-        long begin
+        long begin,
+        String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        boolean partial = x != null && x.inner().completionInfo().partial();
+        boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
-            planTelemetry.externalSource(),
+            queryLabels(client, planTelemetry),
+            executionInfo.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             partial,
             null
         );
-        queryLog.onQueryPhase(x, request.queryDescription());
+        queryLog.onQueryPhase(result, request.queryDescription(), request.viewSettings());
         // record routing usage telemetry
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
@@ -361,29 +463,73 @@ public class PlanExecutor {
                 planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
-        listener.onResponse(x);
+        listener.onResponse(result);
     }
 
     private void onQueryFailure(
         EsqlQueryRequest request,
+        ResolvedSettings settings,
         ActionListener<Versioned<Result>> listener,
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,
-        long begin
+        EsqlExecutionInfo executionInfo,
+        long begin,
+        String client,
+        ExternalSourceResolver externalSourceResolver
     ) {
-        // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
+        // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
+        // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
+        // X-elastic-product-origin header instead (see clientOf), so the two families can differ for the same query.
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
-            planTelemetry.externalSource(),
+            queryLabels(client, planTelemetry),
+            executionInfo.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
+        // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
+        if (cacheService != null && ExternalException.isStaleCachedObject(ex)) {
+            // The object was rewritten or deleted after the listing this query used was cached. Drop the entries this query
+            // read, so the client's next attempt lists them again; other queries' entries stay.
+            externalSourceResolver.invalidateUsedCacheEntries();
+        }
         listener.onFailure(ex);
+    }
+
+    /**
+     * The labels of one external-source query: its client, and the storage type and format of the external sources it read,
+     * taken from the analyzed plan.
+     */
+    static ExternalSourceMetrics.QueryLabels queryLabels(String client, PlanTelemetry planTelemetry) {
+        return new ExternalSourceMetrics.QueryLabels(client, planTelemetry.externalStorageType(), planTelemetry.externalFormat());
+    }
+
+    /**
+     * The {@link ExternalSourceMetrics} client label of the request whose context is {@code threadContext}. A {@code null}
+     * context, which some callers and mocks supply, has no origin header and so maps to {@link ExternalSourceMetrics#CLIENT_NONE}.
+     */
+    static String clientOf(@Nullable ThreadContext threadContext) {
+        String origin = threadContext == null ? null : threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        return ExternalSourceMetrics.clientFromOrigin(origin);
+    }
+
+    /**
+     * How a query ended, from the exception it ended with, which is {@code null} for a query that succeeded: a
+     * {@link TaskCancelledException} anywhere in the cause chain means it was cancelled, whatever cancelled it (the user, the task
+     * management API, the expiry of an async query), and any other exception that it failed.
+     */
+    public static QueryMetricsListener.Outcome outcomeOf(@Nullable Throwable failure) {
+        if (failure == null) {
+            return QueryMetricsListener.Outcome.SUCCESS;
+        }
+        return ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null
+            ? QueryMetricsListener.Outcome.CANCELLED
+            : QueryMetricsListener.Outcome.FAILED;
     }
 
     /**
@@ -408,6 +554,7 @@ public class PlanExecutor {
      */
     static void recordExternalSourceQuery(
         ExternalSourceMetrics externalSourceMetrics,
+        ExternalSourceMetrics.QueryLabels labels,
         boolean externalSource,
         long durationMillis,
         boolean partial,
@@ -416,19 +563,16 @@ public class PlanExecutor {
         if (externalSource == false) {
             return;
         }
-        String outcome;
-        if (failure == null) {
-            outcome = ExternalSourceMetrics.OUTCOME_SUCCESS;
-        } else if (ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null) {
-            outcome = ExternalSourceMetrics.OUTCOME_CANCELLED;
-        } else {
-            outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
-        }
+        String outcome = switch (outcomeOf(failure)) {
+            case SUCCESS -> ExternalSourceMetrics.OUTCOME_SUCCESS;
+            case CANCELLED -> ExternalSourceMetrics.OUTCOME_CANCELLED;
+            case FAILED -> ExternalSourceMetrics.OUTCOME_FAILURE;
+        };
         if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
             QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
-            externalSourceMetrics.recordQuery(outcome, durationMillis, partial, classified.errorType(), classified.status());
+            externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, classified.errorType(), classified.status());
         } else {
-            externalSourceMetrics.recordQuery(outcome, durationMillis, partial);
+            externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, null, null);
         }
         // Only hard-failure breaker trips are attributed here: a CB that instead produced is_partial=true reaches the
         // success path with failure==null and is NOT counted (its CircuitBreakingException is not cleanly reachable at

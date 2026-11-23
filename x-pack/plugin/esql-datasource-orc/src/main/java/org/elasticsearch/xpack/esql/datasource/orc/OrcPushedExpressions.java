@@ -125,7 +125,7 @@ record OrcPushedExpressions(List<Expression> expressions) {
     /**
      * Builds a map from dotted attribute name to the leaf {@link TypeDescription.Category}.
      * Recurses into STRUCT children so {@code event.action} resolves to the leaf's category,
-     * not the parent STRUCT. Per the prior PR's D2 precedence (same as Parquet T1), a literal
+     * not the parent STRUCT. A literal
      * top-level field literally named {@code "event.action"} wins over a nested STRUCT walk
      * to {@code event -> action} — produce a single entry keyed by the literal name and skip
      * the conflicting nested traversal at that path. Stops descending at non-STRUCT types
@@ -146,7 +146,7 @@ record OrcPushedExpressions(List<Expression> expressions) {
     }
 
     private static void collectColumnTypes(TypeDescription type, String dottedPath, int depth, Map<String, TypeDescription.Category> out) {
-        // D2 precedence: a literal field name already registered at this path wins over a
+        // A literal field name already registered at this path wins over a
         // deeper recursion that would otherwise compose the same dotted string.
         if (out.containsKey(dottedPath)) {
             return;

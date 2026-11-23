@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
@@ -85,7 +86,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
     public static final int MAX_DIMENSIONS = 4096;
 
-    private final IvfSegmentConfig.AshConfig ashConfig;
+    private final AshConfigResolver ashConfigResolver;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
@@ -93,25 +94,44 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
+    private final TaskExecutor quantizerExec;
     private final int flatVectorThreshold;
     private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    /** No-arg constructor for SPI. */
+    /**
+     * No-arg constructor for SPI. Segments describe their own configuration, so this only matters for writing, where it
+     * derives the configuration from the vector dimension as the mapping does by default.
+     */
     public ESNextDiskASHVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
+        this(
+            AshConfigResolver.dimsDerived(null, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+            DEFAULT_VECTORS_PER_CLUSTER,
+            DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            null,
+            defaultFlatThreshold(DEFAULT_VECTORS_PER_CLUSTER),
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
+        );
     }
 
     public ESNextDiskASHVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(
-            IvfSegmentConfig.AshConfig.defaults(),
+            AshConfigResolver.fixed(IvfSegmentConfig.AshConfig.defaults()),
             vectorPerCluster,
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
             false,
             null,
             1,
+            null,
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
@@ -120,15 +140,19 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         );
     }
 
-    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
+    /**
+     * @param ashConfigResolver supplies the ASH configuration for each field from its vector dimension
+     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
+     */
     public ESNextDiskASHVectorsFormat(
-        IvfSegmentConfig.AshConfig ashConfig,
+        AshConfigResolver ashConfigResolver,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO,
         ExecutorService mergingExecutorService,
         int maxMergingWorkers,
+        ExecutorService quantizerExecutorService,
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
@@ -161,7 +185,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
                 "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
             );
         }
-        this.ashConfig = ashConfig;
+        this.ashConfigResolver = ashConfigResolver;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.rawVectorFormat = switch (elementType) {
@@ -173,6 +197,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         this.onDiskMerge = onDiskMerge;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
+        this.quantizerExec = quantizerExecutorService == null ? null : new TaskExecutor(quantizerExecutorService);
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
@@ -192,11 +217,12 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             centroidsPerParentCluster,
             mergeExec,
             numMergeWorkers,
+            quantizerExec,
             flatVectorThreshold,
             sliceField,
             ivfFlushConfigSource,
             ivfMergeConfigResolver,
-            ashConfig
+            ashConfigResolver
         );
     }
 
@@ -207,7 +233,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio, odm);
-        }, ashConfig.queryBitsPerDim());
+        }, ashConfigResolver.queryBitsPerDim());
     }
 
     @Override

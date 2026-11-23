@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 
@@ -45,8 +47,13 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DecimalLiteralContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DurationContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.EvaluationContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ExpressionContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OffsetContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ParenthesizedContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.TimeValueContext;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ValueExpressionContext;
+import static org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils.NumberBase.DECIMAL;
+import static org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils.NumberBase.HEXADECIMAL;
 
 class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
@@ -61,8 +68,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private final Literal start, end;
     private final QueryParams params;
 
-    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        super(startLine, startColumn);
+    PromqlExpressionBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(viewName);
         this.start = start;
         this.end = end;
         this.params = params;
@@ -102,8 +109,15 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public String visitLabelListItem(LabelListItemContext ctx) {
-        if (ctx.labelName() != null) {
-            return visitLabelName(ctx.labelName());
+        if (ctx.groupingLabel() != null) {
+            return ctx.groupingLabel().getText();
+        }
+        if (ctx.STRING() != null) {
+            String label = string(ctx.STRING());
+            if (label.isEmpty()) {
+                throw new ParsingException(source(ctx), "Invalid label name for grouping [{}]", label);
+            }
+            return label;
         }
 
         TerminalNode paramNode = ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS();
@@ -137,9 +151,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (ctx.STRING() != null) {
             return string(ctx.STRING());
         }
-        if (ctx.number() != null) {
-            Literal l = typedParsing(this, ctx.number(), Literal.class);
-            return String.valueOf(l.value());
+        if (ctx.INF_OR_NAN() != null) {
+            return ctx.INF_OR_NAN().getText();
         }
         throw new ParsingException(source(ctx), "Expected label name, got [{}]", source(ctx).text());
     }
@@ -185,7 +198,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
             // an offset may be zero or negative (`offset (5s - 8)`); a range may not
-            offset = duration(offsetContext.duration(), false);
+            TimeValueContext timeValue = offsetContext.timeValue();
+            if (timeValue == null) {
+                offset = duration(offsetContext.duration().expression(), false);
+            } else {
+                // like Prometheus, a number of seconds truncates to the millisecond, where visitTimeValue rounds
+                offset = duration(timeValue.number() != null ? timeValue.number() : timeValue, false);
+            }
             // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
             // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
             if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
@@ -198,14 +217,11 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     /** A range or resolution: a duration greater than zero. */
     @Override
     public Literal visitDuration(DurationContext ctx) {
-        return duration(ctx, true);
+        return ctx == null ? Literal.NULL : duration(ctx.expression(), true);
     }
 
-    private Literal duration(DurationContext ctx, boolean positive) {
-        if (ctx == null) {
-            return Literal.NULL;
-        }
-        Object o = visit(ctx.expression());
+    private Literal duration(ParserRuleContext ctx, boolean positive) {
+        Object o = visit(ctx);
 
         // unwrap expressions to get the underlying value
         o = switch (o) {
@@ -267,25 +283,20 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Duration visitTimeValue(TimeValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
-            TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
-            QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source(node), params);
-            if (param == null) {
-                throw new ParsingException(
-                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
-                    "No value found for parameter [{}]",
-                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
-                );
-            }
-            if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
-                throw new ParsingException(
-                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
-                    "Expected parameter [{}] to be of type string, but found [{}]",
-                    ctx.NAMED_OR_POSITIONAL_PARAM().getText(),
-                    param.type()
-                );
-            }
+            String value = timeParameter(ctx);
             Source source = source(ctx.NAMED_OR_POSITIONAL_PARAM());
-            return parseTimeValue(source, param.value().toString());
+            try {
+                return parseTimeValue(source, value);
+            } catch (ParsingException e) {
+                if (parseTemporalInstant(value) != null) {
+                    throw new ParsingException(
+                        source,
+                        "Timestamp parameter [{}] can only be subtracted from another timestamp, as in [?_tend - ?_tstart]",
+                        ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+                    );
+                }
+                throw e;
+            }
         }
 
         if (ctx.number() != null) {
@@ -321,25 +332,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             }
             return Duration.ofSeconds(longValue);
         }
-        String timeString = null;
-        Source source;
-        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
-        if (timeCtx != null) {
-            // drop leading :
-            timeString = timeCtx.getText().substring(1).trim();
-        } else {
-            timeCtx = ctx.TIME_VALUE();
-            timeString = timeCtx.getText();
-        }
-        source = source(timeCtx);
-
-        return parseTimeValue(source, timeString);
+        return parseTimeValue(source(ctx.TIME_VALUE()), ctx.TIME_VALUE().getText());
     }
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
         Source source = source(ctx);
-        String text = ctx.getText();
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), DECIMAL);
 
         try {
             double value;
@@ -360,7 +359,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         Source source = source(ctx);
-        String text = ctx.getText();
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), DECIMAL);
 
         Number value;
 
@@ -383,7 +382,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitHexLiteral(HexLiteralContext ctx) {
         Source source = source(ctx);
-        String text = ctx.getText();
+        String text = PromqlParserUtils.stripDigitSeparators(source, ctx.getText(), HEXADECIMAL);
 
         DataType type = DataType.LONG;
         Object val;
@@ -391,7 +390,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         // remove leading 0x
         long value;
         try {
-            value = Long.parseLong(text.substring(2), 16);
+            value = Long.parseLong(text.substring(2), HEXADECIMAL.radix());
         } catch (NumberFormatException e) {
             throw new ParsingException(source, "Cannot parse hexadecimal expression [{}]", text);
         }
@@ -410,6 +409,49 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     public Literal visitString(StringContext ctx) {
         Source source = source(ctx);
         return Literal.keyword(source, string(ctx.STRING()));
+    }
+
+    /**
+     * Recognizes a timestamp parameter used as a subtraction operand, allowing parentheses around the parameter.
+     * Other expressions return {@code null} and are parsed normally; timestamps never enter duration parsing as values.
+     */
+    protected Instant visitTemporalInstant(ExpressionContext ctx) {
+        while (ctx instanceof ParenthesizedContext parenthesized) {
+            ctx = parenthesized.expression();
+        }
+        if (ctx instanceof ValueExpressionContext value && value.value().constant() != null) {
+            TimeValueContext timeValue = value.value().constant().timeValue();
+            if (timeValue != null && timeValue.NAMED_OR_POSITIONAL_PARAM() != null) {
+                return parseTemporalInstant(timeParameter(timeValue));
+            }
+        }
+        return null;
+    }
+
+    private static Instant parseTemporalInstant(String value) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private String timeParameter(TimeValueContext ctx) {
+        TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
+        Source source = source(node);
+        QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source, params);
+        if (param == null) {
+            throw new ParsingException(source, "No value found for parameter [{}]", node.getText());
+        }
+        if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
+            throw new ParsingException(
+                source,
+                "Expected parameter [{}] to be of type string, but found [{}]",
+                node.getText(),
+                param.type()
+            );
+        }
+        return param.value().toString();
     }
 
     private static Duration parseTimeValue(Source source, String text) {

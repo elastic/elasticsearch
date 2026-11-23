@@ -12,7 +12,7 @@ package org.elasticsearch.search.ccs;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.search.SearchLogContext;
+import org.elasticsearch.action.search.SearchCaptureContext;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
@@ -120,7 +120,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             var event = appender.getLastEventAndReset();
             assertNotNull(event);
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "match_all");
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(localIndex + "," + REMOTE_CLUSTER + ":" + remoteIndex));
@@ -138,7 +138,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             var event = appender.getLastEventAndReset();
             assertNotNull(event);
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "match_all");
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER));
             assertNull(message.get(QUERY_FIELD_IS_REMOTE));
@@ -155,7 +155,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             var event = appender.getLastEventAndReset();
             assertNotNull(event);
             Map<String, String> message = getMessageData(event);
-            assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+            assertMessageSuccess(message, SearchCaptureContext.TYPE, "match_all");
             assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_REMOTES), containsString(REMOTE_CLUSTER));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("*:" + remoteIndex));
@@ -179,7 +179,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+        assertMessageSuccess(message, SearchCaptureContext.TYPE, "match_all");
         assertNull(message.get(QUERY_FIELD_REMOTE_COUNT));
         assertNull(message.get(QUERY_FIELD_REMOTES));
     }
@@ -208,7 +208,7 @@ public class CrossClusterSearchLoggingIT extends AbstractCrossClusterSearchTestC
             assertThat(appender.events.size(), equalTo(2)); // logged on both sides!
             for (var event : appender.events) {
                 Map<String, String> message = getMessageData(event);
-                assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+                assertMessageSuccess(message, SearchCaptureContext.TYPE, "match_all");
                 if (message.get(ActivityLogProducer.PARENT_TASK_ID_FIELD) == null) {
                     // Local side
                     assertThat(message.get(QUERY_FIELD_REMOTE_COUNT), equalTo("1"));

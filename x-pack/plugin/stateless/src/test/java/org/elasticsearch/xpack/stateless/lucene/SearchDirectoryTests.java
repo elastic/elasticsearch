@@ -41,7 +41,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -49,8 +49,7 @@ import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
@@ -219,7 +218,7 @@ public class SearchDirectoryTests extends ESTestCase {
                             }
                         },
                         System::nanoTime,
-                        threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                        threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
                         new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                     ) {
                         @Override
@@ -272,7 +271,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
-            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1L);
+            final String blobName = BccBlob.blobNameFromGeneration(1L);
             long blobLength = 0L;
             long generation = 0L;
 
@@ -441,7 +440,8 @@ public class SearchDirectoryTests extends ESTestCase {
 
             {
                 searchDirectory.retainFiles(Set.of());
-                List<BlobLocation> blobLocations = createBlobLocations("blob1", 5);
+                final String blobName = BccBlob.blobNameFromGeneration(1);
+                List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
                 searchDirectory.updateCommit(
                     createCommit(
                         searchDirectory.shardId,
@@ -459,7 +459,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 Collection<BlobFileRanges> blobFilesAndHighesRanges = searchDirectory.getHighestOffsetSegmentInfos();
                 assertEquals(1, blobFilesAndHighesRanges.size());
                 BlobFileRanges range = blobFilesAndHighesRanges.iterator().next();
-                assertEquals("blob1", range.blobName());
+                assertEquals(blobName, range.blobName());
                 assertEquals(blobLocations.getLast().offset(), range.blobLocation().offset());
             }
 
@@ -469,7 +469,7 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 int numBlobs = randomIntBetween(2, 10);
                 for (int i = 0; i < numBlobs; i++) {
-                    String blobName = "blob_" + i;
+                    String blobName = BccBlob.blobNameFromGeneration(i + 1);
                     List<BlobLocation> blobLocations = createBlobLocations(blobName, 5);
                     expectedLocations.put(blobName, blobLocations.getFirst());
                     searchDirectory.updateCommit(
@@ -545,6 +545,140 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testBlobLengthTracksMetadataUpdates() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final var commit1 = new PrimaryTermAndGeneration(1L, 1L);
+            final var commit2 = new PrimaryTermAndGeneration(1L, 2L);
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var locationB = createBlobLocation(1L, 1L, 100L, 150L);
+            final var otherBlob = createBlobLocation(1L, 2L, 0L, 40L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB),
+                    250L,
+                    Set.of("fileA", "fileB"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(250L));
+            assertThat(searchDirectory.blobLength(commit2).isPresent(), equalTo(false));
+
+            final var locationC = createBlobLocation(1L, 1L, 250L, 80L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    2L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB, "fileC", locationC, "other", otherBlob),
+                    370L,
+                    Set.of("fileC", "other"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+            assertThat(searchDirectory.blobLength(new PrimaryTermAndGeneration(2L, 1L)).isPresent(), equalTo(false));
+
+            // Dropping files, including the one at the end, leaves the length while any file still references the blob.
+            searchDirectory.retainFiles(Set.of("fileA", "fileC", "other"));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+
+            searchDirectory.retainFiles(Set.of("fileA", "other"));
+            assertThat(searchDirectory.blobLength(commit1).getAsLong(), equalTo(330L));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+
+            searchDirectory.retainFiles(Set.of("other"));
+            assertThat(searchDirectory.blobLength(commit1).isPresent(), equalTo(false));
+            assertThat(searchDirectory.blobLength(commit2).getAsLong(), equalTo(40L));
+        }
+    }
+
+    public void testBlobLengthUsesFurthestFileEnd() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            // fileLater starts further into the blob, but fileEarly extends past it.
+            final var fileEarly = createBlobLocation(1L, 1L, 0L, 500L);
+            final var fileLater = createBlobLocation(1L, 1L, 400L, 10L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileEarly", fileEarly, "fileLater", fileLater),
+                    500L,
+                    Set.of(),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(fileEarly.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(500L));
+        }
+    }
+
+    public void testGenerationalFileCopyExtendsBlobItIsNotStoredIn() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            final String generationalFile = "_0_1.fnm";
+            final var firstLocation = createBlobLocation(1L, 1L, 0L, 80L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of(generationalFile, firstLocation),
+                    80L,
+                    Set.of(generationalFile),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+
+            // A later commit carries the same generational file from a longer copy in a new blob. The directory keeps
+            // the first location, but the copy still extends the new blob past the file that is stored there.
+            final var copiedLocation = createBlobLocation(1L, 2L, 40L, 200L);
+            final var newFile = createBlobLocation(1L, 2L, 0L, 40L);
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 2L),
+                    2L,
+                    "_na_",
+                    Map.of(generationalFile, copiedLocation, "fileD", newFile),
+                    240L,
+                    Set.of(generationalFile),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.blobLength(firstLocation.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(80L));
+            assertThat(searchDirectory.blobLength(newFile.getBatchedCompoundCommitTermAndGeneration()).getAsLong(), equalTo(240L));
+        }
+    }
+
     private String randomNonSiFileName() {
         String siExtension = LuceneFilesExtensions.SI.getExtension();
         return randomValueOtherThanMany(name -> name.endsWith(siExtension), () -> randomAlphaOfLength(10));
@@ -576,10 +710,10 @@ public class SearchDirectoryTests extends ESTestCase {
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-            BlobFile blobFile = new BlobFile("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
+            BccBlob bccBlob = new BccBlob("stateless_commit_1", new PrimaryTermAndGeneration(1, 1));
             var compoundCommit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
                 searchDirectory.shardId,
-                blobFile,
+                bccBlob,
                 "_na_",
                 0,
                 regionSize.getBytes()
@@ -710,8 +844,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final var genFileSeg1 = "_1_1.fnm"; // soft-delete of segment _1, first written into BCC (1,2)
 
             // Backing bytes for the two BCC blobs so the generational files can actually be opened once their BCC is pinned.
-            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(1L), 300);
-            writeBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(2L), 300);
+            writeBlob(blobContainer, BccBlob.blobNameFromGeneration(1L), 300);
+            writeBlob(blobContainer, BccBlob.blobNameFromGeneration(2L), 300);
 
             // Notification for the commit in BCC (1,1): segment _0 and its first soft-delete gen file, all internal to BCC (1,1).
             searchDirectory.updateCommit(
@@ -837,10 +971,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
             final var withTimestamp = new BlobFileRanges(locationWithTs, range);
             final var withoutTimestamp = new BlobFileRanges(locationWithoutTs, null);
-            searchDirectory.updateMetadata(
-                Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp),
-                2 * regionSize.getBytes()
-            );
+            searchDirectory.mergeMetadata(Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp), false);
             // Mark the latest BCC as uploaded so the cache reader routes both files through the object store path
             searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(1L, 2L));
 
@@ -870,14 +1001,15 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
 
-            final var metadataBlobName = BatchedCompoundCommit.blobNameFromGeneration(3L);
+            final var metadataBlobName = BccBlob.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
-            var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
-            metadataReadDirectory.updateMetadata(
+            var metadataReadDirectory = searchDirectory.createNewInstance(
+                searchDirectory.blobContainer.get(),
+                true,
                 Map.of(
                     metadataBlobName,
-                    new BlobFileRanges(new BlobLocation(new BlobFile(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
+                    new BlobFileRanges(new BlobLocation(new BccBlob(metadataBlobName, metadataTermAndGen), 0L, regionSize.getBytes()))
                 ),
                 regionSize.getBytes()
             );
@@ -1129,8 +1261,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final long primaryTerm = 1L;
             final var orphanTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 1L);
             final var reReadTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 2L);
-            final var orphanBlobName = BatchedCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
-            final var reReadBlobName = BatchedCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
+            final var orphanBlobName = BccBlob.blobNameFromGeneration(orphanTermAndGen.generation());
+            final var reReadBlobName = BccBlob.blobNameFromGeneration(reReadTermAndGen.generation());
 
             final var orphanKey = new FileCacheKey(node.shardId, primaryTerm, orphanBlobName);
             final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);
@@ -1239,7 +1371,8 @@ public class SearchDirectoryTests extends ESTestCase {
         int offset = randomIntBetween(0, 500);  // model some initial offset in the File
         int length = randomIntBetween(10, 200);  // some small file length initially
         for (int i = 0; i < n; i++) {
-            locations.add(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, -1)), offset, length));
+            var termAndGeneration = new PrimaryTermAndGeneration(1, BccBlob.parseGenerationFromBlobName(blobName));
+            locations.add(new BlobLocation(new BccBlob(blobName, termAndGeneration), offset, length));
             offset += length;
             // randomly increase next file length a bit
             length += randomIntBetween(50, 200);

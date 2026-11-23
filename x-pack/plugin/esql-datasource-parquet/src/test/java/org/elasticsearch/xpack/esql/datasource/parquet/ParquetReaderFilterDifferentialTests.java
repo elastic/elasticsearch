@@ -46,7 +46,9 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -57,6 +59,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRegexMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -190,9 +195,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         // required, and the oracle's Range arm is Number-only so it cannot take opt_label.
         .optional(PrimitiveType.PrimitiveTypeName.INT64)
         .named("opt_num")
+        // A TIME(MILLIS) column: physically INT32, rendering `date` whose value IS the millisecond of
+        // day, so its pushdown relation is the identity on an int bound. No other column here exercises
+        // that -- status and opt_num are INT64, and nullable_flag carries no annotation at all. Appended
+        // last on purpose: pageRowToMap addresses blocks positionally, so inserting would renumber every
+        // column above it.
+        .required(PrimitiveType.PrimitiveTypeName.INT32)
+        .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+        .named("time_ms")
         .named("differential_test_schema");
 
     private static final ReferenceAttribute ID = attr("id", DataType.LONG);
+    private static final ReferenceAttribute TIME_MS = attr("time_ms", DataType.DATETIME);
     private static final ReferenceAttribute STATUS = attr("status", DataType.LONG);
     private static final ReferenceAttribute SCORE = attr("score", DataType.DOUBLE);
     private static final ReferenceAttribute CATEGORY = attr("category", DataType.KEYWORD);
@@ -225,6 +239,54 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     // Fixed cases — each one targets a known fault line in the pushdown / late-mat stack.
     // Layouts are randomized per fixed case so the matrix is still wide.
     // ---------------------------------------------------------------------------------------
+
+    /**
+     * A {@code TIME(MILLIS)} column became a temporal column rather than an opaque number, which is what
+     * lets a filter over it push at all. These four run the whole differential stack over it -- our reader
+     * with pushdown, apache-mr given the translated predicate, our reader with pushdown disabled, and pure
+     * Java -- so the new relation is checked against three independent oracles rather than against the
+     * reasoning that produced it. The relation is the identity on an int bound, and the risk it carries is
+     * the one no value test can see: an over-narrow bound prunes a row group holding matching rows, and the
+     * answer is simply short.
+     * <p>
+     * Every bound below lies inside the generated range -- {@code time_ms} runs 0 to 3_999_000, one second per
+     * row -- because a bound outside it makes all four paths agree on an empty answer, which passes whatever
+     * the relation does. That is not hypothetical: these cases were first written with bounds past the end of
+     * the generated day and three of them passed vacuously. Shifting the pushed bound by one second now fails
+     * {@link #testTimeOfDayEqualsPushesTheIdentityBound},
+     * {@link #testTimeOfDayRangePrunesWithoutLosingBoundaryRows} and
+     * {@link #testTimeOfDayOneSidedBoundKeepsEverythingAbove}; the value-set and conjunction cases cover other
+     * arms and are not expected to.
+     */
+    public void testTimeOfDayEqualsPushesTheIdentityBound() throws IOException {
+        runDifferential(eq(TIME_MS, 2_000_000L, DataType.DATETIME));
+    }
+
+    public void testTimeOfDayRangePrunesWithoutLosingBoundaryRows() throws IOException {
+        runDifferential(range(TIME_MS, DataType.DATETIME, 1_000_000L, 2_000_000L));
+    }
+
+    public void testTimeOfDayOneSidedBoundKeepsEverythingAbove() throws IOException {
+        runDifferential(gt(TIME_MS, 3_500_000L, DataType.DATETIME));
+    }
+
+    /**
+     * The {@code IN} arm drops a literal that does not fit the stored {@code INT32}, which keeps the pushed
+     * set an exact subset and so stays safe under {@code NOT}. The third literal is past
+     * {@code Integer.MAX_VALUE}, so it is the one that exercises the narrowing; the first two are values the
+     * file holds, so the case is not satisfied by everything agreeing on an empty answer.
+     */
+    public void testTimeOfDayValueSetDropsLiteralsOutsideTheStoredWidth() throws IOException {
+        runDifferential(in(TIME_MS, DataType.DATETIME, 0L, 2_000_000L, 3_000_000_000L));
+    }
+
+    /**
+     * The temporal column beside a non-temporal one: the conjunction has to prune on both without one
+     * relation's bound leaking into the other's column.
+     */
+    public void testTimeOfDayConjoinedWithALongColumn() throws IOException {
+        runDifferential(and(gt(TIME_MS, 1_000_000L, DataType.DATETIME), eq(STATUS, 404L, DataType.LONG)));
+    }
 
     public void testSingleEqualsOnLowCardinalityRecheck() throws IOException {
         // status = 200 — RECHECK conjunct; FilterExec re-applies. Stats-aware paths must
@@ -295,6 +357,44 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         // The time-AND-other shape. The LIKE arm does not translate, so the AND silently drops it and the pushed
         // predicate is the range alone — looser, which is safe. The retained filter restores the LIKE.
         runDifferential(and(mvInRange(ID, DataType.LONG, 100L, 400L), like(URL, "*google*")));
+    }
+
+    /**
+     * A prefix-bearing mv_like / mv_rlike beside the range it implies -- the conjunct pair PushFiltersToSource hands the
+     * reader. description is ordered by id within a row group, so the prefix prunes. Row 13 holds the derived upper
+     * bound itself ("..._row_13" for the prefix "..._row_12"): the range is pushed inclusive, a superset, and the row
+     * must not survive the pattern. The range is only handed to the reader; every path filters with the pattern alone,
+     * as FilterExec does, so a range narrower than the pattern shows up as missing rows.
+     */
+    public void testMvPatternWithImpliedPrefixRangeKeepsEveryMatch() throws IOException {
+        String prefix = "padding_" + "p".repeat(50) + "_row_12";
+        for (Expression pattern : List.of(
+            mvLike(DESCRIPTION, prefix + "*"),
+            mvLike(DESCRIPTION, prefix + "*5"),
+            mvRLike(DESCRIPTION, prefix + ".*"),
+            mvLike(URL, "https://google*")
+        )) {
+            runDifferential(withImpliedRange(pattern), pattern);
+        }
+    }
+
+    /**
+     * The planner derives the implied range for top-level conjuncts only, so this shape is defensive: should a nested
+     * range ever be handed over, under OR it is the AND's translatable arm, and the OR of supersets is still a superset.
+     */
+    public void testMvPatternWithImpliedPrefixRangeUnderOr() throws IOException {
+        Expression pattern = mvLike(DESCRIPTION, "padding_" + "p".repeat(50) + "_row_12*");
+        Expression other = lt(ID, 10L, DataType.LONG);
+        runDifferential(or(withImpliedRange(pattern), other), or(pattern, other));
+    }
+
+    /**
+     * Defensive, as the planner never derives a range under NOT: should one be handed over, the superset range must
+     * build no statistics predicate, as it would become an under-match.
+     */
+    public void testNotOverMvPatternWithImpliedPrefixRangeKeepsEveryRow() throws IOException {
+        Expression pattern = mvLike(DESCRIPTION, "padding_" + "p".repeat(50) + "_row_12*");
+        runDifferential(not(withImpliedRange(pattern)), not(pattern));
     }
 
     public void testNotOverMvContainsDoesNotPush() throws IOException {
@@ -514,7 +614,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     // ---------------------------------------------------------------------------------------
-    // List-column (multivalue) regression — esql-planning#1070
+    // List-column (multivalue) regression —
     // ---------------------------------------------------------------------------------------
 
     /**
@@ -579,6 +679,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             new MvInRange(Source.EMPTY, v, lit(2, DataType.INTEGER), lit(6, DataType.INTEGER)),
             Set.of(0L, 1L, 2L, 3L)
         );
+
+        // mv_like beside the range it implies, over the list column: rows 0 and 1 each hold a value starting with
+        // "Sen", and row 1 is multivalued. The list has no statistics and the row arms decline, so no row is lost
+        // inside the reader -- every row reaches the retained filter, which computes the any-value answer.
+        assertMvSurvivors(bytes, withImpliedRange(mvLike(tags, "Sen*")), Set.of(0L, 1L, 2L, 3L));
+        assertMvSurvivors(bytes, withImpliedRange(mvRLike(tags, "Sen.*")), Set.of(0L, 1L, 2L, 3L));
     }
 
     /**
@@ -757,9 +863,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * having to enumerate them manually.
      */
     private void runDifferential(Expression filter) throws IOException {
+        runDifferential(filter, filter);
+    }
+
+    /**
+     * {@link #runDifferential(Expression)} where the reader is handed {@code pushed} -- {@code filter} plus pruning
+     * hints it implies -- while every path filters rows with {@code filter} alone, as the planner keeps only the
+     * original in FilterExec. A hint is thus checked rather than trusted: one that prunes a match loses rows.
+     */
+    private void runDifferential(Expression pushed, Expression filter) throws IOException {
         for (Layout layout : Layout.values()) {
             DatasetAndBytes dataset = buildDataset(layout);
-            assertOracleAgreement(dataset, filter, layout, "fixed case");
+            assertOracleAgreement(dataset, pushed, filter, layout, "fixed case");
         }
     }
 
@@ -790,8 +905,17 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * </ul>
      */
     private void assertOracleAgreement(DatasetAndBytes dataset, Expression filter, Layout layout, String iterationTag) throws IOException {
-        Set<Long> production = productionReaderEvaluate(dataset.parquetBytes, filter);
-        Set<Long> apacheMr = oracleA_apacheMr(dataset.parquetBytes, filter);
+        assertOracleAgreement(dataset, filter, filter, layout, iterationTag);
+    }
+
+    /**
+     * {@link #assertOracleAgreement(DatasetAndBytes, Expression, Layout, String)} with {@code pushed} handed only to the
+     * readers that prune -- production and apache-mr -- and {@code filter} the one every path evaluates per row.
+     */
+    private void assertOracleAgreement(DatasetAndBytes dataset, Expression pushed, Expression filter, Layout layout, String iterationTag)
+        throws IOException {
+        Set<Long> production = productionReaderEvaluate(dataset.parquetBytes, pushed, filter);
+        Set<Long> apacheMr = oracleA_apacheMr(dataset.parquetBytes, pushed, filter);
         Set<Long> noPushdown = oracleB_pushdownDisabled(dataset.parquetBytes, filter);
         Set<Long> pureJava = oracleC_pureJava(dataset.rows, filter);
 
@@ -1055,6 +1179,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, boundOption(mvInRange.options(), "include_upper"));
             return Boolean.TRUE.equals(lower) && Boolean.TRUE.equals(upper);
         }
+        if (expr instanceof MvLike || expr instanceof MvRLike) {
+            // Two-valued like the other mv_ forms: a null column has no value to match, so FALSE rather than null.
+            MvRegexMatch match = (MvRegexMatch) expr;
+            Object v = row.get(((ReferenceAttribute) match.left()).name());
+            if (v == null) {
+                return Boolean.FALSE;
+            }
+            String pattern = ((BytesRef) ((Literal) match.right()).value()).utf8ToString();
+            // Only plain RLIKE patterns are used here, whose Lucene and Java regex syntaxes coincide.
+            String regex = expr instanceof MvLike ? new WildcardPattern(pattern).asJavaRegex() : pattern;
+            return Pattern.compile(regex).matcher((String) v).matches();
+        }
         if (expr instanceof MvGreater mvGreater) {
             if (row.get(((ReferenceAttribute) mvGreater.field()).name()) == null) {
                 return Boolean.FALSE;
@@ -1124,16 +1260,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * silently drops (the trivially-passes leak) has no FilterExec safety net here, so the
      * test catches it. A RECHECK conjunct that the reader over-includes is fine because the
      * post-filter cleans it up — and that mirrors production semantics exactly.
+     *
+     * <p>The reader is handed the conjuncts of {@code pushedFilter}, the remainder is drawn from those of
+     * {@code filter}: a pruning hint the planner adds beside a conjunct is never kept in {@code FilterExec}.
      */
-    private Set<Long> productionReaderEvaluate(byte[] parquetBytes, Expression filter) throws IOException {
-        List<Expression> conjuncts = splitTopLevelAnd(filter);
-        ParquetPushedExpressions pushed = new ParquetPushedExpressions(conjuncts);
+    private Set<Long> productionReaderEvaluate(byte[] parquetBytes, Expression pushedFilter, Expression filter) throws IOException {
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(splitTopLevelAnd(pushedFilter));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
 
         // Determine the FilterExec remainder using the same classifier the planner uses.
         ParquetFilterPushdownSupport pushdownSupport = new ParquetFilterPushdownSupport();
         List<Expression> remainder = new ArrayList<>();
-        for (Expression conjunct : conjuncts) {
+        for (Expression conjunct : splitTopLevelAnd(filter)) {
             if (pushdownSupport.canPush(conjunct) != FilterPushdownSupport.Pushability.YES) {
                 remainder.add(conjunct);
             }
@@ -1220,9 +1358,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
      * row and the Java post-filter applies the original expression. This costs us the
      * cross-stack check on the apache-mr filter machinery for those cases — acceptable, the
      * point of this oracle is to catch bugs in our reader, not to validate apache-mr.
+     *
+     * <p>The predicate is translated from {@code pushedFilter}, which may carry pruning hints beside {@code filter};
+     * the post-filter applies {@code filter} alone, so a hint that drops a matching record loses it here too.
      */
-    private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
-        FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
+    private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression pushedFilter, Expression filter) throws IOException {
+        FilterPredicate filterPredicate = safeTranslateForApacheMr(pushedFilter);
         GroupReaderBuilder builder = new GroupReaderBuilder(
             new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), footerByteCache, blockFactory.breaker())
         );
@@ -1365,6 +1506,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         } else {
             row.put("opt_num", ((LongBlock) numBlock).getLong(rowIndex));
         }
+        // A TIME(MILLIS) column renders `date`, so the reader hands back a LongBlock holding the
+        // millisecond of day -- the same Long the generator put in the row map.
+        row.put("time_ms", ((LongBlock) page.getBlock(10)).getLong(rowIndex));
         return row;
     }
 
@@ -1401,6 +1545,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         } else {
             row.put("opt_num", g.getLong("opt_num", 0));
         }
+        // apache-mr hands back the stored INT32; widen it so every oracle's map holds the same type the
+        // reader produces for this column.
+        row.put("time_ms", (long) g.getInteger("time_ms", 0));
         return row;
     }
 
@@ -1552,6 +1699,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             return (Boolean) literal.value();
         }
         return true;
+    }
+
+    private static Expression mvLike(ReferenceAttribute a, String pattern) {
+        return new MvLike(Source.EMPTY, a, lit(pattern, DataType.KEYWORD));
+    }
+
+    private static Expression mvRLike(ReferenceAttribute a, String pattern) {
+        return new MvRLike(Source.EMPTY, a, lit(pattern, DataType.KEYWORD));
+    }
+
+    /** {@code pattern} beside the range it implies, as {@code PushFiltersToSource} hands the pair to the reader. */
+    private static Expression withImpliedRange(Expression pattern) {
+        MvInRange bound = PatternPrefixBound.of(pattern);
+        assertNotNull(pattern + " must imply a range", bound);
+        return and(bound, pattern);
     }
 
     private static Expression mvGreater(ReferenceAttribute a, Object v, DataType t) {
@@ -1712,6 +1874,11 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             // Offset from opt_label's phase so the two do not go null together.
             boolean nullNumBatch = ((i / READ_BATCH_SIZE) + 1) % 2 == 0;
             row.put("opt_num", nullNumBatch ? null : Long.valueOf(i % 500));
+            // Millisecond of day, one second per row. Held as a Long because that is what the column
+            // renders and what the pure-Java oracle must evaluate against; writeParquet narrows it to the
+            // INT32 the file stores. Monotonic across the file, so each row group carries a tight min/max
+            // and a range bound can actually prune.
+            row.put("time_ms", Long.valueOf((i * 1_000L) % 86_400_000L));
             rows.add(row);
         }
         byte[] bytes = writeParquet(rows, layout);
@@ -1757,6 +1924,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
                 if (optNum != null) {
                     g.add("opt_num", ((Long) optNum).longValue());
                 }
+                g.add("time_ms", ((Long) row.get("time_ms")).intValue());
                 writer.write(g);
             }
         }
@@ -1770,6 +1938,14 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
 
     private static StorageObject inMemoryStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

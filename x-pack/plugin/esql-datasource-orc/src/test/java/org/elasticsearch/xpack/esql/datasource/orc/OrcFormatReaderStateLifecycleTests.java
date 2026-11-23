@@ -77,7 +77,10 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withConfig", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withSchema", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY)
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withBlockFactory", WitherLifecycle.CREATES_COPY),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
     public void testEveryInstanceFieldIsClassified() {
@@ -167,6 +170,23 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
                             fieldOf(product, field)
                         );
                     }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
+                        );
+                        assertSame(
+                            "footer byte cache stays the node instance",
+                            fieldOf(receiver, "footerBytes"),
+                            fieldOf(product, "footerBytes")
+                        );
+                        assertSame(
+                            "parsed footer cache stays the node instance",
+                            fieldOf(receiver, "parsedFooters"),
+                            fieldOf(product, "parsedFooters")
+                        );
+                    }
                 }
             }
         }
@@ -212,7 +232,11 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
             case "withConfigTrackingConsumedKeys", "withConfig" -> new Object[] { Map.of() };
             case "withSchema" -> new Object[] { List.of() };
             case "withDeclaredProvenanceBinding" -> new Object[] { false };
+            case "withHeaderBindingByProvenance" -> new Object[] { false };
             case "withReadConfig" -> new Object[] { "" };
+            case "withBlockFactory" -> new Object[] {
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };
+            case "withSchemaSampleShare" -> new Object[] { 8 };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

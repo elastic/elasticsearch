@@ -8,12 +8,17 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,11 +39,16 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -49,6 +59,9 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -62,12 +75,14 @@ import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.junit.After;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +92,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.IntToLongFunction;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -88,6 +104,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -382,7 +399,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             NavigableMap<Long, Engine.Searcher> searchers = new TreeMap<>();
             for (int i = 0; i < commits; ++i) {
                 if (randomBoolean()) {
-                    searchers.put(i + gen, engine.acquireSearcher("test"));
+                    searchers.put(i + gen, engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT));
                 }
                 engine.index(randomDoc(String.valueOf(i + 1)));
                 engine.flush(true, true);
@@ -552,30 +569,52 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
             )
         ) {
-            // Success case: all docs in the batch succeed. The columnar batch path reports metering for the
-            // materialized per-op views (see IndexOperationBatch#materializeIndexOps), not the original
-            // Engine.Index#parsedDoc() instances, so we match the reported document by id rather than by
-            // object identity.
-            // TODO: The materialized ParsedDocument carries only id/routing, not the ingested source, so
-            // document-size metering for batch-indexed docs is not yet accurate. Revisit once the columnar
-            // path threads real per-document sizes through to the reporter.
-            List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
+            List<Engine.Index> ops = List.of(
+                randomDoc("id1", randomLongBetween(1, 10_000)),
+                randomDoc("id2", randomLongBetween(1, 10_000)),
+                randomDoc("id3", randomLongBetween(1, 10_000))
+            );
+
+            // Parsing is reported once for the whole chunk, through the hook the shard calls while columns can
+            // still be attached; the per-document onParsingCompleted is never used on the batch path.
+            try (
+                var context = new BatchMappingContext(
+                    EngineTestCase.fromIndexOps(ops, encodeAsEscfBatch(ops)),
+                    MappingLookup.EMPTY,
+                    indexConfig.getIndexSettings(),
+                    BytesRefRecycler.NON_RECYCLING_INSTANCE
+                )
+            ) {
+                engine.onBatchParsingCompleted(context);
+                ArgumentCaptor<IntToLongFunction> normalizedSizes = ArgumentCaptor.forClass(IntToLongFunction.class);
+                verify(documentSizeReporter).onBatchParsingCompleted(eq(ops.size()), normalizedSizes.capture(), any());
+                for (int i = 0; i < ops.size(); i++) {
+                    assertThat(normalizedSizes.getValue().applyAsLong(i), equalTo(ops.get(i).parsedDoc().getNormalizedSize()));
+                }
+            }
+
+            // Success case: all docs in the batch succeed. Indexing is reported for the materialized per-op views
+            // (see IndexOperationBatch#materializeIndexOps), not the original Engine.Index#parsedDoc() instances, so
+            // we match the reported document by id rather than by object identity and check that the size metered
+            // on the primary travelled with the batch.
             List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
             for (int i = 0; i < results.size(); i++) {
                 final String id = ops.get(i).id();
+                final long normalizedSize = ops.get(i).parsedDoc().getNormalizedSize();
                 assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
-                verify(documentSizeReporter).onParsingCompleted(argThat(doc -> doc.id().equals(id)));
-                verify(documentSizeReporter).onIndexingCompleted(argThat(doc -> doc.id().equals(id)), eq(PRIMARY));
+                verify(documentSizeReporter).onIndexingCompleted(
+                    argThat(doc -> doc.id().equals(id) && doc.getNormalizedSize() == normalizedSize),
+                    eq(PRIMARY)
+                );
             }
+            verify(documentSizeReporter, never()).onParsingCompleted(any(ParsedDocument.class));
 
-            // Failure case: a version-conflicting op is parsed but never gets onIndexingCompleted. It reuses
-            // id "id1", so onParsingCompleted has now fired twice for that id (success batch + this batch)
-            // while onIndexingCompleted stays at the single success-batch call.
+            // Failure case: a version-conflicting op never gets onIndexingCompleted. It reuses id "id1", so
+            // onIndexingCompleted stays at the single success-batch call for that id.
             Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
             List<Engine.Index> failOps = List.of(conflictingOp);
             List<Engine.IndexResult> failResults = engine.indexBatch(engineBatch(failOps, encodeAsEscfBatch(failOps)));
             assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
-            verify(documentSizeReporter, times(2)).onParsingCompleted(argThat(doc -> doc.id().equals("id1")));
             verify(documentSizeReporter, times(1)).onIndexingCompleted(argThat(doc -> doc.id().equals("id1")), eq(PRIMARY));
         }
     }
@@ -754,6 +793,53 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    /**
+     * {@link IndexEngine} overrides {@code wrapMergePolicy} to add relocation-abort behaviour, and {@code ThreadPoolMergeScheduler}
+     * requires the merges it runs to be {@link SizeTrackingOneMerge}s, so the merges the engine's policy produces must be of that type.
+     */
+    public void testMergePolicyProducesSizeTrackingMerges() throws Exception {
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, Settings.EMPTY, () -> 1L, new TieredMergePolicy()))) {
+            for (int i = 0; i < randomIntBetween(2, 5); i++) {
+                engine.index(randomDoc(String.valueOf(i)));
+                PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
+                engine.flush(true, true, flushFuture);
+                flushFuture.actionGet();
+            }
+            SegmentInfos segmentInfos = engine.getLastCommittedSegmentInfos();
+            Map<SegmentCommitInfo, Boolean> segmentsToMerge = new HashMap<>();
+            segmentInfos.forEach(info -> segmentsToMerge.put(info, Boolean.TRUE));
+
+            MergePolicy.MergeSpecification spec = engine.wrapMergePolicy(new TieredMergePolicy())
+                .findForcedMerges(segmentInfos, 1, segmentsToMerge, new MergePolicy.MergeContext() {
+                    @Override
+                    public int numDeletesToMerge(SegmentCommitInfo info) {
+                        return 0;
+                    }
+
+                    @Override
+                    public int numDeletedDocs(SegmentCommitInfo info) {
+                        return 0;
+                    }
+
+                    @Override
+                    public InfoStream getInfoStream() {
+                        return InfoStream.NO_OUTPUT;
+                    }
+
+                    @Override
+                    public Set<SegmentCommitInfo> getMergingSegments() {
+                        return Set.of();
+                    }
+                });
+
+            assertNotNull(spec);
+            assertThat(spec.merges, not(empty()));
+            for (MergePolicy.OneMerge merge : spec.merges) {
+                assertThat(merge, instanceOf(SizeTrackingOneMerge.class));
+            }
+        }
+    }
+
     private static Engine.Index versionConflictingIndexOperation(Engine.Index indexOp) throws IOException {
         return new Engine.Index(
             newUid(indexOp.parsedDoc()),
@@ -779,6 +865,46 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             engine.flushHollow(future);
             future.actionGet();
             assertTrue(engine.isLastCommitHollow());
+        }
+    }
+
+    /**
+     * Hollow commit user data is snapshotted from the internal searcher. Documents buffered in the
+     * {@code IndexWriter} since the last refresh must still be included in both doc stats and shard field stats.
+     */
+    public void testHollowCommitStatsIncludeUnrefreshedDocuments() throws Exception {
+        try (var engine = newIndexEngine(indexConfig(Settings.EMPTY, Settings.EMPTY, () -> 1L, NoMergePolicy.INSTANCE))) {
+            engine.index(randomDoc("0"));
+            engine.refresh("test");
+            assertThat(engine.docStats().getCount(), equalTo(1L));
+            final ShardFieldStats staleShardFieldStats = engine.shardFieldStats();
+
+            engine.index(randomDoc("1"));
+            // The new document is buffered in the IndexWriter and not yet visible to the internal searcher.
+            assertThat(engine.docStats().getCount(), equalTo(1L));
+            assertThat(engine.shardFieldStats(), equalTo(staleShardFieldStats));
+
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+
+            try (Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(false)) {
+                final Map<String, String> userData = commitRef.getIndexCommit().getUserData();
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, userData.get(IndexEngine.DOC_STATS))
+                ) {
+                    assertThat(DocsStats.PARSER.parse(parser, null).getCount(), equalTo(2L));
+                }
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, userData.get(IndexEngine.SHARD_FIELD_STATS))
+                ) {
+                    final ShardFieldStats committedShardFieldStats = ShardFieldStats.PARSER.parse(parser, null);
+                    assertThat(committedShardFieldStats.numSegments(), greaterThan(staleShardFieldStats.numSegments()));
+                    assertThat(committedShardFieldStats, equalTo(engine.shardFieldStats()));
+                }
+            }
         }
     }
 
@@ -847,10 +973,10 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
                 @Override
                 protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-                    firstFlushGettingUserDataLatch.countDown();
                     int flushNumber = flushesInitiated.get();
+                    firstFlushGettingUserDataLatch.countDown();
                     logger.debug("flush {} trying to get user data", flushNumber);
-                    if (flushesInitiated.get() > 1) {
+                    if (flushNumber > 1) {
                         safeAwait(hollowFlushProceedToGetUserDataLatch);
                     } else {
                         safeAwait(firstFlushProceedToGetUserDataLatch);

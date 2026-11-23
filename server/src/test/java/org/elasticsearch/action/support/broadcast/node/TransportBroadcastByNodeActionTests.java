@@ -599,7 +599,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals("total shards", totalShards, response.getTotalShards());
         assertEquals("successful shards", totalSuccessfulShards, response.getSuccessfulShards());
         assertEquals("failed shards", totalFailedShards, response.getFailedShards());
-        assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().length);
+        assertEquals("accumulated exceptions", totalFailedShards, response.getShardFailures().size());
     }
 
     public void testResponsesReleasedOnCancellation() {

@@ -71,26 +71,28 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         LogDocumentBuilder logDocumentBuilder = new LogDocumentBuilder(byteStringAccessor);
         List<ResourceLogs> resourceLogsList = logsServiceRequest.getResourceLogsList();
         LogsProcessingContext context = new LogsProcessingContext();
-        long totalExpandedBytes = 0;
+        int totalLogRecords = 0;
+        for (ResourceLogs resourceLogs : resourceLogsList) {
+            for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
+                totalLogRecords += scopeLogs.getLogRecordsCount();
+            }
+        }
+        ExpandedContentTracker expandedContentTracker = expandedContentTracker(request, totalLogRecords);
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
+            TargetIndex resourceTargetIndex = TargetIndex.defaultForLogs().withAttributeOverrides(resource.getAttributesList());
             List<ScopeLogs> scopeLogsList = resourceLogs.getScopeLogsList();
             for (int j = 0, scopeLogsListSize = scopeLogsList.size(); j < scopeLogsListSize; j++) {
                 ScopeLogs scopeLogs = scopeLogsList.get(j);
                 InstrumentationScope scope = scopeLogs.getScope();
                 List<LogRecord> logRecordsList = scopeLogs.getLogRecordsList();
-                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
+                TargetIndex scopeTargetIndex = resourceTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                    .maybeApplyScopeBasedRouting(scope);
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
                     LogRecord logRecord = logRecordsList.get(k);
                     context.incrementTotalLogRecords();
-                    TargetIndex index = TargetIndex.evaluate(
-                        TargetIndex.TYPE_LOGS,
-                        logRecord.getAttributesList(),
-                        scopeRoutingDataset,
-                        scope.getAttributesList(),
-                        resource.getAttributesList()
-                    );
+                    TargetIndex index = scopeTargetIndex.withAttributeOverrides(logRecord.getAttributesList());
                     try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
                         logDocumentBuilder.buildLogDocument(
                             xContentBuilder,
@@ -111,7 +113,7 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                             indexRequest.setPipeline(ingestPipeline);
                         }
                         indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
-                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                        expandedContentTracker.add(indexRequest, 1);
                         bulkRequestBuilder.add(indexRequest);
                     }
                 }

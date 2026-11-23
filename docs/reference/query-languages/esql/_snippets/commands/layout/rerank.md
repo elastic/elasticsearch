@@ -1,17 +1,17 @@
 
 ```yaml {applies_to}
 serverless: ga
-stack: preview 9.2-9.3, ga 9.4.0+
+stack: ga 9.4+, preview 9.2-9.3
 ```
 
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
 
-::::{tab-set}
+::::{applies-switch}
 
-:::{tab-item} 9.3.0+
+:::{applies-item} { "stack": "ga 9.4+, preview =9.3", "serverless": "ga" }
 
-Starting in version 9.3.0, `RERANK` automatically limits processing to **1000
+`RERANK` automatically limits processing to **1000
 rows by default** to prevent accidental high consumption. This limit is applied
 before the `RERANK` command executes.
 
@@ -36,7 +36,7 @@ PUT _cluster/settings
 ```
 :::
 
-:::{tab-item} 9.2.x
+:::{applies-item} stack: preview =9.2
 
 No automatic row limit is applied. **You should always use `LIMIT` before or after `RERANK` to control the number of documents processed**, to avoid accidentally reranking large datasets which can result in high latency and increased costs.
 
@@ -64,7 +64,7 @@ RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inf
 
 :::
 
-:::{applies-item} {"stack": "preview 9.2-9.3, ga 9.4.0+"}
+:::{applies-item} stack: ga =9.4, preview 9.2-9.3
 
 ```esql
 RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" }]
@@ -98,7 +98,7 @@ The inference endpoint must be configured with the `rerank` task type.
 If not specified, defaults to the preconfigured `.rerank-v1-elasticsearch`
 endpoint.
 
-`timeout` {applies_to}`stack: ga 9.4.1+` {applies_to}`serverless: ga`
+`timeout` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
 :   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
     If not specified, the default search timeout applies. Use this to set a
     per-call timeout independent of the cluster-wide search timeout.
@@ -147,7 +147,7 @@ the documents come from a remote.
 queries. The default timeout is 30 seconds.
 
 
-You can set per-call timeout using the `"timeout"` option in the `WITH` clause: {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` You can set a per-call timeout using the `"timeout"` option in the `WITH` clause:
 ```esql
 RERANK "search query" ON title WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
 ```

@@ -44,7 +44,9 @@ import java.util.function.Consumer;
  * Implementations should construct the extractor lazily — typically on the first call to
  * {@link #createColumnExtractor(Consumer)} and may return the same instance on subsequent calls.
  * Lifetime is owned by the caller via {@code SourceExtractors} (the registry calls
- * {@link ColumnExtractor#close()} when the driver finishes).
+ * {@link ColumnExtractor#close()} when the driver finishes). If the registry is already closed when the
+ * extractor is about to be registered (the driver finished while the source was opening this unit), the
+ * caller closes the extractor without ever registering it, so {@code close()} must not depend on registration.
  */
 public interface ColumnExtractorProducer {
 

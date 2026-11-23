@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -140,6 +142,31 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withBlockFactory(@Nullable BlockFactory blockFactory) {
+        // Delegate: a compressed .csv.gz builds pages on the same factory as the plain file. Without this the
+        // interface default returns the wrapper and per-read allocations stay on the node ctor factory.
+        FormatReader configured = inner.withBlockFactory(blockFactory);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
+    public FormatReader withSchemaSampleShare(int files) {
+        // Delegate: a compressed .csv.gz is sampled exactly like the plain file, so it must share the budget too.
+        FormatReader configured = inner.withSchemaSampleShare(files);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return inner.schemaSampleSize();
+    }
+
+    @Override
+    public long schemaSampleBytes() {
+        return inner.schemaSampleBytes();
+    }
+
+    @Override
     public FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
         // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared columns exactly like the plain
         // file. Without this the interface default would return the wrapper and every compressed read would silently
@@ -149,8 +176,20 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public boolean declaredNameBindingNeedsFileStart() {
-        return inner.declaredNameBindingNeedsFileStart();
+    public FormatReader withHeaderBindingByProvenance(boolean byProvenance) {
+        FormatReader configured = inner.withHeaderBindingByProvenance(byProvenance);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
+    public boolean readsHeaderLine() {
+        return inner.readsHeaderLine();
+    }
+
+    @Override
+    public List<String> fileHeaderColumns(StorageObject file) throws IOException {
+        // The inner reader aborts the stream, which DecompressingStorageObject routes to the raw GET without draining it.
+        return inner.fileHeaderColumns(new DecompressingStorageObject(file, codec, null, maxDecompressionRatio()));
     }
 
     @Override
@@ -180,7 +219,8 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public void close() throws IOException {
-        inner.close();
+    public void close() {
+        // Inner is owned by the registry prototype or the query-minted copy this wraps.
+        // Closing it here would double-close that shared instance on every per-file wrap.
     }
 }

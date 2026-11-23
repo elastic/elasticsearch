@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -99,6 +100,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
@@ -109,9 +111,12 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStr
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -119,7 +124,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionS
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessHeartbeatStore;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
@@ -187,7 +192,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.ESAllocationTestCase.createShardsAllocator;
 import static org.elasticsearch.cluster.ESAllocationTestCase.randomAllocationDeciders;
-import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.mockito.ArgumentMatchers.any;
@@ -204,13 +208,17 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     private static class StatelessDeterministicTaskQueue extends DeterministicTaskQueue {
 
         private static final Set<String> EXECUTOR_NAMES_TO_USE_DIRECT_EXECUTOR = Set.of(
-            StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL,
-            StatelessPlugin.SHARD_READ_THREAD_POOL,
-            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
-            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessThreadPools.CLUSTER_STATE_READ_WRITE_THREAD_POOL,
+            StatelessThreadPools.SHARD_READ_THREAD_POOL,
+            StatelessThreadPools.SHARD_WRITE_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
+            StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
             ThreadPool.Names.REFRESH
         );
+
+        StatelessDeterministicTaskQueue(TaskSelectionPolicy selectionPolicy) {
+            super(selectionPolicy);
+        }
 
         @Override
         public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
@@ -256,12 +264,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected DeterministicTaskQueue createDeterministicTaskQueue() {
-        return new StatelessDeterministicTaskQueue();
+    protected DeterministicTaskQueue createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy selectionPolicy) {
+        return new StatelessDeterministicTaskQueue(selectionPolicy);
     }
 
     @Override
-    protected void disconnectOrRestartMasterNode() {
+    protected void disruptMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
             final String electedMasterId = masterNode.clusterService().state().nodes().getMasterNodeId();
             if (masterNode.node().getId().equals(electedMasterId)) {
@@ -399,6 +407,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             final var res = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING);
+            res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING);
             res.add(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING);
             res.add(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING);
             res.add(SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING);
@@ -410,14 +419,19 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING);
             res.add(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING);
-            res.add(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RESHARD_TARGET_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
+            res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING);
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
@@ -429,9 +443,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
+            res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
             return Set.copyOf(res);
@@ -440,6 +457,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         @Override
         protected PluginsService createPluginsService(Settings settings, Environment environment) {
             return new MockPluginsService(settings, environment, List.of(TestStatelessPlugin.class));
+        }
+
+        @Override
+        public boolean canUsurpCurrentMaster() {
+            return false;
         }
 
         class StatelessNode extends TestClusterNodes.TestClusterNode {
@@ -542,6 +564,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                     mock(IndexShardCacheWarmer.class),
                     HollowShardsMetrics.NOOP,
+                    primaryRelocationMetricsCollectorProvider,
                     client,
                     ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
@@ -635,8 +658,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             protected AllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+                final ClusterSettings clusterSettings = new ClusterSettings(
+                    settings,
+                    Sets.addToCopy(
+                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                        SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED
+                    )
+                );
                 final AllocationService allocationService = new AllocationService(
-                    randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), List.of(new ClusterPlugin() {
+                    randomAllocationDeciders(settings, clusterSettings, List.of(new ClusterPlugin() {
                         @Override
                         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                             return List.of(new StatelessAllocationDecider());
@@ -647,9 +677,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     snapshotsInfoService,
                     new StatelessShardRoutingRoleStrategy(),
                     MeterRegistry.NOOP,
-                    createBuiltInClusterSettings(settings)
+                    clusterSettings
                 );
-                allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
+                allocationService.setExistingShardsAllocators(
+                    Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator(clusterSettings))
+                );
                 return allocationService;
             }
 
@@ -806,6 +838,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private HollowShardsService hollowShardsService;
         private ReshardIndexService reshardIndexService;
         private SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
+        private WarmingRatioProviderFactory warmingRatioProviderFactory;
 
         public TestStatelessPlugin(Settings settings) {
             this.settings = settings;
@@ -827,7 +860,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 services.repositoriesService(),
                 threadPool,
                 clusterService,
-                projectResolver
+                projectResolver,
+                MeterRegistry.NOOP
             );
             this.cacheService = new StatelessSharedBlobCacheService(
                 services.nodeEnvironment(),
@@ -849,14 +883,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             this.searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
                 cacheService,
                 threadPool,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
                 TelemetryProvider.NOOP,
                 clusterService.getClusterSettings(),
-                new DefaultWarmingRatioProviderFactory().create(clusterService.getClusterSettings()),
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -883,7 +919,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    WarmingRatioProvider warmingRatioProvider,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -959,6 +996,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
+            warmingRatioProviderFactory = shardId -> mock(WarmingRatioProvider.class);
             return List.of();
         }
 
@@ -1100,7 +1138,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheWarmingService,
                         projectResolver,
                         bccHeaderReadExecutor,
-                        clusterService
+                        clusterService,
+                        warmingRatioProviderFactory,
+                        client
                     )
                 );
             }
@@ -1215,7 +1255,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
                         NoopCircuitBreaker.INSTANCE,
                         StatelessReaderHeapMetrics.NOOP,
-                        new ReshardSearchFilters(Settings.EMPTY)
+                        new ReshardSearchFilters(Settings.EMPTY),
+                        SearchCommitPrefetcherMetrics.NOOP
                     );
                 }
             });

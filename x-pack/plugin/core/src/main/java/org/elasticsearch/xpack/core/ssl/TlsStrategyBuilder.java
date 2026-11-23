@@ -20,7 +20,7 @@ class TlsStrategyBuilder extends AbstractSslBuilder<TlsStrategy> {
     public static final TlsStrategyBuilder INSTANCE = new TlsStrategyBuilder();
 
     @Override
-    TlsStrategy build(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
+    protected TlsStrategy build(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
         // CLIENT uses only the verifier selected from verification_mode. The 5-arg constructor
         // defaults to BOTH, which also enables JSSE HTTPS endpoint identification and would
         // ignore certificate/none.

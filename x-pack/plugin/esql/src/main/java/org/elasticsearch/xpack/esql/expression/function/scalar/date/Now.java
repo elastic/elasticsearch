@@ -71,7 +71,7 @@ public class Now extends EsqlConfigurationFunction implements AnyNullIsNull {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         return now;
     }
 

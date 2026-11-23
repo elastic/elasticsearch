@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
@@ -19,29 +22,32 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.empty;
 
 /**
- * Heap-attack coverage for {@code SET unmapped_fields="LOAD_ALL"}, which turns every distinct {@code _source} leaf of the result
- * rows into an output column. The coordinator must cap the number of such columns rather than collect an unbounded set of field
- * names: each test indexes millions of distinct unmapped leaves - far more names than fit in the heap - and expects the query to
- * return only the alphabetically first {@link #MAX_EXPANDED_FIELDS} of them, with a warning.
+ * Heap-attack coverage for {@code SET unmapped_fields="LOAD_ALL"}, which returns every {@code _source} leaf of a result row in a
+ * single {@code _unmapped_fields} column holding one flattened JSON object.
  * <p>
- * The two tests differ in where the distinct names come from: spread thinly across many moderately sized documents, or packed
- * into a handful of huge ones.
+ * {@link #testManyDocsWithManyDistinctFields} and {@link #testFewDocsWithHugeNumberOfDistinctFields} attack the response shape:
+ * each indexes millions of distinct unmapped leaves - far more names than fit in the heap if each were a column - and expects the
+ * response to stay a single {@code _unmapped_fields} column next to the mapped one, uncapped and without a warning. They differ only
+ * in where the distinct names come from: spread thinly across many moderately sized documents, or packed into a handful of huge ones.
  * <p>
- * Each index maps a single {@link #MAPPED_FIELD}, so the queries exercise the expansion rather than whatever an index with no
+ * {@link #testArrayOfTinyObjectsCircuitBreaksInSourceLoading} attacks a different limit: a single structure-heavy {@code _source} that
+ * materialises into an object graph many times its own size, which must circuit break gracefully rather than OOM.
+ * <p>
+ * Each index maps a single {@link #MAPPED_FIELD}, so the queries exercise {@code LOAD_ALL} discovery rather than whatever an index with no
  * mapped fields at all would plan to.
  */
 public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
-    private static final int MAX_EXPANDED_FIELDS = 1000;
     private static final String MAPPED_FIELD = "id";
 
     @Before
     public void requireLoadAll() {
-        assumeTrue("requires the LOAD_ALL field cap", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS.isEnabled());
+        assumeTrue("requires the LOAD_ALL single column", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.isEnabled());
     }
 
     /**
@@ -54,7 +60,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * <ul>
      *     <li>{@code LOAD_ALL} over every document</li>
      * </ul>
-     * Expected: the first 1,000 names - all of document 0's leaves - and a warning
+     * Expected: the columns {@code id} and {@code _unmapped_fields}, and no warning
      */
     public void testManyDocsWithManyDistinctFields() throws IOException {
         String index = "load_all_many_docs";
@@ -77,11 +83,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         // Sends whatever is left over (nothing, if docs is a multiple of docsPerBulk), then force-merges and refreshes.
         initIndex(index, bulk.toString());
 
-        List<String> expected = new ArrayList<>(MAX_EXPANDED_FIELDS);
-        for (int i = 0; i < MAX_EXPANDED_FIELDS; i++) {
-            expected.add(manyDocsFieldName(i));
-        }
-        assertLoadAllCapped(index, docs, expected);
+        assertLoadAllSingleColumn(index, docs);
     }
 
     /**
@@ -94,7 +96,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
      * <ul>
      *     <li>{@code LOAD_ALL} over every document</li>
      * </ul>
-     * Expected: the first 1,000 names - the leaves of document 0's first objects - and a warning
+     * Expected: the columns {@code id} and {@code _unmapped_fields}, and no warning
      * <p>
      * Serverless has a bigger heap but 6 shards, so documents are read concurrently; the block loader reserves a multiple of a
      * document's {@code _source} while reading it, and 9MB documents then trip the request breaker long before the field names are an
@@ -103,9 +105,9 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     public void testFewDocsWithHugeNumberOfDistinctFields() throws IOException {
         String index = "load_all_huge_docs";
         boolean serverless = isServerless();
-        int docs = serverless ? 50 : 5;
+        int docs = 50;
         int objectsPerDoc = 1_000;
-        int leavesPerObject = serverless ? 100 : 1_000;
+        int leavesPerObject = 100;
         createMostlyUnmappedIndex(index);
         for (int d = 0; d < docs; d++) {
             StringBuilder bulk = new StringBuilder();
@@ -127,14 +129,164 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         // Everything is indexed already; this only force-merges and refreshes.
         initIndex(index, "");
 
-        // Dotted names sort object by object, then by leaf, and document 0's names sort before every other document's.
-        List<String> expected = new ArrayList<>(MAX_EXPANDED_FIELDS);
-        for (int o = 0; expected.size() < MAX_EXPANDED_FIELDS; o++) {
-            for (int l = 0; l < leavesPerObject && expected.size() < MAX_EXPANDED_FIELDS; l++) {
-                expected.add(hugeDocsObjectName(0, o) + "." + hugeDocsLeafName(l));
+        assertLoadAllSingleColumn(index, docs);
+    }
+
+    /**
+     * A single document whose {@code _source} is one array of many tiny objects ({@code "a":[{"x":1},{"x":1},...]}): a few bytes
+     * per element, but parsed into a {@code Map}/{@code List} graph it takes many times its own size while flattening to a single
+     * {@code a.x} leaf - so it is the parse that grows, not the output. This
+     * must trip a graceful {@code circuit_breaking_exception} rather than exhaust the heap.
+     * <p>
+     * Before reading {@code _source} the data node reserves {@code SOURCE_RESERVATION_FACTOR} (10x) its length on the request
+     * breaker (in {@code UnmappedFields#blockLoader}). That reservation is proportional to the {@code _source} length, so on this
+     * small 512MB-heap node a document big enough to cross the default breaker can no longer be indexed. The request breaker is
+     * lowered instead, standing in for the headroom a normally provisioned node has: the 10x reservation on a small, easily indexed
+     * document then crosses it and breaks up front, before {@code _source} is read. The base class resets cluster settings after
+     * the test.
+     */
+    public void testArrayOfTinyObjectsCircuitBreaksInSourceLoading() throws IOException {
+        setRequestBreakerLimit("15%");
+        assertCircuitBreaksVia(attempt -> {
+            // ~1.5M+ {"x":1} elements is ~12MB+ of _source; the 10x reservation (~120MB+) then crosses the 15% breaker (~80MB).
+            int elements = 1_500_000 * attempt;
+            String index = "load_all_array_" + attempt;
+            createMostlyUnmappedIndex(index);
+            StringBuilder doc = new StringBuilder(elements * 8 + 64);
+            doc.append("{\"create\":{}}\n{\"").append(MAPPED_FIELD).append("\":\"0\",\"a\":[");
+            for (int e = 0; e < elements; e++) {
+                if (e > 0) {
+                    doc.append(',');
+                }
+                doc.append("{\"x\":1}");
             }
+            doc.append("]}\n");
+            bulk(index, doc.toString());
+            initIndex(index, "");
+
+            StringBuilder query = startQuery();
+            query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+            query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
+            return responseAsMap(query(query.toString(), "columns"));
+        }, "UnmappedFields$AllFieldsBlockLoader");
+    }
+
+    /** The circuit break of the values held while an array is read, not that of the reservation made before. */
+    private static final MapMatcher HELD_VALUES_BREAK = circuitBreakOn("unmapped fields held values");
+
+    /** The circuit break of the JSON that the read builds, not that of the reservation made before or of the values it holds. */
+    private static final MapMatcher WRITTEN_JSON_BREAK = circuitBreakOn("unmapped fields written json");
+
+    private static MapMatcher circuitBreakOn(String label) {
+        return matchesMap().entry("status", 429)
+            .entry(
+                "error",
+                matchesMap().extraOk().entry("type", "circuit_breaking_exception").entry("reason", containsString("[" + label + "]"))
+            );
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with an array of 7M one-character strings, indexed as CBOR: 14MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the values of the array are held
+     * <p>
+     * An element of 2 bytes of CBOR {@code _source} is held as a {@code String} that takes about 50, so what is held is more than the
+     * reservation of 10 times the size of {@code _source} stands for. On the 512MB heap of this suite an array of this many strings,
+     * with the request breaker at its default limit, killed the node before the held values were charged. The cluster allows the
+     * document to be indexed, see {@link Clusters}, and CBOR keeps it small enough to be indexed on a larger heap as well, see
+     * {@link #indexCborDocument}. The document and its reservation fit under the breaker, and what is held does not.
+     */
+    public void testArrayOfShortStringsCircuitBreaksWhileItsValuesAreHeld() throws IOException {
+        String index = "load_all_short_strings";
+        indexDocumentWithArrays(index, scaleToHeap(7_000_000), false);
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 3M one-character strings, indexed as CBOR:
+     *     12MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the values are held
+     * <p>
+     * A document that spells a field in two ways is read again with all of its values held, not just those of an array.
+     */
+    public void testFieldSpelledInTwoWaysCircuitBreaksWhileItsValuesAreHeld() throws IOException {
+        String index = "load_all_two_spellings";
+        indexDocumentWithArrays(index, scaleToHeap(3_000_000), true);
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with a key of 10,000 characters above 100,000 short numbers, indexed as CBOR: under a megabyte of
+     *     {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the JSON of {@code _unmapped_fields} is built
+     * <p>
+     * That JSON spells each leaf as its full path, so it takes the number of leaves times the length of the key above them: about a
+     * gigabyte here, whatever the size of {@code _source}. It is built in a buffer that the reservation of 10 times the size of
+     * {@code _source} cannot cover, and that once killed the node. The document is indexed with {@code dynamic: false}, which keeps the
+     * limits on the number and the length of field names from rejecting it.
+     */
+    public void testLongKeyAboveManyLeavesCircuitBreaksWhileTheJsonIsBuilt() throws IOException {
+        String index = "load_all_long_key";
+        createMostlyUnmappedIndex(index);
+        int leaves = scaleToHeap(100_000);
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field(MAPPED_FIELD, "0");
+            doc.startObject("p".repeat(10_000));
+            for (int leaf = 0; leaf < leaves; leaf++) {
+                doc.field("k" + leaf, 0);
+            }
+            doc.endObject().endObject();
+            indexCborDocument(index, doc);
         }
-        assertLoadAllCapped(index, docs, expected);
+        initIndex(index, "");
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), WRITTEN_JSON_BREAK);
+    }
+
+    /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */
+    private void indexDocumentWithArrays(String index, int elements, boolean spelledInTwoWays) throws IOException {
+        createMostlyUnmappedIndex(index);
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field(MAPPED_FIELD, "0");
+            if (spelledInTwoWays) {
+                arrayOfShortStrings(doc, "a.b", elements);
+                doc.startObject("a");
+                arrayOfShortStrings(doc, "b", elements);
+                doc.endObject();
+            } else {
+                arrayOfShortStrings(doc, "a", elements);
+            }
+            doc.endObject();
+            indexCborDocument(index, doc);
+        }
+        // Everything is indexed already; this only force-merges and refreshes.
+        initIndex(index, "");
+    }
+
+    private Map<String, Object> loadAllOneRow(String index) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+        query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private void createMostlyUnmappedIndex(String index) throws IOException {
@@ -149,13 +301,12 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     }
 
     /**
-     * Runs {@code LOAD_ALL} over all of {@code index} and asserts it returns {@link #MAPPED_FIELD} plus exactly the discovered
-     * {@code expectedDiscovered}, in that order among themselves. Where the mapped field lands relative to them is the ordering
-     * replay's business, not this test's, so it is only checked for presence. Only the columns are
-     * fetched: {@code filter_path} drops the values on the server, after the response has been built, so the expansion is fully
-     * exercised without shipping a {@code rows x 1000} table of mostly nulls to the test.
+     * Runs {@code LOAD_ALL} over all of {@code index} and asserts the response is exactly {@link #MAPPED_FIELD} and the single
+     * {@code _unmapped_fields} column, with no warning about dropped fields. Only the columns are fetched: {@code filter_path} drops
+     * the values on the server, after the response has been built, so every row is fully loaded without shipping every
+     * row's JSON object to the test.
      */
-    private void assertLoadAllCapped(String index, int limit, List<String> expectedDiscovered) throws IOException {
+    private void assertLoadAllSingleColumn(String index, int limit) throws IOException {
         StringBuilder query = startQuery();
         query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
         query.append("FROM ").append(index).append("\n");
@@ -168,13 +319,10 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         for (Object column : columns) {
             names.add((String) ((Map<?, ?>) column).get("name"));
         }
-        assertThat(names, hasItem(MAPPED_FIELD));
-        names.remove(MAPPED_FIELD);
-        assertThat(names, equalTo(expectedDiscovered));
-        assertThat(response.getWarnings(), hasItem(containsString("only the first [" + MAX_EXPANDED_FIELDS + "]")));
+        assertThat(names, containsInAnyOrder(MAPPED_FIELD, "_unmapped_fields"));
+        assertThat(response.getWarnings(), empty());
     }
 
-    /** Zero-padded so the alphabetical order the cap keeps is the numeric order. */
     private static String manyDocsFieldName(int i) {
         return String.format(Locale.ROOT, "f%08d", i);
     }

@@ -39,8 +39,8 @@ import java.util.function.Consumer;
  * This iterator runs on the producer side of {@link AsyncExternalSourceBuffer} (the generic /
  * external-source pool thread that drains pages from the format reader), <em>not</em> on the
  * driver thread that later consumes them. Callers must therefore pass a {@link BlockFactory}
- * that is safe to use off-driver — typically the node-level (root) factory wired via
- * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} — so the
+ * that is safe to use off-driver — the request-level root from
+ * {@link AsyncExternalSourceOperatorFactory#producerBlockFactory(org.elasticsearch.compute.operator.DriverContext)} — so the
  * null-fill and cast allocations are charged to the global request circuit breaker. Passing a
  * driver-local factory backed by {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
  * trips its single-thread assertion in debug builds and races with the driver loop's
@@ -260,6 +260,16 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
+    }
+
+    @Override
     public Page tryAdvance() {
         Page filePage = delegate.tryAdvance();
         return filePage != null ? adaptPage(filePage) : null;
@@ -395,7 +405,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         String[] names = pendingAbsentColumnNames;
         pendingAbsentColumnNames = null;
         for (String name : names) {
-            sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            sink.accept(SkipWarnings.absentColumnMessage(name));
         }
     }
 

@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
@@ -48,12 +50,19 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
      * Must list every extension {@code ParquetFormatReader#fileExtensions()} accepts. Spec extensions register
      * eagerly at module construction; reader-declared ones register lazily, inside the supplier that instantiates
      * the reader. An extension declared only there is therefore unclaimable until something forces that reader
-     * into existence, and invisible to {@code DataSourceCapabilities} throughout. Parquet claims no per-dataset
-     * configuration keys.
+     * into existence, and invisible to {@code DataSourceCapabilities} throughout. Parquet claims one per-dataset
+     * configuration key, {@code schema_max_fields}.
      */
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), Set.of(), null));
+        return Set.of(
+            new FormatSpec(
+                FormatNameResolver.FORMAT_PARQUET,
+                Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS),
+                ParquetFormatReader.RECOGNIZED_KEYS,
+                ParquetFormatReader::validateConfig
+            )
+        );
     }
 
     @Override
@@ -73,6 +82,13 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(ParquetReaderStatus.ENTRY);
+        return formatReaderProfileVariants().stream().map(ProfileSchema.Variant::namedWriteableEntry).toList();
+    }
+
+    @Override
+    public List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
+        return List.of(
+            ProfileSchema.Variant.fromEntry(FormatReaderStatus.class, ParquetReaderStatus.ENTRY, ParquetReaderStatus.PROFILE_SCHEMA)
+        );
     }
 }

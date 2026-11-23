@@ -8,11 +8,15 @@
  */
 package org.elasticsearch.gradle.internal.nativelibs;
 
+import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
@@ -38,6 +42,25 @@ public class NativeLibraryBuildPluginTests {
         extension().getModeEnvironmentVariable().set("A_VARIABLE_THAT_IS_NOT_SET");
 
         assertEquals(BuildNativeLibraryTask.PUBLISHED_MODE, buildTask().getMode().get());
+    }
+
+    @Test
+    public void testRegistersItselfAsANativeLibraryProducer() {
+        var subscribeService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService().get();
+
+        assertTrue(subscribeService.getProjectsByTopic(NativeLibraries.TOPIC).get().contains(project.getPath()));
+    }
+
+    /**
+     * A task cannot find the native libraries built by the project of the task through the task's runtime
+     * classpath, because a project is never a dependency of itself.
+     */
+    @Test
+    public void testAddsTheBuildNativeLibraryOutputDirectoryToTheProjectLibraryDirectories() {
+        ConfigurableFileCollection projectLibraryDirectories = NativeLibraryPathExtension.of(project).getProjectLibraryDirectories();
+
+        assertEquals(Set.of(buildTask().getOutputDir().get().getAsFile()), projectLibraryDirectories.getFiles());
+        assertTrue(projectLibraryDirectories.getBuildDependencies().getDependencies(null).contains(buildTask()));
     }
 
     @Test

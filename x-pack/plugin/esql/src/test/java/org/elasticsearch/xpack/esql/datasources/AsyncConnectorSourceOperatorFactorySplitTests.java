@@ -17,12 +17,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
+import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -136,6 +138,7 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
             removeCount.incrementAndGet();
             return null;
         }).when(driverContext).removeAsyncAction();
+        runMeteredWork(driverContext);
 
         AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, baseRequest, 10, Runnable::run);
 
@@ -171,6 +174,7 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
             removeCount.incrementAndGet();
             return null;
         }).when(driverContext).removeAsyncAction();
+        runMeteredWork(driverContext);
 
         AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(
             connector,
@@ -336,6 +340,7 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
             removeAsync.incrementAndGet();
             return null;
         }).when(driverContext).removeAsyncAction();
+        runMeteredWork(driverContext);
 
         QueryRequest baseRequest = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
 
@@ -416,7 +421,14 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
         when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        runMeteredWork(driverContext);
         return driverContext;
+    }
+
+    /** The producer loop runs inside meteredCpu, which a plain mock would skip, so run the work as the real method does. */
+    private static void runMeteredWork(DriverContext driverContext) {
+        doAnswer(inv -> inv.<CheckedSupplier<?, ?>>getArgument(0).get()).when(driverContext)
+            .meteredCpu(ArgumentMatchers.<CheckedSupplier<Object, RuntimeException>>any());
     }
 
     private static void drainOperator(SourceOperator operator) {

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -59,6 +60,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -342,6 +344,14 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     .getProject()
                     .dataStreams()
                     .get(dataStreamName);
+                final long oldestIndexCreationDate = clusterStateBeforeRollover.metadata()
+                    .getProject()
+                    .getIndexSafe(dataStreamBeforeRollover.getIndices().getFirst())
+                    .getCreationDate();
+                assertTrue(
+                    "cached node clocks did not reach the oldest backing index's creation date",
+                    waitUntil(() -> haveAllNodesCachedClockReached(oldestIndexCreationDate))
+                );
                 String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
                     .index(dataStreamBeforeRollover.getWriteIndex())
                     .shard(0)
@@ -512,6 +522,18 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Whether the cached clock on every node is at or past the given time.
+     */
+    private static boolean haveAllNodesCachedClockReached(long timeMillis) {
+        for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+            if (threadPool.absoluteTimeInMillis() < timeMillis) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static ShardStats getShardStats(IndexMetadata indexMeta, int shardIndex, long targetWriteLoad, String assignedShardNodeId) {
         ShardId shardId = new ShardId(indexMeta.getIndex(), shardIndex);
         Path path = createTempDir().resolve("indices").resolve(indexMeta.getIndexUUID()).resolve(String.valueOf(shardIndex));
@@ -521,7 +543,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -529,7 +551,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(
-            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, targetWriteLoad)
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, targetWriteLoad)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }

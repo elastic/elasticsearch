@@ -185,7 +185,8 @@ public class S3CredentialsProviderTests extends ESTestCase {
                 IllegalStateException.class,
                 () -> new S3StorageProvider(null, null, null, misconfigured).managedIdentityProviders()
             );
-            assertTrue(e.getMessage().contains(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION));
+            Path expectedTokenFile = environment.configDir().resolve(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION);
+            assertTrue(e.getMessage().contains(expectedTokenFile.toString()));
         }
     }
 

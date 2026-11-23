@@ -28,10 +28,15 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.impl.OrcTail;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -55,6 +60,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
@@ -81,6 +87,7 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -128,6 +135,54 @@ public class OrcFormatReaderTests extends ESTestCase {
     public void testDoesNotSupportWholeFileCompression() {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
+    }
+
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * decode onto a per-read factory and keeps the footer caches. The node breaker is one byte, so
+     * any page that still hit it would trip; success plus live usage on the per-read breaker is the
+     * proof. Cache identity is pinned in {@link OrcFormatReaderStateLifecycleTests}.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheFooterCache() throws Exception {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        OrcFormatReader nodeReader = new OrcFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        OrcFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame("footer byte cache stays the node instance", nodeReader.footerBytesForTests(), perRead.footerBytesForTests());
+
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            idCol.vector[0] = 1;
+            nameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[1] = 2;
+            nameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+        });
+        FormatReadContext context = FormatReadContext.builder().projectedColumns(List.of("id", "name")).batchSize(8).build();
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(orcData), context)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
     }
 
     /**
@@ -467,7 +522,7 @@ public class OrcFormatReaderTests extends ESTestCase {
                 assertEquals(3, page.getBlockCount());
                 assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
                 assertEquals(1, warnings.size());
-                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+                assertEquals(SkipWarnings.absentColumnMessage("department"), warnings.get(0));
             } finally {
                 page.releaseBlocks();
             }
@@ -2892,6 +2947,11 @@ public class OrcFormatReaderTests extends ESTestCase {
                 if (from == DataType.TEXT) {
                     continue; // no ORC leaf type maps to TEXT; the pair is unreachable from a file
                 }
+                if (from == DataType.DATE_NANOS) {
+                    // convertOrcTypeToEsql has no arm producing DATE_NANOS, so no ORC column can arrive as that
+                    // source type. Remove this skip if one ever does.
+                    continue;
+                }
                 TypeDescription schema = TypeDescription.createStruct();
                 BatchPopulator populator;
                 switch (from) {
@@ -3417,8 +3477,57 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * An object overwritten in place with a file of the same length keeps its {@code (path, length)} footer key. The second
+     * read must return the new file's rows, not the rows of the footer cached for the first file. See elastic/esql-planning#2094.
+     */
+    public void testSameLengthOverwriteReadsNewFileRows() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("s", TypeDescription.createString());
+        byte[] before = createOrcFile(schema, batch -> fillFixedWidthStrings(batch, "a"));
+        byte[] after = createOrcFile(schema, batch -> fillFixedWidthStrings(batch, "b"));
+        assertEquals("the overwrite must keep the file length", before.length, after.length);
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertEquals(new BytesRef("a00000"), firstStringValue(reader, createStorageObject(before, "v1")));
+        assertEquals(
+            "the second read must return the new file's rows",
+            new BytesRef("b00000"),
+            firstStringValue(reader, createStorageObject(after, "v2"))
+        );
+    }
+
+    private static void fillFixedWidthStrings(VectorizedRowBatch batch, String prefix) {
+        batch.size = 100;
+        BytesColumnVector column = (BytesColumnVector) batch.cols[0];
+        for (int i = 0; i < batch.size; i++) {
+            column.setVal(i, String.format(Locale.ROOT, "%s%05d", prefix, i).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private BytesRef firstStringValue(OrcFormatReader reader, StorageObject object) throws Exception {
+        BytesRef[] value = new BytesRef[1];
+        readFirstPage(reader, object, List.of("s"), page -> {
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            value[0] = BytesRef.deepCopyOf(block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()));
+            page.releaseBlocks();
+        });
+        return value[0];
+    }
+
     private StorageObject createStorageObject(byte[] data) {
+        return createStorageObject(data, "v1");
+    }
+
+    private StorageObject createStorageObject(byte[] data, String version) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return NOOP_IDENTITY;

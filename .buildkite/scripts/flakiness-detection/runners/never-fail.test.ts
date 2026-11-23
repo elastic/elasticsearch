@@ -156,7 +156,7 @@ describe("never-fail.sh", () => {
   });
 
   /**
-   * The analyze step's opt-in: on a PR whose team added its label to BLOCKING_LABELS, the verdict has to
+   * The analyze step's opt-in: on a blocking build (see analyze.ts `shouldBlock`), the verdict has to
    * reach Buildkite. Only the designated code does - everything else still honours the never-fail
    * contract, which is what keeps a crash or an overrun of the analyze step off the PR.
    */

@@ -16,6 +16,7 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.defaultsmode.DefaultsMode;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
@@ -28,6 +29,7 @@ import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
@@ -109,6 +111,19 @@ public class S3StorageProvider implements StorageProvider {
     private static final String DEFAULT_JWT_AUDIENCE = "sts.amazonaws.com";
 
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
+    /**
+     * Idle read timeout on the async {@code readBytesAsync} path (Parquet ranges). Streaming
+     * {@code newStream} uses the Apache client, whose abort drops the socket.
+     */
+    private static final Duration ASYNC_READ_TIMEOUT = Duration.ofSeconds(30);
+
+    private static NettyNioAsyncHttpClient.Builder nettyHttpClientBuilder(int maxConnections) {
+        return NettyNioAsyncHttpClient.builder()
+            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
+            .maxConcurrency(maxConnections)
+            .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            .readTimeout(ASYNC_READ_TIMEOUT);
+    }
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -118,7 +133,7 @@ public class S3StorageProvider implements StorageProvider {
      * provider, mirroring the client-wide scope the strategy had when it lived inside the SDK client.
      * SDK-level retries are disabled on {@link #s3AsyncClient} — see {@link #buildS3AsyncClient}.
      */
-    private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
+    private final RetryStrategy asyncReadRetryStrategy = standardRetryStrategy();
     private final S3Configuration config;
     private final StorageIdentity storageIdentity;
     // Non-null only in the production constructor; null in the test-only constructor (forTesting).
@@ -164,9 +179,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool and is the
-     * value of the {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction
-     * path (which holds node {@link Settings}).
+     * Production constructor. {@code maxConnections} sizes both HTTP pools: Apache for blocking
+     * {@code newStream} GETs and Netty for {@code readBytesAsync}
+     * ({@link ExternalSourceSettings#sdkConnectionPoolSize(Settings)} from {@code esql.external.max_concurrent_requests}).
      */
     @SuppressWarnings("this-escape")
     public S3StorageProvider(
@@ -208,7 +223,7 @@ public class S3StorageProvider implements StorageProvider {
                 case MANAGED_IDENTITY -> buildManagedIdentityCredentialsProvider();
             };
             this.credentials = resolvedCredentials;
-            s3 = buildS3Client(config, resolvedCredentials);
+            s3 = buildS3Client(config, resolvedCredentials, maxConnections);
             this.stsAsyncClient = sts;
             this.s3Client = s3;
             this.s3AsyncClient = buildS3AsyncClient(config, resolvedCredentials, maxConnections);
@@ -309,7 +324,9 @@ public class S3StorageProvider implements StorageProvider {
      * Package-private for subclass override in tests.
      */
     S3Client buildRetryClient(String region) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), region).build();
+        S3ClientBuilder builder = S3Client.builder();
+        configureCommon(builder, config, credentials, standardRetryStrategy(), region);
+        return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     /**
@@ -320,10 +337,7 @@ public class S3StorageProvider implements StorageProvider {
      */
     S3AsyncClient buildRetryAsyncClient(String region) {
         return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), region).httpClientBuilder(
-            NettyNioAsyncHttpClient.builder()
-                .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-                .maxConcurrency(maxConnections)
-                .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            nettyHttpClientBuilder(maxConnections)
         ).build();
     }
 
@@ -422,8 +436,31 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
-    private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), null).build();
+    /**
+     * AWS Standard retries plus {@code InvalidAccessKeyId}. IAM is not strongly consistent, so a
+     * freshly minted key can 403 until it propagates; this is the S3 SDK seam that waits that out.
+     * Azure/GCS would add an SDK-native predicate at their own builders if they hit the same class
+     * of failure.
+     */
+    private static RetryStrategy standardRetryStrategy() {
+        return AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .retryOnException(S3FailureDetail::isInvalidAccessKeyIdException)
+            .build();
+    }
+
+    private static AbortRegisteringHttpClient.Builder apacheHttpClientBuilder(int maxConnections) {
+        return new AbortRegisteringHttpClient.Builder(maxConnections, CONNECTION_ACQUISITION_TIMEOUT);
+    }
+
+    private static S3Client buildS3Client(
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        int maxConnections
+    ) {
+        S3ClientBuilder builder = S3Client.builder();
+        configureCommon(builder, config, credentials, standardRetryStrategy(), null);
+        return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -442,11 +479,12 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
-        // Size the connection pool from the single esql.external.max_concurrent_requests knob; the circuit breaker
-        // bounds memory and reactive 503 backoff handles throttling. The SDK's default maxConcurrency is 50,
-        // which caps a single query's read parallelism well below what S3 serves happily — S3 throttles per
-        // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it
-        // actually needs to. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
+        // Size the connection pool from esql.external.max_concurrent_requests via
+        // sdkConnectionPoolSize (N+1, or the default when unlimited). The SDK's default
+        // maxConcurrency is 50, which caps a single query's read parallelism well below what S3
+        // serves happily — S3 throttles per key-prefix request rate, not per per-machine connection
+        // count, and pushes back with 503/backoff when it actually needs to.
+        // connectionAcquisitionTimeout is generous so brief pool contention queues rather than
         // failing the read.
         //
         // SDK-level retries are DISABLED on the async client: it exists solely for
@@ -458,10 +496,7 @@ public class S3StorageProvider implements StorageProvider {
         // See KnownLengthAsyncResponseTransformer's javadoc; do not re-enable retries here without
         // removing the single-use contract there.
         return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), null).httpClientBuilder(
-            NettyNioAsyncHttpClient.builder()
-                .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-                .maxConcurrency(maxConnections)
-                .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            nettyHttpClientBuilder(maxConnections)
         ).build();
     }
 
@@ -492,7 +527,7 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         List<ExecutionInterceptor> interceptors
     ) {
-        return configureCommon(builder, config, credentials, AwsRetryStrategy.standardRetryStrategy(), null, interceptors);
+        return configureCommon(builder, config, credentials, standardRetryStrategy(), null, interceptors);
     }
 
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
@@ -535,13 +570,20 @@ public class S3StorageProvider implements StorageProvider {
             builder.region(Region.of(region));
         } else if (hasEndpoint == false) {
             // Standard S3: seed with us-east-1 and let the SDK's cross-region decorator redirect.
+            // STANDARD defaults mode pins the us-east-1 *regional* endpoint (s3.us-east-1.amazonaws.com)
+            // instead of the legacy global one (s3.amazonaws.com). The decorator's HeadBucket fallback
+            // only reads x-amz-bucket-region from error responses; the global endpoint returns 200 for
+            // a publicly readable foreign-region bucket, so a concurrent first-read race can cache a
+            // null region and leak a 301. The regional endpoint returns 301 with that header, so the
+            // same race recovers. Retry strategy is already pinned above; STANDARD does not change it.
             builder.region(Region.US_EAST_1);
             builder.crossRegionAccessEnabled(true);
+            builder.defaultsMode(DefaultsMode.STANDARD);
         } else {
             // Custom endpoint (MinIO, Scaleway, …): cross-region flag is a no-op for non-AWS stores.
             // Seed with us-east-1; if the store validates the signing region it will respond with
             // AuthorizationHeaderMalformed and the provider will discover the correct region via HeadBucket
-            // and retry once (see elastic/esql-planning#1747 step 1).
+            // and retry once.
             builder.region(Region.US_EAST_1);
         }
 
@@ -574,7 +616,9 @@ public class S3StorageProvider implements StorageProvider {
     private static WorkloadIdentityIssuerClient enabledWorkloadIdentityIssuerClient() {
         WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
         if (issuerClient.isEnabled() == false) {
-            throw new IllegalStateException(
+            // Operator misconfiguration, not a broken invariant: the data source asked for federated
+            // identity on a node where the feature is off.
+            throw new IllegalArgumentException(
                 "S3 federated authentication requires the workload-identity feature to be enabled on this node"
             );
         }
@@ -744,40 +788,74 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageEntry objectMetadata(StoragePath path) throws IOException {
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path).headObjectMetadata();
+    }
+
+    @Override
     public StorageObject newObject(StoragePath path) {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path);
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
-        validateS3Scheme(path);
-        String bucket = path.host();
-        String key = extractKey(path);
-        DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length);
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+        Target t = resolve(path);
+        return new S3StorageObject(t.sync, t.async, asyncReadRetryStrategy, storageIdentity, t.bucket, t.key, path, length, lastModified);
+    }
+
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        Target t = resolve(path);
+        S3StorageObject object = new S3StorageObject(
+            t.sync,
+            t.async,
+            asyncReadRetryStrategy,
+            storageIdentity,
+            t.bucket,
+            t.key,
+            path,
+            length,
+            lastModified
+        );
+        object.seedVersion(version);
+        return object;
+    }
+
+    /** The bucket, the key and the clients that serve them, which the four single-path entry points all need. */
+    private record Target(S3Client sync, S3AsyncClient async, String bucket, String key) {}
+
+    /**
+     * Checks the scheme, splits the path, and resolves the clients for that bucket — which may differ from the
+     * configured pair when the bucket lives in another region.
+     */
+    private Target resolve(StoragePath path) {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
         DiscoveredClients dc = resolveClientsForBucket(bucket);
-        S3Client sync = dc != null ? dc.sync() : s3Client;
-        S3AsyncClient async = dc != null ? dc.async() : s3AsyncClient;
-        return new S3StorageObject(sync, async, asyncReadRetryStrategy, storageIdentity, bucket, key, path, length, lastModified);
+        return new Target(dc != null ? dc.sync() : s3Client, dc != null ? dc.async() : s3AsyncClient, bucket, key);
     }
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /**
+     * S3 lists by key prefix natively, so {@code namePrefix} is appended to the directory's key and the store does
+     * the narrowing. The separator closing that directory's key is added either way; what differs is that with a
+     * name prefix the key asked for then deliberately stops mid-name.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         validateS3Scheme(prefix);
         String bucket = prefix.host();
         String keyPrefix = extractKey(prefix);
@@ -785,6 +863,7 @@ public class S3StorageProvider implements StorageProvider {
         if (keyPrefix.isEmpty() == false && keyPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
             keyPrefix += StoragePath.PATH_SEPARATOR;
         }
+        keyPrefix += namePrefix;
 
         // Prefer the already-discovered client when available; fall back to s3Client for the first call.
         DiscoveredClients dcNow = discoveredClients;
@@ -840,8 +919,13 @@ public class S3StorageProvider implements StorageProvider {
                 if (files.size() + directories.size() > limit) {
                     return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
                 }
-                continuationToken = response.nextContinuationToken();
+                if (truncatedWithoutToken(response)) {
+                    throw new TruncatedWithoutTokenException();
+                }
+                continuationToken = continuationTokenOf(response);
             } while (continuationToken != null);
+        } catch (TruncatedWithoutTokenException e) {
+            throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
@@ -863,7 +947,12 @@ public class S3StorageProvider implements StorageProvider {
     /** One conversion from an SDK listing entry to a {@link StorageEntry}, shared by both listing shapes. */
     private static StorageEntry toStorageEntry(S3Object s3Object, String pathPrefix) {
         Instant lastModified = s3Object.lastModified() != null ? s3Object.lastModified() : Instant.EPOCH;
-        return new StorageEntry(StoragePath.of(pathPrefix + s3Object.key()), s3Object.size(), lastModified);
+        return new StorageEntry(
+            StoragePath.of(pathPrefix + s3Object.key()),
+            s3Object.size(),
+            lastModified,
+            S3StorageObject.strongEtag(s3Object.eTag())
+        );
     }
 
     @Override
@@ -1097,7 +1186,7 @@ public class S3StorageProvider implements StorageProvider {
 
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
-        private boolean hasMorePages;
+        private boolean firstPageFetched;
 
         /**
          * Non-null on the custom-endpoint, no-explicit-region path; consumed (set to null) after the
@@ -1119,26 +1208,18 @@ public class S3StorageProvider implements StorageProvider {
             this.prefix = prefix;
             this.baseDirectory = baseDirectory;
             this.regionHint = regionHint;
-            this.hasMorePages = true;
             this.retryClientFactory = retryClientFactory;
         }
 
         @Override
         public boolean hasNext() {
-            if (currentBatch == null) {
+            while (currentBatch == null || currentBatch.hasNext() == false) {
+                if (firstPageFetched && continuationToken == null) {
+                    return false;
+                }
                 fetchNextBatch();
             }
-
-            if (currentBatch != null && currentBatch.hasNext()) {
-                return true;
-            }
-
-            if (hasMorePages) {
-                fetchNextBatch();
-                return currentBatch != null && currentBatch.hasNext();
-            }
-
-            return false;
+            return true;
         }
 
         @Override
@@ -1157,6 +1238,7 @@ public class S3StorageProvider implements StorageProvider {
         }
 
         private void fetchNextBatch() {
+            ListObjectsV2Response response;
             try {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
 
@@ -1164,12 +1246,8 @@ public class S3StorageProvider implements StorageProvider {
                     requestBuilder.continuationToken(continuationToken);
                 }
 
-                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                response = s3Client.listObjectsV2(requestBuilder.build());
                 ExternalPlanningIo.addMetadataGet(0);
-
-                currentBatch = response.contents().iterator();
-                continuationToken = response.nextContinuationToken();
-                hasMorePages = response.isTruncated();
             } catch (Exception e) {
                 ExternalPlanningIo.addMetadataGet(0);
                 ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
@@ -1198,7 +1276,33 @@ public class S3StorageProvider implements StorageProvider {
                     : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
+            if (truncatedWithoutToken(response)) {
+                throw new UncheckedIOException(
+                    new IOException("Failed to list objects in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE)
+                );
+            }
+            currentBatch = response.contents().iterator();
+            continuationToken = continuationTokenOf(response);
+            firstPageFetched = true;
         }
+    }
+
+    private static final class TruncatedWithoutTokenException extends RuntimeException {
+        TruncatedWithoutTokenException() {
+            super(null, null, false, false);
+        }
+    }
+
+    private static final String TRUNCATED_WITHOUT_TOKEN_MESSAGE =
+        "the store returned a truncated listing page without a continuation token";
+
+    private static boolean truncatedWithoutToken(ListObjectsV2Response response) {
+        return Boolean.TRUE.equals(response.isTruncated()) && continuationTokenOf(response) == null;
+    }
+
+    private static String continuationTokenOf(ListObjectsV2Response response) {
+        String token = response.nextContinuationToken();
+        return token == null || token.isEmpty() ? null : token;
     }
 
 }

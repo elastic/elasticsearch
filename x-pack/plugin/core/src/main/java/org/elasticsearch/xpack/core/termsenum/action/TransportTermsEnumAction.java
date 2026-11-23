@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -177,7 +178,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         // log any errors that occur in a successful partial results scenario
         ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
             // Deduplicate failures by exception message and index
-            ShardOperationFailedException[] deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.getShardFailures());
+            List<ShardOperationFailedException> deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.getShardFailures());
             for (ShardOperationFailedException e : deduplicated) {
                 boolean causeHas500Status = false;
                 if (e.getCause() != null) {
@@ -527,7 +528,13 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.nodeStartedTimeMillis(), AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(
+            shardId,
+            req.nodeStartedTimeMillis(),
+            AliasFilter.EMPTY,
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return searchService.canMatch(searchRequest).canMatch();
     }

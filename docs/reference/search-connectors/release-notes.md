@@ -13,6 +13,40 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.7 [connectors-9.5.7-release-notes]
+
+### Fixes [connectors-9.5.7-fixes]
+* Fix the Zoom connector keying recording documents by meeting ID instead of meeting instance UUID. [#4883](https://github.com/elastic/connectors/pull/4883)
+* Fix the OneDrive connector stopping pagination when Microsoft Graph returned an empty page before the last page. [#4881](https://github.com/elastic/connectors/pull/4881)
+* Fix Salesforce advanced sync rules treating any query containing the word "fields" as a `FIELDS()` query, which truncated paging on large objects. [#4869](https://github.com/elastic/connectors/pull/4869)
+* Fix Slack pagination cursors not being URL-encoded, which could request the wrong page. [#4855](https://github.com/elastic/connectors/pull/4855)
+* Fix Oracle tables configured with a lowercase or mixed-case name being skipped as having no primary key. [#4845](https://github.com/elastic/connectors/pull/4845)
+* Fix MySQL advanced sync rule queries whose only `ORDER BY` is in a subquery, window function, string literal or comment, so syncs no longer skip or repeat rows between pages. [#4831](https://github.com/elastic/connectors/pull/4831)
+* Fix the GraphQL connector configuration check rejecting queries that use inline fragments, named fragments or field aliases. [#4727](https://github.com/elastic/connectors/pull/4727)
+
+## 9.4.10 [connectors-9.4.10-release-notes]
+
+### Fixes [connectors-9.4.10-fixes]
+* Fix the Zoom connector keying recording documents by meeting ID instead of meeting instance UUID. [#4883](https://github.com/elastic/connectors/pull/4883)
+* Fix the OneDrive connector stopping pagination when Microsoft Graph returned an empty page before the last page. [#4881](https://github.com/elastic/connectors/pull/4881)
+* Fix Salesforce advanced sync rules treating any query containing the word "fields" as a `FIELDS()` query, which truncated paging on large objects. [#4869](https://github.com/elastic/connectors/pull/4869)
+* Fix Slack pagination cursors not being URL-encoded, which could request the wrong page. [#4855](https://github.com/elastic/connectors/pull/4855)
+* Fix Oracle tables configured with a lowercase or mixed-case name being skipped as having no primary key. [#4845](https://github.com/elastic/connectors/pull/4845)
+* Fix MySQL advanced sync rule queries whose only `ORDER BY` is in a subquery, window function, string literal or comment, so syncs no longer skip or repeat rows between pages. [#4831](https://github.com/elastic/connectors/pull/4831)
+* Fix the GraphQL connector configuration check rejecting queries that use inline fragments, named fragments or field aliases. [#4727](https://github.com/elastic/connectors/pull/4727)
+
+## 9.5.6 [connectors-9.5.6-release-notes]
+
+### Fixes [connectors-9.5.6-fixes]
+* Fix SharePoint Online incremental syncs skipping sites whose last-modified timestamp had not changed, which left deleted or modified drive documents stale until the next full sync. Incremental syncs now visit every site. [#4622](https://github.com/elastic/connectors/pull/4622), [#3994](https://github.com/elastic/connectors/issues/3994)
+* Fix connector syncs failing when a content index had no explicit `id` mapping and Elasticsearch dynamically mapped `id` as `long`. The `id` field is now mapped as `keyword` when the index is created, or before a sync if `id` is not yet mapped. Indices where `id` is already mapped as `long` must be recreated or reindexed. [#4646](https://github.com/elastic/connectors/pull/4646), [#2581](https://github.com/elastic/connectors/issues/2581)
+
+## 9.4.9 [connectors-9.4.9-release-notes]
+
+### Fixes [connectors-9.4.9-fixes]
+* Fix SharePoint Online incremental syncs skipping sites whose last-modified timestamp had not changed, which left deleted or modified drive documents stale until the next full sync. Incremental syncs now visit every site. [#4622](https://github.com/elastic/connectors/pull/4622), [#3994](https://github.com/elastic/connectors/issues/3994)
+* Fix connector syncs failing when a content index had no explicit `id` mapping and Elasticsearch dynamically mapped `id` as `long`. The `id` field is now mapped as `keyword` when the index is created, or before a sync if `id` is not yet mapped. Indices where `id` is already mapped as `long` must be recreated or reindexed. [#4646](https://github.com/elastic/connectors/pull/4646), [#2581](https://github.com/elastic/connectors/issues/2581)
+
 ## 9.5.5 [connectors-9.5.5-release-notes]
 
 ### Features and enhancements [connectors-9.5.5-features-enhancements]

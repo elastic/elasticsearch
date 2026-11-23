@@ -16,6 +16,8 @@ import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -24,8 +26,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Source-operator factory that executes a connector query on a background thread and feeds pages
@@ -63,6 +69,19 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Nullable
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
+    /**
+     * Live count of in-flight producer tasks plus unclosed source operators created by {@link #get}.
+     * Each {@code get()} takes two refs: one released when that instance's producer finishes or
+     * fails, and one released from {@link AsyncExternalSourceOperator#close()}. Hitting zero
+     * closes the shared connector. Dual refs keep the Flight client alive until every operator
+     * built during {@code createDrivers} has closed, even if an earlier producer finishes while
+     * later {@code get()} calls are still pending.
+     */
+    private final AtomicInteger operatorRefCount = new AtomicInteger();
+    private final Object filteredLimitRampLock = new Object();
+    private int filteredLimitRunning;
+    private int filteredLimitCap = AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_READER_RAMP;
+    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
 
     public AsyncConnectorSourceOperatorFactory(
         Connector connector,
@@ -120,26 +139,171 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         started.set(true);
         QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
-        driverContext.addAsyncAction();
-
-        // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
-        // driverContext.removeAsyncAction() plus connector.close() run exactly once via runAfter.
-        ActionListener<Void> completionListener = ActionListener.assertOnce(
-            ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
-                closeConnectorQuietly();
-                driverContext.removeAsyncAction();
-            })
-        );
-
-        ProducerState state = new ProducerState(request, sliceQueue, buffer);
+        Releasable operatorHold = null;
+        boolean refsTaken = false;
+        boolean producerOwnsHold = false;
+        boolean succeeded = false;
         try {
-            executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
-        } catch (Exception e) {
-            completionListener.onFailure(e);
+            operatorRefCount.addAndGet(2);
+            refsTaken = true;
+            operatorHold = Releasables.releaseOnce(() -> driverContext.meteredCpu(() -> {
+                releaseOperator();
+                return null;
+            }));
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+            driverContext.addAsyncAction();
+
+            // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
+            // driverContext.removeAsyncAction() runs once. Connector.close() waits until the last
+            // producer and operator hold are gone, so a sibling still in execute() — or a later
+            // get() during createDrivers — cannot see a closed Flight client.
+            ActionListener<Void> completionListener = ActionListener.assertOnce(
+                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
+                    try {
+                        releaseOperator();
+                    } finally {
+                        driverContext.removeAsyncAction();
+                    }
+                })
+            );
+
+            ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
+            try {
+                submitConnectorProducer(state, completionListener);
+            } catch (Exception e) {
+                completionListener.onFailure(e);
+            }
+            producerOwnsHold = true;
+            SourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, operatorHold);
+            succeeded = true;
+            return operator;
+        } finally {
+            if (succeeded == false) {
+                if (operatorHold != null) {
+                    try {
+                        operatorHold.close();
+                    } finally {
+                        if (producerOwnsHold == false) {
+                            releaseOperator();
+                        }
+                    }
+                } else if (refsTaken) {
+                    try {
+                        releaseOperator();
+                    } finally {
+                        releaseOperator();
+                    }
+                }
+            }
         }
-        return new AsyncExternalSourceOperator(buffer, driverContext);
     }
+
+    private void releaseOperator() {
+        if (operatorRefCount.decrementAndGet() == 0) {
+            closeConnectorQuietly();
+        }
+    }
+
+    private void submitConnectorProducer(ProducerState state, ActionListener<Void> finishBuffer) {
+        if (filteredLimitRamp() == false) {
+            executor.execute(ActionRunnable.wrap(finishBuffer, l -> runProducerLoop(state, l)));
+            return;
+        }
+        ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
+        boolean startNow;
+        ParkedProducer skipped = null;
+        synchronized (filteredLimitRampLock) {
+            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
+                skipped = new ParkedProducer(state, finishBuffer);
+                startNow = false;
+            } else if (filteredLimitRunning < filteredLimitCap) {
+                filteredLimitRunning++;
+                startNow = true;
+            } else {
+                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
+                startNow = false;
+            }
+        }
+        if (startNow) {
+            try {
+                executor.execute(ActionRunnable.wrap(started, l -> runProducerLoop(state, l)));
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+            return;
+        }
+        if (skipped != null) {
+            skipped.finishBuffer().onResponse(null);
+        }
+    }
+
+    private boolean filteredLimitRamp() {
+        return observedLimiter != null && sliceQueue != null;
+    }
+
+    private void onFilteredLimitProducerFinished() {
+        if (filteredLimitRamp() == false) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            filteredLimitRunning--;
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void maybeRampAfterUnit() {
+        if (filteredLimitRamp() == false || noFurtherCandidates()) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
+                filteredLimitCap *= 2;
+            } else {
+                filteredLimitCap = Integer.MAX_VALUE;
+            }
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        if (noFurtherCandidates()) {
+            while (filteredLimitParked.isEmpty() == false) {
+                toSkip.add(filteredLimitParked.poll());
+            }
+            return;
+        }
+        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
+            ParkedProducer parked = filteredLimitParked.poll();
+            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
+                toSkip.add(parked);
+                continue;
+            }
+            filteredLimitRunning++;
+            toStart.add(parked);
+        }
+    }
+
+    private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        for (ParkedProducer parked : toSkip) {
+            parked.finishBuffer().onResponse(null);
+        }
+        for (ParkedProducer parked : toStart) {
+            ActionListener<Void> started = ActionListener.runAfter(parked.finishBuffer(), this::onFilteredLimitProducerFinished);
+            try {
+                executor.execute(ActionRunnable.wrap(started, l -> runProducerLoop(parked.state(), l)));
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+        }
+    }
+
+    private record ParkedProducer(ProducerState state, ActionListener<Void> finishBuffer) {}
 
     /**
      * Producer-loop state. One instance per {@code get(DriverContext)} call.
@@ -152,14 +316,24 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         @Nullable
         final ExternalSliceQueue queue;
         final AsyncExternalSourceBuffer buffer;
+        /** Context of the driver that consumes the buffer. The producer's CPU time is metered into it. */
+        final DriverContext driverContext;
 
         /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
         boolean singleShotStarted;
         /** Currently active cursor, or {@code null} if between units or before the first open. */
         @Nullable
         ResultCursor cursor;
+        /** The buffer's space signal when the last drain returned {@link DrainResult#BLOCKED}, else {@code null}. */
+        @Nullable
+        SubscribableListener<Void> blockedOn;
 
-        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, AsyncExternalSourceBuffer buffer) {
+        ProducerState(
+            QueryRequest request,
+            @Nullable ExternalSliceQueue queue,
+            AsyncExternalSourceBuffer buffer,
+            DriverContext driverContext
+        ) {
             if (request == null) {
                 throw new IllegalArgumentException("ProducerState requires a non-null request");
             }
@@ -169,13 +343,14 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             this.request = request;
             this.queue = queue;
             this.buffer = buffer;
+            this.driverContext = driverContext;
         }
     }
 
     private enum DrainResult {
         /** Hit EOF on the current cursor; caller should advance to the next unit. */
         EOF,
-        /** Buffer is full; a callback is registered to resume the loop. */
+        /** Buffer is full; the space signal is in {@link ProducerState#blockedOn} for the caller to park on. */
         BLOCKED,
         /** Row limit exhausted or buffer finished; the whole producer is done. */
         DONE
@@ -189,28 +364,25 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            if (state.cursor == null) {
-                if (advanceToNextUnit(state) == false) {
+            // DONE finishes the producer on this thread, and removing the driver's async action there counts the open
+            // measurement first. EOF and BLOCKED hand off to another thread that can finish the producer, so the
+            // measurement has to end before them. See DriverContext#meteredCpu.
+            DrainResult result = state.driverContext.meteredCpu(() -> {
+                DrainResult produced = produce(state);
+                if (produced == DrainResult.DONE) {
                     completionListener.onResponse(null);
-                    return;
                 }
-            }
-            DrainResult result = drainHotPath(state, completionListener);
+                return produced;
+            });
             switch (result) {
                 case DONE -> {
-                    // Close the active cursor before reporting completion so no resources leak on
-                    // cancellation / row-budget exhaustion paths.
-                    closeCursorQuietly(state.cursor);
-                    state.cursor = null;
-                    completionListener.onResponse(null);
+                    // Completed inside the measurement.
                 }
-                case EOF -> {
-                    closeCursorQuietly(state.cursor);
-                    state.cursor = null;
-                    executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
-                }
+                case EOF -> executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
                 case BLOCKED -> {
-                    // A waitForSpace listener has been registered that will re-submit runProducerLoop.
+                    SubscribableListener<Void> space = state.blockedOn;
+                    state.blockedOn = null;
+                    parkUntilReady(space, state, completionListener);
                 }
             }
         } catch (Exception e) {
@@ -221,11 +393,31 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     }
 
     /**
-     * Drain pages from the currently-open cursor into the buffer.
-     * Runs synchronously while the buffer has space; when full, registers a callback that
-     * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
+     * Opens the next unit when no cursor is open, then drains the cursor. Closes the cursor unless the drain
+     * is {@link DrainResult#BLOCKED}, so no resources leak on cancellation / row-budget exhaustion paths.
+     * Returns {@link DrainResult#DONE} when there is no next unit.
      */
-    private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
+    private DrainResult produce(ProducerState state) {
+        if (state.cursor == null && advanceToNextUnit(state) == false) {
+            return DrainResult.DONE;
+        }
+        DrainResult result = drainHotPath(state);
+        if (result != DrainResult.BLOCKED) {
+            closeCursorQuietly(state.cursor);
+            state.cursor = null;
+        }
+        if (result == DrainResult.EOF) {
+            maybeRampAfterUnit();
+        }
+        return result;
+    }
+
+    /**
+     * Drain pages from the currently-open cursor into the buffer.
+     * Runs synchronously while the buffer has space; when full, stores the buffer's space signal in
+     * {@link ProducerState#blockedOn} and returns {@link DrainResult#BLOCKED}.
+     */
+    private DrainResult drainHotPath(ProducerState state) {
         ResultCursor cursor = state.cursor;
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
@@ -240,7 +432,8 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                return parkUntilReady(space, state, completionListener);
+                state.blockedOn = space;
+                return DrainResult.BLOCKED;
             }
             if (buffer.noMoreInputs() || noFurtherCandidates()) {
                 return DrainResult.DONE;
@@ -257,8 +450,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
     /**
      * Register a single listener that resumes the producer loop when {@code signal} fires, and
-     * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
-     * registration; the producer resumes asynchronously when {@code signal} completes.
+     * return synchronously. The producer resumes asynchronously when {@code signal} completes.
      * <p>
      * Cleanup semantics by branch:
      * <ul>
@@ -275,7 +467,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      * @param signal a not-done listener from {@code waitForSpace()}; callers must verify
      *               {@code signal.isDone() == false} before invoking this helper.
      */
-    private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+    private void parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
         signal.addListener(ActionListener.wrap(v -> {
             try {
                 executor.execute(() -> runProducerLoop(state, completionListener));
@@ -289,7 +481,6 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             state.cursor = null;
             completionListener.onFailure(e);
         }));
-        return DrainResult.BLOCKED;
     }
 
     /**

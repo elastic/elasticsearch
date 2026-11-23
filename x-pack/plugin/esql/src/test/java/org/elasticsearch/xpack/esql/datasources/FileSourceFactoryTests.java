@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -40,6 +42,17 @@ public class FileSourceFactoryTests extends ESTestCase {
      * the override the path-only form rejects extensionless objects, which is why a dataset registered with
      * an explicit {@code format} on an extensionless resource failed to read end to end.
      */
+    /** A headered text file binds by provenance only while a node that predates header binding on every split is present. */
+    public void testHeaderBindingByProvenanceFollowsTheMinimumTransportVersion() {
+        assertFalse(FileSourceFactory.bindsHeaderByProvenance(TransportVersion.current()));
+        assertFalse(FileSourceFactory.bindsHeaderByProvenance(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT));
+        assertTrue(
+            FileSourceFactory.bindsHeaderByProvenance(
+                TransportVersionUtils.getPreviousVersion(FileSplitProvider.ESQL_EXTERNAL_TEXT_HEADER_EVERY_SPLIT)
+            )
+        );
+    }
+
     public void testCanHandleWithConfigClaimsExtensionlessWhenFormatIsExplicit() {
         FileSourceFactory fileSourceFactory = newFileSourceFactory();
 

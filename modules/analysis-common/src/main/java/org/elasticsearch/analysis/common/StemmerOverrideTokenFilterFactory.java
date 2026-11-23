@@ -24,6 +24,7 @@ import java.util.List;
 public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final StemmerOverrideMap overrideMap;
+    private final Object sharingKey;
 
     StemmerOverrideTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(name);
@@ -36,7 +37,8 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         StemmerOverrideFilter.Builder builder = new StemmerOverrideFilter.Builder(false);
         parseRules(rules, builder, "=>");
         overrideMap = builder.build();
-
+        // StemmerOverrideMap is an FST without value equality; the rules it is built from determine it.
+        this.sharingKey = new Key(List.copyOf(rules));
     }
 
     @Override
@@ -67,4 +69,10 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         }
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(List<String> rules) {}
 }

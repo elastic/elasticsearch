@@ -58,7 +58,9 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
         final SortedNumericLongValues values = vs.longValues(context);
         final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
-        return singleton != null ? SortedNumericLongValues.singleton(longSingleValues(singleton)) : longMultiValues(values);
+        return singleton != null
+            ? SortedNumericLongValues.singleton(longSingleValues(singleton), values.docIdIterator())
+            : longMultiValues(values);
     }
 
     private SortedNumericLongValues longMultiValues(SortedNumericLongValues values) {

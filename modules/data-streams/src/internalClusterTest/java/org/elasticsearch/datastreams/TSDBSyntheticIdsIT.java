@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -63,6 +65,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -588,7 +591,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
+        putDataStreamTemplate(dataStreamName, numShards, 0, randomBatchIndexing(Settings.builder()).build(), useNestedDocs);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -827,10 +830,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             dataStreamName,
             1,
             0,
-            Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
-                .build(),
+            randomBatchIndexing(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+            ).build(),
             useNestedDocs
         );
 
@@ -1771,7 +1775,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false); // Sequence numbers are needed for id validation.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false) // Sequence numbers are needed for id validation.
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
@@ -1781,6 +1786,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
         } else if (rarely()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED);
+            // in some cases we might have used randomBatchIndexing to set index.batch_indexing as extra settings
+            // that setting is not supported for TSDB with STORED source field mapper
+            // so we make sure to reset it here if enabled
+            if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+                extraSettings = Settings.builder().put(extraSettings).put(IndexSettings.BATCH_INDEXING.getKey(), false).build();
+            }
         }
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
@@ -2072,7 +2083,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final int nbVisitedShards = internalCluster().forEveryIndexShard(indices, indexShard -> {
             long size = indexShard.withEngineOrNull(engine -> {
                 if (engine != null) {
-                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                    try (var searcher = engine.acquireSearcher("assert_no_id_stored_field", SplitShardCountSummary.IRRELEVANT)) {
                         long segmentsTotalSize = 0L;
 
                         for (var leaf : searcher.getLeafContexts()) {
@@ -2140,7 +2151,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         nbVisitedShards += indexShard.withEngineOrNull(engine -> {
                             if (engine != null) {
                                 assertThat(engine.config().getCodec().getName(), equalTo(Elasticsearch96Codec.NAME));
-                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                try (var searcher = engine.acquireSearcher("test_codec", SplitShardCountSummary.IRRELEVANT)) {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
                                         assertThat(

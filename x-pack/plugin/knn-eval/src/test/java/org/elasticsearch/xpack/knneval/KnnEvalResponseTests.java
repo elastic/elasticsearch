@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.knneval;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -18,6 +19,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.knneval.KnnEvalResponse.IndexInfo;
 import org.elasticsearch.xpack.knneval.KnnEvalResponse.KnnSettingsResult;
 import org.elasticsearch.xpack.knneval.KnnEvalResponse.ReportedSettings;
 
@@ -28,6 +30,8 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEvalResponse> {
 
@@ -45,8 +49,13 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
             randomNonNegativeLong(),
             randomVectorOpsKind(),
             randomList(3, KnnEvalResponseTests::randomResult),
-            randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(8), new ElasticsearchException(randomAlphaOfLength(12))))
+            randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(8), new ElasticsearchException(randomAlphaOfLength(12)))),
+            randomIndexInfo()
         );
+    }
+
+    private static Map<String, IndexInfo> randomIndexInfo() {
+        return randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLength(8), new IndexInfo(randomBoolean())));
     }
 
     @Override
@@ -58,7 +67,8 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
         String vectorOpsKind = instance.getBaselineVectorOpsKind();
         List<KnnSettingsResult> results = instance.getResults();
         Map<String, Exception> failures = instance.getFailures();
-        switch (between(0, 6)) {
+        Map<String, IndexInfo> indexInfo = instance.getIndexInfo();
+        switch (between(0, 7)) {
             case 6 -> queryFrom = randomValueOtherThan(queryFrom, KnnEvalResponseTests::randomQueryFrom);
             case 0 -> baseline = randomValueOtherThan(baseline, KnnEvalResponseTests::randomReportedSettings);
             case 1 -> tookMs = randomValueOtherThan(tookMs, ESTestCase::randomNonNegativeLong);
@@ -70,9 +80,10 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
                 mutated.put(randomValueOtherThanMany(failures::containsKey, () -> randomAlphaOfLength(8)), new ElasticsearchException("x"));
                 failures = mutated;
             }
+            case 7 -> indexInfo = randomValueOtherThan(indexInfo, KnnEvalResponseTests::randomIndexInfo);
             default -> throw new AssertionError("unexpected branch");
         }
-        return new KnnEvalResponse(queryFrom, baseline, tookMs, vectorOps, vectorOpsKind, results, failures);
+        return new KnnEvalResponse(queryFrom, baseline, tookMs, vectorOps, vectorOpsKind, results, failures, indexInfo);
     }
 
     private static String randomQueryFrom() {
@@ -80,7 +91,11 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
     }
 
     private static String randomVectorOpsKind() {
-        return randomFrom(KnnEvalResponse.FULL_PRECISION_SCAN, KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE);
+        return randomFrom(
+            KnnEvalResponse.FULL_PRECISION_SCAN,
+            KnnEvalResponse.FULL_PRECISION_VISIT,
+            KnnEvalResponse.QUANTIZED_VISIT_PLUS_RESCORE
+        );
     }
 
     private static KnnSettingsResult randomResult() {
@@ -114,6 +129,7 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
               "baseline_took_ms": 5,
               "baseline_vector_ops": 600,
               "baseline_vector_ops_kind": "quantized_visit_plus_rescore",
+              "index_info": { "a": { "hnsw_early_termination": true }, "b": { "hnsw_early_termination": false } },
               "results": [
                 {
                   "knn_settings": {
@@ -138,12 +154,17 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
             }""";
         assertToXContentEquivalent(
             new BytesArray(expected),
-            toXContent(response(), XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
+            toXContent(
+                response(Map.of("a", new IndexInfo(true), "b", new IndexInfo(false))),
+                XContentType.JSON,
+                ToXContent.EMPTY_PARAMS,
+                false
+            ),
             XContentType.JSON
         );
     }
 
-    private static KnnEvalResponse response() {
+    private static KnnEvalResponse response(Map<String, IndexInfo> indexInfo) {
         return new KnnEvalResponse(
             KnnEvalQuerySource.Kind.DOCS.from(),
             KnnEvalResponse.ReportedSettings.of(new KnnEvalSettings(100.0f, null, null, false)),
@@ -160,7 +181,12 @@ public class KnnEvalResponseTests extends AbstractWireSerializingTestCase<KnnEva
                     40
                 )
             ),
-            Map.of("q2", new ParsingException(1, 2, "no such field", null))
+            Map.of("q2", new ParsingException(1, 2, "no such field", null)),
+            indexInfo
         );
+    }
+
+    public void testIndexInfoIsOmittedWhenEmpty() {
+        assertThat(Strings.toString(response(Map.of())), not(containsString("index_info")));
     }
 }

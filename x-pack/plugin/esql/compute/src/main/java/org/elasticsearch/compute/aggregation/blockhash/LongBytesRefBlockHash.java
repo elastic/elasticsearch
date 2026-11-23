@@ -97,7 +97,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     private IntVector addBytesVector(BytesRefVector bytesVector) {
         OrdinalBytesRefVector ordinals = bytesVector.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             ordinalAdds++;
             try (var dictHashOrds = addBytesVector(ordinals.getDictionaryVector())) {
                 return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());
@@ -122,7 +122,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     private IntBlock addBytesBlock(BytesRefBlock bytesBlock) {
         OrdinalBytesRefBlock ordinals = bytesBlock.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             ordinalAdds++;
             try (var dictHashOrds = addBytesVector(ordinals.getDictionaryVector())) {
                 return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
@@ -209,7 +209,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     IntBlock lookupBytesBlock(BytesRefBlock bytes) {
         final OrdinalBytesRefBlock ordinals = bytes.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             ordinalLookups++;
             try (var dictHashOrds = lookupBytesVector(ordinals.getDictionaryVector())) {
                 return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
@@ -245,7 +245,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     IntVector lookupBytesVector(BytesRefVector bytes) {
         OrdinalBytesRefVector ordinals = bytes.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             ordinalLookups++;
             try (var dictHashOrds = lookupBytesVector(ordinals.getDictionaryVector())) {
                 return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());

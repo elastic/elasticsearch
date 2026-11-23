@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 
@@ -54,6 +55,11 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return 0;
+    }
+
+    @Override
     public ToMask toMask() {
         return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
     }
@@ -66,6 +72,11 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     @Override
     public boolean areAllValuesNull() {
         return true;
+    }
+
+    @Override
+    public int nullValuesCount() {
+        return positionCount;
     }
 
     @Override
@@ -352,6 +363,12 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
+    public EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
     public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
@@ -371,6 +388,26 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     public DoubleRangeBlockBuilder.DoubleRange getDoubleRange(int valueIndex, DoubleRangeBlockBuilder.DoubleRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public ConstantNullBlock getMinBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getMaxBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getSumBlock() {
+        return this;
+    }
+
+    @Override
+    public ConstantNullBlock getCountBlock() {
+        return this;
     }
 
     @Override

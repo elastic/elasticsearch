@@ -19,7 +19,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -27,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
@@ -40,6 +43,8 @@ import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -182,7 +187,36 @@ public class AsyncTaskManagementService<
         this.threadPool = threadPool;
     }
 
-    public static String ASYNC_ACTION_SUFFIX = "[a]";
+    public static final String ASYNC_ACTION_SUFFIX = "[a]";
+
+    /**
+     * Marker stored in {@code exclusiveListener} when the submit task is cancelled before the
+     * async id is returned. Distinct from {@code null}, which means the wait timeout already fired.
+     */
+    private static final ActionListener<?> SUBMIT_CANCELLED = sentinel("SUBMIT_CANCELLED");
+
+    /** Marker stored when execute has already taken the submit slot. Distinct from timeout's {@code null}. */
+    private static final ActionListener<?> SUBMIT_COMPLETED = sentinel("SUBMIT_COMPLETED");
+
+    private static ActionListener<?> sentinel(String name) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Object response) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+
+            @Override
+            public String toString() {
+                return name;
+            }
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <R> ActionListener<R> sentinel(ActionListener<?> sentinel) {
+        return (ActionListener<R>) sentinel;
+    }
 
     public void asyncExecute(
         Request request,
@@ -190,6 +224,24 @@ public class AsyncTaskManagementService<
         @Nullable TimeValue keepAlive,
         boolean keepOnCompletion,
         ActionListener<Response> listener
+    ) {
+        asyncExecute(request, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener, null);
+    }
+
+    /**
+     * Executes {@code request} as an async task.
+     * <p>
+     * If {@code submitTask} is cancelled while the submit {@code listener} is still pending, the async
+     * task is cancelled and {@code listener} fails without returning an id. Once the initial response
+     * has been sent, cancelling {@code submitTask} is ignored so the query can outlive the submitting call.
+     */
+    public void asyncExecute(
+        Request request,
+        TimeValue waitForCompletionTimeout,
+        @Nullable TimeValue keepAlive,
+        boolean keepOnCompletion,
+        ActionListener<Response> listener,
+        @Nullable CancellableTask submitTask
     ) {
         final TimeValue resolvedKeepAlive;
         try {
@@ -206,17 +258,29 @@ public class AsyncTaskManagementService<
                 action + ASYNC_ACTION_SUFFIX,
                 new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
             );
+            // If the query runs past wait_for_completion_timeout, the submit responds first, so the query holds the parsed request's
+            // charge until it ends. Taken before the timeout is scheduled, since the response it sends releases the charge.
+            final Releasable hold = ParsedContentReservation.hold(threadPool.getThreadContext());
             boolean operationStarted = false;
             try {
-                operation.execute(
-                    request,
+                AtomicBoolean skipExecute = new AtomicBoolean();
+                ActionListener<Response> storingListener = wrapStoringListener(
                     searchTask,
-                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepOnCompletion, listener)
+                    waitForCompletionTimeout,
+                    keepOnCompletion,
+                    listener,
+                    submitTask,
+                    skipExecute
                 );
+                if (skipExecute.get()) {
+                    return;
+                }
+                operation.execute(request, searchTask, ActionListener.releaseAfter(storingListener, hold));
                 operationStarted = true;
             } finally {
                 // If we didn't start operation for any reason, we need to clean up the task that we have created
                 if (operationStarted == false) {
+                    hold.close();
                     taskManager.unregister(searchTask);
                 }
             }
@@ -227,65 +291,128 @@ public class AsyncTaskManagementService<
         T searchTask,
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
-        ActionListener<Response> listener
+        ActionListener<Response> listener,
+        @Nullable CancellableTask submitTask,
+        AtomicBoolean skipExecute
     ) {
-        AtomicReference<ActionListener<Response>> exclusiveListener = new AtomicReference<>(listener);
-        // This will be performed in case of timeout
-        Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(() -> {
-            ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
-            if (acquiredListener != null) {
-                acquiredListener.onResponse(operation.initialResponse(searchTask));
-            }
-        }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH));
+        final ActionListener<Response> submitListener = ActionListener.notifyOnce(listener);
+        final ActionListener<Response> cancelledSentinel = sentinel(SUBMIT_CANCELLED);
+        final ActionListener<Response> completedSentinel = sentinel(SUBMIT_COMPLETED);
+        AtomicReference<ActionListener<Response>> exclusiveListener = new AtomicReference<>(submitListener);
+        AtomicReference<Scheduler.ScheduledCancellable> timeoutHandlerRef = new AtomicReference<>();
 
-        // This will be performed at the end of normal execution
-        return ActionListener.wrap(response -> {
-            ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
-            if (acquiredListener != null) {
-                // We finished before timeout
-                timeoutHandler.cancel();
-                if (keepOnCompletion) {
+        if (submitTask != null) {
+            // Register before scheduling the timeout so an already-cancelled submit task
+            // steals the listener before a 0-delay timeout can return an id.
+            submitTask.addListener(() -> {
+                if (exclusiveListener.compareAndSet(submitListener, cancelledSentinel) == false) {
+                    return;
+                }
+                skipExecute.set(true);
+                String reason = Objects.requireNonNullElse(submitTask.getReasonCancelled(), "submit task cancelled");
+                try {
+                    cancelTimeout(timeoutHandlerRef);
+                    if (searchTask.isCancelled() == false) {
+                        searchTask.cancelTask(taskManager, () -> {}, reason);
+                    }
+                } catch (RuntimeException e) {
+                    logger.warn("failed to cancel async task after submit cancel", e);
+                } finally {
+                    try {
+                        submitListener.onFailure(new TaskCancelledException(reason));
+                    } catch (RuntimeException e) {
+                        logger.warn("failed to notify submit listener after cancel", e);
+                    }
+                }
+            });
+        }
+
+        timeoutHandlerRef.set(threadPool.schedule(() -> {
+            if (exclusiveListener.compareAndSet(submitListener, null)) {
+                submitListener.onResponse(operation.initialResponse(searchTask));
+            }
+        }, waitForCompletionTimeout, threadPool.generic()));
+        if (exclusiveListener.get() != submitListener) {
+            cancelTimeout(timeoutHandlerRef);
+        }
+
+        // Separate onResponse/onFailure so a throw in one path cannot complete the search task twice.
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(completedSentinel);
+                if (acquiredListener == submitListener) {
+                    cancelTimeout(timeoutHandlerRef);
+                    if (keepOnCompletion) {
+                        storeResults(
+                            searchTask,
+                            new StoredAsyncResponse<>(response, searchTask.getExpirationTimeMillis()),
+                            ActionListener.running(() -> acquiredListener.onResponse(response))
+                        );
+                    } else {
+                        taskManager.unregister(searchTask);
+                        searchTask.onResponse(response);
+                        acquiredListener.onResponse(response);
+                    }
+                } else if (acquiredListener == cancelledSentinel) {
+                    discardAborted(searchTask, response, null);
+                } else if (acquiredListener == null) {
+                    operation.onResponseAfterTimeout(response);
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(response, searchTask.getExpirationTimeMillis()),
-                        ActionListener.running(() -> acquiredListener.onResponse(response))
+                        ActionListener.running(response::decRef)
                     );
                 } else {
-                    taskManager.unregister(searchTask);
-                    searchTask.onResponse(response);
-                    acquiredListener.onResponse(response);
+                    response.decRef();
                 }
-            } else {
-                // We finished after timeout - saving results
-                operation.onResponseAfterTimeout(response);
-                storeResults(
-                    searchTask,
-                    new StoredAsyncResponse<>(response, searchTask.getExpirationTimeMillis()),
-                    ActionListener.running(response::decRef)
-                );
             }
-        }, e -> {
-            ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
-            if (acquiredListener != null) {
-                // We finished before timeout
-                timeoutHandler.cancel();
-                if (keepOnCompletion) {
-                    storeResults(
-                        searchTask,
-                        new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()),
-                        ActionListener.running(() -> acquiredListener.onFailure(e))
-                    );
-                } else {
-                    taskManager.unregister(searchTask);
-                    searchTask.onFailure(e);
-                    acquiredListener.onFailure(e);
+
+            @Override
+            public void onFailure(Exception e) {
+                ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(completedSentinel);
+                if (acquiredListener == submitListener) {
+                    cancelTimeout(timeoutHandlerRef);
+                    if (keepOnCompletion) {
+                        storeResults(
+                            searchTask,
+                            new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()),
+                            ActionListener.running(() -> acquiredListener.onFailure(e))
+                        );
+                    } else {
+                        taskManager.unregister(searchTask);
+                        searchTask.onFailure(e);
+                        acquiredListener.onFailure(e);
+                    }
+                } else if (acquiredListener == cancelledSentinel) {
+                    discardAborted(searchTask, null, e);
+                } else if (acquiredListener == null) {
+                    operation.onFailureAfterTimeout(e);
+                    storeResults(searchTask, new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()));
                 }
-            } else {
-                // We finished after timeout - saving exception
-                operation.onFailureAfterTimeout(e);
-                storeResults(searchTask, new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()));
             }
-        });
+        };
+    }
+
+    private static void cancelTimeout(AtomicReference<Scheduler.ScheduledCancellable> timeoutHandlerRef) {
+        Scheduler.ScheduledCancellable timeoutHandler = timeoutHandlerRef.get();
+        if (timeoutHandler != null) {
+            timeoutHandler.cancel();
+        }
+    }
+
+    private void discardAborted(T searchTask, @Nullable Response response, @Nullable Exception exception) {
+        try {
+            taskManager.unregister(searchTask);
+            Exception failure = exception != null ? exception
+                : searchTask.isCancelled() ? searchTask.getTaskCancelledException()
+                : new TaskCancelledException("submit task cancelled");
+            searchTask.onFailure(failure);
+        } finally {
+            if (response != null) {
+                response.decRef();
+            }
+        }
     }
 
     private void storeResults(T searchTask, StoredAsyncResponse<Response> storedResponse) {
@@ -370,7 +497,7 @@ public class AsyncTaskManagementService<
                 () -> ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     timeout,
-                    threadPool.executor(ThreadPool.Names.SEARCH),
+                    threadPool.generic(),
                     ActionListener.wrap(
                         r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
                         e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))

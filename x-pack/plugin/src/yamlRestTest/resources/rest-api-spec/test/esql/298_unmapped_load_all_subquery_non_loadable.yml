@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_subqueries, subquery_in_from_command, support_partial_results ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_subqueries, subquery_in_from_command, support_partial_results ]
       reason: 'a type with no implicit conversion from KEYWORD cannot be rebuilt from _source, so a sibling branch carrying a value null-fills and warns'
 
   - do:
@@ -130,9 +130,16 @@ setup:
 
 ---
 "LOAD_ALL subquery warns and nulls when unmapped sibling has an aggregate_metric_double _source value":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
   - do:
       warnings:
-        - "Field [tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        - "Field [tx] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1 METADATA _index), (FROM idx2 METADATA _index) | KEEP _index, tx | SORT _index | LIMIT 10'
@@ -140,9 +147,16 @@ setup:
 
 ---
 "LOAD_ALL comma form warns and nulls where the subquery form used to fail":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
   - do:
       warnings:
-        - "Field [vec] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        - "Field [vec] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM idx1, idx2 | EVAL present = vec IS NOT NULL | KEEP present | SORT present DESC | LIMIT 2'
@@ -150,9 +164,16 @@ setup:
 
 ---
 "LOAD_ALL subquery still warns when another branch mentions the field and a third lacks it":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
   - do:
       warnings:
-        - "Field [txt] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        - "Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt | LIMIT 10'

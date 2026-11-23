@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -53,7 +52,9 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -132,6 +133,7 @@ public class IndexEngine extends InternalEngine {
     );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
+    private static final String HOLLOW_FLUSH_REFRESH_SOURCE = "hollow_flush";
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
@@ -338,6 +340,9 @@ public class IndexEngine extends InternalEngine {
                         assert timestampFieldMappedType.indexType().hasDocValuesSkipper();
                         try (var fieldsProducer = codec.docValuesFormat().fieldsProducer(segmentReadState)) {
                             var docValuesSkipper = fieldsProducer.getSkipper(timestampFieldInfo);
+                            if (docValuesSkipper == null || docValuesSkipper.docCount() == 0) {
+                                continue;
+                            }
                             segmentMinValue = docValuesSkipper.minValue();
                             segmentMaxValue = docValuesSkipper.maxValue();
                         }
@@ -379,7 +384,8 @@ public class IndexEngine extends InternalEngine {
                 }
             }
         }
-        if (found) {
+        // found already means min <= max today. The extra check keeps a future bug from failing the commit.
+        if (found && minTimestampValue <= maxTimestampValue) {
             if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
             } else {
@@ -517,10 +523,18 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        assert isFlushLockIsHeldByCurrentThread();
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && getProcessedLocalCheckpoint() == hollowMaxSeqNo) {
+            // If the commit we'll write is hollow, getCommitExtraUserData() will calculate DOC_STATS and SHARD_FIELD_STATS when Lucene
+            // visits the live commit data. Those stats are read from the internal searcher inside IndexWriter#commit. Refresh before the
+            // commit so documents indexed since the last internal refresh are included in the stats. Note that the refresh may grab
+            // Lucene's full-flush lock, but that should not be held by anyone else since we already hold the flushLock here.
+            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
+        }
         super.commitIndexWriter(writer, translog);
     }
 
@@ -567,12 +581,16 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public void onBatchParsingCompleted(BatchMappingContext context) {
+        documentParsingReporter.onBatchParsingCompleted(context.docCount(), context::normalizedSize, context::addColumn);
+    }
+
+    @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        // parsing was reported for the whole chunk in onBatchParsingCompleted; indexing is still reported per row
+        // TODO: make onIndexingCompleted batch aware and avoid materializeIndexOps here
         List<Index> operations = engineBatch.batch().materializeIndexOps();
-        for (Index operation : operations) {
-            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
-        }
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
@@ -632,7 +650,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
-        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+        return isLastCommitHollow(segmentInfos.getUserData());
+    }
+
+    public static boolean isLastCommitHollow(Map<String, String> commitUserData) {
+        String translogRecoveryStartFile = commitUserData.get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
         return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 
@@ -712,10 +734,13 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
-        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+                /// Note that we don't wait for the durability of the commit produced by this flush
+                /// since we set `IS_FLUSH_BY_REFRESH`.
+                /// See [IndexEngine#waitForCommitDurability(long, ActionListener)].
                 flush(true, true);
             } finally {
                 IS_FLUSH_BY_REFRESH.set(false);
@@ -1065,13 +1090,8 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
-        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new MergePolicy.OneMerge(oneMerge) {
+        return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new SizeTrackingOneMerge(oneMerge) {
             private volatile boolean isComplete = false;
-
-            @Override
-            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                return oneMerge.wrapForMerge(reader);
-            }
 
             @Override
             public boolean isAborted() {

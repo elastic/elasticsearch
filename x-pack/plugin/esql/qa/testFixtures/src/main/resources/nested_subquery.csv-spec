@@ -984,11 +984,13 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 
+// tag::forkInsideAndAfterMultiSourceFrom[]
 FROM (FROM employees | WHERE emp_no >= 10091 AND emp_no < 10093 | FORK (WHERE emp_no == 10091) (WHERE emp_no == 10092)),
      (FROM employees | WHERE emp_no >= 10092 AND emp_no < 10094 | EVAL _fork = "fork1")
 | FORK (WHERE emp_no > 10091) (WHERE emp_no <= 10091)
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
+// end::forkInsideAndAfterMultiSourceFrom[]
 ;
 
 _fork:keyword | emp_no:integer
@@ -1204,6 +1206,66 @@ _fork:keyword | @timestamp:date_nanos          | event_duration:long
 fork1         | 2023-10-23T13:33:34.937123456Z | 1232382
 fork2         | 2023-10-23T13:33:34.937Z       | 1232382
 fork2         | 2023-10-23T13:33:34.937Z       | 1232382
+;
+
+nestedSubqueryForkNullFillsImplicitDateNanosCast
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+| WHERE event_duration == 1232382
+| FORK (KEEP @timestamp) (KEEP message)
+| KEEP @timestamp, _fork
+| SORT _fork, @timestamp
+;
+
+@timestamp:date_nanos          | _fork:keyword
+2023-10-23T13:33:34.937Z       | fork1
+2023-10-23T13:33:34.937Z       | fork1
+2023-10-23T13:33:34.937123456Z | fork1
+null                           | fork2
+null                           | fork2
+null                           | fork2
+;
+
+nestedSubqueryForkNullFillsAtEveryLevelOfNestedUnionAlls
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM (FROM (FROM sample_data | WHERE event_duration == 1232382), (FROM sample_data_ts_nanos | WHERE event_duration == 1232382)
+            | FORK (KEEP @timestamp, message) (KEEP message)),
+           (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+      | FORK (EVAL t = @timestamp) (KEEP message)),
+     (FROM sample_data_ts_nanos | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+| RENAME t AS u
+| KEEP @timestamp, u, message, _fork
+| SORT @timestamp NULLS FIRST, u NULLS FIRST, _fork NULLS FIRST
+;
+
+@timestamp:date_nanos          | u:date_nanos                   | message:keyword | _fork:keyword
+null                           | null                           | Disconnected    | fork1
+null                           | null                           | Disconnected    | fork1
+null                           | null                           | Disconnected    | fork2
+null                           | null                           | Disconnected    | fork2
+null                           | null                           | Disconnected    | fork2
+null                           | null                           | Disconnected    | fork2
+null                           | null                           | Disconnected    | fork2
+2023-10-23T13:33:34.937Z       | 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937Z       | 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937123456Z | null                           | Disconnected    | null
+2023-10-23T13:33:34.937123456Z | 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;
 
 nestedSubqueryForkAfterExplicitDateNanosCast

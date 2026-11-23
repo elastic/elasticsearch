@@ -1084,7 +1084,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
      * And(realCol LIKE "x*", _file.name LIKE "y*"): canConvert is disjunctive so the And converts
      * (left arm), but isFullyEvaluable must be RECHECK because the virtual-column conjunct has no
      * predicate block at runtime and must not be dropped from FilterExec.
-     * See elastic/esql-planning#2052.
+    *
      */
     public void testAndWithRealAndVirtualLikeIsRecheck() {
         Attribute realCol = attr("url", DataType.KEYWORD);

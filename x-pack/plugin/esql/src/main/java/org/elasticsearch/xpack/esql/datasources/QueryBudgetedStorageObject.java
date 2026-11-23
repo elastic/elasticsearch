@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -103,6 +104,16 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
     }
 
     @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
+    public String probedVersion() {
+        return delegate.probedVersion();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -123,22 +134,8 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        if (stream instanceof PermitReleasingInputStream wrapper) {
-            // Route the abort through to the wrapped inner stream so the delegate (and
-            // eventually the storage provider) can do a non-draining abort. Calling
-            // wrapper.close() instead would cascade super.close() → in.close() and trigger
-            // close-time drain we are trying to avoid on providers like S3.
-            try {
-                delegate.abortStream(wrapper.inner());
-            } finally {
-                wrapper.markReleased();
-            }
-            return;
-        }
-        // Not a stream we produced — should be unreachable since the SPI contract requires
-        // the exact instance returned from newStream(). Fall back to the SPI default.
-        stream.close();
+    public void close() throws IOException {
+        delegate.close();
     }
 
     @Override
@@ -368,6 +365,11 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
         return delegate.metrics();
     }
 
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        delegate.attachMetrics(metrics, scheme);
+    }
+
     /**
      * Reads {@link StorageIoAffinity#current()} on the calling thread. SDK completion callbacks
      * must use the returned token instead of the ThreadLocal.
@@ -387,6 +389,16 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
         return new PermitToken(lease, countGets);
     }
 
+    /**
+     * Starts the delegated GET on the grant releaser (SDK completion thread or
+     * {@code esql_worker}). Native-async storage (S3, HTTP, Azure with
+     * {@code blobAsyncClient}) queues SDK I/O and returns without blocking.
+     * Executor-wrapped storage (GCS; Azure/S3 without an async client;
+     * {@link StorageObject} default) submits a blocking read on {@code executor}.
+     * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
+     * forking them onto {@code esql_external_io} would queue a grant with no GET in flight. That
+     * occupancy is a later fix.
+     */
     private void startDelegate(
         long position,
         long length,
@@ -457,17 +469,6 @@ class QueryBudgetedStorageObject implements StorageObject, ResumeBypassingStorag
 
         InputStream inner() {
             return in;
-        }
-
-        /**
-         * Releases the permit without closing the wrapped stream. Used by
-         * {@link QueryBudgetedStorageObject#abortStream(InputStream)} after the inner stream
-         * has been aborted directly via the delegate, so we don't double-close.
-         */
-        void markReleased() {
-            if (released.getAndSet(true) == false) {
-                budget.release(token.lease, token.countGets);
-            }
         }
 
         @Override

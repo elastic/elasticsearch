@@ -145,8 +145,11 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.snapshots.ShardRestoringException.SHARD_RESTORING_EXCEPTION_VERSION;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
@@ -479,20 +482,27 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchPhaseExecutionException() throws IOException {
-        ShardSearchFailure[] empty = ShardSearchFailure.EMPTY_ARRAY;
-        SearchPhaseExecutionException ex = serialize(new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), empty));
+        SearchPhaseExecutionException ex = serialize(
+            new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), List.of())
+        );
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
-        assertEquals(empty.length, ex.shardFailures().length);
-        ShardSearchFailure[] one = new ShardSearchFailure[] { new ShardSearchFailure(new IllegalArgumentException("nono!")) };
+        assertThat(ex.getCause(), instanceOf(NullPointerException.class));
+        assertThat(ex.shardFailures(), empty());
 
-        ex = serialize(new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), one));
+        ex = serialize(
+            new SearchPhaseExecutionException(
+                "boom",
+                "baam",
+                new NullPointerException(),
+                List.of(new ShardSearchFailure(new IllegalArgumentException("nono!")))
+            )
+        );
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
-        assertEquals(one.length, ex.shardFailures().length);
-        assertTrue(ex.shardFailures()[0].getCause() instanceof IllegalArgumentException);
+        assertThat(ex.getCause(), instanceOf(NullPointerException.class));
+        assertThat(ex.shardFailures(), hasSize(1));
+        assertThat(ex.shardFailures().getFirst().getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testRoutingMissingException() throws IOException {
@@ -1025,6 +1035,27 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(RestStatus.FORBIDDEN, ex.status());
         assertEquals(List.of("logs-app-000001"), ex.getMetadata("es.index"));
         assertEquals(List.of("a3f7c2d1"), ex.getMetadata("es.recovery_id"));
+    }
+
+    /**
+     * The exception carries {@code es.index} without {@code es.index_uuid}, which the inherited {@code toString()} cannot handle, so it
+     * has its own. Printing it, as logging and {@code ShardSearchFailure} do, must not fail.
+     */
+    public void testShardRestoringExceptionToString() throws IOException {
+        ShardRestoringException ex = new ShardRestoringException("logs-app-000001", "a3f7c2d1");
+        assertEquals(
+            "[logs-app-000001] org.elasticsearch.snapshots.ShardRestoringException: index [logs-app-000001] is currently being restored "
+                + "from a snapshot and is temporarily unavailable [recovery_id=a3f7c2d1]",
+            ex.toString()
+        );
+        assertThat(ExceptionsHelper.stackTrace(ex), containsString("[recovery_id=a3f7c2d1]"));
+
+        // an exception that was sent over the transport prints the same way
+        ShardRestoringException deserialized = serialize(
+            ex,
+            TransportVersionUtils.randomVersionSupporting(SHARD_RESTORING_EXCEPTION_VERSION)
+        );
+        assertEquals(ex.toString(), deserialized.toString());
     }
 
     public void testShardRestoringExceptionRejectsNulls() {

@@ -81,20 +81,6 @@ user3:
           }
         }
 
-remote_fetch_dls_fls:
-  cluster: []
-  indices:
-    - names: [ 'index' ]
-      privileges: [ 'read' ]
-      field_security:
-        grant: [ value, org ]
-      query: '{"term":{"org":"sales"}}'
-    - names: [ 'indexpartial' ]
-      privileges: [ 'read' ]
-      field_security:
-        grant: [ value ]
-      query: '{"term":{"org":"sales"}}'
-
 # Passes global.data_source authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
 user_dataset_authorize_only:
   cluster: []
@@ -270,6 +256,32 @@ dls_user:
     - names: [ 'lookup-user2' ]
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
+    # Also used to prove an ungrouped MIN/MAX is not answered from segment metadata, which covers all documents
+    - names: [ 'min-max-dls' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "marketing"}}'
+
+# Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
+# delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).
+eql_dls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events' ]
+      privileges: [ 'read' ]
+      query: '{"term": {"event.category": "process"}}'
+
+# Reads eql-events, but field-level security hides the message field. Used to prove the EQL source command's delegated
+# search honors the caller's FLS: the hidden field never appears in the response _source it converts to rows.
+eql_fls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events-fls' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'message' ]
 
 dls_user2:
   cluster: []
@@ -600,3 +612,22 @@ ds_dataset_query_partial:
   indices:
     - names: [ 'security_it_ds_keep_*' ]
       privileges: [ 'read' ]
+
+fls_unmapped_container_except_k:
+  cluster: []
+  indices:
+    - names: [ 'index-unmapped-container', 'index-unmapped-source' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'k' ]
+
+# Hides one key of a flattened field and keeps the others.
+fls_flattened_except_key:
+  cluster: []
+  indices:
+    - names: [ 'index-flattened-keys*' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'attrs.bar' ]

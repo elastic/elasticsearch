@@ -9,12 +9,10 @@
 
 package org.elasticsearch.join.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -173,9 +171,9 @@ public final class ParentIdQueryBuilder extends LeafQueryBuilder<ParentIdQueryBu
                 throw new QueryShardException(context, "[" + NAME + "] no relation found for child [" + type + "]");
             }
         }
-        return new BooleanQuery.Builder().add(new TermQuery(new Term(joiner.parentJoinField(type), id)), BooleanClause.Occur.MUST)
+        return new BooleanQuery.Builder().add(joiner.parentIdFilter(type, id, context), BooleanClause.Occur.MUST)
             // Need to take child type into account, otherwise a child doc of different type with the same id could match
-            .add(new TermQuery(new Term(joiner.getJoinField(), type)), BooleanClause.Occur.FILTER)
+            .add(joiner.filter(type, context), BooleanClause.Occur.FILTER)
             .build();
     }
 

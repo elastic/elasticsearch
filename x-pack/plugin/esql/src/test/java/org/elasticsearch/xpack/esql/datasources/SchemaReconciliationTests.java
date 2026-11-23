@@ -6,16 +6,21 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -314,6 +319,57 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().size(), equalTo(2));
         assertThat(result.unifiedSchema().get(0).name(), equalTo("id"));
         assertThat(result.unifiedSchema().get(1).name(), equalTo("name"));
+    }
+
+    /**
+     * Each file is under a cap of 3 columns, but their distinct names merge into 4: the per-file cap in the readers
+     * does not see it, so the merge must refuse.
+     */
+    public void testUnionByNameRefusesMergedSchemaOverCap() {
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            f1,
+            meta(List.of(attr("a", DataType.INTEGER), attr("b", DataType.INTEGER))),
+            f2,
+            meta(List.of(attr("c", DataType.INTEGER), attr("d", DataType.INTEGER)))
+        );
+
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 3)
+        );
+        assertThat(e.getMessage(), containsString("more than [3] columns"));
+        assertThat(e.getMessage(), containsString("raise [esql.external.schema_max_fields]"));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        // At the cap the merge still succeeds.
+        assertThat(
+            SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), 4)
+                .unifiedSchema()
+                .size(),
+            equalTo(4)
+        );
+    }
+
+    /** At the ceiling raising the cap is refused too, so the refusal points at declaring the columns instead. */
+    public void testUnionByNameOverCeilingSuggestsDeclaringColumns() {
+        int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        List<Attribute> wide = new ArrayList<>(ceiling);
+        for (int i = 0; i < ceiling; i++) {
+            wide.add(attr("c" + i, DataType.INTEGER));
+        }
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(
+            path("s3://b/f1.parquet"),
+            meta(wide),
+            path("s3://b/f2.parquet"),
+            meta(List.of(attr("extra", DataType.INTEGER)))
+        );
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, WarningSinks.FAILING, new SchemaInterner(null, 0), ceiling)
+        );
+        assertThat(e.getMessage(), containsString("dynamic: false"));
+        assertThat(e.getMessage(), not(containsString("raise")));
     }
 
     public void testUnionByNameAddedColumn() {
@@ -974,8 +1030,8 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     public void testColumnMappingRoundTripAllCastTypes() throws IOException {
         ColumnMapping original = new ColumnMapping(
-            new int[] { 0, 1, 2 },
-            new DataType[] { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS }
+            new int[] { 0, 1, 2, 3 },
+            new DataType[] { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS, DataType.KEYWORD }
         );
         assertThat(roundTrip(original), equalTo(original));
     }
@@ -998,10 +1054,53 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(roundTrip(original), equalTo(original));
     }
 
-    private static ColumnMapping roundTrip(ColumnMapping mapping) throws IOException {
+    /**
+     * A KEYWORD cast toward a node predating {@code esql_column_mapping_keyword_cast} is refused as
+     * {@link IllegalArgumentException} (HTTP 400) rather than {@link IllegalStateException} (HTTP 500).
+     * Sending the ordinal would corrupt the page on the older node.
+     */
+    public void testKeywordCastRefusedBelowItsTransportVersion() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_column_mapping_keyword_cast"));
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(before);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapping.writeTo(out));
+        assertThat(e.getMessage(), containsString("rolling upgrade in progress"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat("writeTo must not touch the stream before refusing", out.bytes().length(), equalTo(0));
+    }
+
+    /**
+     * The same KEYWORD mapping round-trips at the supporting transport version and at current, so the
+     * gate discriminates rather than always refusing.
+     */
+    public void testKeywordCastRoundTripsAtItsTransportVersion() throws IOException {
+        ColumnMapping original = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        TransportVersion at = TransportVersion.fromName("esql_column_mapping_keyword_cast");
+        assertThat(roundTrip(original, at), equalTo(original));
+        assertThat(roundTrip(original, TransportVersion.current()), equalTo(original));
+    }
+
+    /**
+     * A mapping with no KEYWORD cast still serializes to a node predating the KEYWORD ordinal, so the
+     * gate is keyed off {@code hasKeywordCast()} rather than the transport version alone.
+     */
+    public void testNonKeywordCastSerializesBelowKeywordCastTransportVersion() throws IOException {
+        ColumnMapping original = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_column_mapping_keyword_cast"));
+        assertThat(roundTrip(original, before), equalTo(original));
+    }
+
+    private static ColumnMapping roundTrip(ColumnMapping mapping) throws IOException {
+        return roundTrip(mapping, TransportVersion.current());
+    }
+
+    private static ColumnMapping roundTrip(ColumnMapping mapping, TransportVersion version) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
         mapping.writeTo(out);
         StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
         return new ColumnMapping(in);
     }
 

@@ -31,11 +31,12 @@ public interface MasterServiceTaskQueue<T extends ClusterStateTaskListener> {
      * @param task The task to execute.
      *
      * @param timeout An optional timeout for the task. If the task is not processed before the timeout elapses, it fails with a {@link
-     *                ProcessClusterEventTimeoutException} (which is passed to {@link ClusterStateTaskListener#onFailure}). Tasks that are
-     *                directly associated with user actions conventionally use a timeout which comes from the REST parameter {@code
-     *                ?master_timeout}, which is typically available from {@link MasterNodeRequest#masterNodeTimeout()}. Tasks that
-     *                correspond with internal actions should normally have no timeout since it is usually better to wait patiently in the
-     *                queue until processed rather than to fail, especially if the only reasonable reaction to a failure is to retry.
+     *                ProcessClusterEventTimeoutException} (which is passed to {@link ClusterStateTaskListener#onFailure} on a
+     *                {@code GENERIC} thread). Tasks that are directly associated with user actions conventionally use a timeout which comes
+     *                from the REST parameter {@code ?master_timeout}, which is typically available from
+     *                {@link MasterNodeRequest#masterNodeTimeout()}. Tasks that correspond with internal actions should normally have no
+     *                timeout since it is usually better to wait patiently in the queue until processed rather than to fail. This is
+     *                especially true if the only reasonable reaction to a failure is to retry.
      *                <p>
      *                The values {@code null} and {@link MasterNodeRequest#INFINITE_MASTER_NODE_TIMEOUT} (i.e. {@link TimeValue#MINUS_ONE})
      *                both indicate that the task should never time out.

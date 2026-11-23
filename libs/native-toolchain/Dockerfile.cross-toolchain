@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         xz-utils \
         bzip2 \
+        unzip \
         clang-21 \
         lld-21 \
         llvm-21 \

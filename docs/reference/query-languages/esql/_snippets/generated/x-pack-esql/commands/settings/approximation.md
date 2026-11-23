@@ -7,9 +7,15 @@ stack: ga 9.5+, preview =9.4
 ```
 Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 
-The default itself is configurable. If a query does not specify a value, the `esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise license; without one the cluster default does not apply and queries run exactly. {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
+When `approximation` is set in more than one place, for example in the request body and with `SET`, `rows` falls back to the less specific place if the more specific one doesn't set it. `confidence_level` always comes from the most specific place, so it resets to `0.90` when that place doesn't set it. A `false` value discards the values of the less specific places, so if a more specific place enables approximation again without setting `rows`, `rows` is the system default.
+
+{applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}` The default itself is configurable. If a query does not specify a value, the `esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not configured either, query approximation is off. Enabling it cluster-wide requires an Enterprise license; without one the cluster default does not apply and queries run exactly.
 
 **Type**: `boolean` `map_param`
+
+**Can also be set in**:
+- the request body, as `settings.approximation` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.approximation` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
 
 Map entries:
 - `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.

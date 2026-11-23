@@ -166,8 +166,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             request.routing(),
             requestedSlice,
             "search shards request",
-            target,
-            false
+            target
         );
     }
 }

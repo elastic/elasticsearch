@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -84,6 +83,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskSta
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStreamLifecycleSettings;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomRolloverConditions;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FIVE_HUNDRED_TWELVE_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
@@ -2407,29 +2407,6 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             settings,
             ignored -> downsamplingIndices
         );
-    }
-
-    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(
-        Boolean minimumLifecycleEnabled,
-        TimeValue globalDefaultRetention,
-        TimeValue globalMaxRetention
-    ) {
-        Settings.Builder clusterSettingsBuilder = Settings.builder();
-        if (globalDefaultRetention != null) {
-            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
-        }
-        if (globalMaxRetention != null) {
-            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
-        }
-        DataStreamLifecycleSettings settings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(clusterSettingsBuilder.build())
-        );
-        // The minimum lifecycle for time series cannot be enabled via the cluster settings yet.
-        // This should be replaced with the cluster setting once it is available.
-        if (minimumLifecycleEnabled != null) {
-            settings.setMinimumLifecycleEnabled(minimumLifecycleEnabled);
-        }
-        return settings;
     }
 
     private <T extends TransportRequest> List<T> requestsOfType(Class<T> type) {

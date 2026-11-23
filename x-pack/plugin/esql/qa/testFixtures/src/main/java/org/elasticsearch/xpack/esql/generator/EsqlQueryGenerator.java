@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.FillNullGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.RowGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -118,6 +121,7 @@ public class EsqlQueryGenerator {
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
         EvalGenerator.INSTANCE,
+        FillNullGenerator.INSTANCE,
         ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
         HighlightGenerator.INSTANCE,
@@ -849,6 +853,10 @@ public class EsqlQueryGenerator {
             // no dense vectors for now, they are not supported in most commands
             || field.type().contains("vector")
             || field.originalTypes().stream().anyMatch(x -> x.contains("vector"))) == false;
+    }
+
+    public static boolean isUnmappedFieldsColumn(Column column) {
+        return column.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) && column.type().equals(DataType.SOURCE.outputType());
     }
 
     public static String quote(String rawName) {

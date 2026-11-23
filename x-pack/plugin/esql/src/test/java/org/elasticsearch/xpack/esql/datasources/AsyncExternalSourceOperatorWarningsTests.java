@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.nullValue;
  * <p>They have to land in the driver's {@link DriverContext} sink, which {@code DriverCompletionInfo} ships back from
  * whatever node ran the scan for the coordinator to re-emit. The earlier route — {@code HeaderWarning} on the driver
  * thread — only reached the client when the scan happened to run on the coordinator, so a read the planner shipped to
- * a data node returned the right values with no warning at all (elastic/esql-planning#1837).
+ * a data node returned the right values with no warning at all.
  */
 public class AsyncExternalSourceOperatorWarningsTests extends ESTestCase {
 

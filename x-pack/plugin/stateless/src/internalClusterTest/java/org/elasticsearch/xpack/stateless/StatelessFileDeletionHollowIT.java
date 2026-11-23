@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -34,7 +35,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
@@ -219,7 +220,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         assertThat(unhollowShard.getOperationPrimaryTerm(), equalTo(primaryTerm));
 
         // The commit acquired on the IndexEngine for snapshotting has been retained during hollowing
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
+        var blobName = BccBlob.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
         var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
             .listBlobs(OperationPurpose.INDICES)
             .keySet();
@@ -351,7 +352,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         // segments_a
         logLastCommittedSegmentInfos(hollowShard);
 
-        final var blobName = BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
+        final var blobName = BccBlob.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
 
         // The commit acquired on the HollowIndexEngine for snapshotting has been retained after unhollowing
         {
@@ -436,7 +437,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         logLastCommittedSegmentInfos(indexShard);
 
         // Acquire commit for searcher
-        var searcher = indexShard.acquireSearcher("searcher");
+        var searcher = indexShard.acquireExternalSearcher("searcher", SplitShardCountSummary.IRRELEVANT);
         assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(5L));
         assertThat(searcher.getDirectoryReader().getIndexCommit().getSegmentCount(), equalTo(2));
 
@@ -529,7 +530,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         // while the prewarming (reading commits in BCC using cache) also updates the IndexBlobStoreCacheDirectory metadata. Also,
         // metadata are updated on upload so if there are not more uploads some metadata remains even if the file were deleted.
 
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(searcher.getDirectoryReader().getIndexCommit().getGeneration());
+        var blobName = BccBlob.blobNameFromGeneration(searcher.getDirectoryReader().getIndexCommit().getGeneration());
         var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
             .listBlobs(OperationPurpose.INDICES)
             .keySet();
@@ -598,7 +599,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
     }
 
     private static void ensureSearcherCanAccessStoredFieldFile(Engine.Searcher searcher) throws IOException {
-        searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;
@@ -618,7 +619,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
                     }
                 };
             }
-        });
+        }));
     }
 
     private static void ensureSnapshotCanReadFiles(Engine.IndexCommitRef snapshot) throws IOException {
@@ -642,9 +643,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
                 List<String> blobsToDelete = new ArrayList<>();
                 blobNames.forEachRemaining(blobsToDelete::add);
                 var deletingSnapshotBackingBCC = blobsToDelete.stream()
-                    .anyMatch(
-                        name -> name.contains(BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration()))
-                    );
+                    .anyMatch(name -> name.contains(BccBlob.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration())));
                 if (deletingSnapshotBackingBCC && isAllowedToDeleteSnapshotBackingBCCs.get() == false) {
                     throw new AssertionError("Blob deletion should not be triggered " + blobsToDelete);
                 }

@@ -49,20 +49,6 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
     );
 
     /**
-     * Tests with {@code TS}, which {@code LOAD_ALL} does not support.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
-     */
-    private static final Set<String> NEEDS_TS = Set.of(
-        "unmapped-load.evalOnMaxOverTime",
-        "unmapped-load.explicitLastOverTimeUnmappedTsIndex",
-        "unmapped-load.loadViewTsBranchingStatsLoadMode",
-        "unmapped-load.loadViewTsMaxBytesLoadMode",
-        "unmapped-load.maxOverTimeWithFiltering",
-        "unmapped-load.unmappedNumericFromK8sSyntheticTsIndex",
-        "unmapped-type-conflicts.tsPartiallyMappedNonKeywordFieldWithCast"
-    );
-
-    /**
      * Tests where {@code LOAD_ALL} is meant to differ: a field that one branch of a subquery names is loaded in that branch only by
      * {@code LOAD}, which null-fills it in the others, and in all of them by {@code LOAD_ALL}.
      */
@@ -120,7 +106,6 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
         @Override
         public TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             assumeTrue("LOAD_ALL does not support ROW yet", NEEDS_ROW.contains(testId) == false);
-            assumeTrue("LOAD_ALL does not support TS", NEEDS_TS.contains(testId) == false);
             assumeTrue(
                 "LOAD_ALL differs from LOAD by design here: it loads the field in the other branches too",
                 DIFFERS_BY_DESIGN.contains(testId) == false

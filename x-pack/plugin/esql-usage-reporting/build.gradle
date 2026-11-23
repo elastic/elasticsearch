@@ -1,0 +1,29 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-usage-reporting'
+  description = 'Reports ES|QL Data Federation usage to the Elastic Usage API on hosted deployments'
+  classname = 'org.elasticsearch.xpack.esql.usage.EsqlUsageReportingPlugin'
+  extendedPlugins = ['x-pack-esql', 'x-pack-core']
+  // Serverless has its own collector: running both would meter the same queries twice.
+  deploymentTarget = 'STATEFUL_ONLY'
+}
+
+base {
+  archivesName = 'esql-usage-reporting'
+}
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(path: xpackModule('core'))
+
+  testImplementation project(':test:framework')
+}

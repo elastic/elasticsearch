@@ -358,7 +358,7 @@ The following mapping parameters are accepted:
 :   Which scoring algorithm or *similarity* should be used. Defaults to `BM25`.
 
 `split_queries_on_whitespace`
-:   Whether [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default). Query terms longer than 255 characters are also split at that length, so a `match` query for a longer value without whitespace won't match it; use a [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query for such values.
+:   Whether [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default). Each piece is also split every 255 UTF-16 code units (about 127 emoji), counted after any character filters. A `match` query for a longer value without whitespace may not match it. Use a [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query for such values.
 
 `time_series_dimensions`
 :   (Optional, array of strings) A list of fields inside the flattened object, where each field is a dimension of the time series. Each field is specified using the relative path from the root field and does not include the root field name.

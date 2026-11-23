@@ -1641,6 +1641,22 @@ decade:integer | date_range:date_range
 1900           | 1900-01-01..1910-01-01
 ;
 
+// The same with a missing range, so that the result shows that a null stays null and not only that a range that is there stays as it is.
+fillNullMissingDateRangeStaysNull
+required_capability: fillnull
+required_capability: date_range_field_type_v6
+
+ROW date_range = TO_DATE_RANGE(null)
+| FILLNULL DEFAULT ON date_range
+| FILLNULL "1900-01-01..1910-01-01" ON date_range
+;
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [date_range]; provide an explicit value
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [date_range]
+
+date_range:date_range
+null
+;
+
 fillNullCounterLongIsLeftUnchanged
 required_capability: fillnull
 required_capability: counter_types

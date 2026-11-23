@@ -185,7 +185,7 @@ cnt:long | language_code:integer
 1        | 4
 ;
 
-// The ROW binding shadows the registered dataset of the same name; the dataset is not read.
+// The ROW named subquery shadows the registered dataset of the same name; the dataset is not read.
 letBindingShadowsDataset
 required_capability: named_subquery_let
 required_capability: dataset_in_from_command

@@ -13,36 +13,13 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.lucene.LuceneForks.Fork;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 
+/**
+ * Unit tests for the {@link LuceneForks} class itself
+ */
 public class LuceneForksTests extends ESTestCase {
-
-    /**
-     * Fails when we upgrade to a Lucene release that contains the upstream fix for a registered fork.
-     * If this fails, the message says which fork to delete.
-     */
-    public void testNoForkHasExpired() {
-        for (Fork fork : LuceneForks.ALL) {
-            assertFalse(fork.expiryMessage(Version.LATEST), fork.isExpired(Version.LATEST));
-        }
-    }
-
-    /** Fails if a registered fork was renamed or deleted without updating the registry. */
-    public void testRegisteredForksExist() throws ClassNotFoundException {
-        Set<String> seen = new HashSet<>();
-        for (Fork fork : LuceneForks.ALL) {
-            assertTrue("duplicate registry entry " + fork.className(), seen.add(fork.className()));
-            Class<?> clazz = Class.forName(fork.className());
-            if (fork.kind() == LuceneForks.Kind.FORK) {
-                assertThat(clazz.getSimpleName(), startsWith("X"));
-            }
-        }
-    }
 
     public void testExpiry() {
         Fork fork = LuceneForks.expiring("a.b.XFoo", "apache/lucene#1", 10, 6, 0, "Delete XFoo.");
@@ -63,6 +40,12 @@ public class LuceneForksTests extends ESTestCase {
         String message = workaround.expiryMessage(Version.fromBits(10, 6, 0));
         assertThat(message, containsString("workaround in a.b.Baz"));
         assertThat(message, containsString("Remove the check in Baz."));
+    }
+
+    public void testCompatibilityForksNeverExpire() {
+        Fork fork = LuceneForks.compatibility("a.b.XBar", "reason");
+        assertThat(fork.fixedIn(), equalTo(null));
+        assertFalse(fork.isExpired(Version.fromBits(99, 0, 0)));
     }
 
     public void testPermanentForksNeverExpire() {

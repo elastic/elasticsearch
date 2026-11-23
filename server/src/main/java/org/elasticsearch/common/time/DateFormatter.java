@@ -42,6 +42,19 @@ public interface DateFormatter {
     @Nullable
     TemporalAccessor tryParse(String input);
 
+    /** Signals that the input needs the String parser. */
+    long DECLINED = Long.MIN_VALUE;
+
+    /** Parses a UTF-8 slice to epoch millis or returns {@link #DECLINED} to defer to {@link #parse(String)}. */
+    default long tryParseMillis(byte[] bytes, int offset, int length) {
+        return DECLINED;
+    }
+
+    /** Like {@link #tryParseMillis}, in epoch nanos. Returns {@link #DECLINED} for out-of-range dates too. */
+    default long tryParseNanos(byte[] bytes, int offset, int length) {
+        return DECLINED;
+    }
+
     /**
      * Parse the given input into millis-since-epoch.
      */

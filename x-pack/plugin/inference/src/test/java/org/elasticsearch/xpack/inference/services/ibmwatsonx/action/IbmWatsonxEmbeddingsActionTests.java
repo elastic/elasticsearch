@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.Utils.mockProxySettings;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -212,7 +213,12 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
             url,
             AUTH_HEADER_VALUE
         );
-        var requestManager = new IbmWatsonxEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+        var requestManager = new IbmWatsonxEmbeddingsRequestManager(
+            model,
+            TruncatorTests.createTruncator(),
+            threadPool,
+            mockProxySettings()
+        );
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM watsonx embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }

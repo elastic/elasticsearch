@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests;
@@ -22,6 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
     private static final String AUTH_HEADER_VALUE = "foo";
@@ -75,7 +77,11 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
             randomAlphaOfLength(5),
             apiKey
         );
-        return new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
+        return new IbmWatsonxChatCompletionRequest(
+            new UnifiedChatInput(List.of(input), "user", stream),
+            chatCompletionModel,
+            mock(HttpSettings.ProxySettings.class)
+        );
     }
 
     private void assertCreateRequestWithStreaming(boolean isStreaming) throws URISyntaxException, IOException {

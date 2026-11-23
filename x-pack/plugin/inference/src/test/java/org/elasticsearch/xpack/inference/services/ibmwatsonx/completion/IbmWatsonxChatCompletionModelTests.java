@@ -60,7 +60,7 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
             "service",
             new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
+            (httpPost, model, proxySettings) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 

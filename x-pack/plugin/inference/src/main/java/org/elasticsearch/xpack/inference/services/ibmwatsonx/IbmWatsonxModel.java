@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
 import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxRequestUtils;
@@ -21,25 +23,25 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
     /**
      * This field defines the behaviour used to apply authorization headers to a {@link SimpleHttpRequest}. By default, this is
-     * {@link IbmWatsonxRequestUtils#decorateWithBearerToken(SimpleHttpRequest, DefaultSecretSettings, String)}. Unit tests may provide
+     * {@link IbmWatsonxRequestUtils#decorateWithBearerToken(SimpleHttpRequest, DefaultSecretSettings, String, HttpSettings.ProxySettings)}. Unit tests may provide
      * different behaviour to allow requests to be created without needing to retrieve credentials.
      */
-    private final BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator;
+    private final TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator;
 
     public IbmWatsonxModel(ModelConfigurations configurations, ModelSecrets secrets) {
         this(
             configurations,
             secrets,
-            (httpPost, model) -> IbmWatsonxRequestUtils.decorateWithBearerToken(
+            (httpPost, model, proxySettings) -> IbmWatsonxRequestUtils.decorateWithBearerToken(
                 httpPost,
                 (DefaultSecretSettings) model.getSecretSettings(),
-                model.getInferenceEntityId()
+                model.getInferenceEntityId(),
+                proxySettings
             )
         );
     }
@@ -47,7 +49,7 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
     public IbmWatsonxModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
+        TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator
     ) {
         super(configurations, secrets);
 
@@ -73,7 +75,7 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
         return (IbmWatsonxServiceSettings) super.getServiceSettings();
     }
 
-    public BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator() {
+    public TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator() {
         return authHeaderDecorator;
     }
 

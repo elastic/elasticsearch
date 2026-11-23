@@ -61,6 +61,8 @@ public record AzureOpenAiOAuth2Applier(
     @Override
     public void applyTo(SimpleHttpRequest request, ActionListener<SimpleHttpRequest> listener) {
         try {
+            // TODO: this token fetch performs HTTP via the azure-identity library's own client and bypasses the
+            // xpack.inference.http.proxy.* settings; in egress-restricted environments it will fail or skip the proxy
             clientSecretCredential.getToken(tokenRequestContext).subscribe(token -> {
                 request.setHeader(HttpHeaders.AUTHORIZATION, bearerToken(token.getToken()));
                 listener.onResponse(request);

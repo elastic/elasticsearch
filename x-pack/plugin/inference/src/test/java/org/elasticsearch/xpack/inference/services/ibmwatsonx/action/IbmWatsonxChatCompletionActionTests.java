@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxC
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import static org.elasticsearch.xpack.inference.Utils.mockProxySettings;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator.COMPLETION_HANDLER;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator.USER_ROLE;
@@ -39,7 +40,7 @@ public class IbmWatsonxChatCompletionActionTests extends ChatCompletionActionTes
             threadPool,
             model,
             COMPLETION_HANDLER,
-            inputs -> new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
+            inputs -> new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model, mockProxySettings()),
             CompletionInput.class
         );
         var errorMessage = constructFailedToSendRequestMessage("watsonx chat completions");

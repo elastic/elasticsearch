@@ -11,6 +11,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sagemakerruntime.SageMakerRuntimeAsyncClient;
@@ -189,8 +190,19 @@ public class SageMakerClient implements Closeable {
                 key.secretSettings().accessKey().toString(),
                 key.secretSettings().secretKey().toString()
             );
+            var proxySettings = httpSettings.proxy();
+
             var credentialsProvider = StaticCredentialsProvider.create(credentials);
-            var clientConfig = NettyNioAsyncHttpClient.builder().connectionTimeout(httpSettings.connectionTimeoutDuration());
+            var proxyConfig = proxySettings == null
+                ? null
+                : ProxyConfiguration.builder()
+                    .host(proxySettings.host())
+                    .port(proxySettings.port())
+                    .scheme(proxySettings.scheme().scheme())
+                    .build();
+            var clientConfig = NettyNioAsyncHttpClient.builder()
+                .proxyConfiguration(proxyConfig)
+                .connectionTimeout(httpSettings.connectionTimeoutDuration());
             var override = ClientOverrideConfiguration.builder()
                 // disable profileFile, user credentials will always come from the configured Model Secrets
                 .defaultProfileFileSupplier(ProfileFile.aggregator()::build)

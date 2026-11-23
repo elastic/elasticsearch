@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
 import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.apache.hc.core5.net.URIBuilder;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
@@ -23,7 +25,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.COMPLETIONS;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
@@ -109,7 +110,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         String service,
         IbmWatsonxChatCompletionServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
+        TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
@@ -126,7 +127,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
     public IbmWatsonxChatCompletionModel(
         ModelConfigurations modelConfigurations,
         ModelSecrets modelSecrets,
-        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
+        TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator
     ) {
         super(modelConfigurations, modelSecrets, authHeaderDecorator);
     }

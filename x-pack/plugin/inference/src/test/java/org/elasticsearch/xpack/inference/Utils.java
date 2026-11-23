@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -91,6 +92,14 @@ public final class Utils {
 
     public static ClusterService mockClusterServiceEmpty() {
         return mockClusterService(Settings.EMPTY);
+    }
+
+    public static HttpSettings mockHttpSettings() {
+        return mock(HttpSettings.class);
+    }
+
+    public static HttpSettings.ProxySettings mockProxySettings() {
+        return mock(HttpSettings.ProxySettings.class);
     }
 
     public static ClusterService mockClusterService(Settings settings) {

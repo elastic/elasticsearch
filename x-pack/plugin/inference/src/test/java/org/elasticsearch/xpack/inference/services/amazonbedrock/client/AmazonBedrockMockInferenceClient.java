@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.util.concurrent.CompletableFuture;
@@ -37,7 +38,7 @@ public class AmazonBedrockMockInferenceClient extends AmazonBedrockInferenceClie
     }
 
     protected AmazonBedrockMockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        super(model, timeout, mockThreadPool());
+        super(model, timeout, mockThreadPool(), mock(HttpSettings.ProxySettings.class));
     }
 
     private static ThreadPool mockThreadPool() {
@@ -64,7 +65,11 @@ public class AmazonBedrockMockInferenceClient extends AmazonBedrockInferenceClie
     }
 
     @Override
-    protected BedrockRuntimeAsyncClient createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected BedrockRuntimeAsyncClient createAmazonBedrockClient(
+        AmazonBedrockModel model,
+        @Nullable TimeValue timeout,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         var runtimeClient = mock(BedrockRuntimeAsyncClient.class);
         doAnswer(invocation -> invokeModelResponseFuture).when(runtimeClient).invokeModel(any(InvokeModelRequest.class));
         doAnswer(invocation -> converseResponseFuture).when(runtimeClient).converse(any(ConverseRequest.class));

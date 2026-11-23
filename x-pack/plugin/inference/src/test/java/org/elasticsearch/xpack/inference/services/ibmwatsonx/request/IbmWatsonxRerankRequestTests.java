@@ -19,6 +19,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.mockProxySettings;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
@@ -105,6 +106,6 @@ public class IbmWatsonxRerankRequestTests extends ESTestCase {
             truncateInputTokens
         );
 
-        return new IbmWatsonxRerankRequest(query, input, rerankModel);
+        return new IbmWatsonxRerankRequest(query, input, rerankModel, mockProxySettings());
     }
 }

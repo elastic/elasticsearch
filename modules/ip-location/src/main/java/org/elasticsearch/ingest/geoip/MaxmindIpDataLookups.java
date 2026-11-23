@@ -59,7 +59,7 @@ final class MaxmindIpDataLookups {
     static final String GEOIP2_PREFIX = "GeoIP2".toLowerCase(Locale.ROOT);
     static final String GEOLITE2_PREFIX = "GeoLite2".toLowerCase(Locale.ROOT);
 
-    // note: the secondary dispatch on suffix happens to be case sensitive
+    // note: the secondary dispatch on suffix happens to be case-sensitive
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ describe_command, column_metadata_field_semantics, column_metadata_merged_branches ]
+          capabilities: [ describe_command, column_metadata_merged_branches ]
         - method: GET
           path: /_query/view
           capabilities: [ view_index_abstraction ]
@@ -108,7 +108,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       allowed_warnings_regex:
@@ -127,7 +127,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       allowed_warnings_regex:
@@ -146,7 +146,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       indices.create:
@@ -203,7 +203,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       allowed_warnings_regex:
@@ -222,7 +222,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       allowed_warnings_regex:
@@ -246,6 +246,14 @@ setup:
 
 ---
 "column_metadata through a view next to an index":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -271,7 +279,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       esql.query:
@@ -291,7 +299,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       indices.put_index_template:
@@ -352,7 +360,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ column_metadata_listed_units ]
+          capabilities: [ column_metadata_field_semantics, column_metadata_listed_units ]
       reason: "listed units"
   - do:
       indices.put_index_template:

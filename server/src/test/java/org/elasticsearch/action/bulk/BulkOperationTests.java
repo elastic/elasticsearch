@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
@@ -76,6 +77,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -281,7 +283,7 @@ public class BulkOperationTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-    private final FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(meterRegistry);
+    private final TsdbRoutingMetrics tsdbRoutingMetrics = new TsdbRoutingMetrics(meterRegistry);
 
     @Before
     public void setupThreadpool() {
@@ -303,52 +305,40 @@ public class BulkOperationTests extends ESTestCase {
     /**
      * A document whose {@code @timestamp} falls outside all backing index time ranges of a TSDB data stream with a failure store enabled
      * should be redirected to the failure store during pre-routing, exercising the {@code catch (DataStream.TimestampError)} path in
-     * {@code groupRequestsByShards}. Too-new timestamps are counted under dedicated error types in the failure store metric.
+     * {@code groupRequestsByShards}. Too-new timestamps are counted even when the documents are redirected successfully.
      */
     public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore() throws Exception {
+        assertTsdbTimestampRoutingMetrics(true);
+    }
+
+    public void testTsdbTimestampErrorDuringRoutingWithFailureStoreDisabled() throws Exception {
+        assertTsdbTimestampRoutingMetrics(false);
+    }
+
+    private void assertTsdbTimestampRoutingMetrics(boolean failureStoreEnabled) throws Exception {
         Instant start = Instant.parse("2020-01-01T00:00:00Z");
         Instant end = Instant.parse("2021-01-01T00:00:00Z");
         String tsdbStreamName = "my_tsdb_stream";
 
-        IndexMetadata tsdbBackingIndex = DataStreamTestHelper.createIndexMetadata(
-            DataStream.getDefaultBackingIndexName(tsdbStreamName, 1, start.toEpochMilli()),
-            true,
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put("index.routing_path", "uid")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
-                .build(),
-            0
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStream(
+            projectId,
+            tsdbStreamName,
+            List.of(Tuple.tuple(start, end))
         );
         IndexMetadata tsdbFailureStore = DataStreamTestHelper.createFailureStore(tsdbStreamName, 1, millis).numberOfShards(1).build();
 
-        DataStream tsdbDataStream = DataStream.builder(tsdbStreamName, List.of(tsdbBackingIndex.getIndex()))
-            .setGeneration(1)
-            .setIndexMode(IndexMode.TIME_SERIES)
-            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+        DataStream tsdbDataStream = project.dataStreams()
+            .get(tsdbStreamName)
+            .copy()
+            .setDataStreamOptions(failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.FAILURE_STORE_DISABLED)
             .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(tsdbFailureStore.getIndex())).build())
             .build();
 
         ClusterState tsdbState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(
-                ProjectMetadata.builder(projectId)
-                    .indices(
-                        Map.of(
-                            tsdbBackingIndex.getIndex().getName(),
-                            tsdbBackingIndex,
-                            tsdbFailureStore.getIndex().getName(),
-                            tsdbFailureStore
-                        )
-                    )
-                    .dataStreams(Map.of(tsdbStreamName, tsdbDataStream), Map.of())
-                    .build()
-            )
+            .putProjectMetadata(ProjectMetadata.builder(project).put(tsdbFailureStore, false).put(tsdbDataStream))
             .build();
 
-        // The @timestamp values are outside the backing index time range [2020, 2021), so getConcreteWriteIndex
-        // throws DataStream.TimestampError, which should be caught and redirect the documents to the failure store.
-        // In order, they are at the end of the newest backing index (in the past), in the future, and before the oldest backing index.
+        // The timestamps are at the end of the writable range (in the past), in the future, and before the writable range.
         List<String> timestamps = List.of("2021-01-01T00:00:00Z", "2100-01-01T00:00:00Z", "2019-01-01T00:00:00Z");
         BulkRequest bulkRequest = new BulkRequest();
         for (String timestamp : timestamps) {
@@ -358,22 +348,21 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(acceptAllShardWrites());
         BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, tsdbState, mockObserver(tsdbState), l).run());
 
-        assertThat(response.hasFailures(), is(false));
+        assertThat(response.hasFailures(), is(failureStoreEnabled == false));
+        assertThat(response.getItems().length, equalTo(timestamps.size()));
+        String expectedIndex = failureStoreEnabled ? tsdbFailureStore.getIndex().getName() : tsdbStreamName;
+        IndexDocFailureStoreStatus expectedStatus = failureStoreEnabled
+            ? IndexDocFailureStoreStatus.USED
+            : IndexDocFailureStoreStatus.NOT_ENABLED;
         for (BulkItemResponse item : response.getItems()) {
-            assertThat(item.getIndex(), equalTo(tsdbFailureStore.getIndex().getName()));
-            assertThat(item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+            assertThat(item.getIndex(), equalTo(expectedIndex));
+            assertThat(item.getFailureStoreStatus(), equalTo(expectedStatus));
         }
-        List<Object> errorTypes = meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, FailureStoreMetrics.METRIC_FAILURE_STORE)
-            .stream()
-            .map(measurement -> measurement.attributes().get("error_type"))
-            .toList();
         assertThat(
-            errorTypes,
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, TsdbRoutingMetrics.TIMESTAMP_TOO_NEW),
             contains(
-                FailureStoreMetrics.ERROR_TYPE_TIMESTAMP_TOO_NEW_PAST,
-                FailureStoreMetrics.ERROR_TYPE_TIMESTAMP_TOO_NEW_FUTURE,
-                "timestamp_error"
+                new Measurement(1L, Map.of("timestamp_in_future", false), false),
+                new Measurement(1L, Map.of("timestamp_in_future", true), false)
             )
         );
     }
@@ -2000,7 +1989,8 @@ public class BulkOperationTests extends ESTestCase {
             listener,
             observer,
             failureStoreDocumentConverter,
-            failureStoreMetrics,
+            FailureStoreMetrics.NOOP,
+            tsdbRoutingMetrics,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
             batchIndexingEnabled,

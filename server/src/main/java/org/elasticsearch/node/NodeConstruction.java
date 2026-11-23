@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedCom
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.TsdbRoutingMetrics;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
@@ -798,6 +799,7 @@ class NodeConstruction {
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
+        TsdbRoutingMetrics tsdbRoutingMetrics = new TsdbRoutingMetrics(telemetryProvider.getMeterRegistry());
         MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
             p -> p.createRegistry(environment)
@@ -1560,6 +1562,7 @@ class NodeConstruction {
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
+            b.bind(TsdbRoutingMetrics.class).toInstance(tsdbRoutingMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);

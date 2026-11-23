@@ -180,6 +180,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.singleProject(projectId),
                 FailureStoreMetrics.NOOP,
+                TsdbRoutingMetrics.NOOP,
                 DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                 new FeatureService(List.of()) {
                     @Override

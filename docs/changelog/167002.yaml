@@ -1,5 +1,5 @@
 area: TSDB
 issues: []
 pr: 167002
-summary: Split too-new TSDB timestamp errors in failure store metrics
+summary: Add a metric for too-new TSDB timestamp routing failures
 type: enhancement

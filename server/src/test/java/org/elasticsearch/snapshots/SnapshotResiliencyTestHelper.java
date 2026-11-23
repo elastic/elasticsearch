@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStores
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.bulk.TsdbRoutingMetrics;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -980,6 +981,7 @@ public class SnapshotResiliencyTestHelper {
                         EmptySystemIndices.INSTANCE,
                         projectResolver,
                         FailureStoreMetrics.NOOP,
+                        TsdbRoutingMetrics.NOOP,
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                         featureService,
                         new TimeSeriesEligibleWriteWindowLocator(),

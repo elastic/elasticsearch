@@ -181,6 +181,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 },
                 TransportBulkActionTests.this.threadPool::relativeTimeInNanos,
                 FailureStoreMetrics.NOOP,
+                TsdbRoutingMetrics.NOOP,
                 DataStreamFailureStoreSettings.create(clusterSettings),
                 new FeatureService(List.of()) {
                     @Override

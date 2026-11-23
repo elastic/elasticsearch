@@ -1,5 +1,5 @@
 area: Analysis
 issues: []
 pr: 167174
-summary: Built-in `lowercase` normalizer now honors `split_queries_on_whitespace`
+summary: Built-in `lowercase` normalizer now honors `split_queries_on_whitespace`, matching custom normalizers
 type: bug

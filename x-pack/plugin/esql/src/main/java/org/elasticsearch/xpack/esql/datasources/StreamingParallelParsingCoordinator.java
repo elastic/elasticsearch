@@ -2504,6 +2504,7 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Nullable
         private Instant pinnedSourceMtime() {
+            assert storageObject != null : "a stream-only read has no source to probe";
             Optional<Instant> cached = pinnedSourceMtime.get();
             if (cached == null) {
                 Optional<Instant> probed;

@@ -745,6 +745,77 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * The sibling of the close warning above, on the other give-up an early close reaches. Ordinary worker
+     * completion closes the same streams, so only the leader's fails here: the leader is parked mid-segment
+     * when the abort runs, which is the one close no finished worker performs.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator:WARN",
+        reason = "the abort give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedStreamAbortDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        byte[] contentBytes = repeatedLines(800);
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        CountDownLatch leaderRelease = new CountDownLatch(1);
+        FailingAbortStorageObject obj = new FailingAbortStorageObject(contentBytes, path, leaderRelease);
+        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
+
+        // Guard: a single-segment file takes the fallback that hands back the reader's own iterator, and the
+        // abort this warning sits in never runs.
+        assertThat(
+            "test needs a genuinely multi-segment file or the abort under test never runs",
+            ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (MockLog mockLog = MockLog.capture(ParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the abort warning, naming the location without its query string",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to abort stream for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            // Abandon with the leader still parked: its stream is live, so the close aborts it rather than
+            // waiting for it. The wide dispatch window keeps a later segment open alongside the parked
+            // leader, so the page this pulls can only have come from one of those.
+            try (
+                CloseableIterator<Page> it = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4
+                )
+            ) {
+                assertTrue("a later segment should produce a page while the leader is parked", it.hasNext());
+            }
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
      * Contract: when a consumer wraps {@link ParallelParsingCoordinator#parallelRead}'s outer
      * iterator with a {@link StatsCapturingIterator}-bound sink, every per-segment chunk's
      * {@link ExternalStatsCapture#record} contribution must reach that sink — regardless of which
@@ -2067,7 +2138,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         // pulled a page. Because the blocked leader has enqueued nothing, that first page can only have come
         // from a later segment — proving as-ready emission deterministically, with no enqueue race. A
         // regressed in-order implementation would gate every page behind the blocked leader and time out.
-        java.util.concurrent.CountDownLatch leaderRelease = new java.util.concurrent.CountDownLatch(1);
+        CountDownLatch leaderRelease = new CountDownLatch(1);
         FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
@@ -2501,9 +2572,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * full speed. Proves the coordinator emits pages as they become ready rather than in segment order.
      */
     private static class FirstSegmentStallingReader extends LineFormatReader {
-        private final java.util.concurrent.CountDownLatch leaderRelease;
+        private final CountDownLatch leaderRelease;
 
-        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch leaderRelease) {
+        FirstSegmentStallingReader(BlockFactory blockFactory, CountDownLatch leaderRelease) {
             super(blockFactory);
             this.leaderRelease = leaderRelease;
         }
@@ -3383,6 +3454,45 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             // No location in the message: the warning attaches this throwable in full, so a path added here
             // would carry past the redaction.
             throw new IOException("this store cannot close");
+        }
+    }
+
+    /**
+     * Path, plus a leading-segment stream that cannot be released. Only that one fails: a finished worker
+     * closes its own stream, and the leader never finishes, so the throw can only come from the abort. The
+     * close counts the latch down before throwing, so the abort releases the parked leader itself instead
+     * of the surrounding close waiting out the stall.
+     */
+    private static final class FailingAbortStorageObject extends InMemoryStorageObject {
+        private final StoragePath path;
+        private final CountDownLatch leaderRelease;
+
+        FailingAbortStorageObject(byte[] data, String path, CountDownLatch leaderRelease) {
+            super(data);
+            this.path = StoragePath.of(path);
+            this.leaderRelease = leaderRelease;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            InputStream in = super.newStream(position, length);
+            if (position != 0) {
+                return in;
+            }
+            return new FilterInputStream(in) {
+                @Override
+                public void close() throws IOException {
+                    leaderRelease.countDown();
+                    // No location in the message: the warning attaches this throwable in full, so a path
+                    // added here would carry past the redaction.
+                    throw new IOException("this stream cannot be aborted");
+                }
+            };
         }
     }
 

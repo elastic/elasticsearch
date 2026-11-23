@@ -592,11 +592,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     "*" + signature + "*"
                 )
             );
-            // The read itself may or may not survive a missing header; the warning is what this pins.
-            try {
-                readAllPinned(reader, new TestFileStorageObject(path, MTIME_PROBE_INSTANT));
-            } catch (Exception e) {
-                // The header failure is the point; how far the drain got afterwards is not.
+            // The reader needs no captured header names to parse later chunks, so the read survives the
+            // failure and every chunk is handed a null fileHeaderColumns. Asserting that keeps the warning
+            // from being the only thing this test can still see if the failure starts killing the scan.
+            List<FormatReadContext> contexts = readAllPinned(reader, new TestFileStorageObject(path, MTIME_PROBE_INSTANT));
+            assertThat(contexts.size(), Matchers.greaterThan(1));
+            for (FormatReadContext ctx : contexts) {
+                assertNull(ctx.fileHeaderColumns());
             }
             mockLog.assertAllExpectationsMatched();
         }

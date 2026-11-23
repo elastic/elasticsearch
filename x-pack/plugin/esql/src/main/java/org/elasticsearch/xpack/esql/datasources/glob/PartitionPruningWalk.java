@@ -308,12 +308,13 @@ final class PartitionPruningWalk {
     }
 
     /**
-     * Async counterpart of {@link #tryWalk}: each directory level is listed concurrently on
-     * {@code executor} via {@link ThrottledIterator}, results merged in directory order. The calling
-     * thread is not blocked; {@code listener} fires on an executor thread. A failed or cancelled
-     * child fails the walk closed ({@code null} for {@link IOException}, {@link TaskCancelledException}
-     * for cancel, other failures on {@code listener.onFailure}). Output and LIST count match the
-     * sequential walk.
+     * Async counterpart of {@link #tryWalk}: each directory level and each retroactive peek batch is
+     * listed concurrently on {@code executor} via {@link ThrottledIterator}, results merged in
+     * directory-slot order. The calling thread is not blocked; {@code listener} fires on an executor
+     * thread. A failed or cancelled child fails the walk closed ({@code null} for {@link IOException},
+     * {@link TaskCancelledException} for cancel, other failures on {@code listener.onFailure}).
+     * Output and LIST count match the sequential walk: peeks consume the remaining listing budget
+     * greedily, then fail closed if any peek was skipped.
      */
     static void tryWalkAsync(
         StorageProvider provider,
@@ -439,33 +440,54 @@ final class PartitionPruningWalk {
 
     /**
      * Lists the direct children of each pruned dir in {@code peeks}, adding any {@code key=value} directory
-     * entries to {@code seenValues} as shadow values for type-divergence detection. Returns the updated listings
-     * count, or {@code -1} when a peek could not complete (budget exhausted or directory too wide to buffer) —
-     * the caller should return {@code null} (fall back to flat listing) in that case.
+     * entries to {@code seenValues} as shadow values for type-divergence detection. Returns {@code false}
+     * when a peek could not complete (budget exhausted or directory too wide to buffer) — the caller
+     * should return {@code null} (fall back to flat listing) in that case. Issues at most the remaining
+     * listing budget, matching the sequential walk's greedy ceiling.
      */
-    private static int processPendingPeeks(
+    private static boolean processPendingPeeks(
         StorageProvider provider,
         List<StoragePath> peeks,
         Map<String, List<String>> seenValues,
-        int listings,
+        AtomicInteger listings,
         int maxDirectoryListings,
         BooleanSupplier cancelled
     ) throws IOException {
-        for (StoragePath pruned : peeks) {
-            if (cancelled.getAsBoolean()) {
-                throw new TaskCancelledException("listing cancelled");
-            }
-            if (listings >= maxDirectoryListings) {
-                return -1;
-            }
-            listings++;
-            StorageChildren peekChildren = provider.listChildren(pruned, MAX_LISTED_CHILDREN);
-            if (peekChildren == null) {
-                return -1;
-            }
-            applyPeekChildren(peekChildren, seenValues);
+        if (cancelled.getAsBoolean()) {
+            throw new TaskCancelledException("listing cancelled");
         }
-        return listings;
+        List<StoragePath> toPeek = peeksToIssue(peeks, listings.get(), maxDirectoryListings);
+        if (toPeek == null) {
+            return false;
+        }
+        StorageChildren[] listed = listChildrenSequential(provider, toPeek, listings, cancelled);
+        if (listed == null) {
+            return false;
+        }
+        applyPeekResults(listed, seenValues);
+        return toPeek.size() == peeks.size();
+    }
+
+    /**
+     * First {@code min(peeks, remaining budget)} dirs, or {@code null} when none fit. A truncated
+     * slice must still be listed then fail closed so issued counts match the sequential greedy ceiling.
+     */
+    @Nullable
+    private static List<StoragePath> peeksToIssue(List<StoragePath> peeks, int issued, int maxDirectoryListings) {
+        int remaining = maxDirectoryListings - issued;
+        if (remaining <= 0) {
+            return null;
+        }
+        if (remaining < peeks.size()) {
+            return peeks.subList(0, remaining);
+        }
+        return peeks;
+    }
+
+    private static void applyPeekResults(StorageChildren[] listed, Map<String, List<String>> seenValues) {
+        for (StorageChildren children : listed) {
+            applyPeekChildren(children, seenValues);
+        }
     }
 
     private static void applyPeekChildren(StorageChildren peekChildren, Map<String, List<String>> seenValues) {
@@ -582,6 +604,9 @@ final class PartitionPruningWalk {
             }
             issued.incrementAndGet();
             listed[i] = provider.listChildren(dirs.get(i), MAX_LISTED_CHILDREN);
+            if (cancelled.getAsBoolean()) {
+                throw new TaskCancelledException("listing cancelled");
+            }
             if (listed[i] == null) {
                 return null;
             }
@@ -628,6 +653,7 @@ final class PartitionPruningWalk {
                 Exception cancelledNow = cancellationFailure(cancelled);
                 if (failure.get() != null || cancelledNow != null) {
                     failure.compareAndSet(null, cancelledNow != null ? cancelledNow : new TaskCancelledException("listing cancelled"));
+                    discardSlotResults(results);
                     return;
                 }
                 Runnable list = () -> {
@@ -636,21 +662,41 @@ final class PartitionPruningWalk {
                         if (failure.get() == null && cancelledInSlot == null) {
                             issued.incrementAndGet();
                             StorageChildren children = provider.listChildren(dirs.get(i), MAX_LISTED_CHILDREN);
-                            if (children == null) {
+                            Exception cancelledAfter = cancellationFailure(cancelled);
+                            if (cancelledAfter != null || failure.get() != null) {
+                                // Sync listChildren cannot abort mid-call. Drop this payload and any
+                                // already-ordered sibling slots; the batch will not merge them.
+                                failure.compareAndSet(
+                                    null,
+                                    cancelledAfter != null ? cancelledAfter : new TaskCancelledException("listing cancelled")
+                                );
+                                discardSlotResults(results);
+                            } else if (children == null) {
                                 // Same as sequential: a null child withdraws the walk. Treat as failure so
                                 // unstarted siblings skip and LIST count stays close to sequential.
                                 failure.compareAndSet(null, new IOException("listChildren unsupported or too wide"));
+                                discardSlotResults(results);
                             } else {
                                 results.set(i, children);
+                                cancelledAfter = cancellationFailure(cancelled);
+                                if (cancelledAfter != null || failure.get() != null) {
+                                    failure.compareAndSet(
+                                        null,
+                                        cancelledAfter != null ? cancelledAfter : new TaskCancelledException("listing cancelled")
+                                    );
+                                    discardSlotResults(results);
+                                }
                             }
                         } else {
                             failure.compareAndSet(
                                 null,
                                 cancelledInSlot != null ? cancelledInSlot : new TaskCancelledException("listing cancelled")
                             );
+                            discardSlotResults(results);
                         }
                     } catch (Exception e) {
                         failure.compareAndSet(null, e);
+                        discardSlotResults(results);
                     } finally {
                         releasable.close();
                     }
@@ -659,14 +705,22 @@ final class PartitionPruningWalk {
                 submitted = true;
             } catch (Exception submitEx) {
                 failure.compareAndSet(null, submitEx);
+                discardSlotResults(results);
             } finally {
                 if (submitted == false) {
                     releasable.close();
                 }
             }
         }, Math.max(1, concurrency), () -> {
+            Exception cancelledNow = cancellationFailure(cancelled);
+            if (cancelledNow != null) {
+                discardSlotResults(results);
+                listener.onFailure(cancelledNow);
+                return;
+            }
             Exception e = failure.get();
             if (e != null) {
+                discardSlotResults(results);
                 listener.onFailure(e);
                 return;
             }
@@ -674,7 +728,8 @@ final class PartitionPruningWalk {
             for (int i = 0; i < size; i++) {
                 StorageChildren slot = results.get(i);
                 if (slot == null) {
-                    Exception cancelledNow = cancellationFailure(cancelled);
+                    discardSlotResults(results);
+                    cancelledNow = cancellationFailure(cancelled);
                     listener.onFailure(
                         cancelledNow != null
                             ? cancelledNow
@@ -684,11 +739,18 @@ final class PartitionPruningWalk {
                 }
                 listed[i] = slot;
             }
+            discardSlotResults(results);
+            cancelledNow = cancellationFailure(cancelled);
+            if (cancelledNow != null) {
+                listener.onFailure(cancelledNow);
+                return;
+            }
             listener.onResponse(listed);
         }, executor, e -> {
             if (failure.compareAndSet(null, e) == false) {
                 logger.debug("Additional failure during partition-walk listChildren (suppressed by first failure)", e);
             }
+            discardSlotResults(results);
         });
     }
 
@@ -702,6 +764,13 @@ final class PartitionPruningWalk {
             return cancelled.getAsBoolean() ? new TaskCancelledException("listing cancelled") : null;
         } catch (Exception e) {
             return e;
+        }
+    }
+
+    /** Drop ordered-slot payloads so a cancelled or failed batch does not retain listed children. */
+    private static void discardSlotResults(AtomicReferenceArray<StorageChildren> results) {
+        for (int i = 0; i < results.length(); i++) {
+            results.set(i, null);
         }
     }
 
@@ -841,31 +910,50 @@ final class PartitionPruningWalk {
                 listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
                     @Override
                     public void onResponse(StorageChildren[] listed) {
-                        WalkResult done;
-                        boolean continueWalk;
+                        if (listed == null) {
+                            listener.onResponse(null);
+                            return;
+                        }
+                        ClassifiedLevel level;
                         try {
-                            if (listed == null) {
-                                done = null;
-                                continueWalk = false;
-                            } else {
-                                ClassifiedLevel level = classifyListed(listed);
-                                if (applyPeeksIfNeeded(level) == false) {
-                                    done = null;
-                                    continueWalk = false;
-                                } else {
-                                    done = applyClassified(level);
-                                    continueWalk = done == null && level.continueWalk;
-                                }
-                            }
+                            level = classifyListed(listed);
                         } catch (Exception e) {
                             listener.onFailure(e);
                             return;
                         }
-                        if (continueWalk) {
-                            advanceAsync(concurrency, executor, listener);
-                            return;
-                        }
-                        listener.onResponse(done);
+                        applyPeeksIfNeededAsync(level, concurrency, executor, new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean peekOk) {
+                                Exception cancelledNow = cancellationFailure(cancelled);
+                                if (cancelledNow != null) {
+                                    listener.onFailure(cancelledNow);
+                                    return;
+                                }
+                                if (peekOk == false) {
+                                    listener.onResponse(null);
+                                    return;
+                                }
+                                WalkResult done;
+                                boolean continueWalk;
+                                try {
+                                    done = applyClassified(level);
+                                    continueWalk = done == null && level.continueWalk;
+                                } catch (Exception e) {
+                                    listener.onFailure(e);
+                                    return;
+                                }
+                                if (continueWalk) {
+                                    advanceAsync(concurrency, executor, listener);
+                                    return;
+                                }
+                                listener.onResponse(done);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
                     }
 
                     @Override
@@ -885,19 +973,72 @@ final class PartitionPruningWalk {
          * Retroactive peek: a new partition key at this level confirms a multi-level layout, so it is now
          * safe to list the direct children of dirs pruned at the previous level. Any {@code key=value} dirs
          * found contribute shadow values to {@code seenValues}, letting the caller detect whether a pruned
-         * subtree was the sole source of a type-widening value for a non-pruned column. Sequential so issued
-         * counts match the sequential walk when the ceiling is nearby; parallel peeks are a follow-up.
+         * subtree was the sole source of a type-widening value for a non-pruned column. Sequential walk
+         * lists peeks in order; {@link #applyPeeksIfNeededAsync} uses the same budget slice on
+         * {@link #listChildrenParallel} so issued counts still match when the ceiling cuts a peek batch.
          */
         private boolean applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
             if (level.newKeyLevel && pendingPeeks.isEmpty() == false) {
-                int updated = processPendingPeeks(provider, pendingPeeks, seenValues, listings.get(), maxDirectoryListings, cancelled);
-                if (updated < 0) {
+                if (processPendingPeeks(provider, pendingPeeks, seenValues, listings, maxDirectoryListings, cancelled) == false) {
                     return false;
                 }
-                listings.set(updated);
                 pendingPeeks = List.of();
             }
             return true;
+        }
+
+        /**
+         * Async counterpart of {@link #applyPeeksIfNeeded}. Completes {@code listener} on every path:
+         * {@code true} when peeks finished or were not needed, {@code false} to fail the walk closed.
+         * Does not block; peek LIST calls go through {@link #listChildrenParallel}.
+         */
+        private void applyPeeksIfNeededAsync(ClassifiedLevel level, int concurrency, Executor executor, ActionListener<Boolean> listener) {
+            if (level.newKeyLevel == false || pendingPeeks.isEmpty()) {
+                listener.onResponse(true);
+                return;
+            }
+            Exception cancelledNow = cancellationFailure(cancelled);
+            if (cancelledNow != null) {
+                listener.onFailure(cancelledNow);
+                return;
+            }
+            List<StoragePath> toPeek = peeksToIssue(pendingPeeks, listings.get(), maxDirectoryListings);
+            if (toPeek == null) {
+                listener.onResponse(false);
+                return;
+            }
+            boolean truncated = toPeek.size() < pendingPeeks.size();
+            listChildrenParallel(provider, toPeek, concurrency, executor, listings, cancelled, new ActionListener<>() {
+                @Override
+                public void onResponse(StorageChildren[] listed) {
+                    Exception cancelledNow = cancellationFailure(cancelled);
+                    if (cancelledNow != null) {
+                        listener.onFailure(cancelledNow);
+                        return;
+                    }
+                    boolean ok;
+                    try {
+                        if (listed == null) {
+                            ok = false;
+                        } else {
+                            applyPeekResults(listed, seenValues);
+                            ok = truncated == false;
+                            if (ok) {
+                                pendingPeeks = List.of();
+                            }
+                        }
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
+                    listener.onResponse(ok);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
 
         private WalkResult finishSurvivors() throws IOException {

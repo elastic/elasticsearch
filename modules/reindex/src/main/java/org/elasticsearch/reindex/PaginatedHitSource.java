@@ -403,9 +403,7 @@ public abstract class PaginatedHitSource {
          * Whether {@link #getRouting()} is the slice of the hit, as opposed to a plain routing value. A document of a slice-enabled
          * index always has a slice, and its write-back must keep it as one.
          */
-        default boolean isRoutingFromSlice() {
-            return false;
-        }
+        boolean isRoutingFromSlice();
 
         /**
          * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.

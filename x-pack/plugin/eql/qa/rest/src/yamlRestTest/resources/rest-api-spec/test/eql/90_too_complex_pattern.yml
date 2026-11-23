@@ -1,0 +1,47 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /{index}/_eql/search
+          parameters: [ ]
+          capabilities: [ too_complex_pattern_4xx ]
+      reason: "Too complex patterns are client errors"
+  - do:
+      indices.create:
+        index: eql_test
+        body:
+          mappings:
+            properties:
+              process_name:
+                type: keyword
+  - do:
+      bulk:
+        index: eql_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2020-12-03T11:04:05.000Z", "event": { "category": "process" }, "process_name": "a" }
+
+---
+"Regex list joined into a too complex pattern":
+  - do:
+      catch: bad_request
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where process_name regex (".*a.{8}", ".*b.{8}")'
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Pattern was too complex to determinize" }
+
+---
+"Too complex like pattern":
+  - do:
+      catch: bad_request
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where process_name like "*a?????????????"'
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Pattern was too complex to determinize" }

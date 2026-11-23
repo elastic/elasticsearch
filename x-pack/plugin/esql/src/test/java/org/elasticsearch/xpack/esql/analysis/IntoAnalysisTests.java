@@ -46,7 +46,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     }
 
     public void testDescribeAfterIntoIsRejected() {
-        assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         analyzer().error("ROW a = 1 | INTO dst | DESCRIBE", containsString("INTO must be the last command of the query"));
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
@@ -95,7 +94,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     }
 
     public void testUnsupportedSourcesBelowDescribeAreRejected() {
-        assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         String error = Into.UNSUPPORTED_SOURCE;
         analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | DESCRIBE | INTO dst", containsString(error));
         analyzer().addK8s().error("TS k8s | DESCRIBE | INTO dst", containsString(error));
@@ -104,7 +102,6 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     }
 
     public void testDescribeIsAnEligibleSource() {
-        assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         List<String> queries = List.of(
             "ROW a = 1 | DESCRIBE | INTO dst",
             "FROM employees | DESCRIBE | INTO dst",

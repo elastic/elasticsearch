@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.LongAdder;
  * An internal action to locally manage the load of the search requests that originate from the enrich processor.
  * This is because the enrich processor executes asynchronously and a bulk request could easily overload
  * the search thread pool.
+ * <p>
+ * Identical lookups within a batch are sent as one search, whose response is handed to each of them.
  */
 public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
@@ -200,25 +202,25 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 }
                 assert slots.isEmpty() == false;
                 remoteRequestsTotal.increment();
-                final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-                slots.forEach(slot -> multiSearchRequest.add(slot.request));
-                lookupFunction.accept(multiSearchRequest, (response, e) -> handleResponse(slots, response, e));
+                final Batch batch = Batch.of(slots);
+                lookupFunction.accept(batch.request(), (response, e) -> handleResponse(batch, response, e));
             }
         }
 
-        void handleResponse(List<Slot> slots, MultiSearchResponse response, Exception e) {
-            executedSearchesTotal.add(slots.size());
+        void handleResponse(Batch batch, MultiSearchResponse response, Exception e) {
+            final List<Slot> slots = batch.slots();
+            executedSearchesTotal.add(batch.searches());
 
             if (response != null) {
-                assert slots.size() == response.getResponses().length;
+                assert batch.searches() == response.getResponses().length;
                 // The same estimate as the breaker charge; a small response does not need the bound, see PERMIT_HOLD_THRESHOLD_BYTES
                 final boolean holdPermit = estimateResponseBytes(response) > PERMIT_HOLD_THRESHOLD_BYTES;
                 if (holdPermit == false) {
                     remoteRequestPermits.release();
                 }
                 try {
-                    for (int i = 0; i < response.getResponses().length; i++) {
-                        MultiSearchResponse.Item responseItem = response.getResponses()[i];
+                    for (int i = 0; i < slots.size(); i++) {
+                        MultiSearchResponse.Item responseItem = batch.responseOfSlot(response, i);
                         Slot slot = slots.get(i);
 
                         try {
@@ -281,6 +283,63 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             Slot {
                 Objects.requireNonNull(request);
                 Objects.requireNonNull(listener);
+            }
+        }
+
+        /**
+         * The slots of one remote request. Slots with equal search requests share one search of the multi-search request, so slot
+         * {@code i} is answered by {@link #responseOfSlot(MultiSearchResponse, int) responseOfSlot(response, i)}.
+         */
+        static final class Batch {
+            private final List<Slot> slots;
+            private final int[] searchOfSlot;
+            private final MultiSearchRequest request;
+
+            private Batch(List<Slot> slots, int[] searchOfSlot, MultiSearchRequest request) {
+                this.slots = slots;
+                this.searchOfSlot = searchOfSlot;
+                this.request = request;
+            }
+
+            static Batch of(List<Slot> slots) {
+                final MultiSearchRequest request = new MultiSearchRequest();
+                final int[] searchOfSlot = new int[slots.size()];
+                final Map<SearchRequest, Integer> searchPositions = new HashMap<>();
+                for (int i = 0; i < slots.size(); i++) {
+                    final SearchRequest searchRequest = slots.get(i).request();
+                    final int position = request.requests().size();
+                    Integer existing;
+                    try {
+                        existing = searchPositions.putIfAbsent(searchRequest, position);
+                    } catch (RuntimeException e) {
+                        // if hash or equals fails the request can't be deduplicated, send on its own to report the failure
+                        existing = null;
+                    }
+                    if (existing == null) {
+                        searchOfSlot[i] = position;
+                        request.add(searchRequest);
+                    } else {
+                        searchOfSlot[i] = existing;
+                    }
+                }
+                assert request.requests().size() >= searchPositions.size();
+                return new Batch(slots, searchOfSlot, request);
+            }
+
+            List<Slot> slots() {
+                return slots;
+            }
+
+            MultiSearchRequest request() {
+                return request;
+            }
+
+            MultiSearchResponse.Item responseOfSlot(MultiSearchResponse response, int slot) {
+                return response.getResponses()[searchOfSlot[slot]];
+            }
+
+            int searches() {
+                return request.requests().size();
             }
         }
 

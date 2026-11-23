@@ -1052,18 +1052,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         SearchExecutionContext context = estimateOnly ? new SearchExecutionContext(source, NoopCircuitBreaker.INSTANCE) : source;
 
         try {
-            // Actual query charge
-            Query query = builder.toQuery(context);
+            // Actual query charge, charged as AbstractQueryBuilder#toQuery(SearchExecutionContext) charges it
+            MaxClauseCountQueryVisitor buildVisitor = unlimitedClauseCountVisitor(context);
+            Query query = builder.toQuery(context, buildVisitor);
             assertNotNull("toQuery should not return null", query);
+            context.addCircuitBreakerMemory(buildVisitor.getEstimatedBytes(), ChildMemoryCircuitBreaker.CATEGORY_QUERY);
 
             // Estimated query charge, without hidden queries
-            MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(
-                Integer.MAX_VALUE,
-                context.getCircuitBreaker(),
-                context::isQueryMemoryPreCharged,
-                MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
-                context.getIndexReader()
-            );
+            MaxClauseCountQueryVisitor visitor = unlimitedClauseCountVisitor(context);
             query.visit(visitor);
             return visitor.getEstimatedBytes();
         } finally {
@@ -1071,6 +1067,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 context.releaseQueryConstructionMemory();
             }
         }
+    }
+
+    /**
+     * A visitor that estimates the query charge like {@link AbstractQueryBuilder#toQuery(SearchExecutionContext)} does, but without its
+     * max clause count, which randomly generated test queries can exceed (see {@link #testToQuery()}).
+     */
+    private static MaxClauseCountQueryVisitor unlimitedClauseCountVisitor(SearchExecutionContext context) {
+        return new MaxClauseCountQueryVisitor(
+            Integer.MAX_VALUE,
+            context.getCircuitBreaker(),
+            context::isQueryMemoryPreCharged,
+            MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
+            context.getIndexReader()
+        );
     }
 
     public boolean isTextField(String fieldName) {

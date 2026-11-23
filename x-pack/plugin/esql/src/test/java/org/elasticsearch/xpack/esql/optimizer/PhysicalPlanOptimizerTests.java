@@ -173,6 +173,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -7567,9 +7568,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected the pushed conjunction and disjunction as FILTER clauses", bool.filter().size(), equalTo(2));
+        var conjunction = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two MUST clauses", conjunction.must().size(), equalTo(2));
+        var boolDisjuntive = as(bool.filter().get(1), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -7657,9 +7659,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
         var source = source(fieldExtract2.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected the pushed conjunction and disjunction as FILTER clauses", bool.filter().size(), equalTo(2));
+        var conjunction = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two MUST clauses", conjunction.must().size(), equalTo(2));
+        var boolDisjuntive = as(bool.filter().get(1), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -10298,6 +10301,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             true,  // snapshotBuild - bare external sources are planned without a registered dataset
+            FetchOperatorProvider.UNSUPPORTED,
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),

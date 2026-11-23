@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
@@ -178,10 +179,10 @@ public final class ExchangeSourceHandler {
         private volatile boolean finished = false;
         private final RemoteSink remoteSink;
         private final boolean failFast;
-        private final Runnable onPageFetched;
+        private final Consumer<Page> onPageFetched;
         private final ActionListener<Void> completionListener;
 
-        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, Runnable onPageFetched, ActionListener<Void> completionListener) {
+        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, Consumer<Page> onPageFetched, ActionListener<Void> completionListener) {
             outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
             this.onPageFetched = onPageFetched;
@@ -199,7 +200,7 @@ public final class ExchangeSourceHandler {
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {
-                        onPageFetched.run(); // does not throw
+                        onPageFetched.accept(page); // does not throw
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
@@ -267,6 +268,21 @@ public final class ExchangeSourceHandler {
         RemoteSink remoteSink,
         boolean failFast,
         Runnable onPageFetched,
+        int instances,
+        ActionListener<Void> listener
+    ) {
+        addRemoteSink(remoteSink, failFast, page -> onPageFetched.run(), instances, listener);
+    }
+
+    /**
+     * Like {@link #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}, and {@code onPageFetched} gets each page
+     * that arrives, before the buffer takes it. It must not throw, and must not keep the page: the buffer can discard it, for
+     * example once the source finished.
+     */
+    public void addRemoteSink(
+        RemoteSink remoteSink,
+        boolean failFast,
+        Consumer<Page> onPageFetched,
         int instances,
         ActionListener<Void> listener
     ) {

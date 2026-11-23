@@ -287,6 +287,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             } else {
                 concreteIndices = Strings.EMPTY_ARRAY;
             }
+        } else if (localIndices.indices().length == 0) {
+            // groupIndices returns an empty local group when no expression targets the local cluster, e.g. a source of only
+            // cluster wildcards that match no remote. Resolving it would expand to every local index.
+            concreteIndices = Strings.EMPTY_ARRAY;
         } else {
             // note: when security is turned on, the indices are already resolved
             // TODO: do a quick check and only resolve if necessary??

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -37,6 +38,23 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestIndicesStatsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "forbid_closed_indices",
+        "groups",
+        "fields",
+        "completion_fields",
+        "fielddata_fields",
+        "level",
+        "include_auto_calibration",
+        "include_segment_file_sizes",
+        "include_unloaded_segments"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index", "metric");
 
     @Override
     public List<Route> routes() {
@@ -144,11 +162,30 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         return false;
     }
 
-    private static final Set<String> RESPONSE_PARAMS = Set.of("level", "include_auto_calibration");
+    private final Set<String> RESPONSE_PARAMS = Set.of(
+        "level",
+        "fields",
+        "fielddata_fields",
+        "completion_fields",
+        "groups",
+        "include_auto_calibration",
+        "include_segment_file_sizes",
+        "include_unloaded_segments"
+    );
 
     @Override
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

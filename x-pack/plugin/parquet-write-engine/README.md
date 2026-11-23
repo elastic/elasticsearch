@@ -154,7 +154,7 @@ duration of `flush-and-upload`. The index template renders these track parameter
 `parquet_flush_merge_parallelism`; `bulk_indexing_clients` and `bulk_size` are the usual ones. The params file for esbench is
 `clickbench_parquet_write.json` in `elasticsearch-benchmarks`.
 
-The results so far are single runs (S3 in `eu-west-1`). The first rows are an `i4i.2xlarge` (8 vCPU, x86), the last two a `c6gd.8xlarge`
+The results so far are single runs (S3 in `eu-west-1`). The first rows are an `i4i.2xlarge` (8 vCPU, x86), the last three a `c6gd.8xlarge`
 (32 vCPU, aarch64, 16 GB heap):
 
 | What changed | Clients, bulk size, flush threshold | Indexing | Final flush | Total |
@@ -166,6 +166,8 @@ The results so far are single runs (S3 in `eu-west-1`). The first rows are an `i
 | two groups for each thread, uploads overlap between runs | 8, 10,000, 512 MB | 746 s | 20 s | 766 s |
 | c6gd, 8 merge threads | 24, 2,000, 1 GB | 393 s | 248 s | 641 s |
 | commit data in memory, footers in parallel | 24, 2,000, 1 GB | 313 s | 141 s | 454 s |
+| bulks of 5,000 rows, a lower flush threshold | 24, 5,000, 512 MB | 254 s | 91.5 s | 346 s |
+| footers read once, groups meet after an epoch (S3 was slow in this run, see below) | 24, 5,000, 512 MB | 258 s | 88 s | 346 s |
 
 The total time is the sum of the two durations, so the flush has to keep up with the ingest, or the final flush has to catch up on a backlog.
 "What the benchmark runs taught us" lists what was not obvious from the numbers, and how the retry runner of the track shows rejected bulks.
@@ -335,6 +337,11 @@ leave a tiny file behind. For each run it does these steps, and a crash after an
 5. write the high-water mark and the row count in the commit data, and remove the marker;
 6. delete the local files.
 
+Step 1 first asks the table for the ids of the columns of the run (`ShardTable#ensureColumns`). It reads the table metadata from the
+repository only when a column is missing from what the table object knows, because the id of a column never changes and the flush asks for
+the same columns for every run. A missing column is looked for in the repository first, because another shard may have added it, and then it
+is added with the next id.
+
 On start, the engine finishes a flush that a crash cut off. The table, and not the commit, is the source of truth for what is uploaded. A
 marker that names a file that the table lists only needs steps 5 and 6. A marker whose merged file still exists is uploaded again under a
 new attempt, and a marker whose merged file is gone is dropped, because the local files are deleted only after the table lists their rows.
@@ -356,12 +363,14 @@ works like this:
 - The columns are split into contiguous groups of about the same estimated cost, and there are twice as many groups as threads. The cost of
   a column is 30 ns for each value and 3 ns for each byte before compression, from the footers of a sample of the files. The compressed size
   is the wrong measure: with it, two groups took 0.9 s (14 columns) and 3.2 s (91 columns) on two threads.
-- Each group has its own page store, column store and column writers. For each local file the threads take the groups one at a time, the
-  most expensive first. The thread of the flush is one worker, the `parquet_merge` pool runs the others, and a worker that has finished a
-  group takes the next, so an estimate that is wrong for one group does not leave the other threads waiting.
-- A worker reads only the columns of its group from the file. The groups meet after each local file, and that is the only place where a
-  row group is cut, so a row group is at most one local file larger than `row_group_size`. The page stores are then written to the row
-  group one after the other in the order of the columns.
+- Each group has its own page store, column store and column writers. The files are merged in epochs of several files: about an eighth of
+  a row group, estimated from a sample of the footers, at least one file and at most 64. For each epoch the footers of its files are read
+  once, on all the threads, and then the threads take the groups one at a time, the most expensive first. The thread of the flush is one
+  worker, the `parquet_merge` pool runs the others, and a worker that has finished a group takes the next, so an estimate that is wrong for
+  one group does not leave the other threads waiting.
+- A worker copies its group of the columns of every file of the epoch, in the order of the files, and reads only those columns. The groups
+  meet after each epoch, and that is the only place where a row group is cut, so a row group is at most an epoch (an eighth of a row group)
+  larger than `row_group_size`. The page stores are then written to the row group one after the other in the order of the columns.
 - The uploaded file has the same row groups, encodings, compression and page indexes as a serial merge makes. It is not byte for byte the
   same, because parquet-mr decides when to cut a page from the columns of a store, and a store has fewer columns now: on 600,000 real rows
   the file is 44,469,596 bytes with one thread and 44,472,769 with four (+0.007%).
@@ -384,8 +393,18 @@ merge alone, on 600,000 real ClickBench rows (105 columns) on a 12-core laptop:
 | 8 | 0.85 to 0.97 s | 1.0 to 1.1 s |
 | 12 | not measured | 1.1 to 1.4 s |
 
-The gain flattens at 6 to 8 threads on that laptop, and smaller files cost more because each file costs a footer read for every group.
-One to three groups for each thread merged equally fast, and four were slower.
+The gain flattens at 6 to 8 threads on that laptop. These numbers are from the version that read the footer of a file for every group and
+met after every file, which is why smaller files cost more. One to three groups for each thread merged equally fast, and four were slower.
+
+Reading each footer once and meeting after an epoch instead of after every file (the numbers above are from before it) was faster and used
+less CPU in a side-by-side run on the same laptop, with two samples for each row (the whole flush, with the process CPU time):
+
+| Files, threads | Before: flush, CPU | After: flush, CPU |
+|---|---|---|
+| 2,000 rows, 8 threads | 1.6 to 1.7 s, 7.8 to 8.3 s | 0.9 to 1.0 s, 4.3 to 4.7 s |
+| 5,000 rows, 8 threads | 1.2 to 1.3 s, 5.4 to 6.3 s | 0.98 s, 4.5 to 4.8 s |
+| 2,000 rows, 4 threads | 1.6 s, 4.5 to 4.6 s | 1.2 to 1.3 s, 3.3 to 3.7 s |
+| 2,000 rows, 1 thread (the serial merge) | 5.6 s | 5.7 s |
 
 ### How an upload overlaps the next merge
 
@@ -558,9 +577,19 @@ Things that were not obvious from the numbers:
   instance name in the params file. One run with 24 clients on a node that turned out to have 8 vCPU had 8 write threads and no gain.
 - The write path scales with the clients until the write pool or the CPU is full, but the flush has to keep up. When it does not, the local
   files reach `max_local_size`, bulks wait for retries, and the final flush has to catch up.
+- Every call that the flush thread makes to the repository can stall it. In the run with epochs the merge-related time of the flush thread
+  fell by 22% (the footer share of the merge CPU from 20% to 1%), but the total stayed the same: the refresh of the table metadata in
+  `ensureColumns` took 42 s on the flush thread (0.9 s before) because one read was slow, and the uploads of the final flush took twice as
+  long (55 s against 27 s). The table is read again only when a column is missing now, and the last upload of a periodic flush still
+  holds the flush thread (see "How an upload overlaps the next merge").
 - Smaller bulks make more local files, and every operation that lists the directory costs more (see "How the commit data stays cheap when
   thousands of local files pile up"). In the run with 2,000-row bulks, 63% of the wall time that the write threads spent in
-  `indexBatch` was the staged PUT.
+  `indexBatch` was the staged PUT. With 5,000-row bulks the footer reads fell from 37% to 20% of the CPU of the merge, the median indexing
+  rate rose from 332k to 404k documents per second, and the staged PUT was 56% of the time in `indexBatch`.
+- A flush threshold above `max_local_size` stalls the bulks. A run with a threshold of `512gb` by mistake had no flush until the local files
+  reached the cap (8 GB). Every bulk then got a 429, and the bulks waited about 5 minutes until the idle flush ran (a service time of 282 s
+  at the p99.9 and 343 s at the maximum). The total was 747 s, against 346 s with a threshold of 512 MB. Check the track parameters in
+  `race.json` before you read a result.
 
 ## Working on the code
 
@@ -663,12 +692,17 @@ distribution, so installing them again fails at boot with a duplicate key. What 
   need a shim to use it. An implementation of Iceberg's `Catalog` interface over the entries, the Hadoop-catalog layout, and a REST catalog
   client are not built.
 - A compaction that crashes inside the Parquet or Iceberg libraries with a `LinkageError` is logged, and has no test (the flush has one).
-- The merge reads the footer of a local file once for each group, which is 16 parses for each 2,000-row file with 8 threads. In a benchmark that
-  was 37% of the CPU of the merge, and the merge threads were busy for only about half of their time, probably because every file also
-  costs a barrier. Sharing one parsed footer between the groups of a file, and putting the barrier after several files, is not built.
+- Before the footers were shared and the groups met after an epoch, the merge read the footer of a file for every group (37% of the CPU of
+  the merge with 2,000-row files, 20% with 5,000-row files), and its threads were busy for only about half of their time in the benchmark.
+  The change is faster in the lab (see "How the merge encodes the columns on several threads") and in the benchmark it cut the flush
+  thread's time in the merge by 22%, but the merge threads are still busy for only about half of their time.
 - The last upload of a periodic flush is not overlapped with the next merge (see "How an upload overlaps the next merge"), and the default of
   `flush_merge_parallelism` (4) does not depend on the number of processors: on a node with 32 vCPU a larger value is needed to keep up
   with the ingest.
+- A flush is not requested when the local files reach `max_local_size`, only when the size check of the shard runs after an accepted write
+  or when the shard has been idle for 5 minutes (`indices.memory.shard_inactive_time`). With a flush threshold above the cap, or after a
+  flush that failed, the bulks therefore wait for the idle flush (see "What the benchmark runs taught us"). A flush that the engine requests
+  itself when it refuses a batch is not built.
 - A float or double column has no minimum and maximum in the footer (parquet-mr 1.18.1 with our writer settings); not investigated.
 - Whether `index.storage_format` is the final name, and when its definition moves from the plugin to `server`.
 - Whether to register the `parquet` extension in `LuceneFilesExtensions` and not rely on the test property.
@@ -687,9 +721,9 @@ The commits of the engine since last review, oldest first, each with what it doe
 2. **`873f6b0` Pin parquet primaries and refuse replicas.** An allocation decider keeps the primary of a parquet index on its node and
    refuses its replicas. The local files do not move with a shard, so a relocation or a replica would lose rows without an error.
 
-3. **`847e587` Stage bulk files in the object store.** The new setting `index.parquet.durability` defaults to `staged`: a copy of each bulk
-   file goes to the repository before the bulk is acknowledged. After the loss of a node and its disk, the new engine adopts the staged files
-   into the table, and with `local` the acknowledgement point stays the local file.
+   3. **`847e587` Stage bulk files in the object store.** The new setting `index.parquet.durability` defaults to `staged`: a copy of each bulk
+      file goes to the repository before the bulk is acknowledged. After the loss of a node and its disk, the new engine adopts the staged files
+      into the table, and with `local` the acknowledgement point stays the local file.
 
 4. **`500811b` Write local files of a shard in parallel.** The shard-wide write lock is gone, and bulks write their local files at the same
    time. A flush takes only files up to the processed checkpoint, so it never uploads a file while a lower range is still being written.

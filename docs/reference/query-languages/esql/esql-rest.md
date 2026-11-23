@@ -268,8 +268,8 @@ It is equivalent to the query `SET time_zone = "Europe/Paris"; ROW date = TO_DAT
 
 The `settings` object works the same way in [`POST /_query/async`]({{es-apis}}operation/operation-esql-async-query).
 
-* A `SET` directive in the query overrides the same setting in `settings`.
-* Only settings that the [table of settings](directives/set.md#esql-set-sources) shows as available in the request body are accepted. An unknown setting, or a setting that is not available in the request body, is rejected with a `400` error.
+* A `SET` directive in the query overrides the same setting in `settings`. A setting with a map value can combine the values from several places instead of replacing them. Refer to the documentation of the [setting](directives/set.md#allowed-settings).
+* Only settings that support the request body are accepted, which the documentation of each [setting](directives/set.md#allowed-settings) says. An unknown setting, or a setting that does not support the request body, is rejected with a `400` error.
 * `time_zone`, `approximation`, and, on {{serverless-short}}, `project_routing` can also be passed as top-level fields of the request body. If you pass one of them both at the top level and in `settings`, the values must be the same, otherwise the request is rejected with a `400` error.
 
 ### Setting the query timezone [esql-timezones]

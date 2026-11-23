@@ -151,6 +151,8 @@ public final class QuerySettings {
           - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
             `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
 
+        {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The request body accepts this setting.
+
         {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
         The default itself is configurable. If a query does not specify a value, the
         `esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
@@ -247,6 +249,9 @@ public final class QuerySettings {
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings.\n\n"
+            + "When `approximation` is set in more than one place, for example in the request body and with `SET`, `rows` "
+            + "falls back to the less specific place if the more specific one doesn't set it. `confidence_level` always "
+            + "comes from the most specific place, so it resets to `0.90` when that place doesn't set it.\n\n"
             + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "

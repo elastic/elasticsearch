@@ -18,8 +18,6 @@ If the same setting is defined multiple times, the last definition takes precede
 
 Besides the `SET` directive, a query setting can come from the request body, from a cluster setting, and, for a few settings, from a view definition. The section of each setting in [Allowed settings](#allowed-settings) says which of these it supports.
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The `unmapped_fields` setting can be set in the request body. Its `LOAD_ALL` value is in technical preview.
-
 When the same setting is set in more than one place, the most specific one wins. From lowest to highest precedence:
 
 1. The built-in default of the setting.
@@ -27,9 +25,9 @@ When the same setting is set in more than one place, the most specific one wins.
 3. {applies_to}`stack: ga 9.5+` The `settings` object in the [request body](/reference/query-languages/esql/esql-rest.md#esql-rest-query-settings).
 4. The `SET` directive in the query.
 
-The `approximation` setting is the exception: when it is set as a map in more than one place, the maps are combined key by key, and the more specific place wins for a key that is set in both.
+A setting with a map value can combine the values from several places instead of replacing them. Refer to the documentation of the setting.
 
-{applies_to}`stack: ga 9.6+` A view definition can use `SET` for the settings marked in the table, except that `unmapped_fields` can't be `LOAD_ALL`. These settings apply only inside that view. For these settings, a value from the calling query or the request body doesn't enter the view, but the cluster setting applies both inside and outside views. For details, refer to [Settings across view boundaries](/reference/query-languages/esql/esql-views.md#settings-across-view-boundaries).
+{applies_to}`stack: ga 9.6+` A view definition can use `SET` for some settings. These settings apply only inside that view. For these settings, a value from the calling query or the request body doesn't enter the view, but the cluster setting applies both inside and outside views. For details, refer to [Settings across view boundaries](/reference/query-languages/esql/esql-views.md#settings-across-view-boundaries).
 
 ## Allowed settings
 

@@ -1073,6 +1073,20 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
+    public void testFailedShardHandlerNotifiesMasterWhenCauseIsNullAndShardRemovalThrows() {
+        final var shardRouting = applyInitializingPrimary();
+        final var onShardFailure = indicesService.lastOnShardFailure;
+        assertNotNull(onShardFailure);
+
+        // Looking up the index service is the first thing the removal does, so this makes it throw.
+        indicesService.failNextIndexServiceLookup = new IllegalStateException("simulated removal failure");
+        onShardFailure.accept(new IndexShard.ShardFailure(shardRouting, primaryTerm(shardRouting), "simulated engine failure", null));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
     public void testUpdateShardDoesNotResendShardStartedWhileRecoveryInFlight() {
         ShardRouting shardRouting = applyInitializingPrimary();
         currentInFlight(shardRouting); // sanity: ticket is live before the state transition below

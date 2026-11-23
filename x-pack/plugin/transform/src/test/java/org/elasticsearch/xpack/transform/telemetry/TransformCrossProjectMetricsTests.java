@@ -242,10 +242,73 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
             )
         );
 
-        // transform stopped -> the task deregistered itself -> next poll resets the cache
+        // transform stopped -> the task deregistered itself -> the next poll still counts it once, the one after resets the cache
         transformNode.deregisterTransform("transform-1");
+        component.poll();
+        assertThat(
+            observeUiamAuth(),
+            containsInAnyOrder(
+                new Measurement(1L, Map.of("auth_type", "uiam"), false),
+                new Measurement(0L, Map.of("auth_type", "legacy"), false)
+            )
+        );
         component.poll();
         assertThat("node now idle -> no observation", observeUiamAuth(), empty());
         assertThat("node now idle -> no observation", observeActive(), empty());
+    }
+
+    public void testTaskThatEndedBetweenPollsIsCountedOnce() {
+        // a batch transform registers, searches cross-project and deregisters before the poll runs
+        registerTask("batch-1", false, true);
+        transformNode.deregisterTransform("batch-1");
+
+        component.poll();
+        assertThat(
+            observeUiamAuth(),
+            containsInAnyOrder(
+                new Measurement(0L, Map.of("auth_type", "uiam"), false),
+                new Measurement(1L, Map.of("auth_type", "legacy"), false)
+            )
+        );
+        assertThat(
+            observeActive(),
+            containsInAnyOrder(
+                new Measurement(1L, Map.of("scope", "cross_project"), false),
+                new Measurement(0L, Map.of("scope", "origin"), false)
+            )
+        );
+
+        component.poll();
+        assertThat(observeUiamAuth(), empty());
+        assertThat(observeActive(), empty());
+    }
+
+    public void testTaskThatRestartedBetweenPollsIsCountedOnceWithCurrentFacts() {
+        registerTask("transform-1", false, true);
+        transformNode.deregisterTransform("transform-1");
+        registerTask("transform-1", true, false);
+
+        component.poll();
+        assertThat(
+            observeUiamAuth(),
+            containsInAnyOrder(
+                new Measurement(1L, Map.of("auth_type", "uiam"), false),
+                new Measurement(0L, Map.of("auth_type", "legacy"), false)
+            )
+        );
+        assertThat(
+            observeActive(),
+            containsInAnyOrder(
+                new Measurement(0L, Map.of("scope", "cross_project"), false),
+                new Measurement(1L, Map.of("scope", "origin"), false)
+            )
+        );
+    }
+
+    public void testDeregisteringAnUnknownTransformIsIgnored() {
+        transformNode.deregisterTransform("never-registered");
+        component.poll();
+        assertThat(observeUiamAuth(), empty());
+        assertThat(observeActive(), empty());
     }
 }

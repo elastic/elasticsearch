@@ -373,22 +373,28 @@ public final class BatchMappingContext implements Releasable {
      * drained by {@link IgnoredFieldMapper#postColumnarParse}.
      */
     public void addIgnoredFieldColumnar(int doc, String field) {
+        addIgnoredFieldColumnar(doc, new BytesRef(field));
+    }
+
+    /** As {@link #addIgnoredFieldColumnar(int, String)}, for a caller that reports one field for many documents and encodes it once. */
+    void addIgnoredFieldColumnar(int doc, BytesRef field) {
         assert frozen == false;
         if (ignoredFields == null) {
             ignoredFields = new DeduplicatingStringColumnAccumulator(batch.docCount());
         }
-        ignoredFields.record(doc, new BytesRef(field));
+        ignoredFields.record(doc, field);
     }
 
     /**
-     * Returns a helper that applies {@code ignore_malformed} to {@code fieldPath} as the row path does. The caller must
-     * {@link BatchMalformedValues#emit} and close it.
+     * Returns a helper that applies {@code ignore_malformed} to {@code mapper}'s field as its row path does. The mapper must not record
+     * offsets. The caller must {@link BatchMalformedValues#emit} and close it.
      *
-     * @param ignoreMalformed the field's {@code ignore_malformed} setting
-     * @param storeMalformed  whether the field's row path stores malformed values so synthetic source can restore them
+     * @param storeMalformed whether the mapper's row path stores malformed values so synthetic source can restore them. The mapper
+     *                       decides this itself on the row path (the IP mapper stores whenever its source is synthetic, histogram only
+     *                       when {@code ignore_malformed} is also on), and the batch path has to agree with it.
      */
-    public BatchMalformedValues malformedValues(String fieldPath, boolean ignoreMalformed, boolean storeMalformed) {
-        return new BatchMalformedValues(this, fieldPath, ignoreMalformed, storeMalformed);
+    public BatchMalformedValues malformedValues(FieldMapper mapper, boolean storeMalformed) {
+        return new BatchMalformedValues(this, mapper, storeMalformed);
     }
 
     /**

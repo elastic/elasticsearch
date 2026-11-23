@@ -928,9 +928,6 @@ public class IpFieldMapper extends FieldMapper {
         if (fieldType().hasDocValues() == false) {
             return;
         }
-        // Fields with offsets are not eligible for the batch path (see doSupportsColumnarParse), so malformed values never need
-        // _ignored_source.
-        assert offsetsFieldName == null;
 
         if (fieldType().usesArrayOrderBinaryDocValues()) {
             mapColumnBatchOrdered(ctx, source);
@@ -952,7 +949,7 @@ public class IpFieldMapper extends FieldMapper {
         try (
             EscfColumnBuilder binaryDvs = mergeStringColumn(ctx);
             EscfColumnBuilder dvCounts = mergeLongColumn(ctx);
-            BatchMalformedValues malformed = ctx.malformedValues(fieldType().name(), ignoreMalformed, storeIgnored)
+            BatchMalformedValues malformed = ctx.malformedValues(this, storeIgnored)
         ) {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
@@ -1050,10 +1047,7 @@ public class IpFieldMapper extends FieldMapper {
             ? BinaryDocValuesField.TYPE
             : (fieldType().indexType.hasDocValuesSkipper() ? SORTED_SET_DV_SKIPPER_FIELD_TYPE : SORTED_SET_DV_FIELD_TYPE);
         // IP always re-encodes (no zero-copy shortcut), so the values builder is unconditional.
-        try (
-            EscfColumnBuilder values = mergeStringColumn(ctx);
-            BatchMalformedValues malformed = ctx.malformedValues(fieldType().name(), ignoreMalformed, storeIgnored)
-        ) {
+        try (EscfColumnBuilder values = mergeStringColumn(ctx); BatchMalformedValues malformed = ctx.malformedValues(this, storeIgnored)) {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 

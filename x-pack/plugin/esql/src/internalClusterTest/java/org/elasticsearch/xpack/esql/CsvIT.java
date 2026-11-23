@@ -114,7 +114,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -924,48 +923,6 @@ public class CsvIT extends ESTestCase {
             );
         }
     };
-
-    private abstract static class ResourceLoader<T> {
-        private final Set<String> loaded = new HashSet<>();
-        private Throwable failure = null;
-
-        protected abstract void load(T resource) throws Throwable;
-
-        protected void unload(String name) {
-            throw new UnsupportedOperationException("Unloading is not supported");
-        }
-
-        public void maybeLoad(String name, T resource) {
-            assertNotNull("Resource [" + name + "] is not found!", resource);
-            if (failure == null && loaded.add(name)) {
-                try {
-                    load(resource);
-                } catch (Throwable t) {
-                    failure = t;
-                    throw new RuntimeException("Resource loading failure", failure);
-                }
-            }
-        }
-
-        /** Forget what was loaded, because the cluster that it was loaded into is gone. */
-        public void reset() {
-            loaded.clear();
-            failure = null;
-        }
-
-        public void unloadAll() {
-            for (String name : loaded) {
-                unload(name);
-            }
-            loaded.clear();
-        }
-
-        public void ensureNoFailures() {
-            if (failure != null) {
-                throw new RuntimeException("Resource loading failure", failure);
-            }
-        }
-    }
 
     private static void createCustomRegexConfig(Path configDir) throws IOException {
         // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option

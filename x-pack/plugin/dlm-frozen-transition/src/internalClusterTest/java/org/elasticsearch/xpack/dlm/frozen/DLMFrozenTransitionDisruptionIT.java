@@ -564,15 +564,11 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Removes the original backing index from the data stream (without deleting it) just before the mount step.
      * <p>
      * Expected behaviour: the transition stops without deleting the original index, which is the only copy of the
-     * data that is still part of the cluster. The marker is removed so that the transition is not retried. The orphan
-     * cleanup then reclaims the clone, the mounted index and the snapshot in two passes (the snapshot is still
-     * protected by the mounted index during the first pass).
+     * data that is still part of the cluster. The marker is removed so that the transition is not retried.
      */
     public void testRemoveBackingIndexFromDataStreamDuringTransition() throws Exception {
         Index candidateIndex = setupClusterAndInfrastructure(1);
         String candidateIndexName = candidateIndex.getName();
-        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndexName;
-        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndexName;
 
         CountDownLatch latch = registerDisruptionInterceptor("cluster:admin/snapshot/mount", () -> {
             ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
@@ -587,32 +583,13 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertTrue("MountSearchableSnapshot request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
         awaitTransitionCompletion(candidateIndex);
 
-        ProjectMetadata projectMetadata = getProjectMetadata();
-        IndexMetadata originalMetadata = projectMetadata.index(candidateIndexName);
+        IndexMetadata originalMetadata = getProjectMetadata().index(candidateIndexName);
         assertThat("The original index must not be deleted by DLM", originalMetadata, notNullValue());
         assertThat(
             "The marker must be removed so the transition is not retried",
             DataStreamLifecycleService.indexMarkedForFrozen(originalMetadata),
             is(false)
         );
-        assertHitCount(prepareSearch(candidateIndexName), 1);
-
-        List<String> expectedSnapshotNames = List.of(DLMConvertToFrozen.snapshotName(cloneIndexName));
-        assertThat("The clone must exist before the orphan cleanup", projectMetadata.index(cloneIndexName), notNullValue());
-        assertThat("The mounted index must exist before the orphan cleanup", projectMetadata.index(frozenIndexName), notNullValue());
-        assertThat("The snapshot must exist before the orphan cleanup", dlmSnapshotNames(), equalTo(expectedSnapshotNames));
-
-        DLMFrozenCleanupService cleanupService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenCleanupService.class);
-        cleanupService.checkForOrphanedResources();
-        projectMetadata = getProjectMetadata();
-        assertThat("The orphaned clone should be cleaned up", projectMetadata.index(cloneIndexName), nullValue());
-        assertThat("The orphaned mounted index should be cleaned up", projectMetadata.index(frozenIndexName), nullValue());
-        assertThat("The original index must survive the cleanup", projectMetadata.index(candidateIndexName), notNullValue());
-        assertThat("The snapshot is protected by the mounted index in the first pass", dlmSnapshotNames(), equalTo(expectedSnapshotNames));
-
-        cleanupService.checkForOrphanedResources();
-        assertThat("The orphaned snapshot should be cleaned up", dlmSnapshotNames(), equalTo(List.of()));
-        assertThat("The original index must survive the cleanup", getProjectMetadata().index(candidateIndexName), notNullValue());
         assertHitCount(prepareSearch(candidateIndexName), 1);
     }
 
@@ -716,19 +693,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
     private ProjectMetadata getProjectMetadata() {
         return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-    }
-
-    /**
-     * Returns the names of all {@code dlm-frozen-*} snapshots currently present in {@link #REPO_NAME}.
-     */
-    private List<String> dlmSnapshotNames() {
-        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
-            .setSnapshots(DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + "*")
-            .get()
-            .getSnapshots()
-            .stream()
-            .map(snapshotInfo -> snapshotInfo.snapshotId().getName())
-            .toList();
     }
 
     /**

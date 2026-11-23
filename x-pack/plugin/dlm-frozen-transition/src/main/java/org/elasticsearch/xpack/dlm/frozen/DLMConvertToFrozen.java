@@ -527,7 +527,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
         if (dataStreamName != null) {
             swapIndicesInDataStream(dataStreamName);
-        } else if (isMountedReplacementInDataStream(forceMergeIndex, projectMetadata) == false) {
+        } else if (isMountedReplacementInDataStream(projectMetadata) == false) {
             // The original left its data stream before the mounted snapshot was swapped in.
             // Abort as the data may exist only in the original.
             throw new DLMUnrecoverableException(
@@ -546,21 +546,24 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Returns true only if the frozen index is in a data stream and is the DLM-created searchable snapshot mount of this
-     * transition's snapshot. A name match alone is not enough, because an unrelated index can have the expected frozen index name.
+     * Returns true only if the frozen-named index is in a data stream and is the DLM-created mount of a snapshot of the original
+     * index or its clone. The source comes from the mount, not from this attempt's force merge choice, which a replica change
+     * can alter between attempts.
      */
-    private boolean isMountedReplacementInDataStream(String forceMergeIndex, ProjectMetadata projectMetadata) {
+    private boolean isMountedReplacementInDataStream(ProjectMetadata projectMetadata) {
         String frozenIndexName = snapshotName(indexName);
         IndexMetadata frozenIndexMetadata = projectMetadata.index(frozenIndexName);
         if (frozenIndexMetadata == null || resolveDataStreamName(frozenIndexName, projectMetadata) == null) {
             return false;
         }
         Settings frozenSettings = frozenIndexMetadata.getSettings();
+        String mountedSourceIndex = frozenSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
+        boolean sourceIsFromThisTransition = indexName.equals(mountedSourceIndex) || getDLMCloneIndexName().equals(mountedSourceIndex);
         return DataStreamLifecycleService.frozenTransitionCompleted(frozenIndexMetadata)
-            && snapshotName(forceMergeIndex).equals(
+            && sourceIsFromThisTransition
+            && snapshotName(mountedSourceIndex).equals(
                 frozenSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY)
-            )
-            && forceMergeIndex.equals(frozenSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY));
+            );
     }
 
     private boolean isIndexReadOnly() {

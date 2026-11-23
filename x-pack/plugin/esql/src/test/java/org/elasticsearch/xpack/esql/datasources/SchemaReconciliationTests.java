@@ -6,11 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -1027,8 +1030,8 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     public void testColumnMappingRoundTripAllCastTypes() throws IOException {
         ColumnMapping original = new ColumnMapping(
-            new int[] { 0, 1, 2 },
-            new DataType[] { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS }
+            new int[] { 0, 1, 2, 3 },
+            new DataType[] { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS, DataType.KEYWORD }
         );
         assertThat(roundTrip(original), equalTo(original));
     }
@@ -1051,10 +1054,53 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(roundTrip(original), equalTo(original));
     }
 
-    private static ColumnMapping roundTrip(ColumnMapping mapping) throws IOException {
+    /**
+     * A KEYWORD cast toward a node predating {@code esql_column_mapping_keyword_cast} is refused as
+     * {@link IllegalArgumentException} (HTTP 400) rather than {@link IllegalStateException} (HTTP 500).
+     * Sending the ordinal would corrupt the page on the older node.
+     */
+    public void testKeywordCastRefusedBelowItsTransportVersion() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_column_mapping_keyword_cast"));
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(before);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapping.writeTo(out));
+        assertThat(e.getMessage(), containsString("rolling upgrade in progress"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat("writeTo must not touch the stream before refusing", out.bytes().length(), equalTo(0));
+    }
+
+    /**
+     * The same KEYWORD mapping round-trips at the supporting transport version and at current, so the
+     * gate discriminates rather than always refusing.
+     */
+    public void testKeywordCastRoundTripsAtItsTransportVersion() throws IOException {
+        ColumnMapping original = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        TransportVersion at = TransportVersion.fromName("esql_column_mapping_keyword_cast");
+        assertThat(roundTrip(original, at), equalTo(original));
+        assertThat(roundTrip(original, TransportVersion.current()), equalTo(original));
+    }
+
+    /**
+     * A mapping with no KEYWORD cast still serializes to a node predating the KEYWORD ordinal, so the
+     * gate is keyed off {@code hasKeywordCast()} rather than the transport version alone.
+     */
+    public void testNonKeywordCastSerializesBelowKeywordCastTransportVersion() throws IOException {
+        ColumnMapping original = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_column_mapping_keyword_cast"));
+        assertThat(roundTrip(original, before), equalTo(original));
+    }
+
+    private static ColumnMapping roundTrip(ColumnMapping mapping) throws IOException {
+        return roundTrip(mapping, TransportVersion.current());
+    }
+
+    private static ColumnMapping roundTrip(ColumnMapping mapping, TransportVersion version) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
         mapping.writeTo(out);
         StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
         return new ColumnMapping(in);
     }
 

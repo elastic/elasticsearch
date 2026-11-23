@@ -11,21 +11,31 @@ package org.elasticsearch.lucene;
 
 import org.apache.lucene.util.Version;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.elasticsearch.test.ESTestCase.assertFalse;
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.elasticsearch.test.ESTestCase.assertTrue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Central registry of Elasticsearch's forks of Lucene classes (the {@code X*} classes).
+ * Class for managing registries of Elasticsearch's forks of Lucene classes (the {@code X*} classes).
  *
  * <p>Every fork that exists to carry an upstream bug fix must be registered here with the Lucene
- * release that contains the fix. {@link LuceneForksTests} fails once the Lucene version we build
- * against reaches that release, which is the signal to delete the fork. Forks that are intentional
+ * release that contains the fix. Lucene fork test classes for each module fails once the Lucene version
+ * we build against reaches that release, which is the signal to delete the fork.
+ * <p>Forks that are intentional
  * extensions rather than bug fixes are registered with {@link #permanent} so that they can still be
  * found and checked for existence during Lucene upgrades.
+ * <p>Forks that are maintained for backwards compatibility are registered with {@link #compatibility};
+ * the affected classes should also have an {@code UpdateForVX} annotation on them.
  *
- * <p>Note that this list may not be exhaustive - if you find an unregistered fork while looking at
- * other code, please register it here so that we can track it.
+ * <p>Note that these lists may not be exhaustive - if you find an unregistered fork while looking at
+ * other code, please register it so that we can track it.
  *
- * <p>Workarounds for Lucene bugs that don't need a forked class are also registered here, with
+ * <p>Workarounds for Lucene bugs that don't need a forked class are also registered with
  * {@link #workaround}, so that we are reminded to remove the workaround once the fix has been
  * released.
  */
@@ -77,6 +87,33 @@ public final class LuceneForks {
         }
     }
 
+    /**
+     * Checks {@code forks} for any that have expired, and throws {@link AssertionError} if they have
+     */
+    public static void checkForksForExpiry(Collection<Fork> forks) {
+        for (LuceneForks.Fork fork : forks) {
+            assertFalse(fork.expiryMessage(Version.LATEST), fork.isExpired(Version.LATEST));
+        }
+    }
+
+    /**
+     * Checks that {@code forks} are still valid, and throws {@link AssertionError} if any classes no longer exist
+     */
+    public static void checkForksAreValid(Collection<Fork> forks) {
+        Set<String> seen = new HashSet<>();
+        for (LuceneForks.Fork fork : forks) {
+            try {
+                assertTrue("duplicate registry entry " + fork.className(), seen.add(fork.className()));
+                Class<?> clazz = Class.forName(fork.className());
+                if (fork.kind() == LuceneForks.Kind.FORK) {
+                    assertThat(clazz.getSimpleName(), startsWith("X"));
+                }
+            } catch (ClassNotFoundException e) {
+                throw new AssertionError("Forked class " + fork.className() + " does not exist", e);
+            }
+        }
+    }
+
     static Fork expiring(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
         return new Fork(Kind.FORK, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
     }
@@ -88,56 +125,16 @@ public final class LuceneForks {
         return new Fork(Kind.WORKAROUND, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
     }
 
+    /**
+     * Registers a class that is needed to maintain backwards compatibility in some way
+     */
+    static Fork compatibility(String className, String removalNote) {
+        return new Fork(Kind.FORK, className, null, null, removalNote);
+    }
+
     static Fork permanent(String className, String reason) {
         return new Fork(Kind.FORK, className, reason, null, "This fork is intentional and does not expire.");
     }
-
-    private static final String RANGE_FIX_REMOVAL =
-        "Delete XSortedSetDocValuesRangeQuery, XSortedSkipperScorerSupplier and XRangeBulkScorer, "
-            + "revert callers to SortedSetDocValuesField.newSlowRangeQuery/newSlowExactQuery, and keep the regression tests.";
-
-    public static final List<Fork> ALL = List.of(
-        expiring("org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
-        expiring("org.elasticsearch.lucene.document.XSortedSkipperScorerSupplier", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
-        expiring("org.elasticsearch.lucene.document.XRangeBulkScorer", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
-        workaround(
-            "org.elasticsearch.search.vectors.DenseVectorQuery",
-            "apache/lucene#16377",
-            11,
-            0,
-            0,
-            "Remove the lazy initialisation of bulkScorer in DenseVectorScorer."
-        ),
-        workaround(
-            "org.elasticsearch.index.store.FsDirectoryFactory",
-            "apache/lucene#16970",
-            10,
-            6,
-            1,
-            "Remove FsDirectoryFactory.HybridDirectory#confineTempStoredFieldsIndex and its test."
-        ),
-        workaround(
-            "org.elasticsearch.index.search.QueryTokenCacheAccountingFilter",
-            "apache/lucene#17020",
-            11,
-            0,
-            0,
-            "Stop counting the term bytes of CharTermAttributeImpl, whose clone no longer copies them, "
-                + "and drop the stale-bytes paragraph from the class Javadoc."
-        ),
-        workaround(
-            "org.elasticsearch.indices.RunEndCachingBitDocIdSet",
-            "apache/lucene#16849",
-            10,
-            6,
-            0,
-            "Delete RunEndCachingBitDocIdSet and its tests, and the cacheImpl override in IndicesQueryCache."
-        ),
-        permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.common.lucene.search.XMoreLikeThis", "Elasticsearch-specific more-like-this behaviour")
-    );
 
     private LuceneForks() {}
 }

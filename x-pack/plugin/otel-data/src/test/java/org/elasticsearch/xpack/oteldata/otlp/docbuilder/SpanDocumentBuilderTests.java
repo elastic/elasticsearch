@@ -201,13 +201,10 @@ public class SpanDocumentBuilderTests extends ESTestCase {
     }
 
     private ObjectPath buildDocument(Resource resource, InstrumentationScope scope, Span span) throws IOException {
-        TargetIndex targetIndex = TargetIndex.evaluate(
-            "traces",
-            span.getAttributesList(),
-            null,
-            scope.getAttributesList(),
-            resource.getAttributesList()
-        );
+        TargetIndex targetIndex = TargetIndex.defaultForTraces()
+            .withAttributeOverrides(resource.getAttributesList())
+            .withAttributeOverrides(scope.getAttributesList())
+            .withAttributeOverrides(span.getAttributesList());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         documentBuilder.buildSpanDocument(builder, resource, RESOURCE_SCHEMA_URL, scope, SCOPE_SCHEMA_URL, targetIndex, span);
         return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

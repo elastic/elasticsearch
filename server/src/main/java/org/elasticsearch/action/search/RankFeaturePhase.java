@@ -210,7 +210,7 @@ public class RankFeaturePhase extends SearchPhase {
                 public void onFailure(Exception e) {
                     if (rankFeaturePhaseRankCoordinatorContext.failuresAllowed()) {
                         // the failure is reported to the client in the search response, so the log only needs the summary
-                        logger.debug("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
+                        logger.warn("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
                         context.addPhaseFailure(NAME, e);
                         // use the existing score docs as-is
                         // downstream things expect every doc to have a score, so we need to infer a score here

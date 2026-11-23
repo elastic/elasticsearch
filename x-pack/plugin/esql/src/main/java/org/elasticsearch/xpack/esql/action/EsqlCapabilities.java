@@ -3862,6 +3862,17 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, only {@code KEEP} and {@code DROP} decide which keys {@code _unmapped_fields} holds.
+         * A column is a name of its own and leaves the keys as they are, whether it is a mapped field, a field that the query names, or
+         * a column that a command adds or shadows (an {@code EVAL} or {@code RENAME} target, a {@code LOOKUP JOIN} or {@code ENRICH}
+         * field, a {@code GROK} output). Those used to take the key of the same name out of it. {@code DROP} removes what it matches
+         * everywhere, columns and keys, and an exact name as well as a wildcard.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST} is available. See
+         * <a href="https://github.com/elastic/esql-planning/issues/2536">esql-planning#2536</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ONLY_KEEP_AND_DROP_REACH_KEYS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * {@code unmapped_fields="LOAD_ALL"} works with the {@code TS} source command, and with {@code METRICS_INFO} and {@code TS_INFO}.
          * A time-series aggregation drops the {@code _unmapped_fields} column like any {@code STATS}, and a {@code TS} query without
          * one returns it like a {@code FROM} does. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See

@@ -460,7 +460,7 @@ public class ComputeService {
                     List.of(),
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
-                    configuration.pragmas().taskConcurrency(),
+                    configuration.pragmas().taskConcurrency(clusterService.getSettings()),
                     minTransportVersion(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
@@ -547,11 +547,10 @@ public class ComputeService {
     }
 
     private int externalCoalesceFloor(Configuration configuration) {
-        int taskConcurrency = configuration.pragmas().taskConcurrency();
-        // The TASK_CONCURRENCY default is computed from Settings.EMPTY at class-load time and therefore ignores
-        // node.processors. On a K8s node with node.processors=4 on a 64-CPU host the default is 97 while the
-        // esql_worker pool has only 7 threads. Cap against the pool size so the floor never creates more groups
-        // than there are workers to drain them. ThreadPool#info returns null for a pool this node did not register,
+        int taskConcurrency = configuration.pragmas().taskConcurrency(clusterService.getSettings());
+        // Cap against the live esql_worker pool so the floor never creates more groups than there are
+        // workers to drain them. Still needed when esql.worker.thread_pool_size is overridden below the
+        // search-formula default. ThreadPool#info returns null for a pool this node did not register,
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
@@ -779,7 +778,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
-            configuration.pragmas().taskConcurrency(),
+            configuration.pragmas().taskConcurrency(clusterService.getSettings()),
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));

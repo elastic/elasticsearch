@@ -83,6 +83,11 @@ public class Elasticsearch92Lucene103Codec extends FilterCodec {
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch92Lucene103Codec(Zstd814StoredFieldsFormat.Mode mode) {
+        /*
+         * NOTE: this codec must also be able to read things Elasticsearch93Lucene104Codec,
+         * due to https://github.com/elastic/elasticsearch/issues/166699
+         * PerField formats already handle this correctly at this time
+         */
         super("Elasticsearch92Lucene103", new Lucene103Codec());
         this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();

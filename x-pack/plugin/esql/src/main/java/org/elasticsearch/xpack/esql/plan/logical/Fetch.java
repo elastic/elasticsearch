@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Loads the fetched columns of the rows that survived a {@code LIMIT} or {@code TopN} from the documents they came from,
+ * Loads the fetched columns of the rows that survived a {@code TopN} from the documents they came from,
  * instead of loading them on the data nodes for every row the cut later drops.
  * <p>
  * The child is the cut, narrowed to the {@code _doc} of each row and the columns that cross the exchange as values. The

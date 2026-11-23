@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
@@ -102,6 +103,16 @@ public class IndexSource implements Writeable, Releasable {
     public boolean hasSourceRow() {
         assert isClosed == false;
         return rowIndex >= 0;
+    }
+
+    /**
+     * The batch that {@link #rowIndex} is a row of, or {@code null} if {@link #hasSourceRow()} is false. Lets a
+     * coordinator tell which batch an item belongs to without going through the name of its target.
+     */
+    @Nullable
+    public SourceBatch sourceBatch() {
+        assert isClosed == false;
+        return sourceBatch;
     }
 
     /**

@@ -124,6 +124,11 @@ public final class ListingWalkHarness implements StorageProvider {
      */
     public static final int WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES = WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES + (WIDE_HIVE_SEVEN_DAYS + 1)
         * WIDE_HIVE_PREFIXES;
+    /**
+     * {@code listChildren} issued before July day peeks fire on the hour-grain 7-day walk:
+     * {@link #WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES} minus one peek per prefix.
+     */
+    public static final int WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS = WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES - WIDE_HIVE_PREFIXES;
 
     private static final String[] WIDE_HIVE_REGIONS = {
         "us-east-1",
@@ -172,6 +177,11 @@ public final class ListingWalkHarness implements StorageProvider {
     final AtomicInteger listChildrenInFlight = new AtomicInteger();
     final AtomicInteger maxListChildrenInFlight = new AtomicInteger();
     volatile LongSupplier listChildrenDelayNanos = () -> 0L;
+    /**
+     * When set, {@link #listChildrenDelayNanos} is invoked only for prefixes containing this fragment.
+     * Blocking delay suppliers used by cancel tests must not run on unfiltered listings.
+     */
+    volatile String delayListChildrenContaining;
     volatile String failListChildrenContaining;
     volatile boolean failListChildrenUnavailable;
     volatile boolean failListChildrenRuntime;
@@ -212,6 +222,11 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public void setListChildrenDelayNanos(LongSupplier delay) {
         this.listChildrenDelayNanos = delay == null ? () -> 0L : delay;
+    }
+
+    /** Restricts {@link #setListChildrenDelayNanos} to {@code listChildren} prefixes containing {@code fragment}. */
+    public void setDelayListChildrenContaining(String fragment) {
+        this.delayListChildrenContaining = fragment;
     }
 
     /** Snapshot of recursive {@code listObjects} prefixes, in call order. */
@@ -818,9 +833,11 @@ public final class ListingWalkHarness implements StorageProvider {
             if (nullListChildrenAfter >= 0 && listChildrenRequests.get() > nullListChildrenAfter) {
                 return null;
             }
-            long delay = listChildrenDelayNanos.getAsLong();
-            if (delay > 0) {
-                LockSupport.parkNanos(delay);
+            if (delayListChildrenContaining == null || p.contains(delayListChildrenContaining)) {
+                long delay = listChildrenDelayNanos.getAsLong();
+                if (delay > 0) {
+                    LockSupport.parkNanos(delay);
+                }
             }
             List<StorageEntry> files = new ArrayList<>();
             Set<String> dirs = new LinkedHashSet<>();

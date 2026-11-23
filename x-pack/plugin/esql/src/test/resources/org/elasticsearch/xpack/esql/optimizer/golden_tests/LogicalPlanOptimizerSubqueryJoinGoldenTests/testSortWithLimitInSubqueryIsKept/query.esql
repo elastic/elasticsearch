@@ -1,0 +1,3 @@
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages | SORT language_name | LIMIT 2) ON language_code

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -27,6 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -67,6 +69,20 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
             FROM test
             | LEFT OUTER JOIN (FROM languages) ON emp_no
             """, containsString("Unknown column [emp_no] in right side of join"));
+    }
+
+    /**
+     * The golden plans don't print data types, so the resolved key types are checked here. ES|QL reads the byte field
+     * {@code languages} as an integer.
+     */
+    public void testKeyTypes() {
+        SubqueryJoin join = findJoin(analyzer().query("""
+            FROM test
+            | EVAL language_code = languages, language_name = first_name
+            | LEFT OUTER JOIN (FROM languages) ON language_code, language_name
+            """));
+        assertThat(join.config().leftFields().stream().map(Attribute::dataType).toList(), contains(DataType.INTEGER, DataType.KEYWORD));
+        assertThat(join.config().rightFields().stream().map(Attribute::dataType).toList(), contains(DataType.INTEGER, DataType.KEYWORD));
     }
 
     public void testNumericKeysOfDifferentTypes() {

@@ -1272,8 +1272,16 @@ public abstract class BlockArrowFormatter {
     }
 
     /**
-     * Exponential histograms follow their field structure: summary values, a zero bucket, and positive and negative
-     * buckets with parallel index and count lists. Empty histograms have empty lists and nullable summary extrema.
+     * Conversion of {@link ExponentialHistogramBlock} to an Arrow struct matching the {@code exponential_histogram} field
+     * structure: {@code Struct(scale: int32, sum: float64, min: float64, max: float64, zero: Struct(count: int64,
+     * threshold: float64), positive: Struct(indices: List<int64>, counts: List<int64>), negative: Struct(indices:
+     * List<int64>, counts: List<int64>))}.
+     * <p>
+     * The struct is null for a missing histogram. An empty histogram is a valid struct with empty bucket lists and null
+     * {@code sum}, {@code min}, and {@code max} (following the Arrow convention that missing values are null rather than
+     * NaN). The {@code scale}, {@code zero}, {@code positive}, and {@code negative} children and their nested fields and
+     * lists are non-nullable. Total sample count is omitted as it is {@code zero.count + sum(positive.counts) +
+     * sum(negative.counts)}. Multivalued columns are encoded as a list of structs.
      */
     public static class AsExponentialHistogram extends BlockArrowFormatter {
         public AsExponentialHistogram(DataType esqlType) {
@@ -1323,31 +1331,9 @@ public abstract class BlockArrowFormatter {
                 nodes.add(new ArrowFieldNode(items, nullValuesCount(block))); // struct
             }
             nodes.add(new ArrowFieldNode(items, 0)); // scale
-            int absentSummary = 0;
-            int absentMin = 0;
-            int absentMax = 0;
-            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-            for (int item = 0; item < items; item++) {
-                if (indexes[item] < 0) {
-                    absentSummary++;
-                    absentMin++;
-                    absentMax++;
-                } else {
-                    ExponentialHistogram histogram = histogramAt(histograms, indexes[item], scratch);
-                    if (histogram.isEmpty() || Double.isNaN(histogram.sum())) {
-                        absentSummary++;
-                    }
-                    if (Double.isNaN(histogram.min())) {
-                        absentMin++;
-                    }
-                    if (Double.isNaN(histogram.max())) {
-                        absentMax++;
-                    }
-                }
-            }
-            nodes.add(new ArrowFieldNode(items, absentSummary)); // sum
-            nodes.add(new ArrowFieldNode(items, absentMin)); // min
-            nodes.add(new ArrowFieldNode(items, absentMax)); // max
+            nodes.add(new ArrowFieldNode(items, absentCount(histograms.getSumBlock(), indexes))); // sum
+            nodes.add(new ArrowFieldNode(items, absentCount(histograms.getMinBlock(), indexes))); // min
+            nodes.add(new ArrowFieldNode(items, absentCount(histograms.getMaxBlock(), indexes))); // max
             nodes.add(new ArrowFieldNode(items, 0)); // zero
             nodes.add(new ArrowFieldNode(items, 0)); // zero.count
             nodes.add(new ArrowFieldNode(items, 0)); // zero.threshold
@@ -1372,14 +1358,70 @@ public abstract class BlockArrowFormatter {
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
             addScalarChild(bufs, bufWriters, block, indexes, Integer.BYTES, ExponentialHistogram::scale);
-            addDoubleChild(bufs, bufWriters, block, indexes, ExponentialHistogram::sum, true);
-            addDoubleChild(bufs, bufWriters, block, indexes, ExponentialHistogram::min, false);
-            addDoubleChild(bufs, bufWriters, block, indexes, ExponentialHistogram::max, false);
+            addDoubleSubBlockChild(bufs, bufWriters, block.getSumBlock(), indexes);
+            addDoubleSubBlockChild(bufs, bufWriters, block.getMinBlock(), indexes);
+            addDoubleSubBlockChild(bufs, bufWriters, block.getMaxBlock(), indexes);
             addEmptyValidity(bufs, bufWriters); // zero struct
             addScalarChild(bufs, bufWriters, block, indexes, Long.BYTES, h -> h.zeroBucket().count());
-            addDoubleChild(bufs, bufWriters, block, indexes, h -> h.zeroBucket().zeroThreshold(), false, false);
+            addNonNullableDoubleChild(bufs, bufWriters, block, indexes, h -> h.zeroBucket().zeroThreshold());
             addBucketBuffers(bufs, bufWriters, block, indexes, true);
             addBucketBuffers(bufs, bufWriters, block, indexes, false);
+        }
+
+        private static int absentCount(DoubleBlock subBlock, int[] indexes) {
+            if (subBlock.mayHaveNulls() == false) {
+                return 0;
+            }
+            if (subBlock.areAllValuesNull()) {
+                return indexes.length;
+            }
+            int count = 0;
+            for (int index : indexes) {
+                if (index < 0 || subBlock.isNull(index)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private static void addDoubleSubBlockChild(List<ArrowBuf> bufs, List<BufWriter> bufWriters, DoubleBlock subBlock, int[] indexes) {
+            int items = indexes.length;
+            if (absentCount(subBlock, indexes) == 0) {
+                addEmptyValidity(bufs, bufWriters);
+            } else {
+                bufs.add(dummyArrowBuf(bitSetLength(items)));
+                bufWriters.add(out -> {
+                    if (subBlock.areAllValuesNull()) {
+                        return writeAllFalseValidity(out, items);
+                    }
+                    BitSet valid = new BitSet(items);
+                    for (int item = 0; item < items; item++) {
+                        int index = indexes[item];
+                        if (index >= 0 && subBlock.isNull(index) == false) {
+                            valid.set(item);
+                        }
+                    }
+                    return writeBitSet(out, valid, items);
+                });
+            }
+            long bytes = (long) items * Double.BYTES;
+            bufs.add(dummyArrowBuf(bytes));
+            bufWriters.add(out -> {
+                if (subBlock.areAllValuesNull()) {
+                    for (int item = 0; item < items; item++) {
+                        out.writeDoubleLE(0);
+                    }
+                    return bytes;
+                }
+                for (int index : indexes) {
+                    if (index < 0 || subBlock.isNull(index)) {
+                        out.writeDoubleLE(0);
+                    } else {
+                        out.writeDoubleLE(subBlock.getDouble(subBlock.getFirstValueIndex(index)));
+                    }
+                }
+                return bytes;
+            });
         }
 
         private static void addBucketBuffers(
@@ -1401,7 +1443,7 @@ public abstract class BlockArrowFormatter {
             long total = 0;
             for (int item = 0; item < indexes.length; item++) {
                 if (indexes[item] >= 0) {
-                    var histogram = histogramAt(block, indexes[item], scratch);
+                    var histogram = block.getExponentialHistogram(indexes[item], scratch);
                     total += (positive ? histogram.positiveBuckets() : histogram.negativeBuckets()).bucketCount();
                 }
                 offsets[item + 1] = Math.toIntExact(total);
@@ -1422,7 +1464,7 @@ public abstract class BlockArrowFormatter {
                 if (index < 0) {
                     continue;
                 }
-                var histogram = histogramAt(block, index, scratch);
+                var histogram = block.getExponentialHistogram(index, scratch);
                 BucketIterator buckets = (positive ? histogram.positiveBuckets() : histogram.negativeBuckets()).iterator();
                 while (buckets.hasNext()) {
                     out.writeLongLE(indices ? buckets.peekIndex() : buckets.peekCount());
@@ -1447,7 +1489,7 @@ public abstract class BlockArrowFormatter {
             bufWriters.add(out -> {
                 ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
                 for (int index : indexes) {
-                    long value = index < 0 ? 0 : getter.applyAsLong(histogramAt(block, index, scratch));
+                    long value = index < 0 ? 0 : getter.applyAsLong(block.getExponentialHistogram(index, scratch));
                     if (width == Integer.BYTES) {
                         out.writeIntLE(Math.toIntExact(value));
                     } else {
@@ -1458,59 +1500,24 @@ public abstract class BlockArrowFormatter {
             });
         }
 
-        private static void addDoubleChild(
+        private static void addNonNullableDoubleChild(
             List<ArrowBuf> bufs,
             List<BufWriter> bufWriters,
             ExponentialHistogramBlock block,
             int[] indexes,
-            ToDoubleFunction<ExponentialHistogram> getter,
-            boolean nullIfEmpty
+            ToDoubleFunction<ExponentialHistogram> getter
         ) {
-            addDoubleChild(bufs, bufWriters, block, indexes, getter, true, nullIfEmpty);
-        }
-
-        private static void addDoubleChild(
-            List<ArrowBuf> bufs,
-            List<BufWriter> bufWriters,
-            ExponentialHistogramBlock block,
-            int[] indexes,
-            ToDoubleFunction<ExponentialHistogram> getter,
-            boolean nullable,
-            boolean nullIfEmpty
-        ) {
-            int positions = indexes.length;
-            if (nullable) {
-                bufs.add(dummyArrowBuf(bitSetLength(positions)));
-                bufWriters.add(out -> {
-                    BitSet valid = new BitSet(positions);
-                    ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-                    for (int position = 0; position < positions; position++) {
-                        if (indexes[position] >= 0) {
-                            var histogram = histogramAt(block, indexes[position], scratch);
-                            if ((nullIfEmpty && histogram.isEmpty()) == false && Double.isNaN(getter.applyAsDouble(histogram)) == false) {
-                                valid.set(position);
-                            }
-                        }
-                    }
-                    return writeBitSet(out, valid, positions);
-                });
-            } else {
-                addEmptyValidity(bufs, bufWriters);
-            }
-            long bytes = (long) positions * Double.BYTES;
+            addEmptyValidity(bufs, bufWriters);
+            long bytes = (long) indexes.length * Double.BYTES;
             bufs.add(dummyArrowBuf(bytes));
             bufWriters.add(out -> {
                 ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-                for (int position = 0; position < positions; position++) {
-                    double value = indexes[position] < 0 ? 0 : getter.applyAsDouble(histogramAt(block, indexes[position], scratch));
+                for (int index : indexes) {
+                    double value = index < 0 ? 0 : getter.applyAsDouble(block.getExponentialHistogram(index, scratch));
                     out.writeDoubleLE(Double.isNaN(value) ? 0 : value);
                 }
                 return bytes;
             });
-        }
-
-        private static ExponentialHistogram histogramAt(ExponentialHistogramBlock block, int index, ExponentialHistogramScratch scratch) {
-            return block.getExponentialHistogram(index, scratch);
         }
     }
 

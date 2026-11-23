@@ -37,8 +37,7 @@ import java.util.function.Supplier;
  * Where more features are added to {@code INTO} in the future, this operator will be extended to merge additional statistics.
  * <p>
  * It runs once per query on the coordinator, after every writer has reported, which makes it the one place that can
- * refresh the destination exactly once. With {@link IntoOptions#refresh()} it holds the stats row back until that
- * refresh completes, so the written documents are searchable when the query returns.
+ * refresh the destination exactly once.
  */
 public final class IntoMergeStatsOperator implements Operator {
     /**
@@ -51,10 +50,9 @@ public final class IntoMergeStatsOperator implements Operator {
                 case INDEX -> true;
                 case DISCARD -> false;
             };
-            if (refresh == false) {
-                return new Factory(null);
-            }
-            return new Factory(new Refresher(client, client.threadPool().getThreadContext().newRestorableContext(false), destination));
+            return new Factory(
+                refresh ? new Refresher(client, client.threadPool().getThreadContext().newRestorableContext(false), destination) : null
+            );
         }
 
         @Override
@@ -149,13 +147,12 @@ public final class IntoMergeStatsOperator implements Operator {
     }
 
     private void startRefresh(Refresher refresher) {
-        SubscribableListener<Void> done = new SubscribableListener<>();
-        refreshing = done;
+        refreshing = new SubscribableListener<>();
         driverContext.addAsyncAction();
         // Complete the async action before waking the driver, so a woken driver sees no pending actions
         refresher.refresh(ActionListener.runAfter(ActionListener.wrap(ignored -> {}, this::recordRefreshFailure), () -> {
             driverContext.removeAsyncAction();
-            done.onResponse(null);
+            refreshing.onResponse(null);
         }));
     }
 
@@ -199,9 +196,8 @@ public final class IntoMergeStatsOperator implements Operator {
         if (finished == false || refreshPending()) {
             return null;
         }
-        ElasticsearchStatusException failure = refreshFailure;
-        if (failure != null) {
-            throw failure;
+        if (refreshFailure != null) {
+            throw refreshFailure;
         }
         outputEmitted = true;
         return new IntoStats(totalSum, createdSum).toPage(blockFactory);

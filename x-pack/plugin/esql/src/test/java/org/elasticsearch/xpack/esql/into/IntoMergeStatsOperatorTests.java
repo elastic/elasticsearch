@@ -23,7 +23,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -40,29 +39,20 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class IntoMergeStatsOperatorTests extends ComputeTestCase {
+public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
+    private static final IntoOptions REFRESH = new IntoOptions(true);
     private static final IntoOptions NO_REFRESH = new IntoOptions(false);
 
     private static final String CALLER_HEADER = "x-caller";
 
-    private ThreadPool threadPool;
-    private IntoTestUtils.CapturingClient client;
-    private BlockFactory blockFactory;
-    private DriverContext driverContext;
-
-    @Before
-    public void setUpClient() {
-        threadPool = new TestThreadPool(getTestName());
-        client = new IntoTestUtils.CapturingClient(threadPool);
-        blockFactory = blockFactory();
-        driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-    }
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
+    private final IntoTestUtils.CapturingClient client = new IntoTestUtils.CapturingClient(threadPool);
+    private final BlockFactory blockFactory = blockFactory();
+    private final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     @After
     public void stopThreadPool() {
-        if (threadPool != null) {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     public void testZeroInputPagesEmitsZeroZero() {
@@ -84,7 +74,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testRefreshesDestinationOnceAfterAllWritersFinish() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(3L, 3L).toPage(blockFactory));
         op.addInput(new IntoStats(2L, 2L).toPage(blockFactory));
         assertThat("no refresh while writers may still report", client.refreshes, empty());
@@ -118,7 +108,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testNothingCreatedSkipsRefresh() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(0L, 0L).toPage(blockFactory));
         op.finish();
         assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
@@ -127,7 +117,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testDiscardSkipsRefresh() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, DISCARD);
+        IntoMergeStatsOperator op = operator(REFRESH, DISCARD);
         op.addInput(new IntoStats(2L, 2L).toPage(blockFactory));
         op.finish();
         assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED));
@@ -136,7 +126,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testRefreshFailureFailsTheOperator() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
         IsBlockedResult blocked = op.isBlocked();
@@ -152,31 +142,31 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testForbiddenRefreshExplainsDocumentsWereWritten() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(4L, 4L).toPage(blockFactory));
         op.finish();
 
         client.failRefresh(new ElasticsearchSecurityException("action [indices:admin/refresh] is unauthorized", RestStatus.FORBIDDEN));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), containsString("wrote [4] documents"));
-        assertThat(e.getMessage(), containsString("[maintenance] privilege"));
-        assertThat(e.getMessage(), containsString("\"refresh\": false"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "INTO ["
+                    + DEST
+                    + "] wrote [4] documents but the refresh failed: action [indices:admin/refresh] is unauthorized"
+                    + " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
+            )
+        );
     }
 
     public void testShardFailuresFailTheRefresh() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        client.answerRefresh(
-            new BroadcastResponse(
-                2,
-                1,
-                1,
-                List.of(new DefaultShardOperationFailedException(DEST, 0, new IllegalStateException("shard is closed")))
-            )
-        );
+        IllegalStateException shardClosed = new IllegalStateException("shard is closed");
+        client.answerRefresh(new BroadcastResponse(2, 1, 1, List.of(new DefaultShardOperationFailedException(DEST, 0, shardClosed))));
         assertFalse(driverContext.hasPendingAsyncActions());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
@@ -185,7 +175,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
     public void testRefreshRunsWithTheCallersThreadContext() {
         threadPool.getThreadContext().putHeader(CALLER_HEADER, "caller");
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
             assertThat(threadPool.getThreadContext().getHeader(CALLER_HEADER), nullValue());
@@ -196,7 +186,7 @@ public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testFinishTwiceRefreshesOnce() {
-        IntoMergeStatsOperator op = operator(IntoOptions.DEFAULT, INDEX);
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
         op.finish();

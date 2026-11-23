@@ -620,16 +620,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (optionsExpression == null) {
             return IntoOptions.DEFAULT;
         }
-        Map<String, Expression> optionsMap = new LinkedHashMap<>();
+        Map<String, Expression> optionExpressionsByName = new LinkedHashMap<>();
         optionsExpression.keyFoldedMap().forEach((key, value) -> {
             String name = key.toLowerCase(Locale.ROOT);
-            if (optionsMap.put(name, value) != null) {
+            if (optionExpressionsByName.put(name, value) != null) {
                 throw new ParsingException(value.source(), "Duplicate option [{}] in INTO", name);
             }
         });
 
         boolean refresh = IntoOptions.DEFAULT.refresh();
-        Expression refreshExpr = optionsMap.remove("refresh");
+        Expression refreshExpr = optionExpressionsByName.remove("refresh");
         if (refreshExpr != null) {
             if (refreshExpr instanceof Literal lit && lit.value() instanceof Boolean value) {
                 refresh = value;
@@ -638,12 +638,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        if (optionsMap.isEmpty() == false) {
+        if (optionExpressionsByName.isEmpty() == false) {
             throw new ParsingException(
                 source,
                 "Invalid option{} {} in INTO, expected one of [refresh]",
-                optionsMap.size() > 1 ? "s" : "",
-                optionsMap.keySet()
+                optionExpressionsByName.size() > 1 ? "s" : "",
+                optionExpressionsByName.keySet()
             );
         }
         return new IntoOptions(refresh);

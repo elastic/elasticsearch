@@ -16,9 +16,6 @@ import java.io.IOException;
 /**
  * The {@code WITH { ... }} options of an {@code INTO} command. They travel with the plan to every node that writes or
  * merges the results, so each node applies the same write semantics.
- *
- * @param refresh whether to refresh the destination once every writer has finished, making the written documents
- *                visible to search when the query returns
  */
 public record IntoOptions(boolean refresh) implements Writeable {
     public static final IntoOptions DEFAULT = new IntoOptions(true);

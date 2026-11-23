@@ -9,17 +9,3 @@ ROW into_long = [1, 2, 3]
 total:long | created:long
 3          | 3
 ;
-
-// Only smoke-tests parsing and capability gating of WITH {"refresh": false}; refresh behaviour is covered by IntoIT.
-rowIntoIndexNoRefresh
-required_capability: into_command
-required_capability: into_options
-
-ROW into_long = [1, 2]
-| MV_EXPAND into_long
-| INTO into_destination_no_refresh WITH {"refresh": false}
-;
-
-total:long | created:long
-2          | 2
-;

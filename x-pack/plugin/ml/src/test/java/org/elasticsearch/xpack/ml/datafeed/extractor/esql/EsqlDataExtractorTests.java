@@ -77,10 +77,10 @@ import static org.mockito.Mockito.when;
 
 public class EsqlDataExtractorTests extends ESTestCase {
 
-    public void testRowsAreBucketStampedShouldBeTrueOnlyForAggregatingEsqlQueries() {
-        assertThat(EsqlDataExtractor.rowsAreBucketStamped(null), is(false));
-        assertThat(EsqlDataExtractor.rowsAreBucketStamped("FROM logs"), is(false));
-        assertThat(EsqlDataExtractor.rowsAreBucketStamped("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)"), is(true));
+    public void testEmitsBucketTimesShouldBeTrueOnlyForAggregatingEsqlQueries() {
+        assertThat(EsqlDataExtractor.emitsBucketTimes(null), is(false));
+        assertThat(EsqlDataExtractor.emitsBucketTimes("FROM logs"), is(false));
+        assertThat(EsqlDataExtractor.emitsBucketTimes("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)"), is(true));
     }
 
     private static final String DEFAULT_QUERY = "FROM logs";

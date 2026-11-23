@@ -158,16 +158,17 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(12).toMillis()));
     }
 
-    public void testEsqlRawWindowInsideSingleBucketShouldBeEmptyRatherThanInverted() {
+    public void testEsqlRawWindowInsideSingleBucketShouldBeKeptUnaligned() {
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1), RAW_ESQL_QUERY);
 
         long windowStart = Duration.ofHours(9).plusMinutes(14).toMillis();
         long windowEnd = Duration.ofHours(9).plusMinutes(29).toMillis();
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(windowStart, windowEnd);
 
+        // raw rows keep source timestamps, so neither edge is moved to the grouping grid
         assertThat(dataExtractor.getContext().start(), equalTo(windowStart));
-        assertThat(dataExtractor.getContext().end(), equalTo(windowStart));
-        assertThat(dataExtractor.hasNext(), is(false));
+        assertThat(dataExtractor.getContext().end(), equalTo(windowEnd));
+        assertThat(dataExtractor.hasNext(), is(true));
     }
 
     public void testEsqlQueryWithoutOuterLimitShouldInjectRowLimit() {

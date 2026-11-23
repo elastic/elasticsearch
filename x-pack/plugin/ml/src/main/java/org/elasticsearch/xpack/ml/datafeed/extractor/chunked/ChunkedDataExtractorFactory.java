@@ -42,14 +42,11 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
-        boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
         long alignedStart = alignStart(timeAligner, start);
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
         long alignedEnd = timeAligner.alignToFloor(end);
-        if (hasEsqlQuery) {
-            // An unaligned raw-row start can be past the floored end; keep the window empty rather than inverted.
-            alignedEnd = Math.max(alignedEnd, alignedStart);
-        }
+        assert alignedStart <= alignedEnd : "window start [" + alignedStart + "] is after end [" + alignedEnd + "]";
+        boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
         boolean injectsEsqlRowLimit = hasEsqlQuery && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery());
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
@@ -67,17 +64,11 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     }
 
     /**
-     * Aggregating ES|QL floors start so the bucket containing an unaligned job start is kept (row time = bucket floor). Raw ES|QL rows
-     * keep their source timestamps, so start stays as given: flooring it would re-read rows already posted before a restart.
-     * DSL ceils start to skip the partial first histogram bucket. Example: 10:30 start, 1h interval — aggregating ES|QL from 10:00,
-     * DSL from 11:00.
+     * ES|QL floors start so the bucket containing an unaligned job start is kept (row time = bucket floor). DSL ceils start to skip
+     * the partial first histogram bucket. Example: 10:30 start, 1h interval — ES|QL from 10:00, DSL from 11:00.
      */
     private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
-        String esqlQuery = datafeedConfig.getEsqlQuery();
-        if (esqlQuery == null) {
-            return timeAligner.alignToCeil(start);
-        }
-        return EsqlDataExtractor.rowsAreBucketStamped(esqlQuery) ? timeAligner.alignToFloor(start) : start;
+        return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
     }
 
     @Override
@@ -99,7 +90,8 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
         }
-        if (datafeedConfig.getEsqlQuery() != null) {
+        if (EsqlDataExtractor.emitsBucketTimes(datafeedConfig.getEsqlQuery())) {
+            // Raw rows keep source timestamps, so their windows need no grid; flooring a resume start would re-read posted rows.
             return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
         }
         return newIdentityTimeAligner();

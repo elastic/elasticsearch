@@ -62,8 +62,12 @@ public class EsqlDataExtractor implements DataExtractor {
         return EsqlQueryClauseScanner.hasAggregation(esqlQuery);
     }
 
-    /** Whether datafeed rows carry one timestamp per grouping bucket (aggregating ES|QL) rather than source timestamps. */
-    public static boolean rowsAreBucketStamped(@Nullable String esqlQuery) {
+    /**
+     * Whether datafeed rows carry one timestamp per grouping bucket (aggregating ES|QL) rather than source timestamps.
+     * MUST FIX before production: a query without {@code STATS} that rewrites the time column (e.g. {@code DATE_TRUNC}) is not
+     * detected; the DESCRIBE interval replaces this scanner check, see https://github.com/elastic/elasticsearch/issues/161207
+     */
+    public static boolean emitsBucketTimes(@Nullable String esqlQuery) {
         return esqlQuery != null && hasAggregation(esqlQuery);
     }
 

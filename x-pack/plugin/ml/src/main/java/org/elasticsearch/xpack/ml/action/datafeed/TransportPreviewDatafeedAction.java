@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
@@ -259,10 +260,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             return cap;
         }
         long end = request.getEndTime().getAsLong();
-        if (datafeed.getEsqlQuery() == null) {
+        if (EsqlDataExtractor.emitsBucketTimes(datafeed.getEsqlQuery()) == false) {
             return end;
         }
-        // An ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
+        // An aggregating ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
         // extractor factory floors the window end so an open bucket is never extracted. A preview is a
         // diagnostic view of the requested range, so round the end up to keep the bucket containing it
         // (otherwise a range that ends or sits inside a single bucket previews as empty even though it has data).

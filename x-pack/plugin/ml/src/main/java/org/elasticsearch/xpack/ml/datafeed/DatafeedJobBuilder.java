@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_CYCLES;
@@ -96,17 +97,24 @@ public class DatafeedJobBuilder {
             .addSettingsUpdateConsumer(CCS_STABILIZATION_FLOOR, v -> this.ccsStabilizationFloorMs = v.millis());
     }
 
-    private static long latestRecordTimeMs(DatafeedConfig datafeedConfig, RestartTimeInfo restartTimeInfo) {
-        if (restartTimeInfo.getLatestRecordTimeMs() == null) {
-            return -1;
+    private static long latestRecordTimeMs(RestartTimeInfo restartTimeInfo) {
+        return restartTimeInfo.getLatestRecordTimeMs() == null ? -1 : restartTimeInfo.getLatestRecordTimeMs();
+    }
+
+    private static long latestFinalBucketEndMs(Job job, RestartTimeInfo restartTimeInfo) {
+        return restartTimeInfo.getLatestFinalBucketTimeMs() == null
+            ? -1
+            : restartTimeInfo.getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+    }
+
+    /** Maps the latest posted record time to the last time the datafeed has fully read. */
+    private static LongUnaryOperator lastEndTimeForRecord(DatafeedConfig datafeedConfig) {
+        if (EsqlDataExtractor.emitsBucketTimes(datafeedConfig.getEsqlQuery()) == false) {
+            return LongUnaryOperator.identity();
         }
-        long recordMs = restartTimeInfo.getLatestRecordTimeMs();
-        if (EsqlDataExtractor.rowsAreBucketStamped(datafeedConfig.getEsqlQuery())) {
-            // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
-            // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
-            recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-        }
-        return recordMs;
+        // Bucket-stamped rows carry the bucket start, so the whole bucket has been posted.
+        long groupingIntervalMs = datafeedConfig.getGroupingInterval().millis();
+        return recordMs -> recordMs + groupingIntervalMs - 1;
     }
 
     private void setDelayedDataCheckFreq(TimeValue value) {
@@ -117,10 +125,8 @@ public class DatafeedJobBuilder {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
-        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
-            ? -1
-            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, context.restartTimeInfo());
+        final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
+        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
@@ -197,10 +203,8 @@ public class DatafeedJobBuilder {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.datafeedConfig();
         final Job job = context.job();
-        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
-            ? -1
-            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, context.restartTimeInfo());
+        final long latestFinalBucketEndMs = latestFinalBucketEndMs(job, context.restartTimeInfo());
+        final long latestRecordTimeMs = latestRecordTimeMs(context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
@@ -282,7 +286,8 @@ public class DatafeedJobBuilder {
             latestRecordTimeMs,
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            lastEndTimeForRecord(datafeedConfig)
         );
         listener.onResponse(datafeedJob);
     }

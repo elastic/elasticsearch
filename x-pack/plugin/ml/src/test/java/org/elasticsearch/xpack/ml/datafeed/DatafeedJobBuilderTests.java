@@ -27,6 +27,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -52,13 +54,17 @@ import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -67,6 +73,7 @@ import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
 
+    private static final long HOUR_MS = TimeValue.timeValueHours(1).millis();
     private static final String AGGREGATING_ESQL_QUERY = "FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)";
 
     private Client client;
@@ -302,68 +309,68 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     }
 
     public void testBuildGivenAggregatingEsqlDatafeedAndRevertedSnapshotShouldResumeFromRevertedLatestRecord() throws Exception {
-        long hour = TimeValue.timeValueHours(1).millis();
         // A revert with delete_intervening_results lowers both the latest final bucket and the latest record time.
         assertEsqlLastEndTimeOnBothBuildPaths(
             AGGREGATING_ESQL_QUERY,
-            new RestartTimeInfo(5 * hour, 6 * hour, true),
-            7 * hour - 1,
-            7 * hour
+            new RestartTimeInfo(5 * HOUR_MS, 6 * HOUR_MS, true),
+            7 * HOUR_MS - 1,
+            7 * HOUR_MS
         );
     }
 
     public void testBuildGivenRawEsqlDatafeedAndRevertedSnapshotShouldResumeAtRevertedLatestRecord() throws Exception {
-        long hour = TimeValue.timeValueHours(1).millis();
-        long revertedRecord = 6 * hour + 30 * 60_000L;
+        long revertedRecord = 6 * HOUR_MS + TimeValue.timeValueMinutes(30).millis();
         assertEsqlLastEndTimeOnBothBuildPaths(
             "FROM logs",
-            new RestartTimeInfo(5 * hour, revertedRecord, true),
+            new RestartTimeInfo(5 * HOUR_MS, revertedRecord, true),
             revertedRecord,
             revertedRecord + 1
         );
     }
 
     public void testBuildGivenAggregatingEsqlDatafeedAndEndStampedLatestRecordShouldAdvancePastGroupingInterval() throws Exception {
-        long hour = TimeValue.timeValueHours(1).millis();
-        // Rows stamped at bucket + span - 1ms. The extractor factory floors the resulting start back to the next bucket boundary.
-        long endStampedRecord = 10 * hour - 1;
+        // The record closes the 9:00 bucket (bucket start + span - 1ms). The resume point is one ms before 11:00, and the extractor
+        // factory floors the window start to 10:00, the first bucket that was not emitted yet.
+        long endStampedRecord = 10 * HOUR_MS - 1;
         assertEsqlLastEndTimeOnBothBuildPaths(
             AGGREGATING_ESQL_QUERY,
-            new RestartTimeInfo(8 * hour, endStampedRecord, true),
-            endStampedRecord + hour - 1,
-            10 * hour
+            new RestartTimeInfo(8 * HOUR_MS, endStampedRecord, true),
+            11 * HOUR_MS - 2,
+            10 * HOUR_MS
         );
     }
 
     public void testBuildGivenEsqlDatafeedAndFinalBucketEndAfterLatestRecordShouldResumeFromFinalBucketEnd() throws Exception {
-        long hour = TimeValue.timeValueHours(1).millis();
         // The job's bucket span is one hour. Same rule as the DSL datafeed: the later of the two end times wins.
-        long finalBucketEnd = 21 * hour - 1;
+        long finalBucketEnd = 21 * HOUR_MS - 1;
         assertEsqlLastEndTimeOnBothBuildPaths(
             AGGREGATING_ESQL_QUERY,
-            new RestartTimeInfo(20 * hour, 9 * hour, true),
+            new RestartTimeInfo(20 * HOUR_MS, 9 * HOUR_MS, true),
             finalBucketEnd,
-            21 * hour
+            21 * HOUR_MS
         );
-        assertEsqlLastEndTimeOnBothBuildPaths("FROM logs", new RestartTimeInfo(20 * hour, 9 * hour, true), finalBucketEnd, 21 * hour);
+        assertEsqlLastEndTimeOnBothBuildPaths(
+            "FROM logs",
+            new RestartTimeInfo(20 * HOUR_MS, 9 * HOUR_MS, true),
+            finalBucketEnd,
+            21 * HOUR_MS
+        );
     }
 
     public void testBuildGivenRawEsqlDatafeedAndRestartInsideBucketShouldResumeRightAfterLatestRecord() throws Exception {
-        long hour = TimeValue.timeValueHours(1).millis();
-        long latestRecord = 9 * hour + 14 * 60_000L + 53_000L;
+        long latestRecord = 9 * HOUR_MS + TimeValue.timeValueMinutes(14).millis() + TimeValue.timeValueSeconds(53).millis();
         // The rows between the bucket start (09:00) and the latest record were already posted and must not be read again.
         assertEsqlLastEndTimeOnBothBuildPaths(
             "FROM logs",
-            new RestartTimeInfo(8 * hour, latestRecord, true),
+            new RestartTimeInfo(8 * HOUR_MS, latestRecord, true),
             latestRecord,
             latestRecord + 1
         );
     }
 
     /**
-     * Asserts the resume point the builder computes, then feeds it to a real {@link ChunkedDataExtractorFactory} the way
-     * {@link DatafeedJob} does ({@code lastEndTimeMs + 1}) and asserts the start of the summary query. That is the first query
-     * the chunked extractor issues, and it runs from the aligned window start.
+     * Asserts the resume point the builder computes. On the extractor-factory path it then runs lookback on the built job, over a
+     * real {@link ChunkedDataExtractorFactory}, and asserts the start of the first query the chunked extractor issues.
      */
     private void assertEsqlLastEndTimeOnBothBuildPaths(
         String esqlQuery,
@@ -392,27 +399,43 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new DatafeedTimingStats(jobBuilder.getId())
         );
 
-        for (boolean viaExtractorFactory : new boolean[] { true, false }) {
-            AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-            ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
-                assertThat(datafeedJob.lastEndTimeMs(), equalTo(expectedLastEndTimeMs));
-                wasHandlerCalled.set(true);
-            });
-            if (viaExtractorFactory) {
-                buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
-            } else {
-                datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
-            }
-            assertBusy(() -> assertTrue(wasHandlerCalled.get()));
-        }
+        doAnswer(invocation -> {
+            ActionListener<FlushJobAction.Response> listener = invocation.getArgument(2);
+            listener.onResponse(new FlushJobAction.Response(true, Instant.now()));
+            return null;
+        }).when(client).execute(same(FlushJobAction.INSTANCE), any(FlushJobAction.Request.class), anyActionListener());
 
         DataExtractorFactory delegate = mock(DataExtractorFactory.class);
         DataExtractor emptySummaryExtractor = mock(DataExtractor.class);
         when(emptySummaryExtractor.getSummary()).thenReturn(new DataExtractor.DataSummary(null, null, 0L));
         when(delegate.newExtractor(anyLong(), anyLong())).thenReturn(emptySummaryExtractor);
-        long resumeStart = expectedLastEndTimeMs + 1;
-        long windowEnd = resumeStart + TimeValue.timeValueHours(5).millis();
-        new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), delegate).newExtractor(resumeStart, windowEnd).next();
+        DataExtractorFactory chunkedFactory = new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), delegate);
+
+        for (boolean viaExtractorFactory : new boolean[] { true, false }) {
+            AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+            ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+                assertThat(datafeedJob.lastEndTimeMs(), equalTo(expectedLastEndTimeMs));
+                if (viaExtractorFactory) {
+                    // the empty-summary extractor yields no data, which ends the lookback after the first extractor query was issued
+                    expectThrows(
+                        DatafeedJob.EmptyDataCountException.class,
+                        () -> datafeedJob.runLookBack(0L, expectedLastEndTimeMs + 1 + TimeValue.timeValueHours(5).millis())
+                    );
+                }
+                wasHandlerCalled.set(true);
+            });
+            if (viaExtractorFactory) {
+                datafeedJobBuilder.buildWithExtractorFactory(
+                    newDatafeedTask("datafeed1"),
+                    datafeedContext,
+                    chunkedFactory,
+                    datafeedJobHandler
+                );
+            } else {
+                datafeedJobBuilder.build(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+            }
+            assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+        }
         verify(delegate).newExtractor(eq(expectedWindowStartMs), anyLong());
     }
 

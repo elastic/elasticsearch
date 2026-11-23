@@ -29,9 +29,9 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -99,6 +99,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     private ListProperty<License> additionalLicenses;
 
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout, Problems problems) {
@@ -106,6 +107,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         reportFile = objectFactory.fileProperty().convention(projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml"));
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.LICENSE_HEADERS.group(problems);
     }
 
     /**
@@ -215,11 +217,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
                 getLogger().error(file);
                 problems.add(
                     problemReporter.create(
-                        ProblemId.create(
-                            "unapproved-license-header",
-                            "Unapproved license header",
-                            ElasticsearchBuildProblems.LICENSE_HEADERS
-                        ),
+                        problemGroup.problemId("Unapproved license header"),
                         spec -> spec.contextualLabel("Unapproved license header in " + file)
                             .fileLocation(file)
                             .solution("Add an approved license header to the file")
@@ -269,11 +267,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
                     getLogger().error("Duplicate license header in: " + path);
                     problems.add(
                         problemReporter.create(
-                            ProblemId.create(
-                                "duplicate-license-header",
-                                "Duplicate license header",
-                                ElasticsearchBuildProblems.LICENSE_HEADERS
-                            ),
+                            problemGroup.problemId("Duplicate license header"),
                             spec -> spec.contextualLabel("Duplicate license header in " + path)
                                 .fileLocation(path)
                                 .solution("Remove the duplicate license header block from the file")

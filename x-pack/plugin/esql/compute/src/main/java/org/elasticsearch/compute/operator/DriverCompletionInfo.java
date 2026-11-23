@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  *                               data-node execution and shipped back so the coordinator can merge and
  *                               enrich its {@code SchemaCacheEntry} for the next query. Keyed by file
  *                               path; the value is the list of contributions from each operator/driver
- *                               that touched the file (per-chunk for parallel parsing, per-split for
+ *                               that touched the file (per-stripe for parallel parsing, per-split for
  *                               macro-splits). The actual merge is intentionally deferred to esql-side
  *                               consumers because the merge algorithm lives in
  *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on
@@ -139,6 +140,32 @@ public record DriverCompletionInfo(
     }
 
     /**
+     * Returns a copy whose drivers and plans are labelled as belonging to {@code phase} of the query, for a query that runs in several.
+     * See {@link ProfileLabels}.
+     */
+    public DriverCompletionInfo withPhase(String phase, String phaseKind) {
+        if (driverProfiles.isEmpty() && planProfiles.isEmpty()) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverNanos,
+            driverProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
+            planProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
+            capturedSourceMetadata,
+            partial,
+            approximationApplied,
+            warnings
+        );
+    }
+
+    /**
      * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
      * order (existing warnings first). Empty or null input returns {@code this}.
      */
@@ -185,7 +212,9 @@ public record DriverCompletionInfo(
         String logicalPlanTree,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
-        boolean approximationApplied
+        boolean approximationApplied,
+        @Nullable String planJson,
+        @Nullable String logicalPlanJson
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
@@ -220,7 +249,9 @@ public record DriverCompletionInfo(
             cpuNanos,
             driverNanos,
             collectedProfiles,
-            List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
+            List.of(
+                new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, planJson, logicalPlanJson)
+            ),
             collectCapturedSourceMetadata(drivers),
             collectPartial(drivers),
             approximationApplied,

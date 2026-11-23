@@ -34,6 +34,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -104,7 +105,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             assertThat("no hits returned", resp.getHits().getHits().length, equalTo(0));
             assertThat(resp.getAggregations(), notNullValue());
             assertThat("no aggr returned", resp.getAggregations().asList().isEmpty(), is(true));
-            assertThat("no shard failures expected", resp.getShardFailures() == null || resp.getShardFailures().length == 0, is(true));
+            assertThat("no shard failures expected", resp.getShardFailures(), empty());
         } finally {
             if (resp != null) {
                 resp.decRef();

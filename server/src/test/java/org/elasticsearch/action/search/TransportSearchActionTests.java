@@ -74,7 +74,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1163,42 +1162,11 @@ public class TransportSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    /** The handler charges a remote response's bytes from when they arrive until the transport releases them. */
-    public void testRemoteResponseHandlerReservesResponseBytes() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofKb(1));
+    public void testRemoteResponseHandlerReservesUnderTheMergerLabel() {
+        var breaker = new SearchResponseMergerTests.LabelRecordingBreaker();
         var handler = new TransportSearchAction.RemoteResponseHandler(ActionListener.noop(), EsExecutors.DIRECT_EXECUTOR_SERVICE, breaker);
-        Releasable reservation = handler.reserveResponseBytes(100);
-        assertThat(breaker.getUsed(), equalTo(100L));
-        reservation.close();
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    /**
-     * A trip reserving a response reaches the listener as the trip itself, which marks it as this node's failure rather than the remote
-     * cluster's. Other transport failures pass through unchanged.
-     */
-    public void testRemoteResponseHandlerReportsItsOwnTrip() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(10));
-        AtomicReference<Exception> tripFailure = new AtomicReference<>();
-        var trippingHandler = new TransportSearchAction.RemoteResponseHandler(
-            ActionListener.wrap(r -> fail("unexpected response"), tripFailure::set),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            breaker
-        );
-        CircuitBreakingException trip = expectThrows(CircuitBreakingException.class, () -> trippingHandler.reserveResponseBytes(100));
-        trippingHandler.handleException(new RemoteTransportException("Failed to reserve memory", trip));
-        assertSame(trip, tripFailure.get());
-        assertThat(breaker.getUsed(), equalTo(0L));
-
-        AtomicReference<Exception> otherFailure = new AtomicReference<>();
-        var handler = new TransportSearchAction.RemoteResponseHandler(
-            ActionListener.wrap(r -> fail("unexpected response"), otherFailure::set),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            breaker
-        );
-        TransportException failure = new RemoteTransportException("remote failed", new ElasticsearchException("boom"));
-        handler.handleException(failure);
-        assertSame(failure, otherFailure.get());
+        handler.reserveResponseBytes(100).close();
+        assertThat(breaker.charged, contains(SearchResponseMerger.BREAKER_LABEL));
     }
 
     /**
@@ -1998,7 +1966,7 @@ public class TransportSearchActionTests extends ESTestCase {
             1,
             0,
             100L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }

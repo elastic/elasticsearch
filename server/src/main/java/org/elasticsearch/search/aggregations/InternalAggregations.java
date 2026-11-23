@@ -8,6 +8,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +28,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -186,6 +191,61 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableCollection(getInternalAggregations());
+    }
+
+    /**
+     * The heap each aggregation and bucket takes beyond its serialized bytes, for object headers, references and the key and
+     * sub-aggregation objects. The estimate is 0.9x to 1.3x the heap of terms and histogram trees whose buckets have a metric
+     * sub-aggregation, and up to 2.3x over without one, since those buckets share one empty list.
+     */
+    static final long OBJECT_OVERHEAD_BYTES = 80;
+
+    /**
+     * Estimates the heap these aggregations take once deserialized or built in memory, such as when reduced, to charge a circuit breaker
+     * while they are held. Their serialized size alone is several times smaller, since most of the heap of a tree of small buckets is
+     * object overhead. Each bucket writes the list of its sub-aggregations, so the lists count the buckets.
+     *
+     * <p>Aggregations whose heap is not proportional to their serialized size, such as the arrays of a t-digest, implement
+     * {@link Accountable}, and their {@link Accountable#ramBytesUsed()} is used when it is larger. Cardinality aggregations don't, so the
+     * estimate is 0.6x to 0.8x of their heap.
+     */
+    public long estimateHeapBytes() {
+        try (ObjectCountingStreamOutput out = new ObjectCountingStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            writeTo(out);
+            return out.position() + OBJECT_OVERHEAD_BYTES * out.objects + out.stateBytes;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Counts the aggregations and lists of sub-aggregations written to it, and the heap that {@link Accountable} aggregations hold beyond
+     * their serialized form.
+     */
+    private static final class ObjectCountingStreamOutput extends CountingStreamOutput {
+        private long objects;
+        private long stateBytes;
+
+        @Override
+        public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+            if (namedWriteable instanceof InternalAggregation aggregation) {
+                objects++;
+                long before = position();
+                super.writeNamedWriteable(namedWriteable);
+                if (aggregation instanceof Accountable accountable) {
+                    stateBytes += Math.max(0L, accountable.ramBytesUsed() - (position() - before) - OBJECT_OVERHEAD_BYTES);
+                }
+            } else {
+                super.writeNamedWriteable(namedWriteable);
+            }
+        }
+
+        @Override
+        public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> list) throws IOException {
+            objects++;
+            super.writeNamedWriteableCollection(list);
+        }
     }
 
     /**

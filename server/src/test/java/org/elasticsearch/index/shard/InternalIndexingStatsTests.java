@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -151,7 +152,17 @@ public class InternalIndexingStatsTests extends ESTestCase {
                 new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
             );
         }
-        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            docCount,
+            null,
+            IndexMode.STANDARD,
+            Engine.Operation.Origin.PRIMARY,
+            1L,
+            0L,
+            null
+        );
     }
 
     private static Engine.IndexResult randomResult(ShardId shardId, String id) {

@@ -78,6 +78,20 @@ public final class SearchCapabilities {
     private static final String KEYED_FLATTENED_EXACT_KEY_QUERIES = "keyed_flattened_exact_key_queries";
     /** Keyed {@code flattened} subfields answer wildcard, regexp and fuzzy queries. */
     private static final String KEYED_FLATTENED_PATTERN_QUERIES = "keyed_flattened_pattern_queries";
+    /** Terms-family aggregations reject an include/exclude regex longer than index.max_regex_length instead of compiling it. */
+    private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT = "aggregation_include_exclude_regex_length_limit";
+    /**
+     * Terms-family aggregations compile the include/exclude regex on the shard through the charged compiler: one set of
+     * flags whether the request was parsed locally or deserialized, each build charged to the request breaker, and the
+     * build and the include/exclude product bounded by a work limit.
+     */
+    private static final String AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED = "aggregation_include_exclude_regex_charged";
+    /**
+     * The regexp query builds its automaton through the charged compiler, each step reserved on the request breaker before
+     * it runs, so a pattern whose build is predicted to exceed the breaker's limit is refused with a circuit breaking
+     * exception and nothing stays reserved afterwards.
+     */
+    private static final String REGEXP_QUERY_CHARGED = "regexp_query_charged";
     /** {@code BinaryDocValuesRangeQuery} descriptions (e.g. in {@code _explanation}) name the queried range field. */
     private static final String RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD = "range_field_dv_query_description_has_field";
 
@@ -89,6 +103,9 @@ public final class SearchCapabilities {
     private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
     /** A numeric value script that returns {@code null} treats that value as missing. */
     private static final String NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING = "numeric_value_script_null_is_missing";
+
+    /** Scripts that enumerate or return the {@code doc} or {@code _fields} lookup are rejected with a 400. */
+    private static final String DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT = "doc_lookup_enumeration_illegal_argument";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -130,11 +147,15 @@ public final class SearchCapabilities {
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         capabilities.add(KEYED_FLATTENED_EXACT_KEY_QUERIES);
         capabilities.add(KEYED_FLATTENED_PATTERN_QUERIES);
+        capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_LENGTH_LIMIT);
+        capabilities.add(AGGREGATION_INCLUDE_EXCLUDE_REGEX_CHARGED);
+        capabilities.add(REGEXP_QUERY_CHARGED);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
+        capabilities.add(DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

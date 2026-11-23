@@ -75,7 +75,7 @@ public final class HistogramFractionTDigestEvaluator implements ExpressionEvalua
 
   public DoubleBlock eval(int positionCount, TDigestBlock histogramBlock,
       DoubleRangeBlock bucketBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       TDigestHolder histogramScratch = new TDigestHolder();
       DoubleRangeBlockBuilder.DoubleRange bucketScratch = new DoubleRangeBlockBuilder.DoubleRange();
       position: for (int p = 0; p < positionCount; p++) {

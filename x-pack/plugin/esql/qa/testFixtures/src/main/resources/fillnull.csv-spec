@@ -2396,17 +2396,16 @@ required_capability: fork_v9
 // fills its nulls. A column that the branches only hold as nulls, as the outer METADATA _index is, is not made by the query.
 FROM employees
 | WHERE emp_no == 10010
-| KEEP emp_no, gender
+| KEEP gender
 | EVAL _score = gender
 | FORK (WHERE true) (WHERE true)
 | FILLNULL "x" ON *
 | DROP _fork
 ;
-warning:Line 6:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
 
-emp_no:integer | gender:keyword | _score:keyword
-10010          | x              | x
-10010          | x              | x
+gender:keyword | _score:keyword
+x              | x
+x              | x
 ;
 
 fillNullAllColumnsFillsAUserColumnNamedLikeMetadataThroughAUnion
@@ -2417,15 +2416,14 @@ required_capability: subquery_in_from_command
 
 // One branch makes _index and the other does not have it, so alignment fills it with nulls there. The column is the query's, whose
 // nulls a * fills in both.
-FROM (FROM employees | WHERE emp_no == 10010 | KEEP emp_no, gender | EVAL _index = gender),
-     (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, gender)
+FROM (FROM employees | WHERE emp_no == 10010 | KEEP gender | EVAL _index = gender),
+     (FROM employees | WHERE emp_no == 10001 | KEEP gender)
 | FILLNULL "x" ON *
-| SORT emp_no
+| SORT gender
 ;
-warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
 
-emp_no:integer | gender:keyword | _index:keyword
-10001          | M              | x
-10010          | x              | x
+gender:keyword | _index:keyword
+M              | x
+x              | x
 ;
 

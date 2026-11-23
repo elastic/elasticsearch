@@ -177,6 +177,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final AtomicReference<Object> pendingPersistCheckRetry = new AtomicReference<>();
     // node names in the last "cannot persist it" warning, so it is logged only when they change
     private final AtomicReference<Set<String>> nodesWithoutPEKPassword = new AtomicReference<>();
+    // likewise for the nodes that didn't answer the check
+    private final AtomicReference<Set<String>> nodesNotAnswering = new AtomicReference<>();
     // one restore attempt per secure settings snapshot while master, since only a reload can make this node's copy readable
     private final AtomicReference<Settings> lastRestoreAttempt = new AtomicReference<>();
     // the keys this master unwrapped from its copy on disk, restored once every node that persists cluster state can wrap them
@@ -273,6 +275,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         lastRestoreAttempt.set(null);
         keysToRestore.set(null);
         nodesWithoutPEKPassword.set(null);
+        nodesNotAnswering.set(null);
         stopSchedule();
     }
 
@@ -333,6 +336,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
         keysToRestore.set(null);
         nodesWithoutPEKPassword.set(null);
+        nodesNotAnswering.set(null);
         if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
             schedulePasswordIdChange(metadata, activePasswordId);
         }
@@ -552,6 +556,11 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         persistCheckRecheck.set(false);
+        if (featureService.clusterHasFeature(state, ProjectEncryptionKeyService.CAN_PERSIST_KEY_CHECK_FEATURE) == false) {
+            logger.debug("project encryption key not {} yet: waiting for every node to be upgraded", operation);
+            schedulePersistCheckRetry();
+            return;
+        }
         DiscoveryNode[] nodes = state.nodes()
             .getAllNodes()
             .stream()
@@ -583,11 +592,12 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     ) {
         Set<String> ready = response.readyNodeIds();
         if (everyPersistingNodeIsReady(state, ready, stateless) == false) {
-            warnAboutNodesThatCannotPersist(response, operation);
+            warnAboutNodesThatCannotPersist(state, response, operation);
             schedulePersistCheckRetry();
             return;
         }
         nodesWithoutPEKPassword.set(null);
+        nodesNotAnswering.set(null);
         try {
             onReady.accept(ready);
         } catch (Exception e) {
@@ -601,7 +611,11 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    private void warnAboutNodesThatCannotPersist(TransportNodesCanPersistKeyAction.Response response, String operation) {
+    private void warnAboutNodesThatCannotPersist(
+        ClusterState state,
+        TransportNodesCanPersistKeyAction.Response response,
+        String operation
+    ) {
         Set<String> notReady = response.getNodes()
             .stream()
             .filter(r -> r.canPersist() == false)
@@ -616,6 +630,19 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 notReady,
                 ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
                 ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+            );
+        }
+        Set<String> notAnswering = response.failures().stream().map(f -> {
+            DiscoveryNode node = state.nodes().get(f.nodeId());
+            return node == null ? f.nodeId() : node.getName();
+        }).collect(Collectors.toCollection(TreeSet::new));
+        Set<String> previouslyNotAnswering = nodesNotAnswering.getAndSet(notAnswering.isEmpty() ? null : notAnswering);
+        if (notAnswering.isEmpty() == false && notAnswering.equals(previouslyNotAnswering) == false) {
+            logger.warn(
+                "project encryption key not {} yet: nodes {} did not report whether they can persist it. Check that they are reachable"
+                    + " from the elected master and see their logs",
+                operation,
+                notAnswering
             );
         }
         if (response.hasFailures()) {

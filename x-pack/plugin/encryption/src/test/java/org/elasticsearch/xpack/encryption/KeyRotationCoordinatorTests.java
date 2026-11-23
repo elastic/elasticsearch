@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.encryption;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -61,6 +62,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -127,10 +129,12 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     private AtomicReference<Settings> settingsRef;
     private ThreadPool threadPool;
     private ClusterService clusterService;
+    private Client client;
     private Predicate<DiscoveryNode> canPersist = node -> true;
+    private Predicate<DiscoveryNode> answers = node -> true;
     private Settings nodeSettings = Settings.EMPTY;
 
-    /** Answers the readiness check from {@link #canPersist}, as the nodes would over transport. */
+    /** Answers the readiness check from {@link #canPersist} for the nodes that {@link #answers}, as the nodes would over transport. */
     @SuppressWarnings("unchecked")
     private Client stubClient() {
         Client client = mock(Client.class);
@@ -140,8 +144,16 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             listener.onResponse(
                 new TransportNodesCanPersistKeyAction.Response(
                     CLUSTER_NAME,
-                    request.nodes().stream().map(n -> new TransportNodesCanPersistKeyAction.NodeResponse(n, canPersist.test(n))).toList(),
-                    List.of()
+                    request.nodes()
+                        .stream()
+                        .filter(answers)
+                        .map(n -> new TransportNodesCanPersistKeyAction.NodeResponse(n, canPersist.test(n)))
+                        .toList(),
+                    request.nodes()
+                        .stream()
+                        .filter(answers.negate())
+                        .map(n -> new FailedNodeException(n.getId(), "timed out", null))
+                        .toList()
                 )
             );
             return null;
@@ -176,6 +188,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             .put(extraSettings)
             .build();
         settingsRef = new AtomicReference<>(combined);
+        client = stubClient();
         coordinator = KeyRotationCoordinator.create(
             clusterService,
             threadPool,
@@ -185,7 +198,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             handlers,
             settingsRef::get,
             pekEncryption,
-            stubClient()
+            client
         );
     }
 
@@ -370,6 +383,50 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
 
+    /**
+     * The master doesn't ask older nodes, which can't answer the readiness check, and retries until every node is upgraded. Then a node
+     * that doesn't answer blocks the install, and is named once.
+     */
+    public void testInstallWaitsForEveryNodeToBeUpgradedAndToAnswer() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE))).thenReturn(true);
+        ClusterState state = clusterStateWith(null, true);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state));
+        verify(client, never()).execute(any(), any(), any());
+
+        when(featureService.clusterHasFeature(any(), eq(ProjectEncryptionKeyService.CAN_PERSIST_KEY_CHECK_FEATURE))).thenReturn(true);
+        answers = node -> node.getId().equals("other") == false;
+        MockLog.assertThatLogger(
+            () -> lastScheduledRetry().run(),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "names the node",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "project encryption key not installed yet: nodes [other] did not report whether they can persist it*"
+            )
+        );
+        assertEquals("only nodes that answered no are reported as without a password", Set.of(), coordinator.nodesWithoutPassword());
+        MockLog.assertThatLogger(
+            () -> lastScheduledRetry().run(),
+            KeyRotationCoordinator.class,
+            new MockLog.UnseenEventExpectation("not repeated", KeyRotationCoordinator.class.getName(), Level.WARN, "*did not report*")
+        );
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+
+        answers = node -> true;
+        lastScheduledRetry().run();
+        verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
+    }
+
+    private Runnable lastScheduledRetry() {
+        ArgumentCaptor<Runnable> retry = ArgumentCaptor.forClass(Runnable.class);
+        verify(threadPool, atLeastOnce()).schedule(retry.capture(), eq(KeyRotationCoordinator.PERSIST_CHECK_INTERVAL), any());
+        return retry.getValue();
+    }
+
     /** Starts an install that waits for node "other", as {@link #waitingForOther}. */
     private Runnable installWaitingForOther() {
         ClusterState state = clusterStateWith(null, true);
@@ -433,7 +490,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         pekEncryption = TestPekEncryption.onNode(NO_OP_ENCRYPTION, keys);
         writeToDisk(new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(keyBytes, 1L)), "k1", PASSWORD_ID, Map.of(), pekEncryption));
         ClusterState state = clusterStateWith(ProjectEncryptionKeyMetadata.degraded("k1", PASSWORD_ID, pekEncryption, "no key"), true);
-        setup(state, 0L, TimeValue.timeValueDays(30));
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
         return state;
     }
 

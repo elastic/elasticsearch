@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -152,6 +154,55 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         ViewSubquery namedSubquery = as(keep.child(), ViewSubquery.class);
         keep = as(namedSubquery.child(), Keep.class);
         assertUnresolvedRelation(keep.child(), "departments");
+    }
+
+    /*
+     * SubqueryJoin[LEFT,[?dept_id]]
+     * |_UnresolvedRelation[employees]
+     * \_ViewSubquery[dept_view]
+     *   \_Keep[[?dept_id]]
+     *     \_UnresolvedRelation[departments]
+     */
+    public void testViewReferencedInsideJoinSubqueryIsExpanded() {
+        assumeSubqueryJoinGrammar();
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        ViewResolver.ViewResolutionResult result = resolve("FROM employees | LEFT OUTER JOIN (FROM dept_view) ON dept_id");
+
+        assertFalse(result.hasInSubquery());
+        assertEquals(Set.of("dept_view"), result.viewQueries().keySet());
+
+        SubqueryJoin join = as(result.plan(), SubqueryJoin.class);
+        assertUnresolvedRelation(join.left(), "employees");
+        ViewSubquery namedSubquery = as(join.right(), ViewSubquery.class);
+        Keep keep = as(namedSubquery.child(), Keep.class);
+        assertUnresolvedRelation(keep.child(), "departments");
+    }
+
+    /*
+     * SubqueryJoin[LEFT,[?dept_id]]
+     * |_UnresolvedRelation[employees]
+     * \_Keep[[?dept_id]]
+     *   \_SemiJoin[[?dept_id],[]]
+     *     |_UnresolvedRelation[departments]
+     *     \_Keep[[?dept_id]]
+     *       \_UnresolvedRelation[teams]
+     */
+    public void testInSubqueryInsideJoinSubqueryIsResolved() {
+        assumeSubqueryJoinGrammar();
+        ViewResolver.ViewResolutionResult result = resolve("""
+            FROM employees
+            | LEFT OUTER JOIN (FROM departments | WHERE dept_id IN (FROM teams | KEEP dept_id) | KEEP dept_id) ON dept_id""");
+
+        assertTrue(result.hasInSubquery());
+
+        SubqueryJoin join = as(result.plan(), SubqueryJoin.class);
+        assertUnresolvedRelation(join.left(), "employees");
+        Keep keep = as(join.right(), Keep.class);
+        SemiJoin semiJoin = as(keep.child(), SemiJoin.class);
+        assertInSubqueryJoinKey(semiJoin, "dept_id");
+        assertUnresolvedRelation(semiJoin.left(), "departments");
+        keep = as(semiJoin.right(), Keep.class);
+        assertUnresolvedRelation(keep.child(), "teams");
     }
 
     /*
@@ -775,6 +826,10 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         ViewSubquery view = as(as(branch.child(), Keep.class).child(), ViewSubquery.class);
         assertEquals(viewName, view.name());
         assertUnresolvedRelation(as(view.child(), Keep.class).child(), index);
+    }
+
+    private static void assumeSubqueryJoinGrammar() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
     }
 
     private ViewResolver.ViewResolutionResult resolve(String query) {

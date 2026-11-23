@@ -335,8 +335,8 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "`absent(a) + b`, isn't supported yet. Scalar operands, such as `absent(a) * 2`, and the `or` operator, such "
                 + "as `a or absent(b)`, are supported, unless the other operand has a label of the same name mapped as a type "
                 + "other than `keyword`, such as `sum by (shard) (x) or absent(x{shard=\"7\"})` where `shard` is a `long` "
-                + "field. An equality matcher on a label named `step`, such as "
-                + "`absent(x{step=\"a\"})`, isn't supported yet."
+                + "field. An equality matcher on a label named `step` or on the value column, such as "
+                + "`absent(x{step=\"a\"})` or `result=(absent(x{result=\"ok\"}))`, isn't supported yet."
         )
         .example("absent(http_requests_total{job=\"api\"})")
         .stack(PromqlFunctionDefinition.STACK_GA_9_7)

@@ -1337,6 +1337,10 @@ public class PromqlVerifierTests extends ESTestCase {
             ABSENT_RANGE + "absent(network.bytes_in{step=\"a\"})",
             containsString("label [step] collides with the built-in [step] output column")
         );
+        tsdb.error(
+            ABSENT_RANGE + "result=(absent(network.bytes_in{result=\"ok\"}))",
+            containsString("label [result] collides with the built-in [result] output column")
+        );
     }
 
     public void testRelabelOverRawSeriesUnderAbsentRejected() {

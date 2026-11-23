@@ -3293,8 +3293,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * The sink per-file statistics are captured into, or {@code null} under {@link StripeColumnScope#NONE},
-     * which is the off switch {@link StatsCapturingIterator#wrap} and both parsing coordinators already guard on.
+     * The sink per-file statistics are captured into, or {@code null} under {@link StripeColumnScope#NONE}.
+     * A {@code null} sink is the off switch {@link StatsCapturingIterator#wrap} and both parsing coordinators
+     * guard on.
      * <p>
      * Not {@code FormatReadContext.statsStripeSink}, whose {@code null} means the chunk publishes its own stripe
      * pieces instead of staging them.

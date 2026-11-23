@@ -4851,7 +4851,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 emitPerStripe();
                             }
                         } else {
-                            // Non-chunk whole-file read. PROJECTED/COUNT commit columnStats (projected / none).
+                            // Non-chunk whole-file read. Only PROJECTED commits columnStats; COUNT builds none.
                             // ALL additionally commits allFileColumnStats (every file column) → strict superset
                             // of PROJECTED's set.
                             Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(

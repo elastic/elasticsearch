@@ -107,6 +107,8 @@ public final class SearchCapabilities {
     private static final String DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT = "doc_lookup_enumeration_illegal_argument";
     /** The response reports failures that are not bound to a shard and did not fail the search in {@code phase_failures}. */
     private static final String SEARCH_PHASE_FAILURES = "search_phase_failures";
+    /** The built-in {@code lowercase} normalizer honors {@code split_queries_on_whitespace}. */
+    private static final String LOWERCASE_NORMALIZER_SPLITS_ON_WHITESPACE = "lowercase_normalizer_splits_on_whitespace";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -158,6 +160,7 @@ public final class SearchCapabilities {
         capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
         capabilities.add(DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT);
         capabilities.add(SEARCH_PHASE_FAILURES);
+        capabilities.add(LOWERCASE_NORMALIZER_SPLITS_ON_WHITESPACE);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

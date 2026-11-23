@@ -237,7 +237,6 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDescribeOutputIsWritten() {
-        assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         createSource();
         String describeDestination = "dest-describe";
         assertAcked(indicesAdmin().prepareCreate(describeDestination).setSettings(batchIndexingSettings()).setMapping("""

@@ -1188,11 +1188,22 @@ final class PartitionPruningWalk {
             });
         }
 
+        /** True when a later glob-directory slot is a TEMPLATE placeholder that still needs a peek. */
+        private boolean laterPlaceholder() {
+            for (int i = walkLevel + 1; i < templateLayout.depth(); i++) {
+                if (templateLayout.level(i).isPlaceholder()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /**
          * Walks each pending peek one identity folder deeper. Without this, a later placeholder would
          * list the identity folder itself as if it were a partition value. Budget miss or a directory
          * too wide to buffer fails closed (same as {@link #applyPeeksIfNeeded}). Stray siblings inside
-         * a pruned subtree are skipped — that layout is already untrusted for walking.
+         * a pruned subtree are skipped — that layout is already untrusted for walking. Callers skip this
+         * when {@link #laterPlaceholder()} is false so a trailing literal does not list unused peeks.
          */
         private boolean advancePendingPeeks(WalkLayout.Level role) throws IOException {
             if (pendingPeeks.isEmpty()) {
@@ -1291,7 +1302,7 @@ final class PartitionPruningWalk {
                         } else if (role.isLiteral()) {
                             if (role.literal().equals(sub.objectName())) {
                                 next.add(sub);
-                            } else {
+                            } else if (role.globSpelled() == false) {
                                 withdraw = true;
                             }
                         } else {
@@ -1411,7 +1422,7 @@ final class PartitionPruningWalk {
                 }
             }
             if (level.identityLevel) {
-                if (advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
+                if (laterPlaceholder() && advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
                     level.continueWalk = false;
                     return null;
                 }

@@ -812,6 +812,11 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/logs/")));
         assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/logs/"));
         assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/logs/2024/"));
+        assertThat(
+            "trailing identity must not list pruned years just to advance unused peeks",
+            provider.childListedPrefixes(),
+            not(hasItem("s3://bucket/logs/2025/"))
+        );
     }
 
     /**
@@ -847,10 +852,14 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertThat(provider.childListedPrefixes(), hasItem(AWS_NOV_PREFIX));
     }
 
-    /** A sibling of a required literal folder withdraws; the flat listing still glob-filters. */
-    public void testTemplateStrayLiteralDirWithdraws() throws IOException {
+    /**
+     * Glob already spells {@code vpcflowlogs}: a CloudTrail sibling cannot match, so skip it and keep walking.
+     * Day 17 exists so a completed walk prunes; falling back to a flat {@code AWSLogs/} list would fail this.
+     */
+    public void testTemplateGlobSpelledLiteralSkipsServiceSibling() throws IOException {
         List<StorageEntry> tree = List.of(
             ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
             ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/cloudtrail/us-east-1/2026/11/18/b.json")
         );
         ListingWalkHarness provider = new ListingWalkHarness(tree);
@@ -859,7 +868,42 @@ public class ListingWalkHarnessTests extends ESTestCase {
         FileList result = expand(provider, AWS_TEMPLATE_GLOB, hints, MAX, AWS_TEMPLATE);
 
         assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"), pathsOf(result));
-        assertThat(provider.listedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
+        assertFalse(containsPath(pathsOf(result), "/11/17/"));
+    }
+
+    /**
+     * A {@code *} glob slot filled by a template literal must withdraw on a sibling. Bypass rewrite, which
+     * would pin {@code vpcflowlogs} and skip instead. Day 17 is here so a silent skip would prune and return
+     * a non-null walk.
+     */
+    public void testTemplateStrayLiteralDirWithdraws() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/18/a.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11/17/c.log.gz"),
+            ListingWalkHarness.entry("s3://bucket/AWSLogs/012345678901/cloudtrail/us-east-1/2026/11/18/b.json")
+        );
+        ListingWalkHarness provider = new ListingWalkHarness(tree);
+        List<PartitionFilterHint> hints = List.of(hint("day", Operator.EQUALS, 18));
+        String glob = "*/*/*/*/*/*/*.log.gz";
+        PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
+            provider,
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            new GlobMatcher(glob),
+            ExclusionConfig.fromConfig(null).compile(),
+            hints,
+            MAX,
+            glob,
+            null,
+            null,
+            Integer.MAX_VALUE,
+            MAX,
+            () -> false,
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+        );
+        assertNull(walk);
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/012345678901/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
     }
 
     /** {@code **} is variable depth: TEMPLATE does not walk. */

@@ -493,10 +493,32 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(3, layout.depth());
         assertTrue(layout.level(0).isPlaceholder());
         assertEquals("year", layout.level(0).name());
+        assertFalse(layout.level(0).globSpelled());
         Map<String, String> bound = layout.bindings("/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11");
         assertEquals("2026", bound.get("year"));
         assertEquals("11", bound.get("month"));
         assertFalse(bound.containsKey("day"));
+    }
+
+    public void testWalkLayoutMarksGlobSpelledLiteral() {
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            "*/vpcflowlogs/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}"
+        );
+        assertNotNull(layout);
+        assertTrue(layout.level(1).isLiteral());
+        assertTrue(layout.level(1).globSpelled());
+        assertEquals("vpcflowlogs", layout.level(1).literal());
+        TemplatePartitionDetector.WalkLayout starred = TemplatePartitionDetector.walkLayout(
+            StoragePath.of("s3://bucket/AWSLogs/"),
+            "*/*/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}"
+        );
+        assertNotNull(starred);
+        assertTrue(starred.level(1).isLiteral());
+        assertFalse(starred.level(1).globSpelled());
+        assertEquals("vpcflowlogs", starred.level(1).literal());
     }
 
     public void testWalkLayoutRejectsGlobstar() {

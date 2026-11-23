@@ -364,7 +364,11 @@ public final class TemplatePartitionDetector implements PartitionDetector {
                     if ("*".equals(globParts[i]) == false && value.equals(globParts[i]) == false) {
                         return null;
                     }
-                    levels.add(WalkLayout.Level.literal("*".equals(globParts[i]) ? value : globParts[i]));
+                    if ("*".equals(globParts[i])) {
+                        levels.add(WalkLayout.Level.literal(value));
+                    } else {
+                        levels.add(WalkLayout.Level.globSpelled(globParts[i]));
+                    }
                 }
             }
         }
@@ -468,15 +472,21 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         }
 
         /** One remaining glob-directory slot. */
-        public record Level(@Nullable String name, @Nullable String literal) {
-            static final Level FREE = new Level(null, null);
+        public record Level(@Nullable String name, @Nullable String literal, boolean globSpelled) {
+            static final Level FREE = new Level(null, null, false);
 
             static Level placeholder(String name) {
-                return new Level(name, null);
+                return new Level(name, null, false);
             }
 
+            /** Template literal filled from a {@code *} glob slot: a sibling folder withdraws. */
             static Level literal(String value) {
-                return new Level(null, value);
+                return new Level(null, value, false);
+            }
+
+            /** Glob already spelled this name: a sibling cannot match and is skipped. */
+            static Level globSpelled(String value) {
+                return new Level(null, value, true);
             }
 
             public boolean isPlaceholder() {

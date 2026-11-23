@@ -1329,6 +1329,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * A stream of {@code streamSize} random longs from min..max (inclusive), as drawn by {@link #randomLongBetween}.
+     */
+    public static LongStream randomLongsBetween(long streamSize, long min, long max) {
+        return LongStream.generate(() -> randomLongBetween(min, max)).limit(streamSize);
+    }
+
+    /**
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
      * Modify this random generator if a wider range for BigIntegers is necessary.

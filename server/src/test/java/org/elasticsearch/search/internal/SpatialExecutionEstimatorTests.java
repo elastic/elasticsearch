@@ -25,10 +25,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
 import org.elasticsearch.test.ESTestCase;
@@ -36,8 +34,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Locale;
 
+import static org.elasticsearch.search.internal.BreakerWeightTestUtils.assertChargeIsCeilingOnRetainedSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -97,16 +95,25 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
             double lat = randomDoubleBetween(-12, 12, true);
             double lon = randomDoubleBetween(-12, 12, true);
             double halfSide = randomDoubleBetween(0.01, 15, true);
-            assertChargeIsCeiling(searcher, LatLonPoint.newDistanceQuery(GEO_POINT, lat, lon, halfSide * 111_000));
-            assertChargeIsCeiling(searcher, XYPointField.newPolygonQuery(XY_POINT, xySquare((float) lon, (float) lat, (float) halfSide)));
+            assertChargeIsCeilingOnRetainedSet(searcher, LatLonPoint.newDistanceQuery(GEO_POINT, lat, lon, halfSide * 111_000));
+            assertChargeIsCeilingOnRetainedSet(
+                searcher,
+                XYPointField.newPolygonQuery(XY_POINT, xySquare((float) lon, (float) lat, (float) halfSide))
+            );
             for (QueryRelation relation : QueryRelation.values()) {
                 if (relation != QueryRelation.CONTAINS) {
-                    assertChargeIsCeiling(searcher, LatLonPoint.newGeometryQuery(GEO_POINT, relation, square(lat, lon, halfSide)));
+                    assertChargeIsCeilingOnRetainedSet(
+                        searcher,
+                        LatLonPoint.newGeometryQuery(GEO_POINT, relation, square(lat, lon, halfSide))
+                    );
                 }
                 // A shape contains a point inside it, which keeps the CONTAINS results non-empty.
                 Polygon polygon = relation == QueryRelation.CONTAINS ? square(lat, lon, 0.001) : square(lat, lon, halfSide);
-                assertChargeIsCeiling(searcher, LatLonShape.newGeometryQuery(GEO_SHAPE, relation, polygon));
-                assertChargeIsCeiling(searcher, XYShape.newGeometryQuery(XY_SHAPE, relation, xySquare((float) lon, (float) lat, 0.001f)));
+                assertChargeIsCeilingOnRetainedSet(searcher, LatLonShape.newGeometryQuery(GEO_SHAPE, relation, polygon));
+                assertChargeIsCeilingOnRetainedSet(
+                    searcher,
+                    XYShape.newGeometryQuery(XY_SHAPE, relation, xySquare((float) lon, (float) lat, 0.001f))
+                );
             }
         }
     }
@@ -147,27 +154,6 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
                 LeafReaderContext ctx = singleValued.leaves().getFirst();
                 long charged = ExecutionCharge.forQuery(query).estimator().bytesForLeaf(ctx, weight.scorerSupplier(ctx), Long.MAX_VALUE);
                 assertThat(charged, equalTo(PointsExecutionEstimator.bitSetBytes(ctx.reader().maxDoc())));
-            }
-        }
-    }
-
-    private void assertChargeIsCeiling(IndexSearcher searcher, Query query) throws IOException {
-        LeafExecutionEstimator estimator = ExecutionCharge.forQuery(query).estimator();
-        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        for (LeafReaderContext ctx : reader.leaves()) {
-            ScorerSupplier supplier = weight.scorerSupplier(ctx);
-            if (supplier == null) {
-                continue;
-            }
-            long charged = estimator.bytesForLeaf(ctx, supplier, Long.MAX_VALUE);
-            long retained = RamUsageTester.ramUsed(supplier.get(Long.MAX_VALUE).iterator());
-            // An intersection that matches nothing keeps an empty array, which is not charged.
-            if (supplier.cost() > 0) {
-                assertThat(
-                    String.format(Locale.ROOT, "%s [maxDoc=%d, charged=%d, retained=%d]", query, ctx.reader().maxDoc(), charged, retained),
-                    charged,
-                    greaterThanOrEqualTo(retained)
-                );
             }
         }
     }

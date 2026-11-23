@@ -65,10 +65,10 @@ class PointsExecutionEstimator implements LeafExecutionEstimator {
      * Bound on the count an intersection whose estimated doc count is {@code cost} passes to {@code DocIdSetBuilder#grow}.
      * The BKD reader grows by a whole leaf block where the block crosses the query, and {@link PointValues#estimatePointCount}
      * counts such a block as half matching, so the intersection grows by at most twice the estimated point count. On a
-     * multi-valued field the estimated doc count is that point count scaled down by at most {@code size / docCount}, and
+     * multivalued field the estimated doc count is that point count scaled down by at most {@code size / docCount}, and
      * then truncated.
      */
-    static long grownValues(long cost, PointValues values) {
+    private static long grownValues(long cost, PointValues values) {
         final int docCount = values.getDocCount();
         final long size = values.size();
         final double valuesPerDoc = docCount > 0 && size > docCount ? (double) size / docCount : 1d;

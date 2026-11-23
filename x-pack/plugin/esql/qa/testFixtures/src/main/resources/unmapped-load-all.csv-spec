@@ -8739,6 +8739,7 @@ FROM partial_mapping_sample_data
 loadAllSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_only_keep_and_drop_reach_keys
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;

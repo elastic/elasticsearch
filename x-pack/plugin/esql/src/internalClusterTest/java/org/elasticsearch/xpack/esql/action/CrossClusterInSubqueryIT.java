@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -1161,6 +1162,30 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
         }
     }
 
+    public void testEnrichWithRemoteModePolicyAfterSubqueryWithStatsSucceeds() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM remote-b:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | STATS c = COUNT(*) BY v
+                    | KEEP v
+                  )
+                | ENRICH _remote:values_enrich_b ON v WITH enrich_name
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b");
+            clearSkipUnavailable(3);
+        }
+    }
+
     /**
      * Two occurrences of the same ENRICH command - same policy name, same mode - sharing the exact same {@code Source}
      */
@@ -1959,6 +1984,42 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * {@code id integer, color keyword, tag keyword}. Six docs per cluster:
      * ids 1–6, odd ids are red, even ids are blue.
      */
+    // ---- the length of the IN list over an index the coordinator cannot inspect ----
+
+    /**
+     * An IN list over an indexed field is kept as a {@code terms} query up to the {@code index.max_terms_count} of the indices it reads,
+     * which the coordinator only knows for local indices. A remote index may accept fewer terms than the list holds, and its shards
+     * reject a longer query, so over a remote index the list must stay within the default limit and the join becomes a hash join.
+     */
+    public void testSemiJoinRemoteOuterWithLowMaxTermsCountAndManyValues() {
+        int values = 200;
+        createIdsIndex(LOCAL_CLUSTER, null);
+        createIdsIndex(REMOTE_CLUSTER_1, values - 50);
+        String subquery = "(FROM ids | WHERE id < " + values + " | KEEP id)";
+
+        try (EsqlQueryResponse resp = runQuery("FROM cluster-a:ids | WHERE id IN " + subquery + " | STATS c = COUNT(*)", randomBoolean())) {
+            assertEquals(List.of(List.of((long) values)), getValuesList(resp));
+        }
+        try (
+            EsqlQueryResponse resp = runQuery("FROM ids,cluster-a:ids | WHERE id IN " + subquery + " | STATS c = COUNT(*)", randomBoolean())
+        ) {
+            assertEquals(List.of(List.of(2L * values)), getValuesList(resp));
+        }
+    }
+
+    private void createIdsIndex(String cluster, Integer maxTermsCount) {
+        Settings.Builder settings = Settings.builder().put("index.number_of_shards", 1);
+        if (maxTermsCount != null) {
+            settings.put(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(), maxTermsCount);
+        }
+        assertAcked(client(cluster).admin().indices().prepareCreate("ids").setSettings(settings).setMapping("id", "type=long"));
+        BulkRequestBuilder bulk = client(cluster).prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 300; i++) {
+            bulk.add(new IndexRequest("ids").source("id", i));
+        }
+        assertFalse(bulk.get().hasFailures());
+    }
+
     private void setupInSubqueryIndices() {
         for (String cluster : new String[] { LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2 }) {
             String tag = cluster.isEmpty() ? "local" : cluster;

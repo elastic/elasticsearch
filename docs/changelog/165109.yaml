@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165109
+summary: Speed up time-series partitioner
+type: enhancement

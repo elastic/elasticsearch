@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -78,6 +80,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
                 return duplicateLimitAsFirstGrandchild(limit, false);
+            } else if (unary instanceof NestedExpand) {
+                // The copy under the expansion stays on the data node with the command. A coordinator limit would
+                // pull NESTED_EXPAND above the exchange, where it cannot read child documents.
+                return duplicateLimitAsFirstGrandchild(limit, true);
             } else if (unary instanceof Enrich enrich) {
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
                     return duplicateLimitAsFirstGrandchild(limit, true);
@@ -184,13 +190,14 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
      * This is used to prevent pushing down limits past operations that need to evaluate expressions using document data.
      */
     private boolean evalAliasNeedsData(Eval eval) {
-        Holder<Boolean> hasScore = new Holder<>(false);
+        Holder<Boolean> needsData = new Holder<>(false);
         eval.forEachExpression(expr -> {
-            if (expr instanceof Score) {
-                hasScore.set(true);
+            // A nested predicate reads the parent's child documents, which only the data node can do
+            if (expr instanceof Score || expr instanceof NestedPredicate) {
+                needsData.set(true);
             }
         });
-        return hasScore.get();
+        return needsData.get();
     }
 
     /**
@@ -203,7 +210,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         while (plan instanceof Aggregate == false) {
             if (plan instanceof Limit limit) {
                 return limit;
-            } else if (plan instanceof MvExpand) {
+            } else if (plan instanceof MvExpand || plan instanceof NestedExpand) {
                 // the limit that applies to mv_expand shouldn't be changed
                 // ie "| limit 1 | mv_expand x | limit 20" where we want that last "limit" to apply on expand results
                 return null;

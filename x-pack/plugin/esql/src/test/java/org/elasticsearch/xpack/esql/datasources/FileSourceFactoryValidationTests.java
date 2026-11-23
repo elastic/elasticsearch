@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pins {@link FileSourceFactory#COORDINATOR_KEYS} membership against the keys other code in this
@@ -218,6 +221,37 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
     }
 
     /**
+     * {@code withConfigTrackingConsumedKeys} mints a configured copy that {@code validateConfig}
+     * keeps only for consumed-key metadata. That remint must close; the registry prototype must not.
+     */
+    public void testValidateConfigClosesConfiguredRemint() {
+        AtomicInteger prototypeCloses = new AtomicInteger();
+        AtomicInteger remintCloses = new AtomicInteger();
+        FileSourceFactory factory = newRemintingFactory(prototypeCloses, remintCloses);
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("error_mode", "fail_fast"));
+        assertEquals(1, remintCloses.get());
+        assertEquals(0, prototypeCloses.get());
+    }
+
+    /** Identity {@code withConfig} (NoConfig readers) is not a mint; the prototype must stay open. */
+    public void testValidateConfigDoesNotCloseIdentityWithConfig() {
+        AtomicInteger closes = new AtomicInteger();
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("stub-parquet", (s, bf) -> new CountingNoConfigReader(closes), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".parquet", "stub-parquet");
+        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
+        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+        FileSourceFactory factory = new FileSourceFactory(
+            storageRegistry,
+            formatRegistry,
+            new DecompressionCodecRegistry(),
+            Settings.EMPTY
+        );
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("error_mode", "fail_fast"));
+        assertEquals(0, closes.get());
+    }
+
+    /**
      * Pins {@link FileSourceFactory#LEGACY_VOCABULARY_KEYS} against the format plugins' own
      * {@link FormatSpec}s, not a hand-typed copy: every text format must still claim each legacy key,
      * and the set must be exactly the sampling bound — a closed legacy shim, not a growing vocabulary.
@@ -252,8 +286,92 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
     }
 
+    private static FileSourceFactory newRemintingFactory(AtomicInteger prototypeCloses, AtomicInteger remintCloses) {
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            "stub-parquet",
+            (s, bf) -> new RemintingReader(prototypeCloses, remintCloses, false),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(".parquet", "stub-parquet");
+        StorageProviderRegistry storageRegistry = new StorageProviderRegistry(Settings.EMPTY);
+        storageRegistry.registerFactory("s3", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
+        return new FileSourceFactory(storageRegistry, formatRegistry, new DecompressionCodecRegistry(), Settings.EMPTY);
+    }
+
+    /**
+     * Mints a distinct configured copy so {@link FileSourceFactory#validateConfig} has a remint to
+     * close. Prototype and remint share the close counters.
+     */
+    private static final class RemintingReader implements FormatReader {
+        private final AtomicInteger prototypeCloses;
+        private final AtomicInteger remintCloses;
+        private final boolean remint;
+
+        RemintingReader(AtomicInteger prototypeCloses, AtomicInteger remintCloses, boolean remint) {
+            this.prototypeCloses = prototypeCloses;
+            this.remintCloses = remintCloses;
+            this.remint = remint;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            if (remint) {
+                return Configured.empty(this);
+            }
+            return Configured.empty(new RemintingReader(prototypeCloses, remintCloses, true));
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("validateConfig never reads");
+        }
+
+        @Override
+        public org.elasticsearch.compute.operator.CloseableIterator<org.elasticsearch.compute.data.Page> read(
+            StorageObject object,
+            FormatReadContext context
+        ) {
+            throw new UnsupportedOperationException("validateConfig never reads");
+        }
+
+        @Override
+        public String formatName() {
+            return "stub-parquet";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {
+            (remint ? remintCloses : prototypeCloses).incrementAndGet();
+        }
+    }
+
+    private static final class CountingNoConfigReader extends StubNoConfigReader {
+        private final AtomicInteger closes;
+
+        CountingNoConfigReader(AtomicInteger closes) {
+            this.closes = closes;
+        }
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
+    }
+
     /** Claims no config keys (like Parquet does for {@code schema_sample_size}); never actually reads. */
-    private static final class StubNoConfigReader implements NoConfigFormatReader {
+    private static class StubNoConfigReader implements NoConfigFormatReader {
         @Override
         public RowPositionStrategy rowPositionStrategy() {
             return PassThroughRowPositionStrategy.INSTANCE;

@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * The result of parsing an ES|QL statement, carrying the main query plan, any {@code SET}
- * settings, and any {@code LET} named-subquery bindings.
+ * settings, and any {@code LET} named subqueries.
  * <p>
  * The 2-arg constructor {@link #EsqlStatement(LogicalPlan, List)} is provided for callers
  * that do not use {@code LET} and need not change.
@@ -22,7 +22,7 @@ import java.util.List;
  */
 public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings, List<LetBinding> letBindings) {
 
-    /** Convenience constructor for statements without {@code LET} bindings. */
+    /** Convenience constructor for statements without {@code LET} named subqueries. */
     public EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
         this(plan, settings, List.of());
     }

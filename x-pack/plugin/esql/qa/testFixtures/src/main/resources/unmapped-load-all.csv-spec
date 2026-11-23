@@ -8428,10 +8428,12 @@ null
 ;
 
 // The LOAD_ALL counterpart of loadSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped. The branch that sorts on unmapped_message
-// names it, so it is a column there. LOAD loads it in the other branch too, and so does LOAD_ALL, where it is also still a key.
+// names it, so it is a column there. LOAD loads it in that branch only and null-fills it in the other, which is why this test differs from
+// the LOAD one: LOAD_ALL loads it in the other branch too, where the key also stays in _unmapped_fields.
 loadAllSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_sibling_column_from_source
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -8453,11 +8455,14 @@ Connection error?      | Disconnection error        | null
 ;
 
 // The LOAD_ALL counterpart of fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad: FILLNULL ON * fills the columns of its own
-// branch, and the other branch keeps its own.
+// branch, and the other branch keeps its own. LOAD null-fills message in the branch that does not map it, where LOAD_ALL reads it from
+// _source because the other branch names it, so the result differs.
 loadAllFillNullAllColumnsInSubqueryBranchWithDifferentColumns
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
 required_capability: optional_fields_load_all_fillnull
+required_capability: fillnull_late_loaded_columns
+required_capability: optional_fields_load_all_sibling_column_from_source
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;

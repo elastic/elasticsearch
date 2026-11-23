@@ -38,6 +38,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -423,14 +424,22 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     }
 
     /**
-     * A wait on I/O starts the count again: two runs of empty reads, each one short of the cap, with a wait between them
-     * still reach the page.
+     * A wait on I/O starts the count again: two runs of empty reads, each one short of the cap, with pending I/O between
+     * them still reach the page.
      */
     public void testWaitOnIoRestartsTheCount() {
         int waitAt = MAX_EMPTY_READS_IN_A_ROW;
         int pageAt = 2 * MAX_EMPTY_READS_IN_A_ROW;
         assertEquals(EXPECTED_ROWS, drain(emptyUntilAdvance(pageAt, waitAt)).rows());
         consumeOnePage(emptyUntilAdvance(pageAt, waitAt));
+    }
+
+    /**
+     * No read comes while I/O that lands on another thread is pending: the scripted iterator fails such a read.
+     */
+    public void testNoReadWhileIoIsPending() {
+        assertEquals(EXPECTED_ROWS, drain(emptyUntilAdvance(2, 1, asyncIo)).rows());
+        consumeOnePage(emptyUntilAdvance(2, 1, asyncIo));
     }
 
     private static CloseableIterator<Page> readyButEmptyTwice() {
@@ -444,30 +453,42 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
 
     /** {@code tryAdvance()} number {@code waitAt} leaves it not ready for one {@code waitForReady()} call; 0 for never. */
     private static CloseableIterator<Page> emptyUntilAdvance(int pageAt, int waitAt) {
+        return emptyUntilAdvance(pageAt, waitAt, null);
+    }
+
+    /** With an {@code io}, that wait ends when the task given to {@code io} runs, not on a {@code waitForReady()} call. */
+    private static CloseableIterator<Page> emptyUntilAdvance(int pageAt, int waitAt, @Nullable Executor io) {
         return new CloseableIterator<>() {
             private int advances;
-            private boolean ioPending;
-            private SubscribableListener<Void> handedOut;
+            private SubscribableListener<Void> ready = SubscribableListener.newSucceeded(null);
+            private boolean askedOnce;
 
             @Override
             public SubscribableListener<Void> waitForReady() {
-                if (handedOut != null) {
-                    // the I/O lands before the next call
-                    handedOut.onResponse(null);
-                    handedOut = null;
+                if (io == null && ready.isDone() == false) {
+                    if (askedOnce) {
+                        // the I/O lands by the second call
+                        ready.onResponse(null);
+                    }
+                    askedOnce = true;
                 }
-                if (ioPending == false) {
-                    return SubscribableListener.newSucceeded(null);
-                }
-                ioPending = false;
-                handedOut = new SubscribableListener<>();
-                return handedOut;
+                return ready;
             }
 
             @Override
             public Page tryAdvance() {
+                if (ready.isDone() == false) {
+                    throw new AssertionError("read while waiting on I/O");
+                }
                 advances++;
-                ioPending = advances == waitAt;
+                if (advances == waitAt) {
+                    SubscribableListener<Void> pending = new SubscribableListener<>();
+                    ready = pending;
+                    askedOnce = false;
+                    if (io != null) {
+                        io.execute(() -> pending.onResponse(null));
+                    }
+                }
                 return advances == pageAt ? new Page(EXPECTED_ROWS) : null;
             }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -42,6 +43,15 @@ public interface EvaluatorMapper {
 
         default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
+        }
+
+        /**
+         * The planner settings of the query, for an evaluator that reads from the index and sizes its reads by them, such as the
+         * block loader budgets. The default throws, as for {@link #shardContexts}, because the settings only exist while a query is
+         * being planned into operators.
+         */
+        default PlannerSettings plannerSettings() {
+            throw new UnsupportedOperationException("Planner settings should only be needed for evaluation operations");
         }
 
         /**

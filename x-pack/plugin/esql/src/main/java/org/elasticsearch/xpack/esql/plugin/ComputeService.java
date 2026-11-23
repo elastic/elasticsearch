@@ -2150,6 +2150,8 @@ public class ComputeService {
             : context.load();
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         QueryLoad queryLoad = context.queryLoad();
+        // the tasks of the compute outside its drivers, which report what they charged through the query's load
+        TaskLoadAttribution.Target outsideDrivers = computeLoad == null ? null : queryLoad.charging(computeLoad);
         // a compute that charges no load, such as on the coordinator, takes none of the query's waiting either
         QueryLoad waitingLoad = computeLoad == null ? null : queryLoad;
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of(), waitingLoad);
@@ -2171,7 +2173,7 @@ public class ComputeService {
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
-            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), computeLoad, null);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), outsideDrivers, null);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -2194,7 +2196,7 @@ public class ComputeService {
                 datasetConfigResolver.snapshotBuild(),
                 context.fetchOperators(),
                 // the workers of parallel operators are tasks of the query, with no shard of their own
-                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, queryLoad.charging(computeLoad)),
+                outsideDrivers == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, outsideDrivers),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),

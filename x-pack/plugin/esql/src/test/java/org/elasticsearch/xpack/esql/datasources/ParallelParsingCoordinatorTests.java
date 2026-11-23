@@ -732,10 +732,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     "*" + signature + "*"
                 )
             );
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec);
-            assertTrue("workers should produce at least one page", iter.hasNext());
-            // Abandon without draining: the LIMIT / cancel shape, which is what closes the storage object.
-            iter.close();
+            // Abandon without draining: the LIMIT / cancel shape, which is what closes the storage object. The
+            // close runs on the way out of the block, so a failed assertion inside it still releases the pages.
+            try (CloseableIterator<Page> it = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec)) {
+                assertTrue("workers should produce at least one page", it.hasNext());
+            }
             mockLog.assertAllExpectationsMatched();
         } finally {
             exec.shutdown();

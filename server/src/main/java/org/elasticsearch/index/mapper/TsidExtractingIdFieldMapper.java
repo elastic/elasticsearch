@@ -29,6 +29,7 @@ import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.sourcebatch.CompactedColumns;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
@@ -444,6 +445,11 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         @Override
         public Column toLuceneColumn() {
             return this;
+        }
+
+        @Override
+        public Column toLuceneColumn(int[] compactedDocIds) {
+            return CompactedColumns.of(this, compactedDocIds);
         }
 
         @Override

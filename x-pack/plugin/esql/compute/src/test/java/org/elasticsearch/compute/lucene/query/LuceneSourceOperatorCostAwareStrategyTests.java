@@ -12,11 +12,13 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.geo.Circle;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -66,6 +68,7 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
     private static final String GEO = "geo";
     private static final String GEO_DV = "geo_dv";
+    private static final String GEO_SHAPE = "geo_shape";
     /** Covers every indexed point, so a distance query estimates at or above {@link #MIN_COST_FOR_DOC}. */
     private static final double WORLD_RADIUS_METERS = 20_000_000d;
 
@@ -89,8 +92,9 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         }
         reader = DirectoryReader.open(directory);
 
-        // Separate from the keyword/points index: one indexed point plus doc values, and a doc-values-only field.
-        // Every point is the origin, inside a world-sized circle, so estimateDocCount is the doc count.
+        // Separate from the keyword/points index: one indexed point plus doc values, a doc-values-only field, and a
+        // shape with doc values. Every point and shape is the origin, inside a world-sized circle and the test boxes,
+        // so estimateDocCount is the doc count.
         geoDirectory = newDirectory();
         try (IndexWriter writer = new IndexWriter(geoDirectory, new IndexWriterConfig())) {
             for (int i = 0; i < NUM_DOCS; i++) {
@@ -98,6 +102,10 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
                 doc.add(new LatLonPoint(GEO, 0, 0));
                 doc.add(new LatLonDocValuesField(GEO, 0, 0));
                 doc.add(new LatLonDocValuesField(GEO_DV, 0, 0));
+                for (Field field : LatLonShape.createIndexableFields(GEO_SHAPE, 0, 0)) {
+                    doc.add(field);
+                }
+                doc.add(LatLonShape.createDocValueField(GEO_SHAPE, 0, 0));
                 writer.addDocument(doc);
             }
         }
@@ -186,6 +194,24 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
                 BooleanClause.Occur.FILTER
             )
             .build();
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedGeoShapeBoundingBoxPicksShard() throws IOException {
+        // GeoShapeWithDocValuesFieldMapper builds this for a geo_shape field queried with an envelope: a single
+        // Rectangle becomes a LatLonShapeBoundingBoxQuery, which walks the BKD tree like any other shape query.
+        Query query = LatLonShape.newGeometryQuery(GEO_SHAPE, ShapeField.QueryRelation.INTERSECTS, new Rectangle(-10, 10, -10, 10));
+        assertGeoCostAtLeastDocThreshold(query);
+        assertThat(pick(geoReader, query, between(1, 1000)), equalTo(SHARD));
+    }
+
+    public void testLimitedGeoShapeBoundingBoxIndexOrDocValuesPicksShard() throws IOException {
+        // Shape produced by GeoShapeWithDocValuesFieldMapper.geoShapeQuery when the field has points and doc values.
+        Query query = new IndexOrDocValuesQuery(
+            LatLonShape.newGeometryQuery(GEO_SHAPE, ShapeField.QueryRelation.INTERSECTS, new Rectangle(-10, 10, -10, 10)),
+            LatLonShape.newSlowDocValuesBoxQuery(GEO_SHAPE, ShapeField.QueryRelation.INTERSECTS, -10, 10, -10, 10)
+        );
         assertGeoCostAtLeastDocThreshold(query);
         assertThat(pick(geoReader, query, between(1, 1000)), equalTo(SHARD));
     }

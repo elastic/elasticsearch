@@ -108,6 +108,11 @@ public class MvLike extends MvRegexMatch {
         new WildcardPattern(pattern).createAutomaton(false);
     }
 
+    @Override
+    protected WildcardPattern compilePattern(String pattern) {
+        return new WildcardPattern(pattern);
+    }
+
     /** The empty pattern matches only the empty string; it cannot be pushed (see {@link #buildEvaluator}), so it is not pushable. */
     @Override
     protected boolean patternPushable(String pattern) {

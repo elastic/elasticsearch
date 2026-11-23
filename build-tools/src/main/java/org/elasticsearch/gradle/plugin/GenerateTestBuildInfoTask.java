@@ -138,7 +138,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * find the first class and module when the class path entry is a jar
+     * find the representative class (the lexicographically smallest eligible one) and the module
+     * when the class path entry is a jar
      */
     private void extractLocationsFromJar(File file, List<Location> locations) throws IOException {
         try (JarFile jarFile = new JarFile(file)) {
@@ -157,6 +158,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * (which is also not unique) and avoid anonymous classes.
      * The smallest name is chosen (rather than the first entry) so the output
      * does not depend on entry order, keeping this task's output reproducible.
+     * Entry names use {@code '/'} separators, so this ordering matches the one used by
+     * {@link #extractClassNameFromDirectory(File)}; keep the two in sync.
      */
     private java.util.Optional<String> extractClassNameFromJar(JarFile jarFile) {
         return jarFile.stream()
@@ -278,7 +281,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
     }
 
     /**
-     * find the first class and module when the class path entry is a directory
+     * find the representative class (the lexicographically smallest eligible one) and the module
+     * when the class path entry is a directory
      */
     private void extractLocationsFromDirectory(File dir, List<Location> locations) throws IOException {
         String className = extractClassNameFromDirectory(dir);
@@ -294,6 +298,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * module-info.class (which may not be unique) and avoid anonymous classes.
      * The smallest relative path is chosen (rather than the first one visited) because
      * directory iteration order is filesystem dependent and would make the output non-reproducible.
+     * Paths are normalized to {@code '/'} separators before comparing so that the ordering is platform independent
+     * and matches the one used by {@link #extractClassNameFromJar(JarFile)}; keep the two in sync.
      */
     private String extractClassNameFromDirectory(File dir) throws IOException {
         var visitor = new SimpleFileVisitor<Path>() {

@@ -118,6 +118,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final PartitionSizeCollector partitionSizeCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final SearchLaneRequirementsCollector searchLaneRequirementsCollector;
+    private final SearchCopyDemandCollector searchCopyDemandCollector;
+    private final NodeSearchCapacityCollector nodeSearchCapacityCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
@@ -136,7 +138,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
         PartitionSizeCollector partitionSizeCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector,
-        SearchLaneRequirementsCollector searchLaneRequirementsCollector
+        SearchLaneRequirementsCollector searchLaneRequirementsCollector,
+        SearchCopyDemandCollector searchCopyDemandCollector,
+        NodeSearchCapacityCollector nodeSearchCapacityCollector
     ) {
         this.threadPool = threadPool;
         this.client = client;
@@ -145,6 +149,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.partitionSizeCollector = partitionSizeCollector;
         this.nodeUsageStatsForThreadPoolsCollector = nodeUsageStatsForThreadPoolsCollector;
         this.searchLaneRequirementsCollector = searchLaneRequirementsCollector;
+        this.searchCopyDemandCollector = searchCopyDemandCollector;
+        this.nodeSearchCapacityCollector = nodeSearchCapacityCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -233,6 +239,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
         private volatile Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
+        private volatile Map<ClusterInfo.NodeAndShard, SearchCopyDemand> searchCopyDemands = Map.of();
+        private volatile Map<String, NodeSearchCapacity> nodeSearchCapacities = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
         private final boolean collectStoreStats = diskThresholdEnabled || snapshotRestoreAllocationEnabled;
@@ -254,6 +262,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 fetchCacheUsageAndCommitments();
                 fetchPartitionSizes();
                 fetchSearchLaneRequirements();
+                fetchSearchCopyDemands();
+                fetchNodeSearchCapacities();
             }
         }
 
@@ -357,6 +367,46 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         public void onFailure(Exception e) {
                             logger.warn("failed to fetch search lane requirements", e);
                             shardSearchLaneRequirements = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
+            }
+        }
+
+        private void fetchSearchCopyDemands() {
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                searchCopyDemandCollector.collectSearchCopyDemands(
+                    clusterStateSupplier.get(),
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands) {
+                            searchCopyDemands = demands;
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch search copy demands", e);
+                            searchCopyDemands = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
+            }
+        }
+
+        private void fetchNodeSearchCapacities() {
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                nodeSearchCapacityCollector.collectNodeSearchCapacities(
+                    clusterStateSupplier.get(),
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Map<String, NodeSearchCapacity> capacities) {
+                            nodeSearchCapacities = capacities;
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch node search capacities", e);
+                            nodeSearchCapacities = Map.of();
                         }
                     }, fetchRefs.acquire())
                 );
@@ -597,7 +647,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 shardCacheRequirements,
                 hostedShardsPartitionSizeByNodeId,
                 shardSearchLaneRequirements,
-                indicesStatsSummary.shardSearchLoads()
+                indicesStatsSummary.shardSearchLoads(),
+                searchCopyDemands,
+                nodeSearchCapacities
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

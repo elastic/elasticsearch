@@ -81,6 +81,25 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preLaneCopy.getShardSearchLaneRequirements(), equalTo(Map.of()));
     }
 
+    public void testSearchLoadMetricsAreTransportVersionGated() throws Exception {
+        final var nodeAndShard = new ClusterInfo.NodeAndShard(randomIdentifier(), randomShardId());
+        final var searchCopyDemands = Map.of(nodeAndShard, new SearchCopyDemand(1.5d, 2.5d));
+        final var nodeSearchCapacities = Map.of(randomIdentifier(), new NodeSearchCapacity(4.0d, 8.0d));
+        final var clusterInfo = ClusterInfo.builder()
+            .searchCopyDemands(searchCopyDemands)
+            .nodeSearchCapacities(nodeSearchCapacities)
+            .build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getSearchCopyDemands(), equalTo(searchCopyDemands));
+        assertThat(currentVersionCopy.getNodeSearchCapacities(), equalTo(nodeSearchCapacities));
+
+        final var preSearchLoadMetricsVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.SEARCH_LOAD_METRICS_IN_CLUSTER_INFO);
+        final var preSearchLoadMetricsCopy = copyInstance(clusterInfo, preSearchLoadMetricsVersion);
+        assertThat(preSearchLoadMetricsCopy.getSearchCopyDemands(), equalTo(Map.of()));
+        assertThat(preSearchLoadMetricsCopy.getNodeSearchCapacities(), equalTo(Map.of()));
+    }
+
     public void testSearchLoadsAreTransportVersionGated() throws Exception {
         final var clusterInfo = ClusterInfo.builder().shardSearchLoads(randomPerShardDoubles()).build();
 
@@ -126,8 +145,31 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardCacheRequirements(),
             randomHostedShardsPartitionSizes(),
             randomPerShardDoubles(),
-            randomPerShardDoubles()
+            randomPerShardDoubles(),
+            randomSearchCopyDemands(),
+            randomNodeSearchCapacities()
         );
+    }
+
+    private static Map<ClusterInfo.NodeAndShard, SearchCopyDemand> randomSearchCopyDemands() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            demands.put(
+                new ClusterInfo.NodeAndShard(randomIdentifier(), randomShardId()),
+                new SearchCopyDemand(randomDouble(), randomDouble())
+            );
+        }
+        return demands;
+    }
+
+    private static Map<String, NodeSearchCapacity> randomNodeSearchCapacities() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<String, NodeSearchCapacity> capacities = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            capacities.put(randomIdentifier(), new NodeSearchCapacity(randomDouble(), randomDouble()));
+        }
+        return capacities;
     }
 
     private static Map<ShardId, Double> randomPerShardDoubles() {

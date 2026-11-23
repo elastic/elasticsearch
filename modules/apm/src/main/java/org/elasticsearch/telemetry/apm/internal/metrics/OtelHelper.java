@@ -62,7 +62,7 @@ class OtelHelper {
     }
 
     // Async counters skip 0-valued observations: an unobserved series is dropped by the SDK, matching the APM agent (which did
-    // not emit idle counters). Gauges keep 0, since for a gauge 0 is a real value.
+    // not emit idle counters). Gauges and up-down counters keep 0, since for them 0 is a real value.
     static Consumer<ObservableDoubleMeasurement> doubleCounterMeasurementCallback(
         String metricName,
         Consumer<DoubleAsyncMeasurement> callback

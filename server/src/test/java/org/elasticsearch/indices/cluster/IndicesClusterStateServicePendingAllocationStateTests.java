@@ -433,7 +433,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertNotNull(supersededListener);
         MockIndexShard supersededShard = indicesService.getShardOrNull(shardRouting.shardId());
         assertNotNull(supersededShard);
-        RecoveryState supersededRecoveryState = supersededShard.recoveryState();
 
         // A primary term bump for this same allocation (e.g. a batched cluster-state application
         // that goes straight from initializing(term1) to initializing(term2)) evicts the old ticket
@@ -444,8 +443,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // The superseded attempt's own recovery listener aborts late. It must be a no-op: the new
         // ticket survives untouched, and master is never notified (ABORT's whole point).
         supersededListener.onRecoveryFailure(
-            supersededRecoveryState,
-            new RecoveryFailedException(supersededRecoveryState, "simulated", new Exception("simulated")),
+            new RecoveryFailedException(supersededShard.recoveryState(), "simulated", new Exception("simulated")),
             ABORT
         );
 
@@ -1031,11 +1029,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         final var replacementTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(replacement));
         assertThat(replacementTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry.class));
 
-        oldListener.onRecoveryFailure(
-            oldRecoveryState,
-            new RecoveryFailedException(oldRecoveryState, "late failure", new IOException("old attempt")),
-            RETRY
-        );
+        oldListener.onRecoveryFailure(new RecoveryFailedException(oldRecoveryState, "late failure", new IOException("old attempt")), RETRY);
         // The stale call must not touch replacement's ticket, nor resurrect an entry for the
         // now-evicted old allocation.
         assertSame(replacementTicket, indicesClusterStateService.pendingAllocationStates.get(allocationKey(replacement)));
@@ -1594,7 +1588,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             assertNotNull(shard);
             RecoveryState recoveryState = shard.recoveryState();
             lastRecoveryListener.onRecoveryFailure(
-                recoveryState,
                 new RecoveryFailedException(recoveryState, "simulated", new Exception("simulated")),
                 failureStrategy
             );

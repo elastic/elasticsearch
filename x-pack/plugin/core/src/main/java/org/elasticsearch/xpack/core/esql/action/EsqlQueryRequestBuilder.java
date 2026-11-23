@@ -47,7 +47,30 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
 
     public abstract EsqlQueryRequestBuilder<Request, Response> projectRouting(String projectRouting);
 
+    /**
+     * Requests per-cluster execution metadata for {@link EsqlResponse#clusters()}. Replaces any mode set earlier on this builder.
+     * A datafeed on local indices needs {@link ExecutionMetadata#ALWAYS}.
+     */
+    public abstract EsqlQueryRequestBuilder<Request, Response> executionMetadata(ExecutionMetadata mode);
+
     public abstract EsqlQueryRequestBuilder<Request, Response> params(List<EsqlQueryParam> params);
+
+    /** What to request for the per-cluster metadata that {@link EsqlResponse#clusters()} returns. */
+    public enum ExecutionMetadata {
+        /** Do not request it. The default. A partial result still lists the clusters that have failures. */
+        NEVER,
+        /**
+         * Request it for cross-cluster queries. A query on local indices only reports nothing, unless its result is
+         * partial with failures. A non-empty list is therefore no proof of a cross-cluster query. Equivalent of the
+         * {@code include_ccs_metadata} request parameter.
+         */
+        CCS_ONLY,
+        /**
+         * Request it for every query, including local-only ones. The list can still be empty when the query reads no index,
+         * for example {@code ROW}. Equivalent of the {@code include_execution_metadata} request parameter.
+         */
+        ALWAYS
+    }
 
     /**
      * A lightweight representation of a single ES|QL query parameter, used to pass typed values or field-name identifiers

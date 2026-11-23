@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 164382
-pr: 166088
-summary: Support packing double and float dimensions
-type: bug

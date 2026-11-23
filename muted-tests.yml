@@ -855,3 +855,13 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testShardFailureAfterBulkIsNotRetried
   issue: https://github.com/elastic/elasticsearch/issues/167131
+- class: org.elasticsearch.xpack.esql.action.IntoIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailureDuringTheWriteIsNotRetried
+  issue: https://github.com/elastic/elasticsearch/issues/167145
+- class: org.elasticsearch.xpack.esql.action.EsqlAsyncParsedContentChargeIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testChargeIsHeldUntilTheDeletedQueryStops
+  issue: https://github.com/elastic/elasticsearch/issues/167149

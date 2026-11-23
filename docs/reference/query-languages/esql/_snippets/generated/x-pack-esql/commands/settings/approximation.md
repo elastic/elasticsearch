@@ -14,8 +14,8 @@ When `approximation` is set in more than one place, for example in the request b
 **Type**: `boolean` `map_param`
 
 **Can also be set in**:
-- the request body, as `settings.approximation`
-- a cluster setting, `esql.query.settings.approximation`
+- the request body, as `settings.approximation` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.approximation` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
 
 Map entries:
 - `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.

@@ -50,8 +50,6 @@ Special notes about the `LOAD` and `LOAD_ALL` options:
   - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
     `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The request body accepts this setting.
-
 {applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
 The default itself is configurable. If a query does not specify a value, the
 `esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
@@ -61,9 +59,9 @@ either, the value is `DEFAULT`.
 **Type**: `keyword`
 
 **Can also be set in**:
-- the request body, as `settings.unmapped_fields`
-- a cluster setting, `esql.query.settings.unmapped_fields`
-- a view definition
+- the request body, as `settings.unmapped_fields` {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.unmapped_fields` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
+- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 
 #### Example
 

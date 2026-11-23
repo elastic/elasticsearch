@@ -10,7 +10,7 @@ When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. I
 **Type**: `boolean` `map_param`
 
 **Can also be set in**:
-- the request body, as `settings.exemplars`
+- the request body, as `settings.exemplars` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
 
 Map entries:
 - `limit` (`[integer]`): Maximum number of exemplars to return. Without it the default limit of a regular query applies.

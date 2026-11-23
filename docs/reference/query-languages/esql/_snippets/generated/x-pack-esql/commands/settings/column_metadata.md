@@ -12,6 +12,6 @@ When enabled, column metadata is added to the `_query` response as additional `_
 **Type**: `boolean`
 
 **Can also be set in**:
-- the request body, as `settings.column_metadata`
-- a cluster setting, `esql.query.settings.column_metadata`
+- the request body, as `settings.column_metadata` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.column_metadata` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
 

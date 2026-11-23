@@ -31,6 +31,8 @@ public final class LoadAllFromLoad {
      * each has its own {@code LOAD_ALL} version in {@code unmapped-load-all.csv-spec}.
      */
     private static final Set<String> DIFFERS_BY_DESIGN = Set.of(
+        "flattened-keys.keyInSubqueryUnderLoadNotNamedByMainBranch",
+        "flattened-keys.keyUnderLoadNotNamedBySubquery",
         "unmapped-load.fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad",
         "unmapped-load.loadSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped",
         "unmapped-load.loadUnmappedFieldInOneSubqueryBranchNoOuterKeep"

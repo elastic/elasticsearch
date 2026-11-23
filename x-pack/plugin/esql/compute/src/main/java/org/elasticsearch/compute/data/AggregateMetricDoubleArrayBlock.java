@@ -161,6 +161,11 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractBlockRefCount
     }
 
     @Override
+    public int nullValuesCount() {
+        return BlockUtils.nullValuesCount(this);
+    }
+
+    @Override
     public boolean mayHaveMultivaluedFields() {
         return Stream.of(minBlock, maxBlock, sumBlock, countBlock).anyMatch(Block::mayHaveMultivaluedFields);
     }

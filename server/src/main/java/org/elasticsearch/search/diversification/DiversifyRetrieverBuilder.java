@@ -31,6 +31,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -329,6 +331,12 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         return super.finalizeSourceBuilder(
             sourceBuilder.trackScores(true).fetchEmbeddingsField(diversificationField, VectorType.DENSE_VECTOR)
         );
+    }
+
+    @Override
+    protected Executor combineExecutor(ThreadPool threadPool) {
+        // diversification compares the vectors of all candidates, which is too expensive to run on a transport thread
+        return threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
     }
 
     @Override

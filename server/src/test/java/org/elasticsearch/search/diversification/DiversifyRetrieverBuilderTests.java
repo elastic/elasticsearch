@@ -21,6 +21,7 @@ import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,6 +47,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -57,6 +60,7 @@ import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
@@ -68,6 +72,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
@@ -317,6 +323,54 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
         assertEquals(Map.of("dense_vector_field", VectorType.DENSE_VECTOR), source.fetchEmbeddingsFields());
         assertTrue(source.trackScores());
+    }
+
+    /**
+     * The sub-search response may be delivered on a transport thread, so diversification must not run inline on it but be
+     * forked to the search coordination pool instead.
+     */
+    public void testCombinesResultsOnSearchCoordinationThread() {
+        var retriever = new DiversifyRetrieverBuilder(
+            new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(getRandomFloatQueryVector(256)),
+            null,
+            0.3f
+        );
+
+        SetOnce<String> completingThread = new SetOnce<>();
+        try (var threadPool = createThreadPool()) {
+            // respond inline on the calling thread, which stands in for the transport thread delivering the response
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(TransportMultiSearchAction.TYPE, action);
+                    var response = new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] {
+                            new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS), null) },
+                        1L
+                    );
+                    ActionListener.respondAndRelease((ActionListener<MultiSearchResponse>) listener, response);
+                }
+            };
+
+            PlainActionFuture<RetrieverBuilder> future = new PlainActionFuture<>();
+            Rewriteable.rewriteAndFetch(retriever, getQueryRewriteContext(client), future.delegateFailure((l, rewritten) -> {
+                completingThread.set(Thread.currentThread().getName());
+                l.onResponse(rewritten);
+            }));
+            assertNotNull(safeGet(future));
+        }
+
+        assertThat(completingThread.get(), containsString(ThreadPool.Names.SEARCH_COORDINATION));
     }
 
     public void testMmrResultDiversification() {

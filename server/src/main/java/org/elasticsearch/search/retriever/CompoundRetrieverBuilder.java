@@ -15,12 +15,14 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -34,6 +36,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
@@ -42,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -90,6 +94,16 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
      * Combines the provided {@code rankResults} to return the final top documents.
      */
     protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain);
+
+    /**
+     * Returns the executor on which the inner retriever responses are processed and
+     * {@link #combineInnerRetrieverResults} is called. By default this runs on the thread that delivered the
+     * inner search responses, which may be a transport thread. Implementations with an expensive combine step must
+     * fork to a different executor so that they do not block the network threads.
+     */
+    protected Executor combineExecutor(ThreadPool threadPool) {
+        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+    }
 
     @Override
     public final boolean isCompound() {
@@ -165,6 +179,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             client.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(MultiSearchResponse items) {
+                    // keep the response alive while it is being processed, the rank docs may reference its hits
+                    items.mustIncRef();
+                    combineExecutor(client.threadPool()).execute(
+                        ActionRunnable.wrapReleasing(listener, items::decRef, l -> processResponse(items))
+                    );
+                }
+
+                private void processResponse(MultiSearchResponse items) {
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
                     // capture the max status code returned by any of the responses

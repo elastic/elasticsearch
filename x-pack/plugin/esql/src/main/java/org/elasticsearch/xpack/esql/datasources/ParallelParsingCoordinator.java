@@ -1349,7 +1349,11 @@ public final class ParallelParsingCoordinator {
                 try {
                     storageObject.close();
                 } catch (IOException e) {
-                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                    logger.warn(
+                        "Failed to close storage object for [{}]",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e
+                    );
                 }
                 abortLiveStreams();
             }
@@ -1419,7 +1423,7 @@ public final class ParallelParsingCoordinator {
             try {
                 abortRegistered(in);
             } catch (Exception e) {
-                logger.warn("Failed to abort stream for [{}]", storageObject.path(), e);
+                logger.warn("Failed to abort stream for [{}]", ExternalFailures.redactHttpUrl(storageObject.path().toString()), e);
             }
         }
 

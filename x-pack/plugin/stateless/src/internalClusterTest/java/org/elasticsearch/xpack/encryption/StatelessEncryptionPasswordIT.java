@@ -138,7 +138,10 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         String joining;
         try (MockLog mockLog = MockLog.capture(JoinHelper.class)) {
             mockLog.addExpectation(new EncryptionIntegTestUtils.JoinRejectedExpectation());
-            joining = startMasterOnlyNode(FAST_FAILOVER);
+            // a single late heartbeat would let it take over before it has joined, reading the copy the master wrapped with its password
+            joining = startMasterOnlyNode(
+                Settings.builder().put(FAST_FAILOVER).put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 5).build()
+            );
             mockLog.awaitAllExpectationsMatched();
         }
         // asked on the master: a random node may be the rejected one, which has no master

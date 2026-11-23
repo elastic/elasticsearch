@@ -183,6 +183,17 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         }
     }
 
+    public void testCaseInsensitiveFieldlessWildcardQueryOnNumericFields() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (String defaultField : List.of("*", INT_FIELD_NAME, DOUBLE_FIELD_NAME)) {
+            KqlQueryBuilder kqlQuery = new KqlQueryBuilder("foo*").caseInsensitive(true).defaultField(defaultField);
+            QueryBuilder rewrittenQuery = rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext);
+            assertNotNull(rewrittenQuery.toQuery(searchExecutionContext));
+        }
+    }
+
     public void testCaseInsensitiveTermQuery() throws IOException {
         QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();

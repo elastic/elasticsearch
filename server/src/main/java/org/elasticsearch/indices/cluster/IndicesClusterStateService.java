@@ -1752,6 +1752,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.error(wrappedException.getMessage(), e);
             // If we get here, something unexpected has happened. To be on the safe side, send a failure to the master: if it still thinks
             // the shard is recovering, it should be told; if it does not, it will discard the spurious message.
+            failure.addSuppressed(e);
             sendFailShard(shardRouting, primaryTerm, wrappedException.getMessage(), failure, clusterService.state());
             assert false : e;
         } finally {

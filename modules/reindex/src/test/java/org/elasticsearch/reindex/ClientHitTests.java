@@ -9,9 +9,11 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -24,6 +26,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,6 +139,25 @@ public class ClientHitTests extends ESTestCase {
             assertThat(clientHit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
         } finally {
             clientHit.release();
+            searchHit.decRef();
+        }
+    }
+
+    /** If the coordinator already charged the hits, the page takes that charge over instead of charging them again. */
+    public void testReserveHeldPageTakesOverCoordinatorCharge() {
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(5)).sourceRef(new BytesArray("{\"f\":\"x\"}"));
+        ClientHit hit = new ClientHit(searchHit);
+        PaginatedHitSource.Response page = new PaginatedHitSource.Response(false, List.of(), 1, List.of(hit), null);
+        // Trips on any charge, so the test fails if the hits were charged again
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(1));
+        AtomicBoolean coordinatorChargeReleased = new AtomicBoolean();
+        try {
+            ClientHit.reserveHeldPage(breaker, "test", 0, () -> () -> coordinatorChargeReleased.set(true), page);
+            assertFalse(coordinatorChargeReleased.get());
+            page.closeBodyReleasable();
+            assertTrue(coordinatorChargeReleased.get());
+        } finally {
+            hit.release();
             searchHit.decRef();
         }
     }

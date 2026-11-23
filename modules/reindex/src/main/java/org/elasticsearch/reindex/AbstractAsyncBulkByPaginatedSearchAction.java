@@ -641,7 +641,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
-            asyncResponse.response().closeBodyReleasable();
+            asyncResponse.releaseChargeIfConsumed();
         });
         boolean cleanupHandedOff = false;
         try {
@@ -1405,6 +1405,16 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
          */
         void releaseRemainingHits() {
             releaseRemainingHitsOnce.close();
+        }
+
+        /**
+         * Releases the breaker charge for the page once all its hits have been consumed. Hits left for a later batch ({@code maxDocs})
+         * keep it charged; that batch, or {@link #releaseRemainingHits()}, releases it.
+         */
+        void releaseChargeIfConsumed() {
+            if (hasRemainingHits() == false) {
+                asyncResponse.response().closeBodyReleasable();
+            }
         }
 
         private void doReleaseRemainingHits() {

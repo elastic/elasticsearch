@@ -14,10 +14,13 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentType;
+
+import java.util.function.Supplier;
 
 /**
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
@@ -29,11 +32,18 @@ class ClientHit implements PaginatedHitSource.Hit {
     /**
      * Charges a local page's source bytes to {@code breaker} until the action releases the page, since its hits pin the transport
      * buffers past the search-side charges. Like {@code RemoteParseContext} for remote. Pages below {@code thresholdBytes} aren't
-     * charged, so a very high {@code cluster.reindex.memory_accounting_threshold} turns this off.
+     * charged, so a very high {@code cluster.reindex.memory_accounting_threshold} turns this off. If the coordinator already charged
+     * the hits ({@code fetch[coordinator]}), that charge is taken over instead of charging them again.
      *
      * @throws CircuitBreakingException if the page does not fit, after releasing the hits
      */
-    static void reserveHeldPage(CircuitBreaker breaker, String label, long thresholdBytes, PaginatedHitSource.Response response) {
+    static void reserveHeldPage(
+        CircuitBreaker breaker,
+        String label,
+        long thresholdBytes,
+        Supplier<Releasable> coordinatorCharge,
+        PaginatedHitSource.Response response
+    ) {
         long bytes = 0;
         for (PaginatedHitSource.Hit hit : response.getHits()) {
             BytesReference source = hit.getSource();
@@ -42,6 +52,11 @@ class ClientHit implements PaginatedHitSource.Hit {
             }
         }
         if (bytes == 0 || bytes < thresholdBytes) {
+            return;
+        }
+        Releasable adopted = coordinatorCharge.get();
+        if (adopted != null) {
+            response.setBodyReleasable(adopted);
             return;
         }
         try {

@@ -813,7 +813,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         List<SearchHit> searchHits = List.of(hitArray);
         SearchHits hits = new SearchHits(hitArray, new TotalHits(hitArray.length, TotalHits.Relation.EQUAL_TO), 0);
         var response = SearchResponseUtils.response(hits).shards(5, 5, 0);
-        SearchResponse searchResponse = (usePit ? response.pointInTimeId(TEST_PIT_ID) : response.scrollId(scrollId())).build();
+        String firstPageScrollId = scrollId();
+        SearchResponse searchResponse = (usePit ? response.pointInTimeId(TEST_PIT_ID) : response.scrollId(firstPageScrollId)).build();
         hits.decRef(); // transfer ownership to searchResponse
         try {
             client.lastSearch.get().listener.onResponse(searchResponse);
@@ -827,6 +828,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
         for (SearchHit hit : searchHits) {
             assertFalse(hit.hasReferences());
+        }
+        if (usePit == false) {
+            // The trip happened on the first page, before the hit source had recorded the scroll id
+            assertBusy(() -> assertThat(client.scrollsCleared, contains(firstPageScrollId)));
         }
     }
 
@@ -964,6 +969,38 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertThat("consumed hit must not be released by releaseRemainingHits", h0.releases.get(), equalTo(0));
         assertThat("remaining hit h1 must be released exactly once", h1.releases.get(), equalTo(1));
         assertThat("remaining hit h2 must be released exactly once", h2.releases.get(), equalTo(1));
+    }
+
+    /**
+     * With {@code maxDocs}, a batch can consume part of a page. The page's charge stays until its last hit is consumed or released.
+     */
+    public void testPageChargeIsReleasedOnlyOnceAllHitsAreConsumed() {
+        List<CountingHit> hits = List.of(new CountingHit("0"), new CountingHit("1"), new CountingHit("2"));
+        PaginatedHitSource.Response page = createPaginatedResponse(false, false, emptyList(), hits.size(), hits, scrollId(), null);
+        AtomicInteger chargeReleases = new AtomicInteger();
+        page.setBodyReleasable(chargeReleases::incrementAndGet);
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return page;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {}
+            });
+
+        response.consumeHits(1);
+        response.releaseChargeIfConsumed();
+        assertEquals(0, chargeReleases.get());
+
+        if (randomBoolean()) {
+            response.consumeRemainingHits();
+            response.releaseChargeIfConsumed();
+        } else {
+            response.releaseRemainingHits();
+        }
+        assertEquals(1, chargeReleases.get());
     }
 
     /**

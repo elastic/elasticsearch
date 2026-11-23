@@ -67,8 +67,13 @@ public class SearchHitsCircuitBreakerTests extends ESSingleNodeTestCase {
      * Runs a throttled reindex (PIT) or update-by-query (scroll), which holds its second page without building a bulk from it, and
      * checks what the REQUEST breaker holds for it. The page is charged before the worker throttles on it, so once the task reports
      * being throttled the charge is in place, and it stays for as long as the throttle. Checks the charge is released on cancel.
+     * <p>
+     * On a multi-shard PIT search the coordinator may have charged the hits already ({@code fetch[coordinator]}, by its own
+     * estimate), and that charge is taken over instead. Whether it did depends on how many shards the page came from.
      */
     private void assertChargedWhileHeld(LongSupplier expectedBytes) throws Exception {
+        int numShards = between(1, 3);
+        createIndex("source", indexSettings(numShards, 0).build());
         indexSource(2 * BATCH_SIZE);
         long expected = expectedBytes.getAsLong();
         CircuitBreaker requestBreaker = requestBreaker();
@@ -76,7 +81,8 @@ public class SearchHitsCircuitBreakerTests extends ESSingleNodeTestCase {
 
         final String action;
         final ActionFuture<BulkByPaginatedSearchResponse> response;
-        if (randomBoolean()) {
+        boolean reindex = randomBoolean();
+        if (reindex) {
             ReindexRequest request = new ReindexRequest().setSourceIndices("source");
             request.setDestIndex("dest");
             request.getSearchRequest().source().size(BATCH_SIZE);
@@ -100,7 +106,15 @@ public class SearchHitsCircuitBreakerTests extends ESSingleNodeTestCase {
                 assertThat(status.getThrottledUntil(), greaterThan(TimeValue.ZERO));
             });
             // Busy only until the search response that delivered the page is released, with any search-side charge on it
-            assertBusy(() -> assertEquals(expected, requestBreaker.getUsed() - baseline));
+            boolean mayTakeOverCoordinatorCharge = reindex && numShards > 1 && expected > 0;
+            assertBusy(() -> {
+                long held = requestBreaker.getUsed() - baseline;
+                if (mayTakeOverCoordinatorCharge) {
+                    assertThat(held, greaterThanOrEqualTo(expected));
+                } else {
+                    assertEquals(expected, held);
+                }
+            });
         } finally {
             clusterAdmin().prepareCancelTasks().setActions(action).get();
             response.get(30, TimeUnit.SECONDS);

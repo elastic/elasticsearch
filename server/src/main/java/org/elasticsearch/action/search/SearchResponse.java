@@ -562,7 +562,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * @return the charge, or {@code null} if there is none
      */
     @Nullable
-    Releasable transferCoordinatorFetchCharge() {
+    public Releasable transferCoordinatorFetchCharge() {
         Releasable charge = coordinatorFetchCharge;
         coordinatorFetchCharge = null;
         return charge;

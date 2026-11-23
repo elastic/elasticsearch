@@ -123,8 +123,16 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                 }
                 Response response = wrapSearchResponse(searchResponse);
                 try {
-                    ClientHit.reserveHeldPage(circuitBreaker, breakerLabel, accountingThresholdBytes.getAsLong(), response);
+                    ClientHit.reserveHeldPage(
+                        circuitBreaker,
+                        breakerLabel,
+                        accountingThresholdBytes.getAsLong(),
+                        searchResponse::transferCoordinatorFetchCharge,
+                        response
+                    );
                 } catch (CircuitBreakingException e) {
+                    // Recorded so that closing the hit source clears the scroll, which a first page has not recorded yet
+                    setScrollId(response.getScrollId());
                     searchListener.onFailure(e);
                     return;
                 }

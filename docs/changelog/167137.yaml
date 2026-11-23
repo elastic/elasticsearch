@@ -1,5 +1,5 @@
-area: "Infra/CLI, Performance"
-issues: []
+area: Infra/CLI
+issues: [166363]
 pr: 167137
 summary: Set glibc malloc defaults on Linux
 type: enhancement

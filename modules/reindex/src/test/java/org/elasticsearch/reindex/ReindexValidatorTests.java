@@ -171,8 +171,8 @@ public class ReindexValidatorTests extends ESTestCase {
     public void testRequireSliceInSliceEnabledDestinationWhenSourceMixesSliceEnabledAndOtherIndices() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithMixedSourceIndices(true));
-        // the documents of the index without slices have no slice to keep
-        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-index").setDestIndex("dest-index");
+        // the documents of the index without slices have no slice to keep, and the pattern is what finds that index
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index", "plain-*").setDestIndex("dest-index");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
         assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));

@@ -107,7 +107,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     @Override
     public LogicalPlan surrogate() {
-        return this.replaceChild(new Limit(Source.EMPTY, rowLimit(), child()));
+        return this.replaceChild(new Limit(source(), rowLimit(), child()));
     }
 
     public abstract TaskType taskType();

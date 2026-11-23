@@ -100,6 +100,21 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
+     * DENSE_VECTOR is rewritten into a LIMIT surrogate by the optimizer; the error for a full text function placed
+     * after it must name DENSE_VECTOR rather than an empty command, which happened when the surrogate had no source text.
+     */
+    public void testFullTextFunctionAfterDenseVectorNamesCommand() {
+        var err = error(
+            fullTextAnalyzer().addAnalysisTestsInferenceResolution()
+                .minimumTransportVersion(TransportVersion.current())
+                .query(
+                    "FROM test | DENSE_VECTOR emb = title WITH { \"inference_id\": \"text-embedding-inference-id\" } | WHERE MATCH(title, \"cat\")"
+                )
+        );
+        assertThat(err, containsString("[MATCH] function cannot be used after DENSE_VECTOR when it targets an indexed field"));
+    }
+
+    /**
      * Whether a full-text function is a runtime search is not stable across planning phases. Here {@code name} is a
      * {@code ReferenceAttribute} when the plan is analyzed, so the positional check lets it past the LIMIT, but
      * {@code PushDownAndCombineFilters} then pushes the filter past the RENAME and substitutes the underlying

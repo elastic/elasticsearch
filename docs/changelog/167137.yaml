@@ -1,0 +1,5 @@
+area: "Infra/CLI, Performance"
+issues: []
+pr: 167137
+summary: Set glibc malloc defaults on Linux
+type: enhancement

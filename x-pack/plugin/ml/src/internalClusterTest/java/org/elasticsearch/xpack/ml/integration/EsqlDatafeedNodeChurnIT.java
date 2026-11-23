@@ -348,12 +348,12 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(1));
         builder.setAnalysisConfig(analysisConfig);
-        builder.setDataDescription(new DataDescription.Builder().setTimeField("time").setTimeFormat(DataDescription.EPOCH_MS));
+        builder.setDataDescription(new DataDescription.Builder().setTimeField("@timestamp").setTimeFormat(DataDescription.EPOCH_MS));
         return builder;
     }
 
     private static DatafeedConfig buildEsqlDatafeed(String datafeedId, String jobId, String indexName, TimeValue groupingInterval) {
-        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP time")
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP @timestamp")
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(groupingInterval)
             .setFrequency(groupingInterval)

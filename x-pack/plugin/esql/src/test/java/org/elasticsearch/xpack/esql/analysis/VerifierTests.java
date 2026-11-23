@@ -4674,6 +4674,29 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidEmbeddingSecondArgument("EMBEDDING");
     }
 
+    public void testEmbeddingFunctionNonFoldableArguments() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+        defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING)
+            .error(
+                "from test | EVAL embedding = EMBEDDING(first_name, ?)",
+                equalTo("1:30: first argument of [EMBEDDING(first_name, ?)] must be a constant, received [first_name]"),
+                EMBEDDING_INFERENCE_ID
+            );
+
+        defaultAnalyzer().error(
+            "from test | EVAL embedding = EMBEDDING(?, first_name)",
+            equalTo("1:30: second argument of [EMBEDDING(?, first_name)] must be a constant, received [first_name]"),
+            "query text"
+        );
+
+        defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING)
+            .error(
+                "row text = \"My text value\" | EVAL embedding = EMBEDDING(text, ?)",
+                equalTo("1:47: first argument of [EMBEDDING(text, ?)] must be a constant, received [text]"),
+                EMBEDDING_INFERENCE_ID
+            );
+    }
+
     private void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
         defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
             .error(
@@ -4740,16 +4763,12 @@ public class VerifierTests extends AnalyzerTestCase {
 
         TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
         analyzer.query("""
-            row text = "My text value"
-            | EVAL embedding = EMBEDDING(text, ?)
-            """, EMBEDDING_INFERENCE_ID);
-        analyzer.query("""
             from test
             | EVAL embedding = EMBEDDING(CONCAT("hello", "world"), ?)
             """, EMBEDDING_INFERENCE_ID);
         analyzer.query("""
-            row text = "My text value"
-            | EVAL embedding = EMBEDDING(text, CONCAT("embedding-", "inference-id"))
+            from test
+            | EVAL embedding = EMBEDDING("My text value", CONCAT("embedding-", "inference-id"))
             """);
     }
 

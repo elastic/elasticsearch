@@ -1,7 +1,7 @@
 [
   {
     "id": "es-node-1_es_esql_external_sources_cpu_2026-11-23T10:05:00.123Z",
-    "usage_timestamp": "2026-11-23T10:05:00.123Z",
+    "usage_timestamp": "2026-11-23T10:00:00.123Z",
     "creation_timestamp": "2026-11-23T10:05:00.456Z",
     "usage": {
       "type": "es_esql_external_sources_cpu",

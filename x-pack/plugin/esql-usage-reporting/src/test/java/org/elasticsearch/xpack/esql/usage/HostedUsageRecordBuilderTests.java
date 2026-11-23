@@ -49,7 +49,7 @@ public class HostedUsageRecordBuilderTests extends ESTestCase {
         assertThat(records, hasSize(1));
         UsageRecord record = records.get(0);
         assertThat(record.id(), equalTo("es-node-1_es_esql_external_sources_cpu_2026-11-23T10:05:00.123Z"));
-        assertThat(record.usageTimestamp(), equalTo(DRAIN_TIME));
+        assertThat(record.usageTimestamp(), equalTo(DRAIN_TIME.minus(PERIOD)));
         assertThat(record.creationTimestamp(), equalTo(CREATION_TIME));
         assertThat(record.usageType(), equalTo(UsageTypes.EXTERNAL_SOURCES_CPU));
         assertThat(record.quantityMillis(), equalTo(3007L));
@@ -80,13 +80,22 @@ public class HostedUsageRecordBuilderTests extends ESTestCase {
         UsageSnapshot snapshot = new UsageSnapshot(drainTime, Map.of(Outcome.SUCCESS, execution(5_000_000)));
         UsageRecord record = builder.build(snapshot, IDENTITY, PERIOD, CREATION_TIME).get(0);
         assertThat(record.id(), equalTo("es-node-1_es_esql_external_sources_cpu_2026-11-23T10:05:00.007Z"));
-        assertThat(record.usageTimestamp(), equalTo(Instant.parse("2026-11-23T10:05:00.007Z")));
+        assertThat(record.usageTimestamp(), equalTo(Instant.parse("2026-11-23T10:00:00.007Z")));
         // a whole second still has three fractional digits, so that ids are as long as any other
         snapshot = new UsageSnapshot(Instant.parse("2026-11-23T10:05:00Z"), Map.of(Outcome.SUCCESS, execution(5_000_000)));
         assertThat(
             builder.build(snapshot, IDENTITY, PERIOD, CREATION_TIME).get(0).id(),
             equalTo("es-node-1_es_esql_external_sources_cpu_2026-11-23T10:05:00.000Z")
         );
+    }
+
+    public void testUsageTimestampIsThePeriodStartSoThatTheLastPeriodOfADayStaysInThatDay() {
+        Instant midnight = Instant.parse("2026-11-24T00:00:00Z");
+        UsageSnapshot snapshot = new UsageSnapshot(midnight, Map.of(Outcome.SUCCESS, execution(5_000_000)));
+        UsageRecord record = builder.build(snapshot, IDENTITY, PERIOD, CREATION_TIME).get(0);
+        assertThat(record.usageTimestamp(), equalTo(Instant.parse("2026-11-23T23:55:00Z")));
+        // the id is keyed on the drain time, which is the end of the period
+        assertThat(record.id(), equalTo("es-node-1_es_esql_external_sources_cpu_2026-11-24T00:00:00.000Z"));
     }
 
     public void testQuantityDropsTheRemainder() {

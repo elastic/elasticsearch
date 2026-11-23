@@ -21,6 +21,7 @@ Rules the files show:
 
 - `quantity` is milliseconds: the sum of the four components in nanoseconds divided by 1,000,000, the remainder dropped.
 - `usage.metadata` holds the components that are not zero, in nanoseconds, as strings.
+- `usage_timestamp` is the start of the period (drain time minus the period); billing attributes a record to the range that contains it.
 - `id` is `es-<node id>_<usage type>_<drain time>`, with `_<reason>` appended for exempt records; timestamps always have three
   fractional digits.
 - Billed records have no `usage.exemption`; the other outcomes are exempt records of their own and are never summed into a billed one.

@@ -24,7 +24,8 @@ import java.util.Map;
  * {@code source.provider} and {@code source.region} are written although the OpenAPI text says the API fills them: for requests
  * authenticated with a client certificate the Usage API answers 403 to a record without them, and it does not fill them itself.
  * <p>
- * Hosted records identify their cluster in {@code source.metadata.cluster_id}: billing drops hosted records without it.
+ * Hosted records identify their cluster in {@code source.metadata.cluster_id}: billing drops hosted records without it
+ * (platform-billing, {@code services/hosted_in_usage_v2.md}).
  */
 public final class UsageRecordJson {
 

@@ -28,12 +28,16 @@ import java.util.concurrent.atomic.AtomicReference;
  * Builds the usage records of hosted (stateful) deployments: one record per outcome with usage in a drain, so one per node and
  * drain for billed usage, and one more for each kind of exempt usage.
  * <p>
- * Everything that makes a retry safe is decided here. The id is derived only from the node, the usage type, the drain time and the
- * outcome, so the same drain always yields the same ids and the Usage API sees a re-sent record as a duplicate, never as more usage;
- * after a restart the node id is usually the same (it is persisted in the data path), and ids stay distinct because the drain time
- * differs. Usage of queries that did not succeed never shares a record with billed usage, since a record has a single exemption
- * flag. The quantity is the whole milliseconds of the sum, and the remainder is dropped
- * rather than rounded up: when in doubt the customer is under-billed, never over-billed.
+ * Everything that makes a retry safe is decided here. The id is derived only from the node, the usage type, the drain time (the end of
+ * the period, while {@code usage_timestamp} is its start) and the outcome, so the same drain always yields the same ids and the Usage
+ * API sees a re-sent record as a duplicate, never as more usage; after a restart the node id is usually the same (it is persisted in
+ * the data path), and ids stay distinct because the drain time differs. Usage of queries that did not succeed never shares a record
+ * with billed usage, since a record has a single exemption flag. The quantity is the whole milliseconds of the sum, and the remainder
+ * is dropped rather than rounded up: when in doubt the customer is under-billed, never over-billed.
+ * <p>
+ * The {@code period} is the nominal reporting interval: the first drain after a start, or a late tick, covers less or more time than it
+ * says, an error of at most one period. Usage drained for an identity that is not complete is dropped, not kept: nothing can be
+ * attributed to it, and the settings check keeps a node with an incomplete identity from reporting at all.
  */
 public final class HostedUsageRecordBuilder implements UsageRecordBuilder {
 
@@ -65,6 +69,9 @@ public final class HostedUsageRecordBuilder implements UsageRecordBuilder {
         lastLoggedProblem.set(null);
 
         Instant drainTime = snapshot.drainTime().truncatedTo(ChronoUnit.MILLIS);
+        // usage_timestamp is when the covered period starts: billing attributes a record to the range its usage_timestamp falls in, so
+        // the end of the period would put the last minutes of a day or month into the next one. The id stays keyed on the drain time.
+        Instant periodStart = drainTime.minus(period).truncatedTo(ChronoUnit.MILLIS);
         String sourceId = SOURCE_ID_PREFIX + identity.nodeId();
         String baseId = sourceId + "_" + UsageTypes.EXTERNAL_SOURCES_CPU + "_" + TIMESTAMP_FORMAT.format(drainTime);
         List<UsageRecord> records = new ArrayList<>();
@@ -90,7 +97,7 @@ public final class HostedUsageRecordBuilder implements UsageRecordBuilder {
             records.add(
                 new UsageRecord(
                     exemption == null ? baseId : baseId + "_" + exemption.reason(),
-                    drainTime,
+                    periodStart,
                     creationTime.truncatedTo(ChronoUnit.MILLIS),
                     UsageTypes.EXTERNAL_SOURCES_CPU,
                     quantityMillis,

@@ -63,6 +63,7 @@ $$$analysis-stemmer-tokenfilter-language-parm$$$
 
 Valid values are sorted by language. Defaults to [**`english`**](https://snowballstem.org/algorithms/porter/stemmer.html). Recommended algorithms are **bolded**.
 
+* Albanian: [**`light_albanian`**](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/java/org/apache/lucene/analysis/sq/AlbanianLightStemmer.java)
 * Arabic: [**`arabic`**](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ar/ArabicStemmer.html)
 * Armenian: [**`armenian`**](https://snowballstem.org/algorithms/armenian/stemmer.html)
 * Basque: [**`basque`**](https://snowballstem.org/algorithms/basque/stemmer.html)

@@ -85,6 +85,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String, Class<?>> KNOWN_TOKENFILTERS = Map.ofEntries(
         // exposed in ES
+        entry("albanianlightstem", MovedToAnalysisCommon.class),
+        entry("albaniannormalization", MovedToAnalysisCommon.class),
         entry("apostrophe", MovedToAnalysisCommon.class),
         entry("arabicnormalization", MovedToAnalysisCommon.class),
         entry("arabicstem", MovedToAnalysisCommon.class),

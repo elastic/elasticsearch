@@ -47,6 +47,7 @@ import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.sq.AlbanianLightStemFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -104,6 +105,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);
+        } else if ("light_albanian".equalsIgnoreCase(language) || "lightAlbanian".equalsIgnoreCase(language)) {
+            return new AlbanianLightStemFilter(tokenStream);
         } else if ("armenian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new ArmenianStemmer());
         } else if ("basque".equalsIgnoreCase(language)) {

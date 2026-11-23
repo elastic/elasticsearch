@@ -7,7 +7,7 @@ mapped_pages:
 # Language analyzers [analysis-lang-analyzer]
 
 
-A set of analyzers aimed at analyzing specific language text. The following types are supported: [`arabic`](#arabic-analyzer), [`armenian`](#armenian-analyzer), [`basque`](#basque-analyzer), [`bengali`](#bengali-analyzer), [`brazilian`](#brazilian-analyzer), [`bulgarian`](#bulgarian-analyzer), [`catalan`](#catalan-analyzer), [`cjk`](#cjk-analyzer), [`czech`](#czech-analyzer), [`danish`](#danish-analyzer), [`dutch`](#dutch-analyzer), [`english`](#english-analyzer), [`estonian`](#estonian-analyzer), [`finnish`](#finnish-analyzer), [`french`](#french-analyzer), [`galician`](#galician-analyzer), [`german`](#german-analyzer), [`greek`](#greek-analyzer), [`hindi`](#hindi-analyzer), [`hungarian`](#hungarian-analyzer), [`indonesian`](#indonesian-analyzer), [`irish`](#irish-analyzer), [`italian`](#italian-analyzer), [`latvian`](#latvian-analyzer), [`lithuanian`](#lithuanian-analyzer), [`norwegian`](#norwegian-analyzer), [`persian`](#persian-analyzer), [`portuguese`](#portuguese-analyzer), [`romanian`](#romanian-analyzer), [`russian`](#russian-analyzer), [`serbian`](#serbian-analyzer), [`sorani`](#sorani-analyzer), [`spanish`](#spanish-analyzer), [`swedish`](#swedish-analyzer), [`turkish`](#turkish-analyzer), [`thai`](#thai-analyzer).
+A set of analyzers aimed at analyzing specific language text. The following types are supported: [`albanian`](#albanian-analyzer), [`arabic`](#arabic-analyzer), [`armenian`](#armenian-analyzer), [`basque`](#basque-analyzer), [`bengali`](#bengali-analyzer), [`brazilian`](#brazilian-analyzer), [`bulgarian`](#bulgarian-analyzer), [`catalan`](#catalan-analyzer), [`cjk`](#cjk-analyzer), [`czech`](#czech-analyzer), [`danish`](#danish-analyzer), [`dutch`](#dutch-analyzer), [`english`](#english-analyzer), [`estonian`](#estonian-analyzer), [`finnish`](#finnish-analyzer), [`french`](#french-analyzer), [`galician`](#galician-analyzer), [`german`](#german-analyzer), [`greek`](#greek-analyzer), [`hindi`](#hindi-analyzer), [`hungarian`](#hungarian-analyzer), [`indonesian`](#indonesian-analyzer), [`irish`](#irish-analyzer), [`italian`](#italian-analyzer), [`latvian`](#latvian-analyzer), [`lithuanian`](#lithuanian-analyzer), [`norwegian`](#norwegian-analyzer), [`persian`](#persian-analyzer), [`portuguese`](#portuguese-analyzer), [`romanian`](#romanian-analyzer), [`russian`](#russian-analyzer), [`serbian`](#serbian-analyzer), [`sorani`](#sorani-analyzer), [`spanish`](#spanish-analyzer), [`swedish`](#swedish-analyzer), [`turkish`](#turkish-analyzer), [`thai`](#thai-analyzer).
 
 ## Configuring language analyzers [_configuring_language_analyzers]
 
@@ -20,7 +20,7 @@ All analyzers support setting custom `stopwords` either internally in the config
 
 The `stem_exclusion` parameter allows you to specify an array of lowercase words that should not be stemmed. Internally, this functionality is implemented by adding the [`keyword_marker` token filter](/reference/text-analysis/analysis-keyword-marker-tokenfilter.md) with the `keywords` set to the value of the `stem_exclusion` parameter.
 
-The following analyzers support setting custom `stem_exclusion` list: `arabic`, `armenian`, `basque`, `bengali`, `bulgarian`, `catalan`, `czech`, `dutch`, `english`, `finnish`, `french`, `galician`, `german`, `hindi`, `hungarian`, `indonesian`, `irish`, `italian`, `latvian`, `lithuanian`, `norwegian`, `portuguese`, `romanian`, `russian`, `serbian`, `sorani`, `spanish`, `swedish`, `turkish`.
+The following analyzers support setting custom `stem_exclusion` list: `albanian`, `arabic`, `armenian`, `basque`, `bengali`, `bulgarian`, `catalan`, `czech`, `dutch`, `english`, `finnish`, `french`, `galician`, `german`, `hindi`, `hungarian`, `indonesian`, `irish`, `italian`, `latvian`, `lithuanian`, `norwegian`, `portuguese`, `romanian`, `russian`, `serbian`, `sorani`, `spanish`, `swedish`, `turkish`.
 
 
 
@@ -31,6 +31,53 @@ The built-in language analyzers can be reimplemented as `custom` analyzers (as d
 ::::{note}
 If you do not intend to exclude words from being stemmed (the equivalent of the `stem_exclusion` parameter above), then you should remove the `keyword_marker` token filter from the custom analyzer configuration.
 ::::
+
+
+### `albanian` analyzer [albanian-analyzer]
+
+The `albanian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+```console
+PUT /albanian_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "albanian_stop": {
+          "type":       "stop",
+          "stopwords":  "_albanian_" <1>
+        },
+        "albanian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   ["durimi"] <2>
+        },
+        "albanian_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_albanian"
+        }
+      },
+      "analyzer": {
+        "rebuilt_albanian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "albanian_normalization",
+            "albanian_stop",
+            "albanian_keywords",
+            "albanian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+```
+% TEST[s/"albanian_keywords",//]
+% TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: albanian_example, first: albanian, second: rebuilt_albanian}\nendyaml\n/]
+
+1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
+2. This filter should be removed unless there are words which should be excluded from stemming.
+
 
 
 ### `arabic` analyzer [arabic-analyzer]

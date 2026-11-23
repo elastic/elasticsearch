@@ -22,8 +22,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * Internal function that keeps selected dimension names of metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}, or with
- * {@code exclude} removes them. Naming an absent dimension changes nothing.
+ * Internal function that keeps selected dimension names of a keyword {@code _timeseries} metadata container, or with {@code exclude}
+ * removes them, giving the canonical label container. Naming an absent dimension changes nothing.
  */
 public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -61,7 +61,7 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     @Override
     public DataType dataType() {
-        return DataType.TIME_SERIES_METADATA_DATA_TYPE;
+        return DataType.KEYWORD;
     }
 
     @Override

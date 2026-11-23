@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,12 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunctionTestCase {
     public TimeSeriesMetadataFilterExcludeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-    }
-
-    @BeforeClass
-    public static void requireTimeSeriesType() {
-        // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
     }
 
     @ParametersFactory
@@ -62,23 +55,25 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
                 "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
             )
         );
+        // The label container is the source document: nested, prefixed and in any order, read into the canonical form.
+        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"},\"k8s\":{\"node\":\"n\"}}";
+        suppliers.add(remove("source document", source, List.of("pod"), "{\"job\":\"api\",\"k8s.node\":\"n\"}"));
+        suppliers.add(remove("source document, no label", source, List.of(), "{\"job\":\"api\",\"k8s.node\":\"n\",\"pod\":\"a\"}"));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static TestCaseSupplier remove(String name, String labelContainer, List<String> labels, String expected) {
         List<DataType> types = new ArrayList<>();
-        types.add(DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        types.add(DataType.KEYWORD);
         labels.forEach(label -> types.add(DataType.KEYWORD));
         return new TestCaseSupplier(name, types, () -> {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
-            data.add(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer")
-            );
+            data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.KEYWORD, "labelContainer"));
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
             String evaluator = "TimeSeriesMetadataFilterEvaluator[labelContainer=Attribute[channel=0], labels="
                 + labels
                 + ", exclude=true]";
-            return new TestCaseSupplier.TestCase(data, evaluator, DataType.TIME_SERIES_METADATA_DATA_TYPE, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(data, evaluator, DataType.KEYWORD, equalTo(new BytesRef(expected)));
         });
     }
 
@@ -95,7 +90,7 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
 
     /** Label names must be non-empty constant strings, so the evaluator folds them once. */
     public void testLabelsMustBeNonEmptyConstantStrings() {
-        Expression labelContainer = field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        Expression labelContainer = field("labelContainer", DataType.KEYWORD);
         for (Expression label : List.of(
             Literal.integer(Source.EMPTY, 42),
             Literal.keyword(Source.EMPTY, ""),
@@ -112,11 +107,11 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
         }
     }
 
-    /** Only a typed label container can be rewritten: its keyword form is not one. */
-    public void testLabelContainerMustBeTyped() {
+    /** Only a keyword {@code _timeseries} can be rewritten. */
+    public void testLabelContainerMustBeKeyword() {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.KEYWORD),
+            field("labelContainer", DataType.LONG),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             true
         );
@@ -139,7 +134,7 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
     private void remove(Object labelContainer) {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE),
+            field("labelContainer", DataType.KEYWORD),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             true
         );

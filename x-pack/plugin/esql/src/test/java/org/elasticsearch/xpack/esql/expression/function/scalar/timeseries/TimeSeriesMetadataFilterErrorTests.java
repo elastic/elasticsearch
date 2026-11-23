@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -33,11 +35,18 @@ public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExa
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
         // A null label container is the empty one, so only the label can be wrong there; the label rules have their own test.
-        return super.testCandidates(cases, valid).filter(types -> types.getFirst() != DataType.NULL);
+        // A text label is a string as valid as a keyword one, which the cases do not repeat.
+        return super.testCandidates(cases, valid).filter(types -> types.getFirst() != DataType.NULL && types.get(1) != DataType.TEXT);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.getFirst() == DataType.KEYWORD) {
+            // The label container is a keyword _timeseries, so only the label can be wrong.
+            return signature.get(1) == DataType.NULL
+                ? containsString("must be non-empty, single-valued strings")
+                : typeErrorMessage(signature, 1, "string");
+        }
         return typeErrorMessage(signature, 0, "_timeseries");
     }
 }

@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class TimeSeriesMetadataPathErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -37,6 +39,12 @@ public class TimeSeriesMetadataPathErrorTests extends ErrorsForCasesWithoutExamp
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.getFirst() == DataType.KEYWORD) {
+            // The label container is a keyword _timeseries, so only the label can be wrong.
+            return signature.get(1) == DataType.NULL
+                ? containsString("must be non-empty, single-valued strings")
+                : typeErrorMessage(signature, 1, "string");
+        }
         return typeErrorMessage(signature, 0, "_timeseries");
     }
 }

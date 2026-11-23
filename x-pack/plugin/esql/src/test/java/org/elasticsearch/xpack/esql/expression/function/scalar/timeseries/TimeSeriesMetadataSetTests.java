@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,12 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     public TimeSeriesMetadataSetTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-    }
-
-    @BeforeClass
-    public static void requireTimeSeriesType() {
-        // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
     }
 
     @ParametersFactory
@@ -58,29 +51,23 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
                 "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\",\"pod\":\"a\"}"
             )
         );
-        suppliers.add(
-            new TestCaseSupplier(
-                "several values",
-                List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD),
-                () -> {
-                    List<TestCaseSupplier.TypedData> data = List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(labels), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
-                        new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
-                        new TestCaseSupplier.TypedData(
-                            List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")),
-                            DataType.KEYWORD,
-                            "value"
-                        )
-                    );
-                    return new TestCaseSupplier.TestCase(
-                        data,
-                        evaluator("pod"),
-                        DataType.TIME_SERIES_METADATA_DATA_TYPE,
-                        equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
-                    );
-                }
-            )
-        );
+        suppliers.add(new TestCaseSupplier("several values", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
+            List<TestCaseSupplier.TypedData> data = List.of(
+                new TestCaseSupplier.TypedData(new BytesRef(labels), DataType.KEYWORD, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "label").forceLiteral(),
+                new TestCaseSupplier.TypedData(List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")), DataType.KEYWORD, "value")
+            );
+            return new TestCaseSupplier.TestCase(
+                data,
+                evaluator("pod"),
+                DataType.KEYWORD,
+                equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
+            );
+        }));
+        // The label container is the source document: nested, prefixed and in any order, read into the canonical form.
+        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"}}";
+        suppliers.add(set("source document", source, "env", "prod", "{\"env\":\"prod\",\"job\":\"api\",\"pod\":\"a\"}"));
+        suppliers.add(set("source document, prefixed label", source, "job", "web", "{\"job\":\"web\",\"pod\":\"a\"}"));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -89,18 +76,13 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier set(String name, String labelContainer, String label, String value, String expected) {
-        return new TestCaseSupplier(name, List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.KEYWORD, DataType.KEYWORD), () -> {
+        return new TestCaseSupplier(name, List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.KEYWORD, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, "label").forceLiteral(),
                 new TestCaseSupplier.TypedData(new BytesRef(value), DataType.KEYWORD, "value")
             );
-            return new TestCaseSupplier.TestCase(
-                data,
-                evaluator(label),
-                DataType.TIME_SERIES_METADATA_DATA_TYPE,
-                equalTo(new BytesRef(expected))
-            );
+            return new TestCaseSupplier.TestCase(data, evaluator(label), DataType.KEYWORD, equalTo(new BytesRef(expected)));
         });
     }
 
@@ -117,7 +99,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
 
     /** The label must be a non-empty constant string, so the evaluator folds it once. */
     public void testLabelMustBeNonEmptyConstantString() {
-        Expression labelContainer = field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        Expression labelContainer = field("labelContainer", DataType.KEYWORD);
         Expression value = field("value", DataType.KEYWORD);
         for (Expression label : List.of(
             Literal.integer(Source.EMPTY, 42),

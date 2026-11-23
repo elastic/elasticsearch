@@ -269,6 +269,25 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testUnmappedTermField() throws IOException {
+        // One of the term fields is not present in the mapping of this index,
+        // mirroring a multi-index search where one index lacks the field.
+        // Like the terms aggregation, this should produce no buckets
+        // instead of failing.
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { KEYWORD_FIELD, "not_mapped" }, null, iw -> {
+            iw.addDocument(List.of(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))));
+            iw.addDocument(List.of(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))));
+        }, h -> assertThat(h.getBuckets(), hasSize(0)));
+    }
+
+    public void testAllTermFieldsUnmapped() throws IOException {
+        // Neither term field is present in the mapping of this index,
+        // mirroring the field-less index in a multi-index search.
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { "not_mapped", "also_not_mapped" }, null, iw -> {
+            iw.addDocument(List.of(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))));
+        }, h -> assertThat(h.getBuckets(), hasSize(0)));
+    }
+
     public void testSortedNumericDocValues() throws IOException {
         testCase(Queries.ALL_DOCS_INSTANCE, new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(

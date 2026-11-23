@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 167071
+summary: Validate ES|QL datafeed queries with DESCRIBE and `_clusters` metadata
+type: enhancement

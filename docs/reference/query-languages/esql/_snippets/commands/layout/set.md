@@ -22,12 +22,12 @@ When the same setting is set in more than one place, the most specific one wins.
 
 1. The `SET` directive in the query.
 2. The `settings` object in the [request body](/reference/query-languages/esql/esql-rest.md#esql-rest-query-settings).
-3. The cluster setting, which sets a default for every query on the cluster. Set it in `elasticsearch.yml` or with the [cluster update settings API]({{es-apis}}operation/operation-cluster-put-settings).
+3. {applies_to}`serverless: unavailable` The cluster setting, which sets a default for every query on the cluster. Set it in `elasticsearch.yml` or with the [cluster update settings API]({{es-apis}}operation/operation-cluster-put-settings).
 4. The built-in default of the setting.
 
 A setting with a map value can combine the values from several places instead of replacing them. Refer to the documentation of the setting.
 
-A view definition can use `SET` for some settings. These settings apply only inside that view. For these settings, a value from the calling query or the request body doesn't enter the view, but the cluster setting applies both inside and outside views. For details, refer to [Settings across view boundaries](/reference/query-languages/esql/esql-views.md#settings-across-view-boundaries).
+Some settings can also be set in a view definition. How the settings of a view, of the calling query, and of the request body apply inside the view depends on the version. For details, refer to [Settings across view boundaries](/reference/query-languages/esql/esql-views.md#settings-across-view-boundaries).
 
 ## Allowed settings
 

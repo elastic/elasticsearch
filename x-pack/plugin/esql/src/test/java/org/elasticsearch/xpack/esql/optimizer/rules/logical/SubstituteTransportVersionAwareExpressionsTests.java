@@ -368,6 +368,19 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         }
     }
 
+    public void testNanSkippingVariantsOfMinAndMaxAreNotEqual() {
+        Expression f = getFieldAttribute("f", DataType.DOUBLE);
+
+        assertVariantsDiffer(
+            new Min(EMPTY, f, Literal.TRUE, AggregateFunction.NO_WINDOW, false, true),
+            new Min(EMPTY, f, Literal.TRUE, AggregateFunction.NO_WINDOW, false, false)
+        );
+        assertVariantsDiffer(
+            new Max(EMPTY, f, Literal.TRUE, AggregateFunction.NO_WINDOW, false, true),
+            new Max(EMPTY, f, Literal.TRUE, AggregateFunction.NO_WINDOW, false, false)
+        );
+    }
+
     /**
      * The lenient (PromQL) {@code Percentile}, whose aggregator accepts non-finite observations, is downgraded to its
      * strict variant on a cluster that predates non-finite support, matching the other aggregations. The t-digest

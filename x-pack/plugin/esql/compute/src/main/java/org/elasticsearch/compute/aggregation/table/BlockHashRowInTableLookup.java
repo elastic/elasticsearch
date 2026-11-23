@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class BlockHashRowInTableLookup extends RowInTableLookup {
+    static final int EMIT_BATCH_SIZE = 4096;
+
     private final PackedValuesBlockHash hash;
 
     BlockHashRowInTableLookup(BlockFactory blockFactory, Block[] keys) {
@@ -32,7 +34,7 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
         }
 
-        hash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
+        hash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, EMIT_BATCH_SIZE);
         boolean success = false;
         try {
             hash.ensureCapacity(keys[0].getPositionCount());

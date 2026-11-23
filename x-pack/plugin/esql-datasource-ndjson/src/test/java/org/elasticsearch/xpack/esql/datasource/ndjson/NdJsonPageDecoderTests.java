@@ -3485,8 +3485,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
 
     /**
      * The whole-line failure takes the clause too, and its window matters most here: one decoder is built per
-     * chunk on the streaming path, so this message is the one that used to give the same ordinal for one record
-     * per chunk with nothing to choose between them.
+     * chunk on the streaming path, so without it every chunk reports its first bad record at the same ordinal
+     * with nothing to choose between them.
      */
     public void testStrictLineParseErrorNamesTheWindowInAChunk() throws IOException {
         try (

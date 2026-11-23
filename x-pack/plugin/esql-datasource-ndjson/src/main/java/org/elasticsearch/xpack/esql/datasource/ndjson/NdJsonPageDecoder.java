@@ -698,9 +698,8 @@ public class NdJsonPageDecoder implements Closeable {
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
-        // Cut here rather than at each message; RowLocation.displayObjectName says why. The parameter is
-        // reassigned, not merely copied into the field, because the summaries a few lines below read the local:
-        // cutting only on the way to the field would leave them naming the object the uncut way.
+        // Cut here rather than at each message; RowLocation.displayObjectName says why. The parameter itself is
+        // reassigned because the summaries below read the local, not the field.
         sourceLocation = RowLocation.displayObjectName(sourceLocation);
         this.sourceLocation = sourceLocation;
         this.counters = counters;
@@ -911,24 +910,21 @@ public class NdJsonPageDecoder implements Closeable {
         }
         skipWarnings.add(description);
         checkErrorBudgetOrThrow();
-        // Deferred, because this line is built once per bad record and a lenient scan over a large object can have
-        // many. Deferred in a supplier rather than behind an isEnabled guard: the guard asks the filter chain
-        // whether the line would be logged and the log call then asks it again, so a rate filter can spend its
-        // last permit on the question and drop the answer.
+        // Deferred: one line per bad record, and a lenient scan over a large object has many. A supplier rather
+        // than an isEnabled guard, because the guard consults the filter chain and the log call consults it
+        // again, so a rate filter can spend its last permit on the question and drop the answer.
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            // Explicit prefix, because the description after it is a String: left off, the call binds
-            // format(prefix, pattern, args) rather than format(pattern, args) and the description becomes
-            // the pattern, which carries no placeholder and is returned on its own -- dropping the phase and
-            // the parser's own message, the two things this line adds to the warning.
+            // The null prefix is load-bearing: with two Strings in front of the placeholders the call binds
+            // format(prefix, pattern, args), and the description becomes a pattern holding no placeholder,
+            // which comes back on its own without the phase or the parser's message.
             () -> LoggerMessageFormat.format(
                 null,
                 "{} ({}): {}",
                 description,
                 phaseLabel,
-                // The parser's text is the file's own: a duplicate-field rejection quotes the decoded field
-                // name, so a name holding a newline writes a second line into the node log. Escaped and
-                // capped like every other store-supplied token printed here.
+                // The parser's text is the file's own -- a duplicate-field rejection quotes the decoded field
+                // name -- so it is escaped and capped like every other store-supplied token printed here.
                 ErrorExcerpts.summarizeEscaped(e.getOriginalMessage())
             ),
             null
@@ -1312,11 +1308,10 @@ public class NdJsonPageDecoder implements Closeable {
                             // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
                             // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
                             // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
-                            // Through RowLocation like the other six skipWarnings sinks: naming neither the
-                            // object nor the record, every object of a glob that trips the cap would produce
-                            // character-identical text, and the warning budget deduplicates by exact string, so
-                            // only one of them would reach the reader. totalRowCount was decremented just above,
-                            // so the record that tripped the cap is the next one.
+                            // Named, like the other six skipWarnings sinks: unnamed, every object of a glob
+                            // tripping the cap renders identical text, which the warning budget deduplicates
+                            // down to one. totalRowCount was decremented just above, so the offending record
+                            // is the next one.
                             skipWarnings.add(
                                 RowLocation.of(totalRowCount + 1, sourceLocation, messageOffsetBase)
                                     + ": record exceeds ["

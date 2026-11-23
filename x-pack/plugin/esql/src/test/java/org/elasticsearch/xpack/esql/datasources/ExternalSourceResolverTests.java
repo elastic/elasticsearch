@@ -6290,12 +6290,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The empty-object refusals pass this boundary carrying their diagnosis, where the untyped {@link IOException}
-     * they used to be lost it. {@code FileSourceFactory} re-raises an I/O failure from a reader as an untyped
-     * {@link IllegalArgumentException}, and the arm that handles one forwards its text only if the storage-path
-     * guard passes the whole of it -- so an object a user is entitled to call {@code logs.amazonaws.com.csv} was
-     * answered with the guard's replacement and nothing else, the remedy included. Typed, the same refusal is
-     * returned as it stands.
+     * The empty-object refusals pass this boundary carrying their diagnosis, which an untyped
+     * {@link IOException} does not: {@code FileSourceFactory} re-raises one as an untyped
+     * {@link IllegalArgumentException}, and the arm handling that forwards its text only if the storage-path
+     * guard passes the whole of it — so an object a user is entitled to call {@code logs.amazonaws.com.csv} is
+     * answered with the guard's replacement and nothing else, the remedy included.
      * <p>
      * This is the half {@code CsvFormatReaderTests.testTheEmptyObjectDiagnosisSurvivesAStorageHostName} cannot
      * reach: that test pins the guard's predicate and the read-path assertion, neither of which is what the

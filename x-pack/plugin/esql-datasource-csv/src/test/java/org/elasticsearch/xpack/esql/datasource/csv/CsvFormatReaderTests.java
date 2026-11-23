@@ -6645,24 +6645,17 @@ public class CsvFormatReaderTests extends ESTestCase {
      * is what defeats that; the words of the forged clause still appear inside the escaped name, because the
      * escape rewrites the characters that carry structure and nothing else.
      * <p>
-     * The criterion matters because the first version of it was the wrong one. Written as "the column printed
-     * beside the object's", it was already false of the schema-format refusal, which names no object -- and
-     * reading it as true excluded {@code parseDataType}, three statements further down the same
-     * {@code parseTypedSchema} loop, where a type token reaches {@code illegal data type [...]} by the same
-     * route. A criterion that does not hold of its own members cannot say what else belongs.
-     * <p>
-     * So all four are pinned together: the inference-path duplicate ({@code checkUniqueAttributeNames}), the
+     * All four are pinned together: the inference-path duplicate ({@code checkUniqueAttributeNames}), the
      * declared-binding duplicate ({@code rejectDuplicateHeaderNames}, which only a read reaches), the
-     * schema-format refusal, and the illegal-type refusal. What is deliberately not here is the per-row
-     * {@code cannot read [value] as [type]}, whose text is a cell rather than a header token -- a different
+     * schema-format refusal, and the illegal-type refusal in {@code parseDataType}. Not here is the per-row
+     * {@code cannot read [value] as [type]}, whose text is a cell rather than a header token — a different
      * population, and the open question of how far the escape perimeter runs.
      * <p>
-     * Three of them call {@link ErrorExcerpts#summarizeEscaped}, so the cap bounds the escaped text the reader
-     * sees; it takes the cut on the value and escapes only the two kept windows, because a header field may be
-     * as large as {@code max_field_size} lets it, and escaping that whole to show 256 characters of it spends
-     * six characters on every one. {@code checkUniqueAttributeNames} is the exception and escapes without
-     * capping, because its cap is on the list it assembles: capping each name inside that list would leave the
-     * list's own marker counting the names as the message shortened them rather than as the header spelled
+     * Three of them call {@link ErrorExcerpts#summarizeEscaped}, which cuts on the value and escapes only the
+     * two kept windows: a header field may be as large as {@code max_field_size} allows, and escaping all of
+     * it to show 256 characters spends six characters on every one. {@code checkUniqueAttributeNames} escapes
+     * without capping, its cap being on the list it assembles — a per-name cap inside that list would leave
+     * the list's marker counting the names as the message shortened them rather than as the header spelled
      * them, which is the one number a reader of that refusal has to go on.
      */
     public void testAColumnNameCannotForgeTheRefusalClause() {
@@ -6754,23 +6747,19 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The empty-object diagnosis survives an object named after a storage host, which is why it is typed. Naming
-     * the object in this message is what put a user-chosen string into it; raised as a plain {@link IOException}
-     * it reached the user as {@code Failed to resolve external source [logs.amazonaws.com.csv]
-     * (IllegalArgumentException)} with the sentence gone, because {@code FileSourceFactory} re-raises an
-     * {@link IOException} untyped and the resolver forwards an untyped message only past the storage-path guard.
-     * The type is the whole fix: {@code ExternalSourceResolver} unwraps an {@link ExternalClientException} before
-     * that arm and returns it as it stands. {@link CsvFormatReader#sampleLimitError} carries the reasoning.
+     * The empty-object diagnosis survives an object named after a storage host, which is why the refusal is
+     * typed. Untyped, {@code FileSourceFactory} re-raises it as a plain {@link IllegalArgumentException} and the
+     * resolver forwards that only past the storage-path guard, so the user is answered
+     * {@code Failed to resolve external source [logs.amazonaws.com.csv] (IllegalArgumentException)} with the
+     * sentence gone. {@code ExternalSourceResolver} unwraps an {@link ExternalClientException} before that arm
+     * and returns it as it stands. {@link CsvFormatReader#sampleLimitError} carries the reasoning.
      * <p>
-     * The read path answers the same two objects differently, and that half is pinned here too rather than left
-     * for someone to discover. {@code ExternalFailures.classify} applies the same predicate as an assertion over
-     * the whole message, so under {@code -ea} these two conditions now raise an {@link AssertionError} where the
-     * untyped {@link IOException} they used to be was redacted into a 400. Both halves of that are the point: a
-     * shipped distribution runs without {@code -ea} and gets the diagnosis, which is what this change is for,
-     * and the condition class reaching that assertion predates it -- {@code checkBudget} and the FAIL_FAST row
-     * error already named an object inside it. What is new is these two conditions joining the set. It ends when
-     * the guard learns which span of a message is the permitted object name, and then this expectation inverts
-     * rather than being deleted.
+     * The read path answers these same two objects differently, and that half is pinned here as well:
+     * {@code ExternalFailures.classify} applies the same predicate as an assertion over the whole message, so
+     * under {@code -ea} both raise an {@link AssertionError}. A shipped distribution runs without {@code -ea}
+     * and gets the diagnosis, which is the point of the type; {@code checkBudget} and the FAIL_FAST row error
+     * stand inside that assertion on the same terms. It ends when the guard learns which span of a message is
+     * the permitted object name, and this expectation then inverts rather than being deleted.
      */
     public void testTheEmptyObjectDiagnosisSurvivesAStorageHostName() {
         CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
@@ -6787,9 +6776,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(noHeader.getMessage(), containsString("file [logs.amazonaws.com.csv] has no schema line"));
 
-        // Typing them keeps the diagnosis word for word and changes what precedes it: the resolver forwarded an
-        // untyped message bare, a typed one carries the condition's own prefix. A client matching a whole reason
-        // string therefore sees a different one, which is why it is pinned here rather than left to be noticed.
+        // A typed refusal carries the condition's own prefix where an untyped one is forwarded bare, so the
+        // diagnosis is word for word the same and the reason around it is not. Pinned because no map on the
+        // error surface holds a reason string.
         for (ExternalClientException refusal : List.of(noRows, noHeader)) {
             assertTrue(
                 "a typed refusal must open with the condition's prefix, got: " + refusal.getMessage(),
@@ -12360,15 +12349,13 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A {@code .tsv} read must not be told about CSV. This reader serves both formats off one class, and every
-     * message that named the format used the literal, so the operator of a TSV dataset was sent looking for a
-     * reader they are not using. The format comes from the reader's own {@code format} field now.
+     * A {@code .tsv} read must not be told about CSV: one reader serves both formats, and a message naming the
+     * wrong one sends the operator looking for a reader they are not using.
      *
-     * <p>The duplicate-header message is the trigger because it is one that genuinely carried the literal. Most of
-     * this reader's messages never named a format at all, so asserting the absence of {@code "CSV"} on one of those
-     * passes whether or not the defect is fixed. The assertion here is positive — the message must say {@code TSV} —
-     * and the same file through the csv-constructed reader is the control, so the test discriminates in both
-     * directions rather than merely passing.
+     * <p>The duplicate-header message is the subject because it is one that genuinely names a format. Most of
+     * this reader's messages name none, so asserting the absence of {@code "CSV"} on one of those passes either
+     * way. The assertion here is positive — the message must say {@code TSV} — with the same file through the
+     * csv-constructed reader as the control.
      */
     public void testTsvErrorsNameTsvNotCsv() {
         CsvFormatReader tsv = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
@@ -12379,8 +12366,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(onTsv.getMessage(), containsString("TSV header of [test.csv] has duplicate column names"));
         assertThat("a tsv read must not name CSV, got: " + onTsv.getMessage(), onTsv.getMessage(), not(containsString("CSV")));
 
-        // Control: the same fault through the csv-constructed reader still says CSV, so the assertion above is
-        // about the format the reader was built for and not about the message having lost its format entirely.
+        // Control: the same fault through the csv-constructed reader says CSV, so the assertion above is about
+        // the format the reader was built for and not about the message having lost its format entirely.
         ExternalClientException onCsv = expectThrows(
             ExternalClientException.class,
             () -> new CsvFormatReader(blockFactory).schema(createStorageObject("id:long,id:long\n1,2\n"))
@@ -12443,9 +12430,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The summary warning names the object; every detail line after it used to carry a row number and nothing
-     * else. On a glob the details from every object arrive in one response under one summary, so a detail that
-     * does not name its object cannot be matched back to the file it came from.
+     * On a glob the details from every object arrive in one response under a single summary, so a detail
+     * carrying a row number and nothing else cannot be matched back to the file it came from.
      */
     public void testSkipRowDetailWarningsNameTheObject() throws IOException {
         StorageObject object = createStorageObject("id:long,name:keyword\n1,Alice\nbad_id,Bob\n3,Charlie\n");
@@ -12467,14 +12453,12 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The row ordinal counts records this reader accepted, so it is the file's row only for the split that
-     * starts at byte zero. It cannot be made file-global without counting records from byte zero, which is the
-     * work splitting exists to avoid — so a later split's message names the byte it started counting from, and
-     * the ordinal can no longer be read as a row of the file.
+     * The row ordinal counts records this reader accepted, so it is the file's row only for the split starting
+     * at byte zero. A later split's message names the byte it started counting from, so the ordinal cannot be
+     * read as a row of the file.
      *
-     * <p>The same physical row is read twice: once as the whole file, once as the second of two splits cut on a
-     * record boundary. Before this the two said {@code row [3]} and {@code row [1]} with nothing to tell them
-     * apart.
+     * <p>The same physical row is read twice — once as the whole file, once as the second of two splits cut on
+     * a record boundary — and the two messages have to be distinguishable.
      */
     public void testALaterSplitSaysWhichByteItCountedFrom() throws IOException {
         String header = "id:long,name:keyword\n";
@@ -12581,9 +12565,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The strict exception takes the same clause as the warnings. It already named the object before this change;
-     * what it did not say was which window the ordinal was counted in, so on a later split it gave a confident
-     * number for a row of the file that is not that row.
+     * The strict exception takes the same clause as the warnings: it names the object, and on a later split it
+     * has to name the window too, or it reads as a confident number for a row of the file that is not that row.
      */
     public void testStrictThrowNamesTheWindowOnALaterSplit() {
         List<Attribute> schema = splitSchema();
@@ -12711,11 +12694,10 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The error-budget failure reports an aggregate -- how many bad rows out of how many read -- and that count is
-     * this reader's own in exactly the way a row ordinal is. Without the window clause the summary claims about the
-     * whole object what it counted in one piece of it: the same mis-location the detail lines no longer carry, left
-     * in the message that replaces them when a read finally fails. Both arms are pinned, because the clause has two
-     * forms and a swap to {@code splitStartByte} would still satisfy only one.
+     * The error-budget failure reports an aggregate — how many bad rows out of how many read — and that count is
+     * this reader's own in exactly the way a row ordinal is, so without the window clause the summary claims
+     * about the whole object what it counted in one piece of it. Both arms are pinned, the clause having two
+     * forms and a swap to {@code splitStartByte} satisfying only one.
      */
     public void testTheErrorBudgetFailureNamesTheWindowItCountedIn() throws IOException {
         List<Attribute> schema = splitSchema();

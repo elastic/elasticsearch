@@ -353,10 +353,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         if (withholdMessageStartByte) {
             // A block-aligned split of a splittable compressed object: splitStartByte is a boundary in the
-            // compressed file, while the ordinal counts decompressed records. The caller decides, from
-            // context.recordAligned() rather than from chunkMode, because chunkMode is demoted when the object
-            // has no last-modified time and that says nothing about the byte axis. _rowPosition is unaffected:
-            // the operator factory null-splices its slot for a compressed-offset split.
+            // compressed file, while the ordinal counts decompressed records. _rowPosition is unaffected -- the
+            // operator factory null-splices its slot for a compressed-offset split.
             this.pageDecoder.withholdMessageStartByte();
         }
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
@@ -419,9 +417,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // under-counted partial result is never published to the stats cache. The decoder has
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
-                    // The field itself keys stats and stays verbatim; what goes to the log layout is escaped,
-                    // because a key holding a newline would otherwise forge a second log line here exactly as
-                    // it would in the row clause.
+                    // The field keys stats and stays verbatim; what reaches the log layout is escaped, a key
+                    // holding a newline forging a line here exactly as it would in the row clause.
                     logger.warn(
                         "Record at byte [{}] in [{}] exceeds the record limit; results are partial",
                         pageDecoder.truncatedAtByte(),

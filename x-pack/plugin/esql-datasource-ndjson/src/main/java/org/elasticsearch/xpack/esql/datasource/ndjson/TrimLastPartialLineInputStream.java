@@ -121,11 +121,8 @@ final class TrimLastPartialLineInputStream extends InputStream {
     /**
      * @param sourceLocation the object this stream is reading, already reduced for display by
      *                       {@code RowLocation.displayObjectName} or {@code escapedForDisplay}. Every other
-     *                       constructor funnels here, so this is the one place the precondition holds: the
-     *                       messages below embed it inside brackets, and a caller handing this a raw path
-     *                       reopens the forgery those brackets were escaped to close. Production reaches it
-     *                       from {@code NdJsonPageIterator}, which passes its already-reduced
-     *                       {@code messageLocation}.
+     *                       constructor funnels here, and the messages below embed it inside brackets, so a raw
+     *                       path handed in here reopens the forgery that escape closes.
      */
     TrimLastPartialLineInputStream(
         InputStream delegate,
@@ -285,12 +282,10 @@ final class TrimLastPartialLineInputStream extends InputStream {
         skipWarnings.add("about [" + discardedBytes + "] bytes skipped" + objectClause);
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            // The object goes in the log line as well as in the warning: an operator reading the log over a glob
-            // otherwise cannot tell which object a discard came from, and the two channels report the same event.
-            // Already reduced, like every other use of this field. The prefix argument is passed explicitly
-            // because the clause after it is a String: left off, the call binds format(prefix, pattern, args)
-            // rather than format(pattern, args), the clause becomes the pattern, and a pattern carrying no
-            // placeholder is returned on its own -- so the operator gets the clause and no message.
+            // Named here as well as in the warning, so an operator reading the log over a glob can tell which
+            // object a discard came from. The null prefix is load-bearing: with two Strings in front of the
+            // placeholders the call binds format(prefix, pattern, args), and the clause becomes a pattern
+            // holding no placeholder, which comes back on its own.
             LoggerMessageFormat.format(
                 null,
                 "Skipping NDJSON line{} of about [{}] bytes over [{}] at a split boundary ({})",

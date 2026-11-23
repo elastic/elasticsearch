@@ -858,10 +858,9 @@ public class NdJsonFormatReaderTests extends ESTestCase {
      * a boundary in the compressed file — so the byte is withheld and the clause says only that the ordinal was
      * counted inside a split.
      * <p>
-     * The condition previously read {@code chunkMode}, which {@code read()} demotes to false when the object has no
-     * last-modified time; that is about whether the stats cache can participate and says nothing about the byte
-     * axis, so it suppressed a correct byte on an aligned chunk of an object served without one. Keyed as it is now,
-     * the aligned arm below keeps its byte whatever the object's metadata says.
+     * {@code chunkMode} is the near miss and not the condition: {@code read()} demotes it when the object has no
+     * last-modified time, which is about whether the stats cache can participate and says nothing about the byte
+     * axis. The aligned arm below keeps its byte whatever the object's metadata says.
      */
     public void testOnlyAnUnalignedLaterSplitWithholdsTheByte() throws IOException {
         byte[] bytes = "{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8);
@@ -875,8 +874,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertThat("a record-aligned chunk's byte is on the records' own axis", aligned, containsString("counted from byte [9999]"));
         assertThat(aligned, not(containsString("counted within a split")));
 
-        // An object served without a Last-Modified header is the case that made the old keying wrong: read() demotes
-        // chunkMode for it, so a condition reading chunkMode suppressed a byte that was never in doubt.
+        // An object served without a Last-Modified header is the case that separates the two keyings: read()
+        // demotes chunkMode for it, so a condition reading chunkMode suppresses a byte that is not in doubt.
         String undated = warningsFromSplit(new UndatedBytesObject(bytes), schema, true).toString();
         assertThat("no mtime is about the stats cache, not about the byte axis", undated, containsString("counted from byte [9999]"));
     }

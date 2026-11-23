@@ -49,20 +49,14 @@ public final class ErrorExcerpts {
      * {@link #summarize} of {@code value} escaped by {@link RowLocation#escapedForDisplay}, for a message that
      * prints store-supplied text inside a bracketed clause and so needs the escape as well as the cap.
      * <p>
-     * The cap bounds the escaped text rather than the value it was made from, so it bounds what the reader will
-     * see rather than what the text measured before it grew -- but the cut is chosen on the unescaped value.
-     * Escaping the whole value and cutting the result is the obvious way to get the first half, and it is
-     * what this method exists to avoid: a value here is a field, which a CSV dialect lets reach
-     * {@code max_field_size} -- ten megabytes by default, and no limit at all when the option is set to zero --
-     * while the escape spends six characters on every one it rewrites. Only as much of each end is escaped as the
-     * cap can hold.
+     * The cap bounds the escaped text, so it bounds what the reader sees, but the cut is taken on the unescaped
+     * value and only the two kept windows are escaped. Escaping first and cutting second is what this avoids: a
+     * value here is a field, which a CSV dialect lets reach {@code max_field_size} -- ten megabytes by default,
+     * unbounded when the option is zero -- while the escape spends six characters on each one it rewrites.
      * <p>
-     * Choosing the cut on the value rather than on its escape has a second effect, and it is the reason not to
-     * reverse the two even where the sizes are small: a cut landing inside one of the six-character escapes
-     * leaves a stump that
-     * spells nothing, and a cut taken before the escape cannot produce one. The count in the marker is the
-     * value's own length for the same reason the row number is the file's -- the escape belongs to this message,
-     * and the number has to name something the reader can find in the object.
+     * Cutting first also means a cut can never land inside one of those six-character escapes and leave a stump
+     * that spells nothing. The count in the marker is the value's own length, so it names something the reader
+     * can find in the object rather than a width this message invented.
      */
     public static String summarizeEscaped(String value) {
         if (value == null) {

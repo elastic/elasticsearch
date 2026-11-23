@@ -1950,11 +1950,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Infers a schema for a headerless sample, naming columns from {@code prefix}: counts the widest
      * sample row, synthesizes the names, and runs type inference. Pure on its inputs — does not touch
-     * the circuit breaker. Both call sites must guarantee {@code sampleRows} is non-empty, and they
-     * answer an empty sample differently rather than sharing one contract: metadata inference raises
-     * {@link #noDataRowsError}, while the read path releases the sample and returns {@code null}, which
-     * ends the batch with no error because an empty split is not one. The assertion here is only a
-     * programmer-error guard.
+     * the circuit breaker. Both call sites must guarantee {@code sampleRows} is non-empty, and they answer an
+     * empty sample differently rather than sharing one contract: metadata inference raises
+     * {@link #noDataRowsError}, while the read path releases the sample and returns {@code null}, an empty
+     * split being no error. The assertion is a programmer-error guard only.
      */
     static List<Attribute> inferSyntheticSchema(
         List<String[]> sampleRows,
@@ -2334,21 +2333,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * The refusal for a first record too wide to sample within {@code schema_sample_bytes}.
      * <p>
-     * Typed rather than raised through {@link Check#clientError}, which throws a plain
-     * {@link IllegalArgumentException}: the resolver forwards one of those only after
-     * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
-     * and that guard matches a bare storage host anywhere in the text — so once this message names the object,
-     * an object legitimately called {@code logs.amazonaws.com.csv} loses the whole sentence, the remedy with
-     * it. An {@link ExternalClientException} is returned whole by that path instead, which is why every one of
-     * its six schema-path siblings uses it — {@code testEverySchemaPathFailureNamesTheObject} walks the set.
+     * Typed rather than raised through {@link Check#clientError}, whose plain {@link IllegalArgumentException}
+     * the resolver forwards only past {@code ExternalFailures.forwardableDetail}'s storage-path guard — which
+     * matches a bare storage host anywhere in the text, so an object legitimately called
+     * {@code logs.amazonaws.com.csv} loses the whole sentence and the remedy with it. An
+     * {@link ExternalClientException} is returned whole by that path, which is why all seven schema-path
+     * refusals use it; {@code testEverySchemaPathFailureNamesTheObject} walks the set.
      * <p>
-     * It does not make the name safe everywhere, and nothing here does. The same predicate is an assertion
-     * inside {@code ExternalFailures.classify}, which walks the chain and tests every message including the
-     * one {@code setDetail} appends, so on the read path such a name is a fatal {@code AssertionError} under
-     * {@code -ea} rather than this 400. A shipped distribution runs without {@code -ea}, and the messages
-     * already carrying an object name into that assertion predate this — {@code checkBudget} and the
-     * FAIL_FAST row error both do. Ending it means teaching the guard which span of a message is the
-     * permitted object name, which is a change to the guard and not to this refusal.
+     * The type does not make the name safe everywhere. {@code ExternalFailures.classify} applies the same
+     * predicate as an assertion over the whole chain, so on the read path such a name is a fatal
+     * {@code AssertionError} under {@code -ea} rather than this 400 — as it already is for {@code checkBudget}
+     * and the FAIL_FAST row error. Ending that means teaching the guard which span of a message is the
+     * permitted object name, which is a change to the guard rather than to this refusal.
      */
     private static ExternalClientException sampleLimitError(long maxSampleBytes, String format, String sourceLocation) {
         ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
@@ -2366,13 +2362,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * The refusal for an object a headerless read finds no data rows in.
      * <p>
-     * Typed for the reason {@link #sampleLimitError} sets out, and it applies the moment the message names the
-     * object: these two were the last schema-path refusals raised as plain {@link IOException}s, which
-     * {@code FileSourceFactory.resolveMetadata} catches and re-raises as an untyped
-     * {@link IllegalArgumentException}. The resolver forwards one of those only if the storage-path guard
-     * passes the whole text, so an object legitimately called {@code logs.amazonaws.com.csv} was answered
-     * {@code Failed to resolve external source [logs.amazonaws.com.csv] (IllegalArgumentException)} with the
-     * diagnosis gone — and gone to protect a basename the very next clause prints anyway.
+     * Typed for the reason {@link #sampleLimitError} sets out. This one reaches the guard by a second route:
+     * raised as a plain {@link IOException}, {@code FileSourceFactory.resolveMetadata} catches it and re-raises
+     * it untyped, so an object called {@code logs.amazonaws.com.csv} is answered
+     * {@code Failed to resolve external source [logs.amazonaws.com.csv] (IllegalArgumentException)} — the
+     * diagnosis withheld to protect a basename the clause beside it prints anyway.
      */
     private static ExternalClientException noDataRowsError(String format, String sourceLocation) {
         ExternalClientException noRows = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
@@ -7958,9 +7952,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
-                // The row count is this reader's own, so it takes the window clause the per-row details take.
-                // Without it the aggregate reads as a statement about the whole object, which on a later split
-                // it is not -- the mis-location this change removes from the detail lines, left in the summary.
+                // The row count is this reader's own, so it takes the window clause the per-row details take:
+                // without it the aggregate reads as a statement about the whole object, which on a later split
+                // it is not.
                 throw ExternalFailures.rowError(
                     cause,
                     "["

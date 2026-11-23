@@ -561,10 +561,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * <p>
      * What it does not fix is two splits of the SAME object discarding the same number of bytes: this message
      * carries neither an ordinal nor a byte, so those two still collapse into one. The byte is absent on purpose
-     * rather than by omission — {@code NdJsonFormatReader} arms this stream only where {@code recordAligned} is
-     * false, which is also where the decoder withholds its message start byte as a compressed-axis offset, so a
-     * byte here would be the very one the rest of this change withholds. Telling those two apart needs the
-     * decompressed position, which this stream is not given.
+     * — {@code NdJsonFormatReader} arms this stream only where {@code recordAligned} is false, which is exactly
+     * where a split's start byte is a compressed-axis offset the decoder itself withholds. Telling those two
+     * apart needs the decompressed position, which this stream is not given.
      */
     public void testTheDiscardWarningNamesTheObject() throws IOException {
         int maxRecordBytes = 8;

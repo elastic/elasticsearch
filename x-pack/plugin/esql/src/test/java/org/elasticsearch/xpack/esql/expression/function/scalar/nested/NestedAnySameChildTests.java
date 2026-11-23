@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.core.CheckedConsumer;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -63,6 +65,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.junit.After;
 
 import java.io.IOException;
@@ -71,6 +75,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -208,7 +213,7 @@ public class NestedAnySameChildTests extends ComputeTestCase {
             List.of(qty, price),
             List.of("qty", "price"),
             null,
-            QueryBuilders.termQuery("items.sku", "a"),
+            new SingleValueQuery(new TermQuery(Source.EMPTY, "items.sku", "a"), "items.sku", false).toQueryBuilder(),
             EsqlTestUtils.TEST_CFG
         );
         Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE)).build();
@@ -283,6 +288,47 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The term matches both children. The single-value check confirms only the child that holds {@code a} alone, so the
+     * multivalued child does not make its parent true.
+     */
+    public void testAMultivaluedChildFailsTheSingleValueCheck() throws IOException {
+        try (OpenIndex index = openIndex(0, MAPPING, true, "{\"items\":[{\"sku\":[\"a\",\"b\"]}]}", "{\"items\":[{\"sku\":\"a\"}]}")) {
+            var childFilter = new SingleValueQuery(new TermQuery(Source.EMPTY, "items.sku", "a"), "items.sku", false).toQueryBuilder();
+            NestedPredicate predicate = new NestedPredicate(
+                Source.EMPTY,
+                "items",
+                Literal.TRUE,
+                List.of(),
+                List.of(),
+                null,
+                childFilter,
+                EsqlTestUtils.TEST_CFG
+            );
+            Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE)).build();
+            var blockFactory = blockFactory();
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+            try (
+                var evaluator = EvalMapper.toEvaluator(
+                    FoldContext.small(),
+                    predicate,
+                    layout,
+                    new IndexedByShardIdFromSingleton<>(index.shard),
+                    null,
+                    PlannerSettings.DEFAULTS
+                ).get(driverContext);
+                DocBlock.Builder parents = DocBlock.newBlockBuilder(blockFactory, 2);
+                Page page = parentsOf(parents, index);
+                Block result = evaluator.eval(page)
+            ) {
+                BooleanBlock flags = (BooleanBlock) result;
+                assertThat(flags.getBoolean(flags.getFirstValueIndex(0)), equalTo(false));
+                assertThat(flags.getBoolean(flags.getFirstValueIndex(1)), equalTo(true));
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        }
+    }
+
     /** One child matches the sku and another, different, child is the expensive product. */
     private String parentWithSplitChildren() throws IOException {
         return document(items -> {
@@ -336,6 +382,7 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId(mapperService.index(), 0));
         assertThat(reader.leaves().size(), equalTo(1));
         SearchExecutionContext context = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader, false));
+        context = new EsqlSearchExecutionContext(context, QueryWarnings.EMIT, Set.of());
         shard = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), context, AliasFilter.EMPTY);
     }
 
@@ -361,26 +408,45 @@ public class NestedAnySameChildTests extends ComputeTestCase {
     }
 
     private OpenIndex openIndex(int shardId, String mapping, String source) throws IOException {
+        return openIndex(shardId, mapping, false, source);
+    }
+
+    private OpenIndex openIndex(int shardId, String mapping, boolean esqlContext, String... sources) throws IOException {
         MapperService mapperService = mapperHelper.create(Settings.EMPTY, mapping);
         Directory directory = newDirectory();
-        int parentDoc;
+        int[] parentDocs = new int[sources.length];
         IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
             .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
             .setRAMBufferSizeMB(256);
+        int doc = 0;
         try (IndexWriter writer = new IndexWriter(directory, config)) {
-            ParsedDocument parsed = mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON));
-            writer.addDocuments(parsed.docs());
-            parentDoc = parsed.docs().size() - 1;
+            for (int i = 0; i < sources.length; i++) {
+                ParsedDocument parsed = mapperService.documentMapper()
+                    .parse(new SourceToParse(Integer.toString(i), new BytesArray(sources[i]), XContentType.JSON));
+                writer.addDocuments(parsed.docs());
+                doc += parsed.docs().size();
+                parentDocs[i] = doc - 1;
+            }
         }
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId(mapperService.index(), 0));
         SearchExecutionContext context = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader, false));
+        if (esqlContext) {
+            context = new EsqlSearchExecutionContext(context, QueryWarnings.EMIT, Set.of());
+        }
         var shard = new EsPhysicalOperationProviders.DefaultShardContext(shardId, new NoOpReleasable(), context, AliasFilter.EMPTY);
-        return new OpenIndex(mapperService, directory, reader, shard, parentDoc);
+        return new OpenIndex(mapperService, directory, reader, shard, parentDocs);
     }
 
     private Page parentPage(DocBlock.Builder parents, OpenIndex plain, OpenIndex normalized) {
-        parents.appendShard(plain.shard.index()).appendSegment(0).appendDoc(plain.parentDoc);
-        parents.appendShard(normalized.shard.index()).appendSegment(0).appendDoc(normalized.parentDoc);
+        parents.appendShard(plain.shard.index()).appendSegment(0).appendDoc(plain.parentDocs[0]);
+        parents.appendShard(normalized.shard.index()).appendSegment(0).appendDoc(normalized.parentDocs[0]);
+        return new Page(parents.build());
+    }
+
+    private Page parentsOf(DocBlock.Builder parents, OpenIndex index) {
+        for (int parentDoc : index.parentDocs) {
+            parents.appendShard(index.shard.index()).appendSegment(0).appendDoc(parentDoc);
+        }
         return new Page(parents.build());
     }
 
@@ -389,7 +455,7 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         Directory directory,
         DirectoryReader reader,
         EsPhysicalOperationProviders.DefaultShardContext shard,
-        int parentDoc
+        int[] parentDocs
     ) implements java.io.Closeable {
         @Override
         public void close() throws IOException {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,7 +19,11 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -320,9 +325,32 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     private IndexedByShardId<Query> luceneChildFilter(EvaluatorMapper.ToEvaluator toEvaluator) {
         return toEvaluator.shardContexts().map(shard -> {
             if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext context) {
-                return context.executionContext().toQuery(childFilter).query();
+                return childQuery(context.executionContext());
             }
             throw new IllegalStateException("NESTED_ANY child filter needs a shard to build its query");
         });
+    }
+
+    /**
+     * Builds the child filter inside this nested field's scope. A single-value check treats a nested field as missing
+     * until the scope says the query is matching that field's child documents.
+     * <p>
+     * {@link SearchExecutionContext#toQuery} replaces the nested scope before it rewrites, so the scope has to be set
+     * around {@link Rewriteable#rewrite} and {@link QueryBuilder#toQuery} directly.
+     */
+    private Query childQuery(SearchExecutionContext context) {
+        NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
+        if (mapper == null) {
+            return new MatchNoDocsQuery("unmapped nested field [" + path + "]");
+        }
+        context.nestedScope().nextLevel(mapper);
+        try {
+            Query query = Rewriteable.rewrite(childFilter, context, true).toQuery(context);
+            return query == null ? new MatchNoDocsQuery("No query left after rewrite.") : query;
+        } catch (IOException e) {
+            throw new QueryShardException(context, "failed to create nested child query: {}", e, e.getMessage());
+        } finally {
+            context.nestedScope().previousLevel();
+        }
     }
 }

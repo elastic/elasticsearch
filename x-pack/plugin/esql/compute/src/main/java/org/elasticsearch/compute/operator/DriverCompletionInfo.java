@@ -583,6 +583,11 @@ public record DriverCompletionInfo(
             this.warnings.addAll(info.warnings);
         }
 
+        /** Whether any work accumulated so far was partial. */
+        public boolean partial() {
+            return partial.get();
+        }
+
         public DriverCompletionInfo finish() {
             Map<String, List<Map<String, Object>>> snapshot;
             synchronized (capturedSourceMetadata) {

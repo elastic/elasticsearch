@@ -162,8 +162,14 @@ public final class ExternalFailures {
      * {@link #noStoragePathLeaked} at the read boundary, where one message in the chain may be a refusal that quotes
      * the read's own input: an object's basename, a column name, a row, a clause of the declared schema. The reader
      * that composed it says so with {@link ExternalException#markMessageQuotesInput()}, and only a marked message goes
-     * unchecked. Its cause chain and every failure suppressed on it are still walked in full, so the leak this guard
-     * exists to catch -- a reader concatenating a path, or an SDK message carried along -- is caught exactly as before.
+     * unchecked. Everything else it would have read, it still reads.
+     * <p>
+     * What that is, at this one call site, is narrower than the predicate: {@link #classify} asserts on the result of
+     * {@link #detach}, which has already dropped the cause and logged it here rather than forwarding it, so the cause
+     * arm cannot run and is not the backstop. The backstop is the pair that does cross the wire -- the message itself,
+     * and the suppressed failures, which {@link #detach} keeps where they are themselves {@link ExternalException}s
+     * and which {@code innerToXContent} serializes into the response. A cause is checked where it still exists, at the
+     * throw site: {@link #rowError} asserts its own before anything is detached.
      * <p>
      * Unmarked, every heuristic still applies, and that is the point of spending a mark rather than relaxing the
      * boundary itself: the storage providers build typed failures too, and an SDK endpoint host or a bare filesystem
@@ -332,8 +338,9 @@ public final class ExternalFailures {
         }
         if (t instanceof ExternalException ee) {
             ExternalException detached = detach(ee, failureLevel);
-            // Every heuristic applies, unless a reader marked the message as one it composed from the file's own
-            // tokens. noStoragePathLeakedBesideQuotedInput says why that mark has to be asked for rather than assumed.
+            // Every heuristic applies, unless a reader marked the message as one quoting the read's own input.
+            // noStoragePathLeakedBesideQuotedInput says why that mark has to be asked for rather than assumed, and
+            // what this assertion does and does not reach now that detach has dropped the cause.
             assert noStoragePathLeakedBesideQuotedInput(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
             return detached;
         }

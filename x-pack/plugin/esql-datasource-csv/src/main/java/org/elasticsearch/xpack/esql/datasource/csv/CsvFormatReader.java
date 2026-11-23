@@ -2440,11 +2440,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link ExternalClientException} is returned whole by that path, which is why all seven schema-path
      * refusals use it; {@code testEverySchemaPathFailureNamesTheObject} walks the set.
      * <p>
-     * The read path applies the same predicate as an assertion, over a message this package composed, and
-     * {@code ExternalFailures.noStoragePathLeakedBesideFileText} is the form it uses there: a basename and a
-     * column name are the file's to choose, so only a storage-URI scheme condemns such a message. That is what
-     * keeps this refusal a 400 under {@code -ea} too, here and at {@code checkBudget} and the FAIL_FAST row
-     * error, which reach the same boundary with the same kind of text in them.
+     * The read path applies the same predicate as an assertion. Every refusal in this reader quotes the read's
+     * own input -- an object's basename, a column name, a row, a clause of the declared schema -- so every one of
+     * them says so with {@code ExternalException.markMessageQuotesInput}, and that is what keeps each a 400 under
+     * {@code -ea} rather than an {@link AssertionError}. The set is not enumerated here, because an enumeration
+     * that falls behind the throw sites is how the omission this mark exists to prevent gets written: the mark is
+     * at the sites, where {@code grep markMessageQuotesInput} finds all of them, and
+     * {@code ExternalFailures.noStoragePathLeakedBesideQuotedInput} carries the argument for it.
      */
     private static ExternalClientException sampleLimitError(long maxSampleBytes, String format, String sourceLocation) {
         ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
@@ -3137,6 +3139,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (context.firstSplit()) {
                 return null;
             }
+            // CLIENT_BUG is this package's own bug, not the caller's: it renders "Unexpected internal failure
+            // reading external source", which is what a 500 here means.
             // An invariant breach, so a 500 -- but typed, because untyped it is the one read-path site whose
             // object clause is withheld for exactly the names the clause exists to carry: classify's final arm
             // answers an IllegalStateException with safeDetail, which falls back to the class name whenever

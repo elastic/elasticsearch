@@ -105,6 +105,11 @@ public final class RowLocation {
      * compression signal to branch on.
      */
     public static String countedIn(long readStartByte) {
+        // Any negative takes the unknown clause, not BYTE_UNKNOWN alone, and deliberately: the clause says only that
+        // this message cannot name a byte, which is true of every negative a caller could arrive at, including one it
+        // arrived at by arithmetic it got wrong. Narrowing it to BYTE_UNKNOWN would mean asserting here, and an
+        // assertion in a rendering helper turns a cosmetic uncertainty on an error path into a fatal failure under
+        // -ea -- which is the thing this clause is part of a change to stop doing.
         if (readStartByte > 0L) {
             return " counted from byte [" + readStartByte + "] of the decoded stream";
         }

@@ -140,6 +140,17 @@ changelogs:
     area: Infra/Scripting
     type: bug
     issues: []
+  - pr: 166388
+    summary: Bump bundled JDK to 27.0.1.1
+    area: Infra/Core
+    type: upgrade
+    issues: []
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 166388
   - pr: 166394
     summary: Load stored fields of flattened mapped sub-fields
     area: Mapping

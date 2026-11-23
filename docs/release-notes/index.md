@@ -25,9 +25,16 @@ To check for security updates, go to [Security announcements for the Elastic sta
 stack: ga 9.4.10
 ```
 
+### Highlights [elasticsearch-9.4.10-highlights]
+
+::::{dropdown} Security advisory
+This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
+
 ### Features and enhancements [elasticsearch-9.4.10-features-enhancements]
 
 Infra/Core:
+* Bump bundled JDK to 27.0.1.1 [#166388](https://github.com/elastic/elasticsearch/pull/166388)
 * Upgrade ASM to 9.11.1 [#164365](https://github.com/elastic/elasticsearch/pull/164365)
 
 

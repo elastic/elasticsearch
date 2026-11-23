@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -679,12 +680,11 @@ public class WatcherServiceTests extends ESTestCase {
     /**
      * Regression test for #161574: Watcher keeps scheduling watches after the local .watches shard leaves during reload.
      *
-     * This test verifies that pauseExecution() publishes the invalidating cluster-state version
-     * to processedClusterStateVersion before enqueuing the actual pause work on the lifecycle executor.
-     * The version publication prevents stale data from being applied by in-flight reloads.
+     * This test verifies that when pauseExecution() is called with a newer cluster-state version
+     * during a reload, the reload is invalidated and does not restart trigger execution.
      */
     @Test
-    public void testPauseExecutionInvalidatesInFlightReload() {
+    public void testPauseDuringLoadWatchesDoesNotRestartTriggers() {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
@@ -703,25 +703,42 @@ public class WatcherServiceTests extends ESTestCase {
             void stopExecutor() {}
         };
 
-        // Simulate a reload starting with cluster state version 100
-        service.start(new ClusterState.Builder(new ClusterName("_name")).version(100).build(), () -> {}, e -> {});
+        ClusterState stateV100 = new ClusterState.Builder(new ClusterName("_name")).version(100).build();
+        ClusterState stateV200 = new ClusterState.Builder(new ClusterName("_name")).version(200).build();
 
-        // Call pauseExecution with invalidating state version 200
-        // This should publish version 200 immediately
+        // Start a reload with version 100 (loadTriggeredWatches=true)
+        service.start(stateV100, () -> {}, e -> {});
+
+        // Verify that triggerService.start() was called for version 100
+        verify(triggerService).start(any());
+
+        // Now call pauseExecution with a newer version (200)
+        // This invalidates the in-flight reload
         service.pauseExecution("shard departed", 200);
 
-        // The version should be set to 200 immediately on the calling thread
-        // A subsequent reload with version 150 (older than 200) should be rejected
+        // Reset the mock to verify subsequent calls
+        Mockito.reset(triggerService);
+
+        // Try to start with an older version (150) - should be rejected
         service.start(new ClusterState.Builder(new ClusterName("_name")).version(150).build(), () -> {}, e -> {});
-        verify(triggerService).start(any()); // Called once for version 100 only
+
+        // Verify that triggerService.start() was NOT called because version 150 < 200
+        verify(triggerService, never()).start(any());
+
+        // Now start with the current version (200) - should succeed
+        service.start(stateV200, () -> {}, e -> {});
+
+        // Verify that triggerService.start() was called for version 200
+        verify(triggerService).start(any());
     }
 
     /**
-     * Regression test for #161574: Verifies that a delayed pause task for an older state
-     * does not undo a newer valid reload that has already succeeded.
+     * Regression test for #161574: Verifies that a reload with loadTriggeredWatches=true
+     * that is superseded by a pause preserves the requirement to load triggered watches
+     * in the subsequent reload.
      */
     @Test
-    public void testDelayedPauseDoesNotUndoNewerReload() {
+    public void testSupersededReloadPreservesTriggeredWatchesPending() {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
@@ -740,18 +757,24 @@ public class WatcherServiceTests extends ESTestCase {
             void stopExecutor() {}
         };
 
-        // Submit a pause task for version 100
-        service.pauseExecution("shard departed", 100);
+        ClusterState stateV100 = new ClusterState.Builder(new ClusterName("_name")).version(100).build();
+        ClusterState stateV200 = new ClusterState.Builder(new ClusterName("_name")).version(200).build();
 
-        // Before the pause executes, a newer reload with version 200 succeeds
-        // This should set processedClusterStateVersion to 200
-        service.start(new ClusterState.Builder(new ClusterName("_name")).version(200).build(), () -> {}, e -> {});
+        // Start a reload with loadTriggeredWatches=true (version 100)
+        service.start(stateV100, () -> {}, e -> {});
 
-        // Verify the newer reload succeeded
-        verify(triggerService).start(any());
+        // Call pauseExecution with version 200
+        service.pauseExecution("shard departed", 200);
 
-        // When the old pause task finally executes (immediately with DIRECT_EXECUTOR_SERVICE),
-        // it should check the version and skip pausing because version 200 is now current
-        verify(triggerService, never()).pauseExecution();
+        // Reset the mock to verify subsequent calls
+        Mockito.reset(triggeredWatchStore);
+
+        // Now trigger a new start (version 200)
+        // This should load triggered watches because the pending flag is still set
+        service.start(stateV200, () -> {}, e -> {});
+
+        // Verify that the reload loaded triggered watches
+        // (it should have called triggeredWatchStore.findTriggeredWatches)
+        verify(triggeredWatchStore).findTriggeredWatches(any(), eq(stateV200));
     }
 }

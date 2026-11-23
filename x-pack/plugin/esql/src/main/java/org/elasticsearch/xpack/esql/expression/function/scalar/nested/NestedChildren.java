@@ -8,16 +8,23 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
@@ -244,13 +251,32 @@ public final class NestedChildren implements Releasable {
      * children fit in one page is read whole.
      */
     void read(DocVector parents, IntPredicate included, IntPredicate keepReading, Consumer<Page> consumer) {
+        read(parents, included, keepReading, null, consumer);
+    }
+
+    /**
+     * As {@link #read(DocVector, IntPredicate, IntPredicate, Consumer)}, but a child that does not match
+     * {@code matchingChildren} is omitted before its fields are loaded, and its parent position is omitted with it.
+     * {@code matchingChildren} is {@code null} when every child is read. A page whose children all miss is not delivered.
+     */
+    void read(
+        DocVector parents,
+        IntPredicate included,
+        IntPredicate keepReading,
+        @Nullable Query matchingChildren,
+        Consumer<Page> consumer
+    ) {
         parents.ensureAttached("NESTED");
         int[] shardIds = new int[PAGE_SIZE];
         int[] segments = new int[PAGE_SIZE];
         int[] docs = new int[PAGE_SIZE];
         int[] positions = new int[PAGE_SIZE];
         int count = 0;
+        ExpressionEvaluator matches = null;
         try {
+            if (matchingChildren != null) {
+                matches = new LuceneQueryExpressionEvaluator.Factory(childQuery(matchingChildren)).get(context);
+            }
             for (int p = 0; p < parents.getPositionCount(); p++) {
                 if (included.test(p) == false) {
                     continue;
@@ -275,18 +301,25 @@ public final class NestedChildren implements Releasable {
                     docs[count] = child;
                     positions[count] = p;
                     if (++count == PAGE_SIZE) {
-                        emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
+                        emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), matches, consumer);
                         count = 0;
                     }
                     child = children.nextSetBit(child + 1);
                 }
             }
             if (count > 0) {
-                emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
+                emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), matches, consumer);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            Releasables.close(matches);
         }
+    }
+
+    /** One searcher per shard, so the child query is scored against the reader that holds those children. */
+    private IndexedByShardId<LuceneQueryEvaluator.ShardConfig> childQuery(Query query) {
+        return shards.map(shard -> new LuceneQueryEvaluator.ShardConfig(query, new IndexSearcher(shard.reader())));
     }
 
     private void emit(
@@ -296,6 +329,7 @@ public final class NestedChildren implements Releasable {
         int[] positions,
         int count,
         boolean mayContainDuplicates,
+        @Nullable ExpressionEvaluator matchingChildren,
         Consumer<Page> consumer
     ) {
         context.checkForEarlyTermination();
@@ -323,6 +357,12 @@ public final class NestedChildren implements Releasable {
             Page input = new Page(children.asBlock(), positionVector.asBlock());
             children = null;
             positionVector = null;
+            if (matchingChildren != null) {
+                input = selectMatching(input, matchingChildren, mayContainDuplicates);
+                if (input == null) {
+                    return;
+                }
+            }
             if (reader == null) {
                 Page counted;
                 try {
@@ -345,6 +385,39 @@ public final class NestedChildren implements Releasable {
             }
         } finally {
             Releasables.closeExpectNoException(shardVector, segmentVector, docVector, positionVector, children);
+        }
+    }
+
+    /**
+     * A page of the children that match {@code matches}, with the parent-position block filtered by the same positions.
+     * Returns {@code null} when none match, and then {@code input} has been released.
+     */
+    private static Page selectMatching(Page input, ExpressionEvaluator matches, boolean mayContainDuplicates) {
+        int count = input.getPositionCount();
+        int[] selected = new int[count];
+        int matched = 0;
+        Block flags = matches.eval(input);
+        try {
+            BooleanBlock booleans = (BooleanBlock) flags;
+            for (int i = 0; i < count; i++) {
+                if (booleans.getValueCount(i) == 1 && booleans.isNull(i) == false && booleans.getBoolean(booleans.getFirstValueIndex(i))) {
+                    selected[matched++] = i;
+                }
+            }
+        } finally {
+            flags.close();
+        }
+        if (matched == count) {
+            return input;
+        }
+        if (matched == 0) {
+            input.releaseBlocks();
+            return null;
+        }
+        try {
+            return input.filter(mayContainDuplicates, selected, 0, matched);
+        } finally {
+            input.releaseBlocks();
         }
     }
 

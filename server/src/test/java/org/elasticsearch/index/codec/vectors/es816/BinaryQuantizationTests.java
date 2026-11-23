@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.runner.RunWith;
@@ -32,6 +33,10 @@ import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatV
 
 @RunWith(ESRandomizedRunner.class)
 public class BinaryQuantizationTests extends LuceneTestCase {
+
+    static {
+        LogConfigurator.configureESLogging();
+    }
 
     public void testQuantizeForIndex() {
         int dimensions = random().nextInt(1, 4097);

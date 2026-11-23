@@ -71,15 +71,19 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -756,13 +760,13 @@ public class Verifier {
             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
             + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
             + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, COMPLETION, DENSE_VECTOR, RERANK, FUSE, HIGHLIGHT, MMR, "
-            + "FORK and subquery commands; ["
+            + "TS, METRICS_INFO, TS_INFO, FORK and subquery commands; ["
             + command
             + "] is not supported yet";
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
-        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false) || plan instanceof Project
+        return plan instanceof EsRelation || plan instanceof Project
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
             || plan instanceof Keep
             || plan instanceof Drop
@@ -802,7 +806,14 @@ public class Verifier {
             || plan instanceof FuseScoreEval
             || plan instanceof Highlight
             || plan instanceof MMR
-            || plan instanceof AbstractSubqueryJoin;
+            || plan instanceof AbstractSubqueryJoin
+            // The time-series commands. PackDims and UnpackDims pack and unpack the dimension columns that a time-series aggregation groups
+            // by. METRICS_INFO and TS_INFO replace the columns of their input with their own, so, like STATS, they do not return the
+            // _unmapped_fields column.
+            || plan instanceof PackDims
+            || plan instanceof UnpackDims
+            || plan instanceof MetricsInfo
+            || plan instanceof TsInfo;
     }
 
     /**

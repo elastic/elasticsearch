@@ -82,6 +82,12 @@ public class AggregatorImplementer {
     private final ExecutableElement init;
     private final ExecutableElement combine;
     private final ExecutableElement first;
+    /**
+     * Optional {@code static <state> combineBulk(<state>, IntArrayVector)}. When present, the unmasked
+     * {@code IntArrayVector} arm folds the whole vector in one call instead of calling {@code combine}
+     * per element, which lets the aggregator reduce with a wide accumulator.
+     */
+    private final ExecutableElement combineBulk;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<IntermediateStateDesc> intermediateState;
@@ -148,6 +154,15 @@ public class AggregatorImplementer {
         if (this.aggState.hasSeen == false && this.first != null) {
             throw new IllegalArgumentException("[first] method not supported without [seen] on agg state");
         }
+
+        this.combineBulk = warnExceptions.isEmpty() && aggState.declaredType().isPrimitive()
+            ? optionalStaticMethod(
+                declarationType,
+                requireType(aggState.declaredType()),
+                requireName("combineBulk"),
+                requireArgs(requireType(aggState.declaredType()), requireType(Types.INT_ARRAY_VECTOR))
+            )
+            : null;
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -488,6 +503,8 @@ public class AggregatorImplementer {
             String segmentLayout = bulkReducible ? Types.ARROW_VECTOR_VALUE_LAYOUT.get(subtype) : null;
             if (segmentLayout != null) {
                 emitSegmentVectorLoop(builder, masked, "specialized", segmentLayout);
+            } else if (masked == false && combineBulk != null && aggParams.size() == 1 && subtype.equals(Types.INT_ARRAY_VECTOR)) {
+                emitCombineBulk(builder, "specialized");
             } else {
                 emitPerElementVectorLoop(builder, masked, "specialized");
             }
@@ -496,6 +513,15 @@ public class AggregatorImplementer {
         }
         emitPerElementVectorLoop(builder, masked, vec);
         return builder.build();
+    }
+
+    /** Folds the whole {@code accessor} vector into state with the aggregator's {@code combineBulk}. */
+    private void emitCombineBulk(MethodSpec.Builder builder, String accessor) {
+        TypeName returnType = TypeName.get(combine.getReturnType());
+        if (aggState.hasSeen()) {
+            builder.addStatement("state.seen(true)");
+        }
+        builder.addStatement("state.$TValue($T.combineBulk(state.$TValue(), $L))", returnType, declarationType, returnType, accessor);
     }
 
     /** Per-element vector loop over {@code accessor} (typed get + {@code combine} into state). */

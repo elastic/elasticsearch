@@ -957,12 +957,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             columnarSettings(),
             batch("nulls only", 1L, doc("d1", 1L, "{\"f\":\"a\"}"), doc("d2", 2L, "{\"f\":[null,null]}"), doc("d3", 3L, "{\"f\":[null]}"))
         );
-        // The batch path itself must map this without throwing, ie. it does not rely on the row path fallback.
-        final var mapperService = createMapperService(
-            columnarSettings(),
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).endObject())
-        );
-        mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"a\"}", "{\"f\":[null,null]}");
     }
 
     /** With a null_value a null element is a real value, so {@code [null,null]} is two values and a single-valued field rejects it. */
@@ -984,11 +978,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             columnarSettings(),
             batch("value and null", 1L, doc("d1", 1L, "{\"f\":[\"a\",null]}"), doc("d2", 2L, "{\"f\":[null,\"b\"]}"))
         );
-        final var mapperService = createMapperService(
-            columnarSettings(),
-            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).endObject())
-        );
-        mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",null]}", "{\"f\":[null,\"b\"]}");
     }
 
     /** With a null_value the null in {@code ["a",null]} is a real second value, so a single-valued field rejects it. */

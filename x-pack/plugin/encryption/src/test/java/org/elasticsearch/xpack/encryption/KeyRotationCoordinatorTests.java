@@ -383,23 +383,14 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
 
-    /**
-     * The master doesn't ask older nodes, which can't answer the readiness check, and retries until every node is upgraded. Then a node
-     * that doesn't answer blocks the install, and is named once.
-     */
-    public void testInstallWaitsForEveryNodeToBeUpgradedAndToAnswer() {
-        FeatureService featureService = mock(FeatureService.class);
-        when(featureService.clusterHasFeature(any(), eq(ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE))).thenReturn(true);
+    /** A node that doesn't answer the readiness check, such as one on an older version, blocks the install, and is named once. */
+    public void testInstallWaitsForEveryNodeToAnswer() {
         ClusterState state = clusterStateWith(null, true);
-        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
 
-        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state));
-        verify(client, never()).execute(any(), any(), any());
-
-        when(featureService.clusterHasFeature(any(), eq(ProjectEncryptionKeyService.CAN_PERSIST_KEY_CHECK_FEATURE))).thenReturn(true);
         answers = node -> node.getId().equals("other") == false;
         MockLog.assertThatLogger(
-            () -> lastScheduledRetry().run(),
+            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
             KeyRotationCoordinator.class,
             new MockLog.SeenEventExpectation(
                 "names the node",

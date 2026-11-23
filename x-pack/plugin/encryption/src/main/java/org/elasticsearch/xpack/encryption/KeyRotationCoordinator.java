@@ -556,11 +556,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         persistCheckRecheck.set(false);
-        if (featureService.clusterHasFeature(state, ProjectEncryptionKeyService.CAN_PERSIST_KEY_CHECK_FEATURE) == false) {
-            logger.debug("project encryption key not {} yet: waiting for every node to be upgraded", operation);
-            schedulePersistCheckRetry();
-            return;
-        }
         DiscoveryNode[] nodes = state.nodes()
             .getAllNodes()
             .stream()

@@ -46,8 +46,6 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     // for it). If an old node becomes master, it sees no existing key and generates a new one,
     // orphaning any data encrypted with the original key.
     static final NodeFeature PROJECT_ENCRYPTION_KEY_FEATURE = new NodeFeature("security.primary_encryption_key");
-    // older nodes can't answer whether they can persist the key, so the master waits for the upgrade instead of asking
-    static final NodeFeature CAN_PERSIST_KEY_CHECK_FEATURE = new NodeFeature("security.primary_encryption_key.can_persist_check");
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;

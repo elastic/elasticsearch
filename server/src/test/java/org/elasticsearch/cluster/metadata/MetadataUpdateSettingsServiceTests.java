@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -20,8 +22,10 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexModule.Type.MMAPFS;
 import static org.elasticsearch.index.IndexModule.Type.NIOFS;
@@ -134,6 +138,88 @@ public class MetadataUpdateSettingsServiceTests extends ESTestCase {
                 .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "tmp")
                 .build(),
             metadataBuilder.get(index.getName()).getSettings()
+        );
+    }
+
+    /**
+     * Index block settings ({@code index.blocks.*}) are applied as cluster blocks and bypass the settings update
+     * consumers that log other index setting changes, so historically they were updated silently. This checks that
+     * adding or removing a block is logged, which matters for troubleshooting cases such as the flood-stage watermark
+     * putting an index under a {@code read_only_allow_delete} block. A no-op update (the block is already in the wanted
+     * state) must not log.
+     */
+    public void testClusterBlockUpdatesAreLogged() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId)
+            .put(
+                IndexMetadata.builder(index.getName())
+                    .settings(Settings.builder().put(metaSettings).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                    .build(),
+                true
+            );
+        final IndexMetadata.APIBlock apiBlock = IndexMetadata.APIBlock.READ;
+        final String settingKey = apiBlock.settingName();
+        final String[] indices = new String[] { index.getName() };
+        final Function<String, Boolean> notVerifiedReadOnly = indexName -> false;
+
+        MockLog.assertThatLogger(
+            () -> MetadataUpdateSettingsService.maybeUpdateClusterBlock(
+                projectId,
+                indices,
+                ClusterBlocks.builder(),
+                apiBlock.getBlock(),
+                apiBlock.setting(),
+                Settings.builder().put(settingKey, true).build(),
+                metadataBuilder,
+                notVerifiedReadOnly
+            ),
+            MetadataUpdateSettingsService.class,
+            new MockLog.SeenEventExpectation(
+                "block added",
+                MetadataUpdateSettingsService.class.getCanonicalName(),
+                Level.INFO,
+                "updating [" + settingKey + "] to [true] for index [" + index.getName() + "]"
+            )
+        );
+
+        MockLog.assertThatLogger(
+            () -> MetadataUpdateSettingsService.maybeUpdateClusterBlock(
+                projectId,
+                indices,
+                ClusterBlocks.builder().addIndexBlock(projectId, index.getName(), apiBlock.getBlock()),
+                apiBlock.getBlock(),
+                apiBlock.setting(),
+                Settings.builder().put(settingKey, false).build(),
+                metadataBuilder,
+                notVerifiedReadOnly
+            ),
+            MetadataUpdateSettingsService.class,
+            new MockLog.SeenEventExpectation(
+                "block removed",
+                MetadataUpdateSettingsService.class.getCanonicalName(),
+                Level.INFO,
+                "updating [" + settingKey + "] to [false] for index [" + index.getName() + "]"
+            )
+        );
+
+        MockLog.assertThatLogger(
+            () -> MetadataUpdateSettingsService.maybeUpdateClusterBlock(
+                projectId,
+                indices,
+                ClusterBlocks.builder().addIndexBlock(projectId, index.getName(), apiBlock.getBlock()),
+                apiBlock.getBlock(),
+                apiBlock.setting(),
+                Settings.builder().put(settingKey, true).build(),
+                metadataBuilder,
+                notVerifiedReadOnly
+            ),
+            MetadataUpdateSettingsService.class,
+            new MockLog.UnseenEventExpectation(
+                "no-op block update not logged",
+                MetadataUpdateSettingsService.class.getCanonicalName(),
+                Level.INFO,
+                "updating [" + settingKey + "] to [true] for index [" + index.getName() + "]"
+            )
         );
     }
 

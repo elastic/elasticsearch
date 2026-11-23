@@ -543,22 +543,11 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         // Holds the resume state across encodeChunk calls: the converters and the next row of the page.
         private final NdjsonRowWriter rows;
         private boolean encoded = false;           // true once the part is done: last row written, limit reached, or failure
-        // The rows and bytes of the chunk being written so far, counted by the limit below as each row is written. The limit check
-        // adds them to the totals of the response, which only include a chunk once it is done.
-        private int rowsInChunk;
-        private long bytesInChunk;
-        private final NdjsonRowWriter.RowLimit limit = new NdjsonRowWriter.RowLimit() {
-            @Override
-            public boolean reached() {
-                return options.reached(rowsWritten.get() + rowsInChunk, bytesWritten.get() + bytesInChunk);
-            }
-
-            @Override
-            public void rowWritten(int bytes) {
-                rowsInChunk++;
-                bytesInChunk += bytes;
-            }
-        };
+        // The totals of the response only include a chunk once it is done, so the limit adds the chunk being written to them.
+        private final NdjsonRowWriter.RowLimit limit = (rowsInChunk, bytesInChunk) -> options.reached(
+            rowsWritten.get() + rowsInChunk,
+            bytesWritten.get() + bytesInChunk
+        );
 
         NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns, ZoneId zoneId) {
             this.page = page;
@@ -591,8 +580,6 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 // before each row, and once more when the chunk is full, so a reached limit is reported by the call that wrote the
                 // last row and never costs an extra, empty chunk. A limit that falls on the last row of the page is not acted on
                 // here: whether the result goes on is only known when the next signal arrives (see onNext and onComplete).
-                rowsInChunk = 0;
-                bytesInChunk = 0;
                 final int written = rows.writeRows(chunkStream, channel.request(), sizeHint, limit);
                 assert written > 0 || rows.allRowsWritten() : "a page part is only created while the limit is not reached (see onNext)";
                 final boolean limitInsidePage = rows.stoppedAtLimit();

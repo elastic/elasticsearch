@@ -255,39 +255,67 @@ public class NdjsonRowWriterTests extends ESTestCase {
 
     // ---- a caller with limits ----
 
-    /** Stops after a number of rows, and records the size of every line it is told about. */
-    private static final class RowsLimit implements NdjsonRowWriter.RowLimit {
-        final int maxRows;
-        final List<Integer> lineSizes = new ArrayList<>();
-
-        RowsLimit(int maxRows) {
-            this.maxRows = maxRows;
-        }
-
-        @Override
-        public boolean reached() {
-            return lineSizes.size() >= maxRows;
-        }
-
-        @Override
-        public void rowWritten(int bytes) {
-            lineSizes.add(bytes);
-        }
+    /** A limit reached once a call has written {@code maxRows} rows. The writer reports the rows of the current call only. */
+    private static NdjsonRowWriter.RowLimit afterRows(int maxRows) {
+        return (rowsInChunk, bytesInChunk) -> rowsInChunk >= maxRows;
     }
 
-    public void testALimitStopsTheRowsInTheMiddleOfAPage() throws IOException {
+    /**
+     * A limit on the whole response, applied across chunks the way the listener does: the caller keeps the total of the chunks that are
+     * done and the limit adds the rows of the chunk being written to it.
+     */
+    public void testALimitAppliesAcrossChunks() throws IOException {
         Page page = longs(12);
         try {
             NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
-            RowsLimit limit = new RowsLimit(11);
-            // the limit holds across chunks: 4 rows in the first chunk, then the remaining 7 of the 11
-            assertThat(writeChunk(writer, 16, limit), equalTo(List.of("[0]", "[1]", "[2]", "[3]")));
-            assertThat(writeChunk(writer, Integer.MAX_VALUE, limit), equalTo(List.of("[4]", "[5]", "[6]", "[7]", "[8]", "[9]", "[10]")));
-            assertFalse("the last row of the page was not written", writer.allRowsWritten());
+            final int maxRows = 11;
+            int rowsDone = 0;
+            List<String> lines = new ArrayList<>();
+            List<Integer> chunkSizes = new ArrayList<>();
+            // "[0]\n" is 4 bytes, so a hint of 16 gives chunks of 4 rows
+            while (writer.allRowsWritten() == false && writer.stoppedAtLimit() == false) {
+                final int before = rowsDone;
+                List<String> chunk = writeChunk(writer, 16, (rowsInChunk, bytesInChunk) -> before + rowsInChunk >= maxRows);
+                lines.addAll(chunk);
+                chunkSizes.add(chunk.size());
+                rowsDone += chunk.size();
+            }
+            assertThat(lines.size(), equalTo(maxRows));
+            assertThat(lines.get(maxRows - 1), equalTo("[10]"));
             assertTrue(writer.stoppedAtLimit());
-            // the size of a line includes its newline: "[0]\n" is 4 bytes and "[10]\n" is 5
-            assertThat(limit.lineSizes, equalTo(List.of(4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5)));
-            assertThat("a reached limit writes nothing", writeChunk(writer, Integer.MAX_VALUE, limit), equalTo(List.of()));
+            assertFalse("the last row of the page was not written", writer.allRowsWritten());
+            // the first two chunks end at their size hint, the last one is cut short by the limit
+            assertThat(chunkSizes, equalTo(List.of(4, 4, 3)));
+            assertThat("a reached limit writes nothing", writeChunk(writer, 16, (r, b) -> true), equalTo(List.of()));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /** The limit is told the rows and bytes of the current call, a newline included in each row, at every check. */
+    public void testALimitIsToldTheCountsOfTheCurrentCall() throws IOException {
+        Page page = longs(4);
+        try {
+            NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
+            List<String> seen = new ArrayList<>();
+            NdjsonRowWriter.RowLimit recording = (rowsInChunk, bytesInChunk) -> {
+                seen.add(rowsInChunk + "/" + bytesInChunk);
+                return rowsInChunk >= 3;
+            };
+            writeChunk(writer, Integer.MAX_VALUE, recording);
+            // "[0]\n" is 4 bytes
+            assertThat(seen, equalTo(List.of("0/0", "1/4", "2/8", "3/12")));
+            // a new call starts counting again; one row of the page is left, and nothing is checked once the page has ended
+            seen.clear();
+            writeChunk(writer, Integer.MAX_VALUE, (rowsInChunk, bytesInChunk) -> {
+                seen.add(rowsInChunk + "/" + bytesInChunk);
+                return false;
+            });
+            assertThat(seen, equalTo(List.of("0/0")));
+            // a full chunk is checked once more, with the row that filled it counted: a hint of 5 is reached by the second row
+            seen.clear();
+            writeChunk(new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC), 5, recording);
+            assertThat(seen, equalTo(List.of("0/0", "1/4", "2/8")));
         } finally {
             page.releaseBlocks();
         }
@@ -301,9 +329,8 @@ public class NdjsonRowWriterTests extends ESTestCase {
         Page page = longs(10);
         try {
             NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
-            RowsLimit limit = new RowsLimit(2);
             // "[0]\n" is 4 bytes: a hint of 5 is reached by the second row, which is also the row that reaches the limit
-            assertThat(writeChunk(writer, 5, limit), equalTo(List.of("[0]", "[1]")));
+            assertThat(writeChunk(writer, 5, afterRows(2)), equalTo(List.of("[0]", "[1]")));
             assertTrue(writer.stoppedAtLimit());
             assertFalse(writer.allRowsWritten());
         } finally {
@@ -316,7 +343,7 @@ public class NdjsonRowWriterTests extends ESTestCase {
         Page page = longs(5);
         try {
             NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
-            assertThat(writeChunk(writer, between(1, 100), new RowsLimit(0)), equalTo(List.of()));
+            assertThat(writeChunk(writer, between(1, 100), afterRows(0)), equalTo(List.of()));
             assertTrue(writer.stoppedAtLimit());
             assertFalse(writer.allRowsWritten());
         } finally {
@@ -328,10 +355,7 @@ public class NdjsonRowWriterTests extends ESTestCase {
         Page page = longs(3);
         try {
             NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
-            RowsLimit limit = new RowsLimit(3);
-            List<String> lines = new ArrayList<>(writeChunk(writer, between(1, 100), limit));
-            lines.addAll(writeChunk(writer, 100, limit));
-            assertThat(lines, equalTo(List.of("[0]", "[1]", "[2]")));
+            assertThat(writeChunk(writer, Integer.MAX_VALUE, afterRows(3)), equalTo(List.of("[0]", "[1]", "[2]")));
             assertTrue(writer.allRowsWritten());
             assertFalse("no row of the page was left out", writer.stoppedAtLimit());
         } finally {

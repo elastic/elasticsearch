@@ -38,28 +38,20 @@ final class NdjsonRowWriter {
 
     static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
-    /** Lets the caller stop the rows before the page ends, and count what was written. */
+    /** Lets the caller stop the rows before the page ends. */
     interface RowLimit {
 
         /** No limit: every row of the page is written. */
-        RowLimit NONE = new RowLimit() {
-            @Override
-            public boolean reached() {
-                return false;
-            }
-
-            @Override
-            public void rowWritten(int bytes) {}
-        };
+        RowLimit NONE = (rowsInChunk, bytesInChunk) -> false;
 
         /**
-         * Checked before each row, and once more when a chunk is full, with the rows written so far counted. When true, no more rows
-         * of this page are written. It may be called more often than rows are written, so it must not change anything.
+         * Checked before each row, and once more when a chunk is full. When true, no more rows of this page are written. It may be
+         * called more often than rows are written, so it must not change anything.
+         *
+         * @param rowsInChunk  the rows written so far by the current {@link NdjsonRowWriter#writeRows} call
+         * @param bytesInChunk the bytes written so far by the current {@link NdjsonRowWriter#writeRows} call, newlines included
          */
-        boolean reached();
-
-        /** Called after each row with the size of its line, including the newline. */
-        void rowWritten(int bytes);
+        boolean reached(int rowsInChunk, long bytesInChunk);
     }
 
     private final Page page;
@@ -123,14 +115,14 @@ final class NdjsonRowWriter {
         }
         // Closing a builder closes its stream, but the chunk must stay open until the caller turns it into the bytes of the response.
         final OutputStream out = Streams.noCloseStream(chunk);
+        final long startSize = chunk.size();
         int rows = 0;
         stoppedAtLimit = false;
         while (nextRow < rowCount) {
-            if (limit.reached()) {
+            if (limit.reached(rows, chunk.size() - startSize)) {
                 stoppedAtLimit = true;
                 break;
             }
-            int before = chunk.size();
             // Each row is its own JSON value followed by a newline, so it gets its own builder: a builder cannot write two top-level
             // values without a separator. Closing it flushes its buffer into the chunk, so the size of the chunk is exact after
             // every row. Without that it would only advance in steps of about 8 KB.
@@ -146,9 +138,8 @@ final class NdjsonRowWriter {
             chunk.write(NEWLINE);
             nextRow++;
             rows++;
-            limit.rowWritten(chunk.size() - before);
             if (chunk.size() >= sizeHint) {
-                stoppedAtLimit = nextRow < rowCount && limit.reached();
+                stoppedAtLimit = nextRow < rowCount && limit.reached(rows, chunk.size() - startSize);
                 break;
             }
         }

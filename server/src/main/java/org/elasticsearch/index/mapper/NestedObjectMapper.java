@@ -132,6 +132,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 );
             }
             final String fullPath = context.buildFullName(leafName());
+            rejectIncludeInParentOrRootInStrictColumnar(fullPath);
             final String nestedTypePath = nestedTypePath(fullPath);
             if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
                 throw new MapperException(
@@ -173,6 +174,26 @@ public class NestedObjectMapper extends ObjectMapper {
             boolean parentIncludedInRoot = context instanceof NestedMapperBuilderContext nc ? nc.parentIncludedInRoot : true;
             if (parentIncludedInRoot && this.includeInParent.value()) {
                 this.includeInRoot = Explicit.IMPLICIT_FALSE;
+            }
+        }
+
+        /**
+         * Copying nested fields into the parent or root stores the same data twice, which strict columnar modes avoid. It also breaks
+         * fields that write a single binary doc value per document: two nested objects would add two such values to the parent.
+         * Older indices keep accepting the parameters so their mappings still parse on recovery.
+         */
+        private void rejectIncludeInParentOrRootInStrictColumnar(String fullPath) {
+            if ((includeInParent.value() || includeInRoot.value())
+                && indexSettings != null
+                && indexSettings.getMode().isStrictColumnar()
+                && indexCreatedVersion.onOrAfter(IndexVersions.COLUMNAR_REJECTS_NESTED_INCLUDE_IN_PARENT)) {
+                throw new IllegalArgumentException(
+                    "[include_in_parent] and [include_in_root] are not supported for nested field ["
+                        + fullPath
+                        + "] in index mode ["
+                        + indexSettings.getMode()
+                        + "]"
+                );
             }
         }
 

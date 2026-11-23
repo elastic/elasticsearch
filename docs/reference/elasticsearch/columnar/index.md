@@ -356,7 +356,7 @@ Without term statistics, a document scores one point for each query term it matc
 
 The following features are not supported in columnar index modes:
 
-- **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
+- **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported. {applies_to}`stack: preview 9.7` The `include_in_parent` and `include_in_root` parameters are rejected; indices created before 9.7 still accept them.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
 - **Turning off doc values**:
   - {applies_to}`stack: preview 9.7` Doc values are always on, including for multi-fields. `doc_values: true` and `doc_values: false` are ignored and not stored in the mapping, and `doc_values: false` returns a deprecation warning.

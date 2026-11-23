@@ -12,6 +12,7 @@ package org.elasticsearch.foreign.processor;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -58,7 +59,7 @@ public class ServicesFileTests extends ProcessorTestCase {
         List<String> simpleNames = List.of("Zeta", "Mid", "Alpha");
         Map<String, String> sources = new LinkedHashMap<>();
         for (String simpleName : simpleNames) {
-            sources.put("test." + simpleName, """
+            sources.put("test." + simpleName, String.format(Locale.ROOT, """
                 package test;
                 import org.elasticsearch.foreign.LibrarySpecification;
                 import org.elasticsearch.foreign.Function;
@@ -67,7 +68,7 @@ public class ServicesFileTests extends ProcessorTestCase {
                     @Function("native_add")
                     int add(int a, int b);
                 }
-                """.formatted(simpleName));
+                """, simpleName));
         }
 
         CompilationResult result = compile(sources);

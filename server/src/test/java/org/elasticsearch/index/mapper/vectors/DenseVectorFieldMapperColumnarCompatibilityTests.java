@@ -9,15 +9,32 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -267,8 +284,48 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
         })), false, XContentType.JSON).v2();
         @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
         Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
-        assertEquals(Set.of("plain", "f", "bf", "obj.v", "obj.inner.v", "dotted.v"), DenseVectorFieldMapper.floatElementPaths(root));
-        assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(Map.of()));
+        assertEquals(
+            Set.of("plain", "f", "bf", "obj.v", "obj.inner.v", "dotted.v"),
+            DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.NONE)
+        );
+        // with an index that keeps arrays, every object may be an array that keeps its source
+        assertEquals(Set.of("plain", "f", "bf", "dotted.v"), DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.ARRAYS));
+        assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(Map.of(), Mapper.SourceKeepMode.NONE));
+    }
+
+    /** Vectors whose text {@code synthetic_source_keep} keeps are left out of the float element paths. */
+    public void testFloatElementPathsSkipKeptVectors() throws IOException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(BytesReference.bytes(mapping(b -> {
+            b.startObject("plain").field("type", "dense_vector").endObject();
+            b.startObject("keep_all").field("type", "dense_vector").field("synthetic_source_keep", "all").endObject();
+            // a vector parses its own array, so keeping arrays doesn't keep its text
+            b.startObject("keep_arrays").field("type", "dense_vector").field("synthetic_source_keep", "arrays").endObject();
+            b.startObject("keep_none").field("type", "dense_vector").field("synthetic_source_keep", "none").endObject();
+            for (String keep : new String[] { "all", "arrays", "none" }) {
+                b.startObject("obj_" + keep).field("synthetic_source_keep", keep).startObject("properties");
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.endObject().endObject();
+            }
+            b.startObject("obj").startObject("properties");
+            {
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.startObject("inner").field("synthetic_source_keep", "all").startObject("properties");
+                b.startObject("v").field("type", "dense_vector").endObject();
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })), false, XContentType.JSON).v2();
+        @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
+        Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
+        assertEquals(
+            Set.of("plain", "keep_arrays", "keep_none", "obj_none.v", "obj.v"),
+            DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.NONE)
+        );
+        // an object's own synthetic_source_keep overrides the index's
+        assertEquals(
+            Set.of("plain", "keep_arrays", "keep_none", "obj_none.v"),
+            DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.ARRAYS)
+        );
     }
 
     public void testSupportedConfigurations() throws IOException {
@@ -380,6 +437,107 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
     public void testNonUnitDotProductVectorFallsBack() throws IOException {
         final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "dot_product"));
         expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("[1,2,3,4,5,6,7,8]")));
+    }
+
+    /**
+     * A vector whose source the row path keeps word for word in {@code _ignored_source} must keep the client's text through the
+     * batch path. That is a vector with {@code synthetic_source_keep: all}, one in an object with it, and one in an array of objects
+     * with {@code synthetic_source_keep: arrays}, set on the object or for the whole index. The shard refuses such a batch and
+     * indexes its documents on the row path, but from the source the batch row is rebuilt into, so elements the coordinating node
+     * parsed to float would come back widened to double, {@code 0.0123} as {@code 0.012299999594688416}.
+     */
+    public void testKeptVectorKeepsElementText() throws IOException {
+        final String vector = "[0.0123,0.1,-0.3,0.7,1.1,2.5,3,-4.2]";
+        final String inObject = "{\"obj\":{\"" + FIELD + "\":" + vector + "}}";
+        final String inObjectArray = "{\"obj\":[{\"" + FIELD + "\":" + vector + "}]}";
+        assertKeepsSource(keptVectorMapping(null, "all"), Settings.EMPTY, inObject);
+        assertKeepsSource(keptVectorMapping("all", null), Settings.EMPTY, inObject);
+        assertKeepsSource(keptVectorMapping("all", null), Settings.EMPTY, inObjectArray);
+        assertKeepsSource(keptVectorMapping("arrays", null), Settings.EMPTY, inObjectArray);
+        assertKeepsSource(
+            keptVectorMapping(null, null),
+            Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build(),
+            inObjectArray
+        );
+    }
+
+    /** A vector in an object, with the given {@code synthetic_source_keep} on the object and on the vector, {@code null} for none. */
+    private static XContentBuilder keptVectorMapping(String objectKeep, String vectorKeep) throws IOException {
+        return mapping(b -> {
+            b.startObject("obj");
+            if (objectKeep != null) {
+                b.field("synthetic_source_keep", objectKeep);
+            }
+            b.startObject("properties").startObject(FIELD).field("type", "dense_vector").field("dims", DIMS);
+            if (vectorKeep != null) {
+                b.field("synthetic_source_keep", vectorKeep);
+            }
+            b.endObject().endObject().endObject();
+        });
+    }
+
+    private void assertKeepsSource(XContentBuilder mapping, Settings settings, String source) throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(settings)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+                .build(),
+            mapping
+        );
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertEquals(
+                Strings.toString(mapping) + " " + settings + " " + encoder,
+                source,
+                syntheticSourceThroughBatch(mapperService, source, encoder)
+            );
+        }
+    }
+
+    /**
+     * The synthetic {@code _source} of {@code source} indexed through the batch path as production does it: encoded with the float
+     * element paths the coordinating node uses, refused by the shard, and indexed on the row path from the batch row.
+     */
+    private String syntheticSourceThroughBatch(MapperService mapperService, String source, SourceEncoder encoder) throws IOException {
+        final Settings settings = mapperService.getIndexSettings().getSettings();
+        final Set<String> floatElementPaths = DenseVectorFieldMapper.sourceMayKeepVectorText(settings)
+            ? Set.of()
+            : DenseVectorFieldMapper.floatElementPaths(
+                new MappingMetadata(mapperService.documentMapper()).sourceAsMap(),
+                mapperService.getIndexSettings().sourceKeepMode()
+            );
+        final BytesReference rebuilt;
+        try (
+            EscfEncoder escfEncoder = new EscfEncoder(
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                encoder == SourceEncoder.SIMD,
+                floatElementPaths
+            )
+        ) {
+            escfEncoder.addDocument(new BytesArray(source), XContentType.JSON, 0);
+            try (EscfBatch batch = escfEncoder.buildPartition(0)) {
+                assertNull(
+                    "the shard refuses the batch and indexes it on the row path",
+                    ShardBatchMapper.resolveMappers(batch, mapperService.mappingLookup(), mapperService.getIndexSettings())
+                );
+                // as IndexSource#ensureInlineSource does for the row path
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    SourceRowToXContent.writeRow(batch.row(0), batch.schema(), builder);
+                    rebuilt = BytesReference.bytes(builder);
+                }
+            }
+        }
+        final DocumentMapper mapper = mapperService.documentMapper();
+        try (Directory directory = newDirectory()) {
+            final ParsedDocument doc = mapper.parse(new SourceToParse("1", rebuilt, XContentType.JSON));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            try (RandomIndexWriter iw = indexWriterForSyntheticSource(directory)) {
+                iw.addDocuments(doc.docs());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                return syntheticSource(mapper, reader, doc.docs().size() - 1);
+            }
+        }
     }
 
     private boolean supportsColumnarParse(XContentBuilder mapping) throws IOException {

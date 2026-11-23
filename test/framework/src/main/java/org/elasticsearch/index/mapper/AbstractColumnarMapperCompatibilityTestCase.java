@@ -454,7 +454,10 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final DocumentMapper documentMapper = mapperService.documentMapper();
         return documentMapper == null || DenseVectorFieldMapper.sourceMayKeepVectorText(mapperService.getIndexSettings().getSettings())
             ? Set.of()
-            : DenseVectorFieldMapper.floatElementPaths(new MappingMetadata(documentMapper).sourceAsMap());
+            : DenseVectorFieldMapper.floatElementPaths(
+                new MappingMetadata(documentMapper).sourceAsMap(),
+                mapperService.getIndexSettings().sourceKeepMode()
+            );
     }
 
     private static EscfBatch encode(List<BytesReference> sources, SourceEncoder encoder, Set<String> floatElementPaths) throws IOException {

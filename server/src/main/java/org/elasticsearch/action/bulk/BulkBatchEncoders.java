@@ -27,6 +27,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -205,7 +206,7 @@ final class BulkBatchEncoders implements Releasable {
      * {@code bfloat16} {@code dense_vector}s its mapping already has. A vector mapped only once the shard parses this bulk is
      * missing here and is encoded as doubles, as are all vectors when the mapping cannot be read, which the shard then narrows.
      * None are parsed as floats for an index whose {@code _source} may keep the text of its vectors
-     * ({@link DenseVectorFieldMapper#sourceMayKeepVectorText}).
+     * ({@link DenseVectorFieldMapper#sourceMayKeepVectorText}), nor are vectors whose text {@code synthetic_source_keep} keeps.
      */
     static Set<String> floatElementPaths(@Nullable IndexMetadata indexMetadata) {
         final MappingMetadata mapping = indexMetadata == null ? null : indexMetadata.mapping();
@@ -213,9 +214,10 @@ final class BulkBatchEncoders implements Releasable {
             return Set.of();
         }
         try {
+            final Mapper.SourceKeepMode indexKeepMode = Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(indexMetadata.getSettings());
             return FLOAT_ELEMENT_PATHS.computeIfAbsent(
-                mapping.getSha256(),
-                sha -> Set.copyOf(DenseVectorFieldMapper.floatElementPaths(mapping.sourceAsMap()))
+                mapping.getSha256() + "/" + indexKeepMode,
+                key -> Set.copyOf(DenseVectorFieldMapper.floatElementPaths(mapping.sourceAsMap(), indexKeepMode))
             );
         } catch (ExecutionException | RuntimeException e) {
             logger.debug(() -> "cannot read the dense_vector paths of the mapping of [" + indexMetadata.getIndex() + "]", e);

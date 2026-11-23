@@ -87,6 +87,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperMergeContext;
@@ -4442,16 +4443,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     /**
      * The full paths of the {@code dense_vector} fields of {@code mapping} whose element values the row path parses as floats,
-     * that is every {@code float} and {@code bfloat16} vector. {@code mapping} is the root of a mapping as
-     * {@link org.elasticsearch.cluster.metadata.MappingMetadata#sourceAsMap} returns it.
+     * that is every {@code float} and {@code bfloat16} vector, except those whose source text the row path may keep. {@code mapping}
+     * is the root of a mapping as {@link org.elasticsearch.cluster.metadata.MappingMetadata#sourceAsMap} returns it, and
+     * {@code indexKeepMode} the index's {@link Mapper#SYNTHETIC_SOURCE_KEEP_INDEX_SETTING}.
      *
      * <p>The coordinating node encodes a batch without the parsed mappings, so it reads these from the raw mapping to parse the
      * elements of these vectors straight to float, as the row path does, instead of to double. An omitted {@code element_type}
      * defaults to {@code float}, or to {@code bfloat16} in {@code vectordb} index mode, which are both included.
+     *
+     * <p>With synthetic source, the row path copies the text of a vector to {@code _ignored_source} when the vector or an object
+     * around it has {@code synthetic_source_keep: all}, and when it is in an array of objects that keep arrays, by their own
+     * {@code synthetic_source_keep: arrays} or the index's. A batch with such a vector falls back to the row path, but from the
+     * source rebuilt from the batch, where an element parsed to float would be written out widened to double, such as
+     * {@code 0.012299999594688416} for {@code 0.0123}. So these vectors are left out, and their elements are parsed as doubles,
+     * which keep their text. An object that keeps arrays leaves out its vectors whether or not a document holds it in an array.
      */
-    public static Set<String> floatElementPaths(Map<String, ?> mapping) {
+    public static Set<String> floatElementPaths(Map<String, ?> mapping, Mapper.SourceKeepMode indexKeepMode) {
         final Set<String> paths = new HashSet<>();
-        collectFloatElementPaths(mapping, "", paths);
+        collectFloatElementPaths(mapping, "", indexKeepMode.toString(), paths);
         return paths;
     }
 
@@ -4471,20 +4480,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
             && IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings) == false;
     }
 
-    private static void collectFloatElementPaths(Map<?, ?> objectMapping, String prefix, Set<String> paths) {
+    private static void collectFloatElementPaths(Map<?, ?> objectMapping, String prefix, String indexKeepMode, Set<String> paths) {
         if (objectMapping.get("properties") instanceof Map<?, ?> properties) {
             for (Map.Entry<?, ?> entry : properties.entrySet()) {
                 if (entry.getValue() instanceof Map<?, ?> fieldMapping) {
                     final String path = prefix + entry.getKey();
+                    final Object keepMode = fieldMapping.get(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                     if (CONTENT_TYPE.equals(fieldMapping.get("type"))) {
                         final Object elementType = fieldMapping.get("element_type");
-                        if (elementType == null
+                        if ((elementType == null
                             || ElementType.FLOAT.toString().equals(elementType)
-                            || ElementType.BFLOAT16.toString().equals(elementType)) {
+                            || ElementType.BFLOAT16.toString().equals(elementType))
+                            // a vector parses its array itself, so only keeping all source keeps its text
+                            && Mapper.SourceKeepMode.ALL.toString().equals(keepMode) == false) {
                             paths.add(path);
                         }
                     } else {
-                        collectFloatElementPaths(fieldMapping, path + ".", paths);
+                        final Object objectKeepMode = keepMode != null ? keepMode : indexKeepMode;
+                        if (Mapper.SourceKeepMode.NONE.toString().equals(objectKeepMode)) {
+                            collectFloatElementPaths(fieldMapping, path + ".", indexKeepMode, paths);
+                        }
                     }
                 }
             }

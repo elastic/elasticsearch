@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
@@ -81,6 +82,25 @@ public class BulkBatchEncodersFloatElementPathsTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    /**
+     * Vectors in objects that keep the source of their arrays are encoded as doubles, so the coordinating node reads the index's
+     * {@code synthetic_source_keep} as well as its mapping: two indices with the same mapping can get different paths.
+     */
+    public void testIndexKeepModeLeavesOutVectorsInObjects() {
+        final String mapping = """
+            {"_doc":{"properties":{
+              "v":{"type":"dense_vector","dims":3},
+              "obj":{"properties":{"v":{"type":"dense_vector","dims":3}}}
+            }}}""";
+        assertEquals(Set.of("v", "obj.v"), BulkBatchEncoders.floatElementPaths(indexWithMapping(mapping, Settings.EMPTY)));
+        assertEquals(
+            Set.of("v"),
+            BulkBatchEncoders.floatElementPaths(
+                indexWithMapping(mapping, Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build())
+            )
+        );
     }
 
     private static IndexMetadata indexWithMapping(String mapping) {

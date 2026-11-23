@@ -59,6 +59,10 @@ $if(int)$
     private Integer max;
 $endif$
 
+$if(int||long||double)$
+    private boolean pooled;
+
+$endif$
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -305,6 +309,24 @@ $if(int)$
         return max;
     }
 
+    /**
+     * The sum of all values in the vector. The sum of at most {@code Integer.MAX_VALUE} {@code int}s
+     * always fits in a {@code long} (its magnitude stays below {@code 2^62}), so no overflow check is
+     * needed. Only the first {@link #getPositionCount()} entries of the backing array are summed, since
+     * the array can be longer than the position count. The loop is deliberately a plain widening
+     * accumulation so the JIT can auto-vectorize it; even when it does not, it is cheaper than
+     * checking for overflow on every element. This is not cached, as it is expected to be called once
+     * per vector.
+     */
+    public long sum() {
+        final int size = getPositionCount();
+        long sum = 0;
+        for (int i = 0; i < size; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
 $elseif(boolean)$
     /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.
@@ -375,6 +397,21 @@ $if(BytesRef)$
         // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
+    }
+$elseif(int||long||double)$
+    @Override
+    public void enablePooling() {
+        pooled = true;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesFor$Type$s(values.length)));
+            blockFactory().recycle$Type$s(values);
+        } else {
+            super.closeInternal();
+        }
     }
 $endif$
 }

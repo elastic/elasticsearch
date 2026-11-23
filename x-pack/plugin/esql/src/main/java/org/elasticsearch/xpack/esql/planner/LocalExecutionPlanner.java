@@ -12,19 +12,25 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -86,6 +92,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -118,10 +125,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -163,6 +174,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
+import org.elasticsearch.xpack.esql.eql.EqlSourceOperator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
@@ -172,6 +185,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -180,7 +195,11 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoMergeStatsOperator;
+import org.elasticsearch.xpack.esql.into.IntoOperator;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
@@ -193,6 +212,7 @@ import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -201,6 +221,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -209,6 +230,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -217,6 +239,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -251,16 +274,20 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -305,6 +332,11 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
+    // INTO writes through ESCF batches; null in planners that never plan an INTO
+    @Nullable
+    private final EscfBulkService escfBulkService;
+    private final BooleanSupplier batchIndexingSupported;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -317,12 +349,35 @@ public class LocalExecutionPlanner {
      * tied to the build they run under.
      */
     private final boolean snapshotBuild;
+    private final FetchOperatorProvider fetchOperators;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
     private final MatcherWatchdog grokMatcherWatchdog;
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
+    /**
+     * Query identity and optional load targets for federated source operators.
+     * {@link ExternalComputeContext#NONE} is identity: registry executors stay unwrapped and
+     * {@link SourceOperatorContext#queryId()} is unset.
+     */
+    private final ExternalComputeContext externalCompute;
+
+    /**
+     * Per-compute identity and load targets for federated (external) source operators.
+     *
+     * @param queryId  coordinator task of the query, or {@code null} when the caller did not supply one
+     * @param load     target that wraps the producer executor; {@code null} leaves it unwrapped
+     * @param ioTarget target that wraps the file-read executor; {@code null} leaves it unwrapped
+     */
+    public record ExternalComputeContext(
+        @Nullable TaskId queryId,
+        @Nullable TaskLoadAttribution.Target load,
+        @Nullable TaskLoadAttribution.Target ioTarget
+    ) {
+        /** Identity: no query id, registry executors unwrapped. */
+        public static final ExternalComputeContext NONE = new ExternalComputeContext(null, null, null);
+    }
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -344,10 +399,15 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean snapshotBuild,
+        FetchOperatorProvider fetchOperators,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
-        TransportVersion minTransportVersion
+        TransportVersion minTransportVersion,
+        Client client,
+        ExternalComputeContext externalCompute,
+        @Nullable EscfBulkService escfBulkService,
+        BooleanSupplier batchIndexingSupported
     ) {
 
         this.sessionId = sessionId;
@@ -369,6 +429,7 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.snapshotBuild = snapshotBuild;
+        this.fetchOperators = fetchOperators;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -376,6 +437,10 @@ public class LocalExecutionPlanner {
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
+        this.client = client;
+        this.externalCompute = externalCompute;
+        this.escfBulkService = escfBulkService;
+        this.batchIndexingSupported = batchIndexingSupported;
     }
 
     /**
@@ -425,11 +490,23 @@ public class LocalExecutionPlanner {
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
+        // The projection is part of finishing the aggregation, and it is not in the plan JSON, which was written before this. It takes the
+        // aggregate's identity so its operator reports the aggregate as its plan node, one that is in the plan JSON.
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
+            a -> a.getMode().isOutputPartial()
+                ? a
+                : a.passIdentityTo(new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
+        // The exchanges of this plan, by the id of the plan node that is one side of them, so PROFILE can name the exchange of the
+        // sink and source operators the same way the plan JSON does.
+        final Map<String, String> exchangeIdsByPlanNode = new HashMap<>();
+        localPhysicalPlan.forEachDown(p -> {
+            if (p.exchange() != null) {
+                exchangeIdsByPlanNode.put(p.planId().toString(), p.exchange().id());
+            }
+        });
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
@@ -443,7 +520,8 @@ public class LocalExecutionPlanner {
                     context.shardContexts,
                     physicalOperation,
                     statusInterval,
-                    settings
+                    settings,
+                    exchangeIdsByPlanNode
                 ),
                 context.driverParallelism().get()
             )
@@ -452,7 +530,15 @@ public class LocalExecutionPlanner {
         return new LocalExecutionPlan(context.driverFactories);
     }
 
+    /**
+     * Plans {@code node}. Operators added for this node are tagged with its {@link org.elasticsearch.xpack.esql.plan.PlanId}
+     * so PROFILE can join {@code plan_node_id} to {@code plan_json}. Child operators keep the ids assigned when they were planned.
+     */
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
+        return planNode(node, context).tagPlanNode(node.planId().toString());
+    }
+
+    private PhysicalOperation planNode(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context, false);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
@@ -465,6 +551,8 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
+        } else if (node instanceof FetchExec fetch) {
+            return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -491,6 +579,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -530,6 +620,8 @@ public class LocalExecutionPlanner {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
+        } else if (node instanceof EqlSourceExec eqlSource) {
+            return planEqlSource(eqlSource);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
         } else if (node instanceof ExternalSourceExec externalSource) {
@@ -546,7 +638,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof StreamingOutputExec streamingOutput) {
+        else if (node instanceof IntoExec into) {
+            return planInto(into, context);
+        } else if (node instanceof StreamingOutputExec streamingOutput) {
             return planStreamingOutput(streamingOutput, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
@@ -921,7 +1015,7 @@ public class LocalExecutionPlanner {
             deferredColumnTypes,
             capable::sourceExtractorsFor,
             capable.datasetLabel(),
-            operatorFactoryRegistry.fileReadExecutor()
+            attributedFileReadExecutor()
         );
         return source.with(factory, newLayout);
     }
@@ -964,6 +1058,33 @@ public class LocalExecutionPlanner {
         return transformer;
     }
 
+    private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(into.child(), context);
+        Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        return switch (into.mode()) {
+            case WRITE -> {
+                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+                boolean discard = configuration.explainOnly();
+                if (discard == false) {
+                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                }
+                IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    escfBulkService,
+                    client,
+                    blockFactory.breaker(),
+                    target,
+                    into.sourceAttributes(),
+                    discard ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                );
+                yield source.with(
+                    new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
+                    outputLayout
+                );
+            }
+            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
+        };
+    }
+
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(exec.child(), context);
         var output = exec.output();
@@ -981,7 +1102,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation source;
         if (child instanceof AggregateExec aggregate) {
             // allow partitioned output if both partial and final on the same node
-            source = planAggregation(aggregate, context, context.singleNodeOptimizations());
+            // This does not go through plan(), which tags the operators of a node with its id. Left untagged they would take the id of the
+            // sink, and PROFILE would report the aggregation as an operator of the exchange sink.
+            source = planAggregation(aggregate, context, context.singleNodeOptimizations()).tagPlanNode(aggregate.planId().toString());
         } else {
             source = plan(child, context);
         }
@@ -1447,10 +1570,13 @@ public class LocalExecutionPlanner {
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         List<Layout.ChannelSet> inverse = source.layout.inverse();
+        DocVectorEncoder docEncoder = fetchOperators.receivesDetachedDocuments()
+            ? DocVectorEncoder.detached()
+            : new DocVectorEncoder(context.shardContexts);
         for (int channel = 0; channel < inverse.size(); channel++) {
             var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
-            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
+            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), docEncoder);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
             int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
@@ -1513,7 +1639,8 @@ public class LocalExecutionPlanner {
                 field.child(),
                 layout,
                 context.shardContexts,
-                context.analysisRegistry()
+                context.analysisRegistry(),
+                context.plannerSettings
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
@@ -1716,7 +1843,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        Page localData = localSourceExec.supplier().get();
+        // The lookup operators never take ownership of these blocks: RowInTableLookupOperator builds its table from
+        // them without keeping them, and ColumnLoadOperator copies the values it keeps into each driver's block factory
+        Page localData = localSourceExec.supplier().peek();
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}
         Attribute marker = null;
@@ -2429,8 +2558,9 @@ public class LocalExecutionPlanner {
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
-            .executor(operatorFactoryRegistry.executor())
-            .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
+            .executor(attributedExecutor())
+            .fileReadExecutor(attributedFileReadExecutor())
+            .queryId(externalCompute.queryId())
             .config(externalSource.config())
             .declaredReadSpec(externalSource.declaredReadSpec())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -2454,6 +2584,18 @@ public class LocalExecutionPlanner {
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 
+    private Executor attributedExecutor() {
+        return chargedOrSelf(operatorFactoryRegistry.executor(), externalCompute.load());
+    }
+
+    private Executor attributedFileReadExecutor() {
+        return chargedOrSelf(operatorFactoryRegistry.fileReadExecutor(), externalCompute.ioTarget());
+    }
+
+    private static Executor chargedOrSelf(Executor executor, @Nullable TaskLoadAttribution.Target target) {
+        return target == null ? executor : TaskLoadAttribution.charging(executor, target);
+    }
+
     private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {
         if (!(factory instanceof AsyncExternalSourceOperatorFactory asyncFactory)) {
             return;
@@ -2475,6 +2617,44 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
+    }
+
+    private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(eqlSource.output());
+        EqlSearchRequest request = EqlRequests.build(
+            eqlSource.query(),
+            eqlSource.indices(),
+            eqlSource.output(),
+            eqlSource.options(),
+            eqlSource.pushedLimit(),
+            new EqlRequests.EnclosingQuery(
+                // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
+                configuration.allowPartialResults(),
+                QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
+                eqlSource.requestFilter()
+            )
+        );
+        // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution; a null carrier
+        // (none retained) falls back to the EQL engine resolving field-caps itself. The EQL engine self-defends against
+        // runtime mappings (which would change the mapping it sees) by ignoring the reuse in that case, so the planner
+        // just hands over what it has. This is a read, not a consume, so every branch of a FORK that re-runs this source
+        // reuses the same resolution.
+        FieldCapabilitiesResponse preResolved = eqlSource.preResolvedFieldCaps();
+        if (preResolved != null) {
+            request.preResolvedFieldCaps(preResolved);
+        }
+        return PhysicalOperation.fromSource(
+            new EqlSourceOperator.Factory(
+                client,
+                request,
+                eqlSource.mode(),
+                eqlSource.output(),
+                eqlSource.source(),
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+            ),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
@@ -2594,7 +2774,14 @@ public class LocalExecutionPlanner {
         // TODO: should this be extracted into a separate eval block?
         return source.with(
             new FilterOperatorFactory(
-                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
+                EvalMapper.toEvaluator(
+                    context.foldCtx(),
+                    condition,
+                    source.layout,
+                    context.shardContexts,
+                    context.analysisRegistry(),
+                    context.plannerSettings
+                )
             ),
             source.layout
         );
@@ -2804,6 +2991,16 @@ public class LocalExecutionPlanner {
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
     }
 
+    private PhysicalOperation planFetch(FetchExec fetch, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fetch.child(), context);
+        Layout.ChannelAndType doc = source.layout.get(fetch.doc().id());
+        if (doc == null || doc.type() != DataType.DOC_DATA_TYPE) {
+            throw new IllegalStateException("fetch reads documents from [" + fetch.doc() + "] but the input has " + doc);
+        }
+        Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
+        return source.with(fetchOperators.fetchOperator(fetch, doc.channel()), layout);
+    }
+
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
@@ -2813,6 +3010,34 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        int docChannel = -1;
+        for (Attribute attribute : expand.child().output()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                docChannel = source.layout.get(attribute.id()).channel();
+                break;
+            }
+        }
+        if (docChannel < 0) {
+            throw new IllegalStateException("NESTED_EXPAND requires [_doc]");
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.append(expand.expanded());
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        // Enumeration does not depend on how many child columns remain after pruning.
+        NestedChildren.Factory children = NestedChildren.factory(
+            context.shardContexts,
+            expand.path(),
+            expand.paths(),
+            types,
+            expand.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+            context.plannerSettings,
+            configuration
+        );
+        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {
@@ -2903,8 +3128,12 @@ public class LocalExecutionPlanner {
      */
     public static class PhysicalOperation {
         final SourceOperatorFactory sourceOperatorFactory;
+        final String sourcePlanNodeId;
         final List<OperatorFactory> intermediateOperatorFactories;
+        /** Parallel to {@link #intermediateOperatorFactories}. Null entries are filled by {@link #tagPlanNode}. */
+        final List<String> intermediatePlanNodeIds;
         final SinkOperatorFactory sinkOperatorFactory;
+        final String sinkPlanNodeId;
 
         final Layout layout; // maps field names to channels
 
@@ -2945,8 +3174,11 @@ public class LocalExecutionPlanner {
 
         private PhysicalOperation(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             this.sourceOperatorFactory = sourceOperatorFactory;
+            this.sourcePlanNodeId = null;
             this.intermediateOperatorFactories = List.of();
+            this.intermediatePlanNodeIds = List.of();
             this.sinkOperatorFactory = null;
+            this.sinkPlanNodeId = null;
             this.layout = layout;
         }
 
@@ -2957,13 +3189,110 @@ public class LocalExecutionPlanner {
             Layout layout
         ) {
             sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            this.sourcePlanNodeId = physicalOperation.sourcePlanNodeId;
             this.intermediateOperatorFactories = new ArrayList<>(
                 physicalOperation.intermediateOperatorFactories.size() + intermediateOperatorFactories.size()
             );
             this.intermediateOperatorFactories.addAll(physicalOperation.intermediateOperatorFactories);
             this.intermediateOperatorFactories.addAll(intermediateOperatorFactories);
+            this.intermediatePlanNodeIds = new ArrayList<>(physicalOperation.intermediatePlanNodeIds);
+            this.intermediatePlanNodeIds.addAll(Collections.nCopies(intermediateOperatorFactories.size(), null));
             this.sinkOperatorFactory = sinkOperatorFactory.isPresent() ? sinkOperatorFactory.get() : null;
+            // with() clears the sink; withSink installs a new one that has not been tagged yet.
+            this.sinkPlanNodeId = null;
             this.layout = layout;
+        }
+
+        private PhysicalOperation(
+            PhysicalOperation physicalOperation,
+            String sourcePlanNodeId,
+            List<String> intermediatePlanNodeIds,
+            String sinkPlanNodeId
+        ) {
+            this.sourceOperatorFactory = physicalOperation.sourceOperatorFactory;
+            this.sourcePlanNodeId = sourcePlanNodeId;
+            this.intermediateOperatorFactories = physicalOperation.intermediateOperatorFactories;
+            this.intermediatePlanNodeIds = intermediatePlanNodeIds;
+            this.sinkOperatorFactory = physicalOperation.sinkOperatorFactory;
+            this.sinkPlanNodeId = sinkPlanNodeId;
+            this.layout = physicalOperation.layout;
+        }
+
+        /**
+         * Fills plan-node ids that are still null with {@code planNodeId}. Ids already set (child operators)
+         * are kept. Called once per physical plan node after that node's operators have been appended.
+         */
+        PhysicalOperation tagPlanNode(String planNodeId) {
+            return new PhysicalOperation(
+                this,
+                Objects.requireNonNullElse(sourcePlanNodeId, planNodeId),
+                intermediatePlanNodeIds.stream().map(id -> Objects.requireNonNullElse(id, planNodeId)).toList(),
+                sinkOperatorFactory == null ? null : Objects.requireNonNullElse(sinkPlanNodeId, planNodeId)
+            );
+        }
+
+        /**
+         * Identity map from the operators this operation just built to their plan-node ids.
+         * Operators with a null id are omitted so PROFILE leaves {@code plan_node_id} out.
+         */
+        Map<Operator, String> planNodeIds(SourceOperator source, List<Operator> operators, SinkOperator sink) {
+            if (operators.size() != intermediatePlanNodeIds.size()) {
+                throw new IllegalStateException(
+                    "operator count [" + operators.size() + "] != plan node id count [" + intermediatePlanNodeIds.size() + "]"
+                );
+            }
+            Map<Operator, String> ids = new IdentityHashMap<>();
+            if (source != null && sourcePlanNodeId != null) {
+                ids.put(source, sourcePlanNodeId);
+            }
+            for (int i = 0; i < operators.size(); i++) {
+                String id = intermediatePlanNodeIds.get(i);
+                if (id != null) {
+                    ids.put(operators.get(i), id);
+                }
+            }
+            if (sink != null && sinkPlanNodeId != null) {
+                ids.put(sink, sinkPlanNodeId);
+            }
+            return ids;
+        }
+
+        /**
+         * Writes the operator factories of this driver, in pipeline order, each with the id of the physical plan node it was built
+         * from. These are the same ids PROFILE reports as {@code plan_node_id}, and that the plan JSON uses as node {@code id}.
+         * The source and the sink also say which exchange they are one side of, like PROFILE does.
+         *
+         * @param exchangeIdsByPlanNode the exchange id of each exchange node of the plan, by the id of the node
+         */
+        void operatorsToXContent(XContentBuilder builder, Map<String, String> exchangeIdsByPlanNode) throws IOException {
+            builder.startArray("operators");
+            operatorToXContent(builder, "source", sourceOperatorFactory, sourcePlanNodeId, exchangeIdsByPlanNode);
+            for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
+                // Only the source and the sink are part of an exchange
+                operatorToXContent(builder, "operator", intermediateOperatorFactories.get(i), intermediatePlanNodeIds.get(i), Map.of());
+            }
+            operatorToXContent(builder, "sink", sinkOperatorFactory, sinkPlanNodeId, exchangeIdsByPlanNode);
+            builder.endArray();
+        }
+
+        private static void operatorToXContent(
+            XContentBuilder builder,
+            String role,
+            Describable factory,
+            String planNodeId,
+            Map<String, String> exchangeIdsByPlanNode
+        ) throws IOException {
+            builder.startObject();
+            builder.field("role", role);
+            builder.field("factory", factory == null ? null : factory.describe());
+            if (planNodeId != null) {
+                builder.field("plan_node_id", planNodeId);
+                String exchangeId = exchangeIdsByPlanNode.get(planNodeId);
+                if (exchangeId != null) {
+                    builder.field("exchange_id", exchangeId);
+                }
+            }
+            builder.endObject();
         }
 
         public SourceOperator source(DriverContext driverContext) {
@@ -3092,7 +3421,9 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        Settings settings
+        Settings settings,
+        /** Exchange id by the id of the plan node that is one side of the exchange. */
+        Map<String, String> exchangeIdsByPlanNode
     ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
@@ -3111,8 +3442,12 @@ public class LocalExecutionPlanner {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
+                // The ids are worked out before success is set. This throws if the operators do not match the plan nodes they came from,
+                // and the operators and the breaker must be released if it does.
+                Map<Operator, String> planNodeIds = physicalOperation.planNodeIds(source, operators, sink);
+                Map<Operator, String> exchangeIds = exchangeIdsOf(planNodeIds, source, sink);
                 success = true;
-                return new Driver(
+                Driver driver = new Driver(
                     sessionId,
                     description,
                     clusterName,
@@ -3127,11 +3462,29 @@ public class LocalExecutionPlanner {
                     statusInterval,
                     localBreaker
                 );
+                driver.setPlanNodeIds(planNodeIds);
+                driver.setExchangeIds(exchangeIds);
+                return driver;
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
                 }
             }
+        }
+
+        /**
+         * The exchange of the driver's source and sink operators, when their plan node is one side of an exchange. Only those two are
+         * part of the exchange, so no other operator is given the id, whichever plan node it reports.
+         */
+        private Map<Operator, String> exchangeIdsOf(Map<Operator, String> planNodeIds, SourceOperator source, SinkOperator sink) {
+            Map<Operator, String> exchangeIds = new IdentityHashMap<>();
+            for (Operator operator : new Operator[] { source, sink }) {
+                String exchangeId = exchangeIdsByPlanNode.get(planNodeIds.get(operator));
+                if (exchangeId != null) {
+                    exchangeIds.put(operator, exchangeId);
+                }
+            }
+            return exchangeIds;
         }
 
         @Override
@@ -3141,6 +3494,15 @@ public class LocalExecutionPlanner {
     }
 
     record DriverFactory(DriverSupplier driverSupplier, DriverParallelism driverParallelism) implements Describable {
+        void toXContent(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("description", driverSupplier.description());
+            builder.field("instances", driverParallelism.instanceCount());
+            builder.field("parallelism", driverParallelism.type().name().toLowerCase(Locale.ROOT));
+            driverSupplier.physicalOperation().operatorsToXContent(builder, driverSupplier.exchangeIdsByPlanNode());
+            builder.endObject();
+        }
+
         @Override
         public String describe() {
             return "DriverFactory(instances = "
@@ -3184,6 +3546,25 @@ public class LocalExecutionPlanner {
         @Override
         public String describe() {
             return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
+        }
+
+        /**
+         * The same drivers as {@link #describe()}, as pretty JSON for the {@code plan.json} logger. Each operator carries the
+         * {@code plan_node_id} of the physical plan node it came from, so a visualizer can tie the drivers back to the plan.
+         */
+        public String toPrettyJsonString() {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
+                builder.startObject();
+                builder.startArray("drivers");
+                for (DriverFactory driverFactory : driverFactories) {
+                    driverFactory.toXContent(builder);
+                }
+                builder.endArray();
+                builder.endObject();
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 }

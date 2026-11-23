@@ -22,7 +22,7 @@ public class DiversifyingNearestChildrenKnnCollectorTests extends ESTestCase {
         DiversifyingNearestChildrenKnnCollector collector = new DiversifyingNearestChildrenKnnCollector(
             2,
             1000,
-            new IVFKnnSearchStrategy(0.5f, 100, 2, null),
+            new IVFKnnSearchStrategy(0.5f, 100, 2, null, QueryTransformCache.NONE),
             parents
         );
 

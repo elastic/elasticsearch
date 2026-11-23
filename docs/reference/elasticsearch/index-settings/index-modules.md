@@ -185,7 +185,7 @@ $$$index-refresh-interval-setting$$$
 
     The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In {{serverless-short}}, `5s` is also the minimum value that can be set.
 
-    In both cases, the setting can be set to `-1` to disable refresh.
+    In both cases, the setting can be set to `-1` to disable periodic refresh operations. This does not fully prevent indexed documents becoming visible to search, because there are mechanisms within {{es}} which perform refresh operations other than the periodic refresh.
 
 $$$index-max-result-window$$$
 
@@ -238,7 +238,12 @@ $$$index-max-terms-count$$$
 $$$index-max-regex-length$$$
 
 `index.max_regex_length`
-:   The maximum length of value that can be used in `regexp` or `prefix` query. Defaults to `1000`.
+:   The maximum length of value that can be used in the following places:
+
+    * A `regexp` or `prefix` query.
+    * {applies_to}`stack: ga 9.7` The regular expression in the `include` and `exclude` parameters of the `terms`, `significant_terms`, `significant_text`, `rare_terms` and `frequent_item_sets` aggregations.
+
+    Defaults to `1000`.
 
 $$$index-query-default-field$$$
 

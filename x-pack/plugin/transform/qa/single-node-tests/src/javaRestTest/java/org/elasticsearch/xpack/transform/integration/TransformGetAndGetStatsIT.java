@@ -15,6 +15,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
@@ -26,7 +27,9 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -263,6 +266,24 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         verifyGetResponse(getTransformEndpoint() + "_all", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "*", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "pivot_*", 2, expectedErrors);
+        // size=0 must still page through every transform id to find the dangling task, and terminate
+        verifyGetResponse(getTransformEndpoint() + "_all?size=0", 2, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "_all?from=1&size=0", 2, expectedErrors);
+        // once the timeout has passed, the configs are returned without the dangling task check, and with a warning;
+        // a negative timeout has always counted as already passed
+        for (var timeout : List.of("1nanos", "-1", "-1s")) {
+            var request = createRequestWithAuth(
+                "GET",
+                getTransformEndpoint() + "_all?size=0&timeout=" + timeout,
+                BASIC_AUTH_VALUE_TRANSFORM_USER
+            );
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            var response = client().performRequest(request);
+            assertThat(response.getWarnings(), contains(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_TIMED_OUT));
+            var transforms = entityAsMap(response);
+            assertThat(XContentMapValues.extractValue("count", transforms), is(equalTo(2)));
+            assertThat(XContentMapValues.extractValue("errors", transforms), is(nullValue()));
+        }
         verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);
@@ -601,6 +622,14 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         // getting all transform will not have any errors
         assertThat(getAllTransformIds(), containsInAnyOrder(transformId1, transformId2));
+
+        // size=0 returns the count without any configs or errors
+        for (var from : List.of(0, 1)) {
+            var transforms = getTransforms(from, 0);
+            assertThat(transforms.get("count"), equalTo(2));
+            assertThat((List<?>) transforms.get("transforms"), empty());
+            assertThat(transforms.get("errors"), is(nullValue()));
+        }
 
         // getting a stopped transform 1 will not have any errors for transform 2
         stopTransform(transformId1, false);

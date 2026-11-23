@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -58,6 +59,7 @@ public class FieldSemanticsTests extends ESTestCase {
             meta,
             null,
             0,
+            false,
             false
         );
     }
@@ -74,7 +76,7 @@ public class FieldSemanticsTests extends ESTestCase {
         FieldSemantics counter = of(caps("bytes", "long", false, TimeSeriesParams.MetricType.COUNTER, Map.of("unit", "By")));
         assertThat(counter.role(), equalTo(FieldSemantics.Role.METRIC));
         assertThat(counter.metricType(), equalTo("counter"));
-        assertThat(counter.unit(), equalTo("By"));
+        assertThat(counter.units(), contains("By"));
     }
 
     public void testRolesInferredFromTypes() {
@@ -101,8 +103,8 @@ public class FieldSemanticsTests extends ESTestCase {
 
     public void testDescriptionFromMeta() {
         FieldSemantics field = of(caps("latency", "double", false, null, Map.of("unit", "ms", "description", "Request latency")));
-        assertThat(field.unit(), equalTo("ms"));
-        assertThat(field.description(), equalTo("Request latency"));
+        assertThat(field.units(), contains("ms"));
+        assertThat(field.descriptions(), contains("Request latency"));
     }
 
     public void testMergesAcrossIndices() {
@@ -111,13 +113,13 @@ public class FieldSemanticsTests extends ESTestCase {
             caps("latency", "double", false, TimeSeriesParams.MetricType.GAUGE, Map.of("unit", "ms"))
         );
         assertThat(agree.role(), equalTo(FieldSemantics.Role.METRIC));
-        assertThat(agree.unit(), equalTo("ms"));
+        assertThat(agree.units(), contains("ms"));
 
         FieldSemantics units = of(
             caps("latency", "double", false, TimeSeriesParams.MetricType.GAUGE, Map.of("unit", "ms")),
             caps("latency", "double", false, TimeSeriesParams.MetricType.GAUGE, Map.of("unit", "s"))
         );
-        assertThat("disagreeing units are all reported", units.unit(), equalTo("ms,s"));
+        assertThat("disagreeing units are all reported", units.units(), contains("ms", "s"));
 
         FieldSemantics roles = of(
             caps("value", "long", false, TimeSeriesParams.MetricType.COUNTER, Map.of()),
@@ -130,6 +132,22 @@ public class FieldSemanticsTests extends ESTestCase {
             caps("value", "long", false, TimeSeriesParams.MetricType.GAUGE, Map.of())
         );
         assertThat(types.metricType(), equalTo("mixed"));
+    }
+
+    public void testMergesAcrossBranches() {
+        FieldSemantics ms = of(caps("latency", "double", false, null, Map.of("unit", "ms", "description", "Latency, in ms")));
+        FieldSemantics s = of(caps("latency", "double", false, TimeSeriesParams.MetricType.GAUGE, Map.of("unit", "s")));
+
+        FieldSemantics merged = FieldSemantics.merge(ms, s);
+        assertThat(merged.field(), equalTo("latency"));
+        assertThat(merged.role(), equalTo(FieldSemantics.Role.MIXED));
+        assertThat(merged.metricType(), equalTo("gauge"));
+        assertThat(merged.units(), contains("ms", "s"));
+        assertThat("a description with a comma stays whole", merged.descriptions(), contains("Latency, in ms"));
+        assertThat(FieldSemantics.merge(merged, ms), equalTo(merged));
+
+        FieldSemantics other = of(caps("duration", "double", false, null, Map.of("unit", "ms")));
+        assertThat("branches that read different fields have none", FieldSemantics.merge(ms, other), nullValue());
     }
 
     public void testOnlyBuiltWhenNeeded() {
@@ -154,7 +172,8 @@ public class FieldSemanticsTests extends ESTestCase {
             false,
             needsFieldSemantics,
             false,
-            null
+            null,
+            false
         );
         return IndexResolver.mergedMappings("idx", false, info, false, IndexResolver.DO_NOT_GROUP).get().fieldSemantics();
     }

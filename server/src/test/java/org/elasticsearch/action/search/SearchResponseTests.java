@@ -9,16 +9,22 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -26,15 +32,18 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
@@ -47,33 +56,43 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchResponseTests extends ESTestCase {
 
@@ -107,7 +126,7 @@ public class SearchResponseTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -133,6 +152,298 @@ public class SearchResponseTests extends ESTestCase {
         sections.close();
         assertEquals(0L, breaker.getUsed());
     }
+
+    /** The serialized size, plus the heap of each hit apart from its source, stays charged until the response is released. */
+    public void testChargeReadResponseHoldsTheChargeUntilReleased() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        SearchResponse response = SearchResponseMergerTests.responseWithHits("remote", 3, 100f);
+        long serializedBytes = randomLongBetween(0, ByteSizeUnit.MB.toBytes(1));
+        long hitsBytes = 0;
+        for (SearchHit hit : response.getHits().getHits()) {
+            hitsBytes += hit.ramBytesUsed() - hit.rawSourceLength();
+        }
+        assertThat(hitsBytes, greaterThanOrEqualTo(3 * SearchHitRamUsageEstimator.BASE_BYTES));
+        response.chargeReadResponse(breaker, serializedBytes, "<read_response>");
+        assertEquals(serializedBytes + hitsBytes, breaker.getUsed());
+
+        response.decRef();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testAggregationChargeReleasesOnLastDecRef() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 8192L;
+        breaker.addWithoutBreaking(bytes);
+        SearchResponse response = new SearchResponse(
+            emptySections(),
+            null,
+            1,
+            1,
+            0,
+            0,
+            List.of(),
+            SearchResponse.Clusters.EMPTY,
+            null,
+            null,
+            null
+        );
+        response.adoptAggregationCharge(() -> breaker.addWithoutBreaking(-bytes));
+        assertTrue(response.hasAggregationCharge());
+
+        // Such as the REST layer, which keeps the response until it is sent.
+        response.mustIncRef();
+        response.decRef();
+        assertEquals(bytes, breaker.getUsed());
+
+        response.decRef();
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    public void testChargeReadResponseTripChargesNothing() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1kb");
+        SearchResponse response = SearchResponseMergerTests.responseWithHits("remote", 3, 100f);
+        try {
+            CircuitBreakingException e = expectThrows(
+                CircuitBreakingException.class,
+                () -> response.chargeReadResponse(breaker, ByteSizeUnit.KB.toBytes(2), "<read_response>")
+            );
+            assertThat(e.getMessage(), containsString("[<read_response>]"));
+            assertEquals(0L, breaker.getUsed());
+        } finally {
+            response.decRef();
+        }
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Checks that {@link SearchResponse#chargeReadResponse} charges between 0.9x and 4x the heap of a response read from a releasable
+     * buffer, as the transport does. Hits vary in field count, values per field, value type and each other part, with and without a
+     * source. A source is a slice that keeps the buffer, which the serialized size covers. Without one the buffer is freed but still
+     * charged, which the upper bound allows for. Types that {@link RamUsageEstimator#sizeOfObject(Object)} sizes at its default are
+     * checked against the lower bound only, since the default is several times a boxed value's heap.
+     */
+    public void testChargeReadResponseStaysWithinBoundsOfTheReadResponse() throws IOException {
+        assumeTrue("the estimates are measured with compressed object pointers", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        List<Supplier<Object>> valueTypes = List.of(
+            () -> randomAlphaOfLength(between(1, 8)),
+            () -> randomAlphaOfLength(between(100, 300)),
+            ESTestCase::randomLong,
+            ESTestCase::randomDouble,
+            ESTestCase::randomBoolean
+        );
+        for (int fieldsPerHit : new int[] { 0, 1, 20 }) {
+            for (int valuesPerField : new int[] { 1, 10 }) {
+                for (Supplier<Object> valueType : valueTypes) {
+                    Object sample = valueType.get();
+                    boolean sizedAtDefault = sample instanceof String == false
+                        && RamUsageEstimator.sizeOfObject(sample) == RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED;
+                    for (boolean withSource : new boolean[] { false, true }) {
+                        String scenario = Strings.format(
+                            "[%d] fields per hit, [%d] values per field of [%s], source [%s]",
+                            fieldsPerHit,
+                            valuesPerField,
+                            sample.getClass().getSimpleName(),
+                            withSource
+                        );
+                        assertReadResponseChargeWithinBounds(scenario, withSource, hit -> {
+                            Map<String, DocumentField> fields = new HashMap<>();
+                            for (int f = 0; f < fieldsPerHit; f++) {
+                                List<Object> values = new ArrayList<>();
+                                for (int v = 0; v < valuesPerField; v++) {
+                                    values.add(valueType.get());
+                                }
+                                fields.put("field-" + f, new DocumentField("field-" + f, values));
+                            }
+                            hit.addDocumentFields(fields, Map.of());
+                        }, sizedAtDefault == false);
+                    }
+                }
+            }
+        }
+
+        List<Tuple<String, Consumer<SearchHit>>> parts = List.of(Tuple.tuple("highlights", hit -> {
+            Text[] fragments = new Text[3];
+            for (int i = 0; i < fragments.length; i++) {
+                fragments[i] = new Text(randomAlphaOfLength(100));
+            }
+            hit.highlightFields(Map.of("body", new HighlightField("body", fragments)));
+        }), Tuple.tuple("explanation", hit -> hit.explanation(bm25Explanation(5))), Tuple.tuple("inner hits", hit -> {
+            SearchHit[] innerHits = new SearchHit[3];
+            for (int i = 0; i < innerHits.length; i++) {
+                innerHits[i] = new SearchHit(i, "inner-" + i);
+                innerHits[i].setDocumentField(new DocumentField("inner-field", List.of(randomAlphaOfLength(16))));
+            }
+            hit.setInnerHits(Map.of("nested", new SearchHits(innerHits, new TotalHits(innerHits.length, TotalHits.Relation.EQUAL_TO), 1f)));
+        }), Tuple.tuple("matched queries", hit -> {
+            Map<String, Float> matchedQueries = new LinkedHashMap<>();
+            for (int i = 0; i < 5; i++) {
+                matchedQueries.put("query-" + i, randomFloat());
+            }
+            hit.matchedQueries(matchedQueries);
+        }),
+            Tuple.tuple(
+                "metadata fields",
+                hit -> hit.addDocumentFields(Map.of(), Map.of("_routing", new DocumentField("_routing", List.of(randomAlphaOfLength(8)))))
+            ),
+            Tuple.tuple(
+                "sort values",
+                hit -> hit.sortValues(
+                    new Object[] { new BytesRef(randomAlphaOfLength(between(1, 100))), randomLong() },
+                    new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
+                )
+            )
+        );
+        for (Tuple<String, Consumer<SearchHit>> part : parts) {
+            for (boolean withSource : new boolean[] { false, true }) {
+                String scenario = Strings.format("[%s], source [%s]", part.v1(), withSource);
+                assertReadResponseChargeWithinBounds(scenario, withSource, part.v2(), true);
+            }
+        }
+    }
+
+    /** A BM25 explanation of a disjunction of {@code terms} terms, as {@code explain: true} returns for a match query. */
+    private static Explanation bm25Explanation(int terms) {
+        Explanation[] perTerm = new Explanation[terms];
+        for (int t = 0; t < terms; t++) {
+            Explanation idf = Explanation.match(
+                1.2f,
+                "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                Explanation.match(10L, "n, number of documents containing term"),
+                Explanation.match(1000L, "N, total number of documents with field")
+            );
+            Explanation tf = Explanation.match(
+                0.4f,
+                "tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                Explanation.match(1.0f, "freq, occurrences of term within document"),
+                Explanation.match(1.2f, "k1, term saturation parameter"),
+                Explanation.match(0.75f, "b, length normalization parameter"),
+                Explanation.match(12.0f, "dl, length of field"),
+                Explanation.match(10.5f, "avgdl, average length of field")
+            );
+            perTerm[t] = Explanation.match(
+                1.1f,
+                "weight(body:term" + t + " in " + t + ") [PerFieldSimilarity], result of:",
+                Explanation.match(1.1f, "score(freq=1.0), computed as boost * idf * tf from:", Explanation.match(2.2f, "boost"), idf, tf)
+            );
+        }
+        return Explanation.match(5.5f, "sum of:", perTerm);
+    }
+
+    private void assertReadResponseChargeWithinBounds(
+        String scenario,
+        boolean withSource,
+        Consumer<SearchHit> buildHit,
+        boolean checkUpperBound
+    ) throws IOException {
+        SearchHit[] hits = new SearchHit[20];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = new SearchHit(i, "id-" + i);
+            if (withSource) {
+                hits[i].sourceRef(new BytesArray("{\"payload\":\"" + randomAlphaOfLength(2048) + "\"}"));
+            }
+            buildHit.accept(hits[i]);
+        }
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
+        BytesReference serialized = serializeResponse(searchHits);
+        SearchResponse read = readFromReleasableBuffer(serialized);
+        try {
+            long measured = RamUsageTester.ramUsed(read, WITHOUT_LEAK_TRACKING);
+            CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+            read.chargeReadResponse(breaker, serialized.length(), "<read_response>");
+            long charged = breaker.getUsed();
+            String reason = Strings.format(
+                "%s: charged [%d] for [%d] serialized bytes, measured [%d], first hit [%d]",
+                scenario,
+                charged,
+                serialized.length(),
+                measured,
+                read.getHits().getAt(0).ramBytesUsed()
+            );
+            assertThat(reason, charged, greaterThanOrEqualTo(measured * 9 / 10));
+            if (checkUpperBound) {
+                assertThat(reason, charged, lessThanOrEqualTo(measured * 4));
+            }
+        } finally {
+            read.decRef();
+        }
+    }
+
+    /**
+     * Inner hit sources, at every level, are slices of the buffer the response was read from, like the outer source. So a larger
+     * source anywhere in the hit adds only its serialized bytes to the charge, and the rest of the charge stays the same.
+     */
+    public void testChargeReadResponseLeavesInnerHitSourcesToTheSerializedBytes() throws IOException {
+        long smallSources = chargeOverSerializedBytesOfHitWithTwoLevelsOfInnerHits(16);
+        long largeSources = chargeOverSerializedBytesOfHitWithTwoLevelsOfInnerHits(between(1024, 8192));
+        assertEquals(smallSources, largeSources);
+    }
+
+    /**
+     * Reads a response with one hit that has an inner hit with an inner hit of its own, each with a source of {@code sourceLength} chars,
+     * and returns its charge less the serialized bytes.
+     */
+    private long chargeOverSerializedBytesOfHitWithTwoLevelsOfInnerHits(int sourceLength) throws IOException {
+        String source = "{\"payload\":\"" + randomAlphaOfLength(sourceLength) + "\"}";
+        SearchHit secondLevel = new SearchHit(0, "second-level");
+        secondLevel.sourceRef(new BytesArray(source));
+        SearchHit firstLevel = new SearchHit(0, "first-level");
+        firstLevel.sourceRef(new BytesArray(source));
+        firstLevel.setInnerHits(
+            Map.of("second", new SearchHits(new SearchHit[] { secondLevel }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f))
+        );
+        SearchHit hit = new SearchHit(0, "outer");
+        hit.sourceRef(new BytesArray(source));
+        hit.setInnerHits(
+            Map.of("first", new SearchHits(new SearchHit[] { firstLevel }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f))
+        );
+        BytesReference serialized = serializeResponse(
+            new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f)
+        );
+
+        SearchResponse read = readFromReleasableBuffer(serialized);
+        try {
+            CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+            read.chargeReadResponse(breaker, serialized.length(), "<read_response>");
+            return breaker.getUsed() - serialized.length();
+        } finally {
+            read.decRef();
+        }
+    }
+
+    /** Serializes a response that holds {@code searchHits}, and releases both. */
+    private static BytesReference serializeResponse(SearchHits searchHits) throws IOException {
+        SearchResponse original = SearchResponseUtils.response(searchHits).build();
+        searchHits.decRef();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            original.writeTo(out);
+            return out.copyBytes();
+        } finally {
+            original.decRef();
+        }
+    }
+
+    /** Reads a response from a releasable buffer, as the transport does, so each source is a slice of the buffer. */
+    private SearchResponse readFromReleasableBuffer(BytesReference serialized) throws IOException {
+        ReleasableBytesReference buffer = ReleasableBytesReference.wrap(serialized);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(buffer.streamInput(), namedWriteableRegistry)) {
+            return new SearchResponse(in);
+        } finally {
+            // As the transport does once the response is read. The sources keep their own references to it.
+            buffer.decRef();
+        }
+    }
+
+    /** Leaves out the objects leak tracking adds to every hit, which production does not have, and keeps what they wrap. */
+    private static final RamUsageTester.Accumulator WITHOUT_LEAK_TRACKING = new RamUsageTester.Accumulator() {
+        @Override
+        public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+            if (o instanceof LeakTracker.TrackedResource) {
+                return 0;
+            }
+            long size = super.accumulateObject(o, shallowSize, fieldValues, queue);
+            return o.getClass().getEnclosingClass() == LeakTracker.class ? size - shallowSize : size;
+        }
+    };
 
     private static SearchResponseSections emptySections() {
         return new SearchResponseSections(
@@ -194,7 +505,7 @@ public class SearchResponseTests extends ESTestCase {
                     successfulShards,
                     skippedShards,
                     tookInMillis,
-                    shardSearchFailures,
+                    List.of(shardSearchFailures),
                     clusters
                 );
             } finally {
@@ -207,7 +518,7 @@ public class SearchResponseTests extends ESTestCase {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardSearchFailures,
+                List.of(shardSearchFailures),
                 clusters
             );
         }
@@ -224,7 +535,7 @@ public class SearchResponseTests extends ESTestCase {
         if (randomBoolean()) {
             return randomSimpleClusters();
         } else {
-            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, new ShardSearchFailure[0]);
+            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, List.of());
         }
     }
 
@@ -251,7 +562,7 @@ public class SearchResponseTests extends ESTestCase {
         int skippedClusters,
         int partialClusters,
         int failedClusters,
-        ShardSearchFailure[] failures
+        List<ShardSearchFailure> failures
     ) {
         assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
         assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
@@ -280,7 +591,6 @@ public class SearchResponseTests extends ESTestCase {
             int successfulShards;
             int skippedShards;
             int failedShards;
-            List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
                 failedShards = 0;
@@ -318,7 +628,7 @@ public class SearchResponseTests extends ESTestCase {
             if (status.equals(SearchResponse.Cluster.Status.SUCCESSFUL)) {
                 finalFailureList = Collections.emptyList();
             } else {
-                finalFailureList = failureList.subList(0, Math.min(failedShards, failureList.size()));
+                finalFailureList = failures.subList(0, Math.min(failedShards, failures.size()));
             }
             clusters.swapCluster(
                 cluster.getClusterAlias(),
@@ -424,8 +734,8 @@ public class SearchResponseTests extends ESTestCase {
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
-                for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                for (int i = 0; i < parsed.getShardFailures().size(); i++) {
+                    ShardSearchFailure parsedFailure = parsed.getShardFailures().get(i);
                     ShardSearchFailure originalFailure = failures[i];
                     assertEquals(originalFailure.index(), parsedFailure.index());
                     assertEquals(originalFailure.shard(), parsedFailure.shard());
@@ -468,7 +778,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -510,7 +820,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 new SearchResponse.Clusters(5, 3, 2)
             );
             try {
@@ -560,17 +870,8 @@ public class SearchResponseTests extends ESTestCase {
                 9,
                 2,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                createCCSClusterObject(
-                    4,
-                    3,
-                    true,
-                    1,
-                    1,
-                    1,
-                    1,
-                    new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("corrupt index")) }
-                )
+                List.of(),
+                createCCSClusterObject(4, 3, true, 1, 1, 1, 1, List.of(new ShardSearchFailure(new IllegalStateException("corrupt index"))))
             );
             try {
                 String expectedString = XContentHelper.stripWhitespace("""
@@ -692,23 +993,26 @@ public class SearchResponseTests extends ESTestCase {
         }
         // Test that shard failures are de-duplicated in ToXContent when the index name and exception message match
         {
-            ShardSearchFailure[] shardFailures = new ShardSearchFailure[SHARDS_PER_CLUSTER];
+            List<ShardSearchFailure> shardFailures = new ArrayList<>(SHARDS_PER_CLUSTER);
             // This is somewhat unrealistic, since createCCSClusterObject() has all clusters use the same array of shard failures, so the
             // cluster alias in the failures will not match the cluster alias of the cluster the failure appears in. For the purposes of
             // this test, this is acceptable, since we only care about checking that the similar failures are not duplicated
             int finalShardId = SHARDS_PER_CLUSTER - 1;
             for (int i = 0; i < finalShardId; i++) {
-                shardFailures[i] = new ShardSearchFailure(
-                    new IllegalStateException("corrupt index"),
-                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                shardFailures.add(
+                    new ShardSearchFailure(
+                        new IllegalStateException("corrupt index"),
+                        new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                    )
                 );
             }
             // Set the final failure to be different to make sure that it is still included
-            shardFailures[finalShardId] = new ShardSearchFailure(
-                new NullPointerException("NPE"),
-                new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+            shardFailures.add(
+                new ShardSearchFailure(
+                    new NullPointerException("NPE"),
+                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+                )
             );
-            ;
             SearchResponse response = new SearchResponse(
                 sHits,
                 null,
@@ -906,7 +1210,7 @@ public class SearchResponseTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -1089,15 +1393,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContentEmptyClusters() throws IOException {
-        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
-            null,
-            1,
-            1,
-            0,
-            1,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 1, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,

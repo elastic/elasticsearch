@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -93,6 +92,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
@@ -1159,6 +1159,80 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A cast that rewrites a node rebuilds the nodes above it, and the cast above must still use the view's mode. Under load,
+     * TO_DEGREES of the partially unmapped [foo] is rejected; the caller's default mode would convert it.
+     */
+    public void testUnionTypeCastAboveRewrittenNodeInsideLoadViewUsesTheViewsMode() {
+        partiallyUnmappedFoo().addView("v", """
+            SET unmapped_fields="load";
+            FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo)
+            """).statementError("FROM v", allOf(containsString("line 2:59 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+    }
+
+    /**
+     * The view's load mode reaches the subquery side of an IN inside the view, even when casts on both sides rebuild the join
+     * and the subquery nodes above them.
+     */
+    public void testUnionTypeCastInInSubqueryInsideLoadViewUsesTheViewsMode() {
+        partiallyUnmappedFoo().addView("v", """
+            SET unmapped_fields="load";
+            FROM idx* | EVAL s = TO_STRING(foo) | WHERE k IN (FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo) | KEEP k)
+            """).statementError("FROM v", allOf(containsString("line 2:109 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+    }
+
+    private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
+
+    /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
+    private TestAnalyzer partiallyUnmappedFoo() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("idx1", fieldResponseMap(Map.of("foo", "double", "k", "keyword"))),
+                fieldCapabilitiesIndexResponse("idx2", fieldResponseMap(Map.of("foo", "long", "k", "keyword"))),
+                fieldCapabilitiesIndexResponse("idx3", fieldResponseMap("k", "keyword"))
+            ),
+            List.of()
+        );
+        return analyzer().addIndex("idx*", mergedResolution("idx*", caps, true));
+    }
+
+    /**
+     * A caller SET keeps the view as its own branch. A bare time-series aggregation in that view only gets its implicit
+     * {@code _timeseries} column after the branch's columns are determined, and the view must still return it, in the same
+     * position as the view queried without SET, or its body run directly.
+     */
+    public void testCallerSetUnmappedKeepsImplicitTimeSeriesColumnOfView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        List<String> expected = List.of("rate", "_timeseries", "tbucket");
+        assertThat(outputNames(analyzer().addK8s().statement(body)), equalTo(expected));
+        assertThat(outputNames(analyzer().addK8s().addView("v", body).statement("FROM v")), equalTo(expected));
+        for (Function<String, String> set : List.<Function<String, String>>of(
+            AnalyzerUnmappedTestBase::setUnmappedNullify,
+            AnalyzerUnmappedTestBase::setUnmappedLoad,
+            AnalyzerUnmappedTestBase::setUnmappedLoadAll
+        )) {
+            assertThat(outputNames(analyzer().addK8s().addView("v", body).statement(set.apply("FROM v"))), equalTo(expected));
+        }
+    }
+
+    /**
+     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: a command that
+     * {@code LOAD_ALL} does not support, here {@code ROW}, is allowed in a view the caller reads with {@code LOAD_ALL}, but still
+     * rejected in a plain subquery next to it, which the caller's mode does reach. Use another command here when {@code ROW} is
+     * supported.
+     */
+    public void testLoadAllCommandAllowListStopsAtView() {
+        String body = "ROW a = 1";
+        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
+        analyzer().addK8s()
+            .addView("v", body)
+            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("ROW")));
+    }
+
+    private static List<String> outputNames(LogicalPlan plan) {
+        return plan.output().stream().map(Attribute::name).toList();
+    }
+
+    /**
      * The caller's setting answers a reference the view does not output with a null column at the view's output. The view
      * body is analysed without the setting, so its projections are plain {@link Project}s; surfacing the null column must
      * not reach into them, which would e.g. replace a RENAME's alias with a reference nothing produces, or let a field the
@@ -1192,12 +1266,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             assertNullFillAtViewOutput(test().addView("v", body), AnalyzerUnmappedTestBase::setUnmappedNullify, body);
             assertNullFillAtViewOutput(test().addView("v", body), AnalyzerUnmappedTestBase::setUnmappedLoad, body);
             // The view's own mode lets does_not_exist through its RENAME, so a loading caller is told the boundary null-filled it.
-            String remedy = viewMode.equals("load") ? "reference" : "SET unmapped_fields=\"load\" and reference";
             assertWarnings(
-                "SET unmapped_fields=\"load\" does not affect the contents of view [v], so field [does_not_exist] is null in its rows; "
-                    + "to load such fields, the view definition must "
-                    + remedy
-                    + " them itself"
+                "SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, "
+                    + "the view definition must reference it under SET unmapped_fields=\"load\": [does_not_exist] in view [v]"
             );
         }
     }
@@ -1602,6 +1673,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.UNSUPPORTED,       // not a real mapped field type
             DataType.DOC_DATA_TYPE,     // internal _doc type
             DataType.TSID_DATA_TYPE,    // internal _tsid type
+            DataType.TIME_SERIES_METADATA_DATA_TYPE, // internal _timeseries type
             DataType.SOURCE,            // internal _source type
             DataType.DATE_PERIOD,       // ESQL-internal, not an ES mapping type
             DataType.TIME_DURATION,     // ESQL-internal, not an ES mapping type
@@ -2075,44 +2147,182 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    private static final String VIEW_BOUNDARY_SINGULAR_ADVICE = "SET unmapped_fields does not affect the contents of a view, so this "
+        + "field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields=\"load\": ";
+    private static final String VIEW_BOUNDARY_PLURAL_ADVICE = "SET unmapped_fields does not affect the contents of views, so these "
+        + "fields are null in their rows; to load them, the view definitions must reference them under SET unmapped_fields=\"load\": ";
+
+    private static AnalyzerContext.ViewBoundary viewBoundary(String viewName) {
+        return new AnalyzerContext.ViewBoundary(null, viewName);
+    }
+
+    private static void addNullFills(
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills,
+        AnalyzerContext.ViewBoundary boundary,
+        String... fields
+    ) {
+        for (String field : fields) {
+            fills.add(new AnalyzerContext.ViewBoundaryNullFill(boundary, field));
+        }
+    }
+
     /**
-     * One warning per view boundary, in the order the fills were recorded, each naming a bounded list of fields.
+     * No null-fills, no warning; a single one reads in the singular.
      */
-    public void testViewBoundaryNullFillWarnings() {
-        var v1 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, null, "v1", null, false);
-        var v2 = new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD, "outer", "v2", "v3", false);
+    public void testViewBoundaryNullFillWarningSingle() {
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
-        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "a"));
-        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v2, "c"));
-        fills.add(new AnalyzerContext.ViewBoundaryNullFill(v1, "b"));
-        String suffix =
-            " null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself";
+        assertThat(Analyzer.viewBoundaryNullFillWarning(fills), nullValue());
+        addNullFills(fills, viewBoundary("v"), "a");
+        assertThat(Analyzer.viewBoundaryNullFillWarning(fills), equalTo(VIEW_BOUNDARY_SINGULAR_ADVICE + "[a] in view [v]"));
+    }
+
+    /**
+     * One warning for all view boundaries, with one entry per boundary in the order the fills were recorded. An entry names the
+     * view whose definition SET the mode when it is not the caller's.
+     */
+    public void testViewBoundaryNullFillWarningEntries() {
+        var v1 = viewBoundary("v1");
+        var v2 = new AnalyzerContext.ViewBoundary("outer", "v2");
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        addNullFills(fills, v1, "a");
+        addNullFills(fills, v2, "c");
+        addNullFills(fills, v1, "b");
         assertThat(
-            Analyzer.viewBoundaryNullFillWarnings(fills),
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(VIEW_BOUNDARY_PLURAL_ADVICE + "[a], [b] in view [v1]; [c] in view [v2] (SET by view [outer])")
+        );
+
+        // One view lacking two fields still reads as one view; one field lacking from two views still reads as one field.
+        fills.clear();
+        addNullFills(fills, v1, "a", "b");
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            startsWith("SET unmapped_fields does not affect the contents of a view, so these fields are null in its rows; to load them")
+        );
+        fills.clear();
+        addNullFills(fills, v1, "a");
+        addNullFills(fills, v2, "a");
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            startsWith("SET unmapped_fields does not affect the contents of views, so this field is null in their rows; to load it")
+        );
+    }
+
+    /**
+     * Views that lack the same fields under the same SET share one entry, so an index pattern over many similar views stays short,
+     * also when their fields were filled in a different order. The same fields under another view's SET, or a different set of fields,
+     * get their own entry.
+     */
+    public void testViewBoundaryNullFillWarningMergesViewsWithSameFields() {
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        addNullFills(fills, viewBoundary("w0"), "a", "b");
+        addNullFills(fills, viewBoundary("w1"), "b", "a");
+        addNullFills(fills, viewBoundary("w2"), "a");
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "w3"), "a", "b");
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
             equalTo(
-                List.of(
-                    "SET unmapped_fields=\"load\" does not affect the contents of view [v1], so fields [a], [b] are" + suffix,
-                    "SET unmapped_fields=\"load\" in view [outer] does not affect the contents of view [v2] nested in view [v3], "
-                        + "so field [c] is"
-                        + suffix
-                )
+                VIEW_BOUNDARY_PLURAL_ADVICE + "[a], [b] in views [w0], [w1]; [a] in view [w2]; [a], [b] in view [w3] (SET by view [outer])"
+            )
+        );
+    }
+
+    /**
+     * At most {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} views are named; entries that no longer fit are only counted, and
+     * their fields count only if no listed entry names them.
+     */
+    public void testViewBoundaryNullFillWarningCapsViews() {
+        int max = Analyzer.MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES;
+        int extra = randomIntBetween(1, 100);
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        StringBuilder listed = new StringBuilder();
+        for (int i = 0; i < max + extra; i++) {
+            addNullFills(fills, viewBoundary("w" + i), "a");
+            if (i < max) {
+                listed.append(i == 0 ? "" : ", ").append("[w").append(i).append("]");
+            }
+        }
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                "SET unmapped_fields does not affect the contents of views, so this field is null in their rows; to load it, the view "
+                    + "definitions must reference it under SET unmapped_fields=\"load\": [a] in views "
+                    + listed
+                    + " and ["
+                    + extra
+                    + "] more"
             )
         );
 
-        List<String> names = new ArrayList<>();
-        int extra = randomIntBetween(1, 100);
-        for (int i = 0; i < ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS + extra; i++) {
-            names.add("f" + i);
-        }
+        // Of the two entries that no longer fit, [a] is already named, so only [b] and [c] count as more fields.
+        addNullFills(fills, viewBoundary("x"), "a", "b");
+        addNullFills(fills, viewBoundary("y"), "c");
         assertThat(
-            Analyzer.viewBoundaryNullFillWarning(
-                new AnalyzerContext.ViewBoundary(UnmappedResolution.LOAD_ALL, null, "v", null, false),
-                names
-            ),
-            containsString(
-                "[f" + (ViewQuerySettings.MAX_LISTED_NAMES_IN_VIEW_WARNINGS - 1) + "] and [" + extra + "] more are null in its rows"
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                VIEW_BOUNDARY_PLURAL_ADVICE + "[a] in views " + listed + " and [" + extra + "] more; and [2] more fields in [2] more views"
             )
         );
+    }
+
+    /**
+     * The view that SET the mode counts against {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} too, as it is a view name the
+     * warning prints. An entry that no longer fits is only counted, while a later entry that still fits is listed.
+     */
+    public void testViewBoundaryNullFillWarningCountsEveryViewName() {
+        assertThat(Analyzer.MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES, equalTo(5));
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        for (int i = 1; i <= 4; i++) {
+            addNullFills(fills, viewBoundary("y" + i), "f" + i);
+        }
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x"), "b");
+        addNullFills(fills, viewBoundary("z"), "g");
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                VIEW_BOUNDARY_PLURAL_ADVICE
+                    + "[f1] in view [y1]; [f2] in view [y2]; [f3] in view [y3]; [f4] in view [y4]; [g] in view [z]; "
+                    + "and [1] more field in [1] more view"
+            )
+        );
+
+        // The name of the view that SET the mode uses up the budget once it is printed: it and x leave room for three more views.
+        fills.clear();
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x"), "a");
+        for (int i = 1; i <= 4; i++) {
+            addNullFills(fills, viewBoundary("y" + i), "f" + i);
+        }
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                VIEW_BOUNDARY_PLURAL_ADVICE
+                    + "[a] in view [x] (SET by view [outer]); [f1] in view [y1]; [f2] in view [y2]; [f3] in view [y3]; "
+                    + "and [1] more field in [1] more view"
+            )
+        );
+    }
+
+    /**
+     * At most {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_FIELDS} fields are named, counted across entries.
+     */
+    public void testViewBoundaryNullFillWarningCapsFields() {
+        int max = Analyzer.MAX_LISTED_VIEW_BOUNDARY_FIELDS;
+        int extra = randomIntBetween(1, 100);
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        addNullFills(fills, viewBoundary("v1"), "a", "b");
+        StringBuilder listed = new StringBuilder();
+        for (int i = 0; i < max - 2 + extra; i++) {
+            addNullFills(fills, viewBoundary("v2"), "f" + i);
+            if (i < max - 2) {
+                listed.append(i == 0 ? "" : ", ").append("[f").append(i).append("]");
+            }
+        }
+        addNullFills(fills, viewBoundary("v3"), "a");
+        String expected = VIEW_BOUNDARY_PLURAL_ADVICE + "[a], [b] in view [v1]; " + listed + " and [" + extra + "] more in view [v2]";
+        assertThat(Analyzer.viewBoundaryNullFillWarning(fills), equalTo(expected + "; and [1] more view"));
+
+        addNullFills(fills, viewBoundary("v4"), "g");
+        assertThat(Analyzer.viewBoundaryNullFillWarning(fills), equalTo(expected + "; and [1] more field in [2] more views"));
     }
 
     /**
@@ -2235,20 +2445,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
-     * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
+     * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, like any other source. A time-series
+     * aggregation drops the {@code _unmapped_fields} column like any STATS, and a TS query without one returns it.
      */
-    public void testLoadAllModeRejectsTimeSeriesCommand() {
-        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
-            .statementError(
-                setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
-                containsString(Verifier.loadAllUnsupportedCommandMessage("TS"))
-            );
-        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
-            .statementError(
-                setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
-                containsString(Verifier.loadAllUnsupportedCommandMessage("TS"))
-            );
+    public void testLoadAllModeAcceptsTimeSeriesCommand() {
+        LogicalPlan aggregated = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statement(setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"));
+        assertThat(outputNames(aggregated), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        LogicalPlan rows = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statement(setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"));
+        assertThat(outputNames(rows), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
     }
 
     /**
@@ -2296,6 +2502,47 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             setUnmappedNullify("PROMQL index=test step=5m sum(network.bytes_in) | EVAL x = does_not_exist"),
             containsString("Unknown column [does_not_exist]")
         );
+    }
+
+    /**
+     * PROMQL nullifies a missing label or metric, so the session analyzes any query containing PROMQL with NULLIFY. A caller
+     * SET keeps view boundaries, and the PROMQL body of a view without its own SET must still be nullified in its own scope
+     * rather than fail with "Unknown column". The same holds for a view that sets {@code unmapped_fields="default"}, which asks
+     * for PromQL's own behavior.
+     */
+    public void testCallerSetUnmappedNullifiesMissingLabelsInPromQlView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        for (String body : List.of(
+            "PROMQL index=k8s step=5m sum(network.total_bytes_in{no_such_label=\"x\"})",
+            "PROMQL index=k8s step=5m sum(no_such_metric)",
+            "SET unmapped_fields=\"default\"; PROMQL index=k8s step=5m sum(network.total_bytes_in{no_such_label=\"x\"})"
+        )) {
+            for (String query : List.of(setUnmappedNullify("FROM promql_view"), setUnmappedLoad("FROM promql_view"))) {
+                LogicalPlan plan = analyzer().addK8s().addView("promql_view", body).statement(query);
+                assertThat(body + " via " + query, plan.resolved(), is(true));
+            }
+        }
+    }
+
+    /** The PROMQL nullification stops at the view's output: a caller reference to a missing column is still null-filled. */
+    public void testCallerSetUnmappedNullifyAfterPromQlView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = analyzer().addK8s()
+            .addView("promql_view", "PROMQL index=k8s step=5m bytes=(sum(network.total_bytes_in{no_such_label=\"x\"}))")
+            .statement(setUnmappedNullify("FROM promql_view | KEEP bytes, step, does_not_exist"));
+        assertThat(plan.resolved(), is(true));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("bytes", "step", "does_not_exist")));
+    }
+
+    /** A non-PROMQL view keeps failing on its own missing columns: only PROMQL bodies get NULLIFY in the view's scope. */
+    public void testCallerSetUnmappedDoesNotNullifyNonPromQlViewBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        analyzer().addK8s()
+            .addView("ts_view", "TS k8s | STATS max(network.total_bytes_in) BY no_such_label")
+            .statementError(
+                setUnmappedNullify("FROM ts_view"),
+                allOf(containsString("in view [ts_view]"), containsString("Unknown column [no_such_label]"))
+            );
     }
 
     /**

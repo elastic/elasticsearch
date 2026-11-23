@@ -506,7 +506,8 @@ public final class DateFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 scriptValues(),
                 meta.getValue(),
-                readInArrayOrder
+                readInArrayOrder,
+                script.get() == null && docValuesParameters.getValue().multiValue() == false
             );
 
             Long nullTimestamp = parseNullValue(ft);
@@ -543,6 +544,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final FieldValues<Long> scriptValues;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final boolean staticallySingleValued;
 
         public DateFieldType(
             String name,
@@ -555,7 +557,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, false);
+            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, false, false);
         }
 
         public DateFieldType(
@@ -568,7 +570,8 @@ public final class DateFieldMapper extends FieldMapper {
             String nullValue,
             FieldValues<Long> scriptValues,
             Map<String, String> meta,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            boolean staticallySingleValued
         ) {
             super(name, indexType, isStored, meta);
             this.dateTimeFormatter = dateTimeFormatter;
@@ -578,6 +581,12 @@ public final class DateFieldMapper extends FieldMapper {
             this.scriptValues = scriptValues;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public DateFieldType(
@@ -650,6 +659,15 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateMathParser dateMathParser() {
             return dateMathParser;
+        }
+
+        /** Parses UTF-8 like {@link #parse(String)}, avoiding a String allocation on the fast path. */
+        public long parse(BytesRef value) {
+            long parsed = switch (resolution) {
+                case MILLISECONDS -> dateTimeFormatter().tryParseMillis(value.bytes, value.offset, value.length);
+                case NANOSECONDS -> dateTimeFormatter().tryParseNanos(value.bytes, value.offset, value.length);
+            };
+            return parsed == DateFormatter.DECLINED ? parse(value.utf8ToString()) : parsed;
         }
 
         // Visible for testing.
@@ -1183,7 +1201,6 @@ public final class DateFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final boolean ignoreMalformed;
     private final Long nullValue;
-    private final String nullValueAsString;
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
 
@@ -1215,7 +1232,6 @@ public final class DateFieldMapper extends FieldMapper {
             builder.indexSettings.getIndexVersionCreated()
         );
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
@@ -1243,7 +1259,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public boolean isNullable() {
-        return docValuesParameters.nullability() || nullValueAsString != null;
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override
@@ -1315,7 +1331,7 @@ public final class DateFieldMapper extends FieldMapper {
                     }
                     // else leave absent — no slot written, validity bit stays clear
                 } else {
-                    builder.setLong(doc, fieldType().parse(value.utf8ToString()));
+                    builder.setLong(doc, fieldType().parse(value));
                 }
             }
             return builder.finish(source.docCount());

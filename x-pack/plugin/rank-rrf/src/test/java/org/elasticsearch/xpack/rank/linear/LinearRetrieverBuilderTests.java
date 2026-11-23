@@ -14,11 +14,14 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.AbstractRetrieverBuilderTests;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.List;
@@ -688,5 +691,29 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
         assertTrue(rewrittenRetriever instanceof LinearRetrieverBuilder);
         LinearRetrieverBuilder actualRetrieverBuilder = (LinearRetrieverBuilder) rewrittenRetriever;
         assertEquals(originalRetriever.rankWindowSize(), actualRetrieverBuilder.rankWindowSize());
+    }
+
+    /**
+     * With {@code _score} in the sort the coordinator takes hit scores from the sort values, so the sub-search must not set
+     * {@code track_scores}: that would make the fetch phase re-run the query to re-score every hit.
+     */
+    public void testSubSearchDoesNotTrackScoresWhenSortedByScore() {
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(new ScoreSortBuilder())
+            .sort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+        assertFalse(newRetrieverForSourceTests().finalizeSourceBuilder(source).trackScores());
+    }
+
+    /** Without {@code _score} in the sort, scores are only available if tracked. */
+    public void testSubSearchTracksScoresWhenNotSortedByScore() {
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(new FieldSortBuilder("price"))
+            .sort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+        assertTrue(newRetrieverForSourceTests().finalizeSourceBuilder(source).trackScores());
+    }
+
+    private static LinearRetrieverBuilder newRetrieverForSourceTests() {
+        return new LinearRetrieverBuilder(
+            List.of(CompoundRetrieverBuilder.RetrieverSource.from(new StandardRetrieverBuilder(new MatchQueryBuilder("title", "x")))),
+            DEFAULT_RANK_WINDOW_SIZE
+        );
     }
 }

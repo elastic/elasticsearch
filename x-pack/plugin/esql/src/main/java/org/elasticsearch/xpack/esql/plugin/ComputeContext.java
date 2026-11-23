@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -14,12 +15,16 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.function.Supplier;
 
 /**
- * @param queryId the task of the query's coordinator in this cluster
+ * @param queryId        the task of the query's coordinator in this cluster
+ * @param load           where the time of a compute that reads no shard of its own is charged, or {@code null}
+ * @param fetchOperators the fetch operators of the plan. Only the coordinator of a query that plans the fetch phase has
+ *                       them.
  */
 record ComputeContext(
     String sessionId,
@@ -33,8 +38,13 @@ record ComputeContext(
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier,
     boolean singleNodeOptimizations,
-    @Nullable SharedSortBound sortBound
+    @Nullable SharedSortBound sortBound,
+    @Nullable TaskLoadAttribution.Target load,
+    FetchOperatorProvider fetchOperators
 ) {
+    /**
+     * For computes whose plans never fetch and share no sort bound.
+     */
     ComputeContext(
         String sessionId,
         TaskId queryId,
@@ -60,7 +70,9 @@ record ComputeContext(
             exchangeSourceSupplier,
             exchangeSinkSupplier,
             singleNodeOptimizations,
-            null
+            null,
+            null,
+            FetchOperatorProvider.UNSUPPORTED
         );
     }
 }

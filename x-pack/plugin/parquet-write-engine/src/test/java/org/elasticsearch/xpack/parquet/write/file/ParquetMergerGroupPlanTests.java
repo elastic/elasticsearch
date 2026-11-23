@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /** How the columns of a merge are split into groups for the threads. */
 public class ParquetMergerGroupPlanTests extends ESTestCase {
@@ -67,7 +68,7 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
             inputs.add(write(schema, file * 5_000L, 5_000, true));
         }
 
-        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, 2);
+        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, 2, 128L << 20);
         final List<MessageType> groups = plan.groups();
 
         assertThat(groups.size(), equalTo(Math.min(2 * ParquetMerger.GROUPS_PER_THREAD, numbers + 1)));
@@ -89,7 +90,7 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
         );
         final int parallelism = between(1, 40);
 
-        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, parallelism);
+        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, parallelism, 128L << 20);
         final List<MessageType> groups = plan.groups();
 
         assertThat(groups.size(), equalTo(parallelism == 1 ? 1 : Math.min(parallelism * ParquetMerger.GROUPS_PER_THREAD, columns)));
@@ -107,7 +108,7 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
             .addField(Types.optional(PrimitiveTypeName.INT64).named("a"))
             .addField(Types.optional(PrimitiveTypeName.INT64).named("b"))
             .named("doc");
-        assertThat(ParquetMerger.plan(List.of(write(schema, 0, 10, false)), schema, 1).groups(), equalTo(List.of(schema)));
+        assertThat(ParquetMerger.plan(List.of(write(schema, 0, 10, false)), schema, 1, 128L << 20).groups(), equalTo(List.of(schema)));
     }
 
     /** The groups meet after each input row group, so an input with a very large one would make the row groups of the output coarse. */
@@ -117,7 +118,60 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
             .addField(Types.optional(PrimitiveTypeName.INT64).named("b"))
             .named("doc");
         final ParquetMerger.Input large = write(schema, 0, 100_001, false);
-        assertThat(ParquetMerger.plan(List.of(large), schema, 4).groups(), equalTo(List.of(schema)));
+        assertThat(ParquetMerger.plan(List.of(large), schema, 4, 128L << 20).groups(), equalTo(List.of(schema)));
+    }
+
+    /**
+     * The groups meet after an epoch, and a row group is cut only there, so an epoch has to be a small part of a row group. With files of
+     * a few rows and a large row group an epoch is as many files as it can be, and the footers of that many files are held in memory.
+     */
+    public void testSmallFilesAndALargeRowGroupMakeEpochsOfManyInputs() throws Exception {
+        final MessageType schema = twoColumns();
+        final List<ParquetMerger.Input> inputs = new ArrayList<>();
+        for (int file = 0; file < 5; file++) {
+            inputs.add(write(schema, file * 10L, 10, false));
+        }
+
+        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, 4, 128L << 20);
+
+        assertThat(plan.inputsPerEpoch(), equalTo(ParquetMerger.MAX_INPUTS_PER_EPOCH));
+    }
+
+    /** A row group that is small for the rows of one file is cut after every file, as before the epochs. */
+    public void testASmallRowGroupMakesEpochsOfOneInput() throws Exception {
+        final MessageType schema = twoColumns();
+        final List<ParquetMerger.Input> inputs = new ArrayList<>();
+        for (int file = 0; file < 5; file++) {
+            inputs.add(write(schema, file * 1_000L, 1_000, false));
+        }
+
+        assertThat(ParquetMerger.plan(inputs, schema, 4, 1_024).inputsPerEpoch(), equalTo(1));
+        assertThat(ParquetMerger.plan(inputs, schema, 4, 100_000).inputsPerEpoch(), equalTo(1));
+    }
+
+    /** An epoch is more rows when the row group is larger, and never more than the limit. */
+    public void testTheEpochGrowsWithTheRowGroup() throws Exception {
+        final MessageType schema = twoColumns();
+        final List<ParquetMerger.Input> inputs = new ArrayList<>();
+        for (int file = 0; file < 5; file++) {
+            inputs.add(write(schema, file * 100L, 100, false));
+        }
+
+        final int small = ParquetMerger.plan(inputs, schema, 4, 64L << 10).inputsPerEpoch();
+        final int medium = ParquetMerger.plan(inputs, schema, 4, 1L << 20).inputsPerEpoch();
+        final int large = ParquetMerger.plan(inputs, schema, 4, 1L << 30).inputsPerEpoch();
+
+        assertTrue(small + " <= " + medium, small <= medium);
+        assertTrue(medium + " <= " + large, medium <= large);
+        assertThat(large, equalTo(ParquetMerger.MAX_INPUTS_PER_EPOCH));
+        assertThat(small, greaterThanOrEqualTo(1));
+    }
+
+    private static MessageType twoColumns() {
+        return Types.buildMessage()
+            .addField(Types.optional(PrimitiveTypeName.INT64).named("a"))
+            .addField(Types.optional(PrimitiveTypeName.INT64).named("b"))
+            .named("doc");
     }
 
     private static void assertCoverTheSchemaInOrder(List<MessageType> groups, MessageType schema) {

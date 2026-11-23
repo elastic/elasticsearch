@@ -290,20 +290,43 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
         assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     }
 
+    /**
+     * Many files of a few rows and a large row group make epochs of several files: the footers of an epoch are read once and every group
+     * copies all its files in order. The rows must be the same and in the same order as the row-wise merge writes them.
+     */
+    public void testTheParallelMergeOfManySmallFilesMatchesTheRowWiseMerge() throws Exception {
+        final ExecutorService executor = Executors.newFixedThreadPool(between(1, 4));
+        try {
+            assertMatchesTheRowWiseMerge(executor, between(2, 8), between(100, 250), between(1, 8), randomFrom(1L << 20, 8L << 20));
+        } finally {
+            terminate(executor);
+        }
+    }
+
     private void assertMatchesTheRowWiseMerge(Executor executor, int parallelism) throws Exception {
+        assertMatchesTheRowWiseMerge(
+            executor,
+            parallelism,
+            between(1, 5),
+            between(1, 3_000),
+            randomFrom(4_096L, 20_000L, 100_000L, 1L << 20)
+        );
+    }
+
+    private void assertMatchesTheRowWiseMerge(Executor executor, int parallelism, int files, int maxRowsOfAFile, long rowGroupBytes)
+        throws Exception {
         final List<Col> pool = new ArrayList<>();
         final int columns = between(1, 14);
         for (int i = 0; i < columns; i++) {
             pool.add(new Col("c" + i, randomFrom(Kind.values()), randomBoolean()));
         }
-        final int files = between(1, 5);
         final List<LocalParquetFiles.LocalFile> inputs = new ArrayList<>();
         int used = between(1, columns);
         long next = 0;
         for (int f = 0; f < files; f++) {
             // a later file may have more columns, as after a mapping update, and never fewer
             used = Math.min(columns, used + (rarely() ? 0 : between(0, 2)));
-            final int rows = between(1, 3_000);
+            final int rows = between(1, maxRowsOfAFile);
             inputs.add(writeFile(pool.subList(0, used), next, rows));
             next += rows;
         }
@@ -313,7 +336,6 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
             CompressionCodecName.SNAPPY,
             CompressionCodecName.ZSTD
         );
-        final long rowGroupBytes = randomFrom(4_096L, 20_000L, 100_000L, 1L << 20);
 
         final ParquetMerger.Merged actual = executor == null
             ? ParquetMerger.merge(directory, inputs, schema, "pqmerged_actual.parquet", codec, rowGroupBytes)

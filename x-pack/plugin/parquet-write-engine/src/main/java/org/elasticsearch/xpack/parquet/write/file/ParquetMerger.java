@@ -22,7 +22,9 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -146,19 +148,31 @@ public final class ParquetMerger {
     /** The fewest footers for each worker: a task costs more than reading a few footers. */
     private static final int MIN_FOOTERS_PER_WORKER = 64;
 
-    /**
-     * Fills {@code schemas} with the schema of each input: the workers take the next input until none is left. As in the merge, the
-     * first failure stops the others, and the method returns or throws only when every worker has ended.
-     */
+    /** Fills {@code schemas} with the schema of each input, on up to {@code workers} threads (see {@link #runParallel}). */
     private static void readSchemasInParallel(List<Input> inputs, MessageType[] schemas, Executor executor, int workers)
         throws IOException {
+        runParallel(executor, workers, new AtomicBoolean(), schemas.length, i -> schemas[i] = readSchema(inputs.get(i).file()));
+    }
+
+    /** One piece of work of {@link #runParallel}, by its number. */
+    @FunctionalInterface
+    private interface NumberedTask {
+        void run(int number) throws IOException;
+    }
+
+    /**
+     * Runs {@code task(0)} to {@code task(items - 1)} on up to {@code workers} threads: the calling thread and tasks of the executor. A
+     * worker takes the next number until none is left, so work of different sizes balances itself, and a worker that the executor rejects
+     * is not needed. The first failure makes the others stop before their next number, and the method returns or throws only when every
+     * worker has ended, because nothing may write to the output (or read a stream that the caller closes) after it returns.
+     */
+    private static void runParallel(Executor executor, int workers, AtomicBoolean failed, int items, NumberedTask task) throws IOException {
         final AtomicInteger next = new AtomicInteger();
-        final AtomicBoolean failed = new AtomicBoolean();
         final Callable<Void> worker = () -> {
             try {
-                int i;
-                while (failed.get() == false && (i = next.getAndIncrement()) < schemas.length) {
-                    schemas[i] = readSchema(inputs.get(i).file());
+                int number;
+                while (failed.get() == false && (number = next.getAndIncrement()) < items) {
+                    task.run(number);
                 }
                 return null;
             } catch (Exception | Error e) {
@@ -168,12 +182,12 @@ public final class ParquetMerger {
         };
         final List<FutureTask<Void>> tasks = new ArrayList<>(workers);
         for (int w = 1; w < workers; w++) {
-            final FutureTask<Void> task = new FutureTask<>(worker);
+            final FutureTask<Void> task1 = new FutureTask<>(worker);
             try {
-                executor.execute(task);
-                tasks.add(task);
+                executor.execute(task1);
+                tasks.add(task1);
             } catch (RuntimeException e) {
-                break; // the executor does not take it: the workers that run read its footers
+                break; // the executor does not take it (a rejection, or a shutdown): the workers that run take its numbers
             }
         }
         final FutureTask<Void> own = new FutureTask<>(worker);
@@ -271,7 +285,7 @@ public final class ParquetMerger {
         Executor executor,
         int parallelism
     ) throws IOException {
-        final Plan plan = executor == null ? Plan.serial(outputSchema) : plan(inputs, outputSchema, parallelism);
+        final Plan plan = executor == null ? Plan.serial(outputSchema) : plan(inputs, outputSchema, parallelism, rowGroupBytes);
         final List<MessageType> groups = plan.groups();
         long rows = 0;
         String tempName = null;
@@ -336,12 +350,21 @@ public final class ParquetMerger {
     static final int GROUPS_PER_THREAD = 2;
 
     /**
-     * The groups of the columns of a merge, and the order in which the threads take them (the most expensive first, so that the last
-     * groups that are taken are the cheap ones).
+     * How many row groups an epoch is a part of at most: a row group is cut only between epochs, so it is at most an epoch larger than
+     * {@code row_group_size}, which is an eighth of it.
      */
-    record Plan(List<MessageType> groups, int[] dispatchOrder) {
+    static final int EPOCHS_PER_ROW_GROUP = 8;
+
+    /** The most files of an epoch, so that the footers that an epoch holds in memory stay a few megabytes. */
+    static final int MAX_INPUTS_PER_EPOCH = 64;
+
+    /**
+     * The groups of the columns of a merge, the order in which the threads take them (the most expensive first, so that the last groups
+     * that are taken are the cheap ones), and how many inputs make an epoch.
+     */
+    record Plan(List<MessageType> groups, int[] dispatchOrder, int inputsPerEpoch) {
         static Plan serial(MessageType schema) {
-            return new Plan(List.of(schema), new int[] { 0 });
+            return new Plan(List.of(schema), new int[] { 0 }, 1);
         }
     }
 
@@ -350,8 +373,12 @@ public final class ParquetMerger {
      * same cost, or returns the whole schema as the only group when the merge has to be serial. The cost of a field is an estimate of the
      * time to encode its column chunks in a sample of the inputs, from the number of values and the bytes that they had before
      * compression.
+     *
+     * <p>An epoch is the number of inputs that is about an eighth of a row group of {@code rowGroupBytes}, from the bytes for each row and
+     * the rows for each input of the same sample, and at least one input. The bytes before compression of the inputs are at least what
+     * the writer buffers (it has dictionaries, they do not), so an epoch is not larger than an eighth of a row group.
      */
-    static Plan plan(List<Input> inputs, MessageType outputSchema, int parallelism) throws IOException {
+    static Plan plan(List<Input> inputs, MessageType outputSchema, int parallelism, long rowGroupBytes) throws IOException {
         final int fields = outputSchema.getFieldCount();
         final int wanted = (int) Math.min((long) parallelism * GROUPS_PER_THREAD, fields);
         if (parallelism < 2 || wanted < 2 || inputs.isEmpty()) {
@@ -359,6 +386,8 @@ public final class ParquetMerger {
         }
         final long[] weight = new long[fields];
         Arrays.fill(weight, 1); // a field that the sample lacks still costs something
+        long sampledRows = 0;
+        long sampledBytes = 0;
         final int samples = Math.min(inputs.size(), MAX_SAMPLED_FOOTERS);
         for (int sample = 0; sample < samples; sample++) {
             final Input input = inputs.get((int) ((long) sample * inputs.size() / samples));
@@ -367,7 +396,9 @@ public final class ParquetMerger {
                     if (block.getRowCount() > MAX_PARALLEL_INPUT_ROWS) {
                         return Plan.serial(outputSchema);
                     }
+                    sampledRows += block.getRowCount();
                     for (ColumnChunkMetaData chunk : block.getColumns()) {
+                        sampledBytes += chunk.getTotalUncompressedSize();
                         final String field = chunk.getPath().toArray()[0];
                         if (outputSchema.containsField(field)) {
                             weight[outputSchema.getFieldIndex(field)] += chunk.getValueCount() * NANOS_PER_VALUE + chunk
@@ -414,63 +445,53 @@ public final class ParquetMerger {
         for (int i = 0; i < wanted; i++) {
             dispatchOrder[i] = order[i];
         }
-        return new Plan(groups, dispatchOrder);
+        final long bytesPerRow = Math.max(1, sampledBytes / Math.max(1, sampledRows));
+        final long rowsPerInput = Math.max(1, sampledRows / samples);
+        final long epochRows = rowGroupBytes / bytesPerRow / EPOCHS_PER_ROW_GROUP;
+        final int inputsPerEpoch = (int) Math.max(1, Math.min(MAX_INPUTS_PER_EPOCH, epochRows / rowsPerInput));
+        return new Plan(groups, dispatchOrder, inputsPerEpoch);
     }
 
     /**
-     * Copies the inputs one after the other. For each input up to {@code parallelism} workers take the groups one at a time, the most
-     * expensive first: the calling thread is one worker and the executor runs the others. All are done before the next input starts,
-     * because the writer cuts a row group only between inputs. A worker that the executor rejects is not needed, because the others take
-     * its groups. A failure of one worker makes the others stop before their next group (and at their next row group of an input), and
-     * the method waits for all of them before it throws, because nothing may write to the output (or read a stream that the caller
-     * closes) after it returns.
+     * Copies the inputs in epochs of {@link Plan#inputsPerEpoch} inputs, one epoch after the other. For each epoch the footers of its
+     * inputs are read once, on up to {@code parallelism} threads, and then the threads take the groups one at a time (see
+     * {@link #runParallel}): a thread copies its group of the columns of every input of the epoch, in the order of the inputs, from the
+     * footers that are already read, into the page stores of that group. The groups meet after each epoch, and that is the only place where
+     * the writer cuts a row group. Reading a footer for every group of every input took 37% of the CPU of the merge with 2,000-row files,
+     * and a meeting after every input kept the threads waiting for each other.
      */
     private static long copyInParallel(List<Input> inputs, Plan plan, ColumnarParquetWriter writer, Executor executor, int parallelism)
         throws IOException {
         final List<MessageType> groups = plan.groups();
-        final int workers = Math.min(parallelism, groups.size());
         final AtomicBoolean failed = new AtomicBoolean();
         long rows = 0;
-        for (Input input : inputs) {
-            final AtomicInteger next = new AtomicInteger();
+        for (int start = 0; start < inputs.size(); start += plan.inputsPerEpoch()) {
+            final List<Input> epoch = inputs.subList(start, Math.min(inputs.size(), start + plan.inputsPerEpoch()));
+            final ParquetMetadata[] footers = new ParquetMetadata[epoch.size()];
+            runParallel(executor, Math.min(parallelism, epoch.size()), failed, epoch.size(), i -> footers[i] = readFooter(epoch.get(i)));
             final long[] groupRows = new long[groups.size()]; // each index is written by one worker, and read after all have ended
-            final Callable<Void> worker = () -> {
-                try {
-                    int i;
-                    while (failed.get() == false && (i = next.getAndIncrement()) < groups.size()) {
-                        final int group = plan.dispatchOrder()[i];
-                        groupRows[group] = copyGroup(input, group, groups.get(group), writer, failed);
-                    }
-                    return null;
-                } catch (Exception | Error e) {
-                    failed.set(true);
-                    throw e;
-                }
-            };
-            final List<FutureTask<Void>> tasks = new ArrayList<>(workers);
-            for (int w = 1; w < workers; w++) {
-                final FutureTask<Void> task = new FutureTask<>(worker);
-                try {
-                    executor.execute(task);
-                    tasks.add(task);
-                } catch (RuntimeException e) {
-                    break; // the executor does not take it (a rejection, or a shutdown): the workers that run take its groups
-                }
-            }
-            final FutureTask<Void> own = new FutureTask<>(worker);
-            own.run();
-            tasks.add(0, own);
-            await(tasks, failed);
+            runParallel(executor, Math.min(parallelism, groups.size()), failed, groups.size(), number -> {
+                final int group = plan.dispatchOrder()[number];
+                groupRows[group] = copyGroup(epoch, footers, group, groups.get(group), writer, failed);
+            });
             final long copied = groupRows[0];
             for (long groupCopied : groupRows) {
                 if (groupCopied != copied) {
-                    throw new IllegalStateException("the groups copied different numbers of rows of [" + input.name() + "]");
+                    throw new IllegalStateException(
+                        "the groups copied different numbers of rows of [" + epoch.get(0).name() + "] and after it"
+                    );
                 }
             }
             writer.inputDone(copied); // the one place where a row group can be cut
             rows += copied;
         }
         return rows;
+    }
+
+    private static ParquetMetadata readFooter(Input input) throws IOException {
+        try (SeekableInputStream stream = input.file().newStream()) {
+            return ParquetFileReader.readFooter(input.file(), readOptions(), stream);
+        }
     }
 
     /** Waits for all workers of one input, uninterruptibly. The first failure is thrown, and the others are added to it. */
@@ -515,15 +536,49 @@ public final class ParquetMerger {
         }
     }
 
-    /** The values of the columns of one group in the row groups of an input, to the page stores of that group. */
-    private static long copyGroup(Input input, int group, MessageType groupSchema, ColumnarParquetWriter writer, AtomicBoolean failed)
-        throws IOException {
-        if (failed.get()) {
-            return 0;
-        }
+    /** The values of the columns of one group in every input of an epoch, in the order of the inputs. */
+    private static long copyGroup(
+        List<Input> epoch,
+        ParquetMetadata[] footers,
+        int group,
+        MessageType groupSchema,
+        ColumnarParquetWriter writer,
+        AtomicBoolean failed
+    ) throws IOException {
         long rows = 0;
-        try (ParquetFileReader reader = ParquetFileReader.open(input.file(), readOptions())) {
-            final FileMetaData metaData = reader.getFooter().getFileMetaData();
+        for (int i = 0; i < epoch.size() && failed.get() == false; i++) {
+            rows += copyGroupOfInput(epoch.get(i), footers[i], group, groupSchema, writer, failed);
+        }
+        return rows;
+    }
+
+    /** A reader that uses the footer that is already read. It closes the stream that it opens, also when it cannot be created. */
+    private static ParquetFileReader openReader(Input input, ParquetMetadata footer) throws IOException {
+        final SeekableInputStream stream = input.file().newStream();
+        try {
+            return ParquetFileReader.open(input.file(), footer, readOptions(), stream);
+        } catch (IOException | RuntimeException e) {
+            try {
+                stream.close();
+            } catch (IOException suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
+    }
+
+    /** The values of the columns of one group in the row groups of an input, to the page stores of that group. */
+    private static long copyGroupOfInput(
+        Input input,
+        ParquetMetadata footer,
+        int group,
+        MessageType groupSchema,
+        ColumnarParquetWriter writer,
+        AtomicBoolean failed
+    ) throws IOException {
+        long rows = 0;
+        try (ParquetFileReader reader = openReader(input, footer)) {
+            final FileMetaData metaData = footer.getFileMetaData();
             final MessageType fileSchema = metaData.getSchema();
             final List<Type> present = new ArrayList<>();
             for (Type field : groupSchema.getFields()) {

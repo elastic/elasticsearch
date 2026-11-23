@@ -442,7 +442,7 @@ public abstract class FullTextFunction extends Function
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
                     } else {
-                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
+                        errorMessage = sourceText.strip().split("\\s+")[0].toUpperCase(Locale.ROOT);
                     }
                     // Name the reason for functions that could have searched an expression instead, since for them the
                     // restriction is not about the command at all. For the rest there is no alternative to point at.

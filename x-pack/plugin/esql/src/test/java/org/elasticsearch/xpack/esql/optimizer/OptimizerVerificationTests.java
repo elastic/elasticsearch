@@ -104,14 +104,19 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * after it must name DENSE_VECTOR rather than an empty command, which happened when the surrogate had no source text.
      */
     public void testFullTextFunctionAfterDenseVectorNamesCommand() {
-        var err = error(
-            fullTextAnalyzer().addAnalysisTestsInferenceResolution()
-                .minimumTransportVersion(TransportVersion.current())
-                .query(
-                    "FROM test | DENSE_VECTOR emb = title WITH { \"inference_id\": \"text-embedding-inference-id\" } | WHERE MATCH(title, \"cat\")"
-                )
-        );
-        assertThat(err, containsString("[MATCH] function cannot be used after DENSE_VECTOR when it targets an indexed field"));
+        // The command name is the first whitespace-delimited token, whatever whitespace separates it from its arguments.
+        for (String separator : List.of(" ", "\t", "\n", " \t\n ")) {
+            var err = error(
+                fullTextAnalyzer().addAnalysisTestsInferenceResolution()
+                    .minimumTransportVersion(TransportVersion.current())
+                    .query(
+                        "FROM test | DENSE_VECTOR"
+                            + separator
+                            + "emb = title WITH { \"inference_id\": \"text-embedding-inference-id\" } | WHERE MATCH(title, \"cat\")"
+                    )
+            );
+            assertThat(err, containsString("[MATCH] function cannot be used after DENSE_VECTOR when it targets an indexed field"));
+        }
     }
 
     /**

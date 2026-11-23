@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -496,9 +495,8 @@ public class EsqlSession {
         this.localNodeName = services.clusterService().getNodeName();
         this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.intoDestinationAuthorizer = IntoDestinationAuthorizer.create(
-            services.clusterService().getSettings(),
             services.transportService(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(ThreadPool.Names.SEARCH)
         );
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
@@ -2090,15 +2088,27 @@ public class EsqlSession {
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(
+                // Once per query: index resolution may be retried without the filter, but the destination does not change.
+                // Nothing reads the destination before this, since the checks that do read cluster state, which security does not
+                // filter, and a ROW source needs no index privilege that would stop the caller first.
+                authorizeIntoDestinations(
+                    intoDestinationAuthorizer,
                     scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
-                    unmappedResolution,
-                    viewSettings,
-                    configuration,
-                    executionInfo,
-                    requestFilter,
-                    indexViewOrigins,
-                    delegate
+                    projectMetadata,
+                    planningCpu.meteredCpu(
+                        delegate.delegateFailureAndWrap(
+                            (authorizedListener, authorized) -> analyzedPlanAfterDatasetResolution(
+                                authorized,
+                                unmappedResolution,
+                                viewSettings,
+                                configuration,
+                                executionInfo,
+                                requestFilter,
+                                indexViewOrigins,
+                                authorizedListener
+                            )
+                        )
+                    )
                 );
             }))
         );
@@ -2295,80 +2305,73 @@ public class EsqlSession {
         // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
         // change how the caller's query resolves.
         boolean nullify = exemplars || callerScopeHasPromql(parsed);
-        // Authorize an INTO destination before any check reads its metadata: those checks read cluster state, which security
-        // does not filter, and a ROW source needs no index privilege that would stop the caller first.
-        SubscribableListener.<Void>newForked(
-            l -> authorizeIntoDestination(intoDestinationAuthorizer, parsed, projectMetadata, planningCpu.meteredCpu(l))
-        )
-            .<PreAnalysisResult>andThen(
-                (l, ignored) -> preAnalyzeMainIndices(
-                    preAnalysis,
-                    configuration,
-                    executionInfo,
-                    trackedUnmappedFieldIndices,
-                    configuration.flattenedKeys()
-                        ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
-                        : null,
-                    result,
-                    requestFilter,
-                    queryTimeFilters,
-                    viewInternalIndexPatterns(parsed),
-                    l
-                )
+        SubscribableListener.<PreAnalysisResult>newForked(
+            l -> preAnalyzeMainIndices(
+                preAnalysis,
+                configuration,
+                executionInfo,
+                trackedUnmappedFieldIndices,
+                configuration.flattenedKeys()
+                    ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
+                    : null,
+                result,
+                requestFilter,
+                queryTimeFilters,
+                viewInternalIndexPatterns(parsed),
+                l
             )
-            .andThenApply(r -> {
-                if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
-                    && executionInfo.isCrossClusterSearch()
-                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-                    LOGGER.debug("No more clusters to search, ending analysis stage");
-                    throw new NoClustersToSearchException();
+        ).andThenApply(r -> {
+            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                && executionInfo.isCrossClusterSearch()
+                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                throw new NoClustersToSearchException();
+            }
+            // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+            // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
+            // take care of removing the subquery during analysis.
+            // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+            if (r.indexResolution.isEmpty() == false // it is not a row
+                && r.indexResolution.size() > 1 // there is a subquery
+                && executionInfo.isCrossClusterSearch()) {
+                Collection<IndexResolution> indexResolutions = r.indexResolution.values();
+                boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                // Only if there is partial invalid index resolutions in subqueries
+                if (hasInvalid && hasValid) {
+                    // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                    r.indexResolution.forEach((indexPattern, indexResolution) -> {
+                        if (indexResolution.isValid() == false) {
+                            LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
+                            r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
+                        }
+                    });
+                    // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                    executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                        boolean clusterHasValidIndex = r.indexResolution.values()
+                            .stream()
+                            .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
+                        if (clusterHasValidIndex == false) {
+                            String errorMsg = "no valid indices found in any subquery {}";
+                            LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
+                            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                executionInfo,
+                                clusterAlias,
+                                EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
+                            );
+                        }
+                    });
                 }
-                // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
-                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
-                // take care of removing the subquery during analysis.
-                // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
-                if (r.indexResolution.isEmpty() == false // it is not a row
-                    && r.indexResolution.size() > 1 // there is a subquery
-                    && executionInfo.isCrossClusterSearch()) {
-                    Collection<IndexResolution> indexResolutions = r.indexResolution.values();
-                    boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
-                    boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
-                    // Only if there is partial invalid index resolutions in subqueries
-                    if (hasInvalid && hasValid) {
-                        // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
-                        r.indexResolution.forEach((indexPattern, indexResolution) -> {
-                            if (indexResolution.isValid() == false) {
-                                LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
-                                r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
-                            }
-                        });
-                        // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
-                        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
-                            boolean clusterHasValidIndex = r.indexResolution.values()
-                                .stream()
-                                .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
-                            if (clusterHasValidIndex == false) {
-                                String errorMsg = "no valid indices found in any subquery {}";
-                                LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
-                                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                                    executionInfo,
-                                    clusterAlias,
-                                    EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                                    new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
-                                );
-                            }
-                        });
-                    }
-                }
-                return r;
-            })
-            .<PreAnalysisResult>andThen((l, r) -> {
-                if (exemplars) {
-                    preAnalyzeExemplarIndices(preAnalysis, executionInfo, r, requestFilter, l);
-                } else {
-                    l.onResponse(r);
-                }
-            })
+            }
+            return r;
+        }).<PreAnalysisResult>andThen((l, r) -> {
+            if (exemplars) {
+                preAnalyzeExemplarIndices(preAnalysis, executionInfo, r, requestFilter, l);
+            } else {
+                l.onResponse(r);
+            }
+        })
             .<PreAnalysisResult>andThen(
                 (l, r) -> preAnalyzeLookupIndices(
                     preAnalysis.lookupIndices().iterator(),
@@ -3759,8 +3762,9 @@ public class EsqlSession {
         }
         plan.setAnalyzed();
         if (plan instanceof Into into) {
-            // The writer writes to the resolved name, so the checks look at it too
-            String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+            // authorizeIntoDestinations has resolved the destination, and authorized the caller to write to it, before this runs.
+            // The existence it authorized against is the one seen here, as both read this session's own project metadata.
+            String target = into.destination();
             rejectDestinationThatIsRead(into, target);
             if (configuration.explainOnly() == false) {
                 boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService);
@@ -3768,9 +3772,9 @@ public class EsqlSession {
             }
         }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
-        // (including column/field type mismatches against the INTO child's output). The destination is already authorized
-        // by authorizeIntoDestination; report only what a bulk would show a writer, and nothing from templates unless the
-        // caller could also create the destination.
+        // (including column/field type mismatches against the INTO child's output). The destination is already authorized by
+        // authorizeIntoDestinations: report only what a bulk would show a writer, and nothing from templates unless the caller
+        // could also create the destination.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);
@@ -3780,25 +3784,41 @@ public class EsqlSession {
     }
 
     /**
-     * Completes once the caller is allowed to write to the destination of every {@code INTO} in {@code parsed}, and fails with the
-     * denial a bulk would give otherwise. Nothing about the destination is reported before this, so a caller who may not write
-     * cannot tell whether it exists. The destination is authorized by its resolved name, which is the one the writer writes to.
+     * Completes with {@code parsed}, its {@code INTO} destinations resolved to the concrete names they write to, once the caller is
+     * allowed to write to each of them. Fails with the denial a bulk would give otherwise. Nothing about a destination is reported
+     * before this, so a caller who may not write cannot tell whether it exists.
+     * <p>
+     * Date math is resolved here, once, and the resolved name replaces the typed one in the plan. The authorization, the planning
+     * checks and the writer, on whichever node it runs, then all see one name, instead of each resolving the expression again and
+     * possibly to another name across a day boundary. A resolved name resolves to itself.
      */
     // visible for testing
-    static void authorizeIntoDestination(
+    static void authorizeIntoDestinations(
         IntoDestinationAuthorizer authorizer,
         LogicalPlan parsed,
         ProjectMetadata project,
-        ActionListener<Void> listener
+        ActionListener<LogicalPlan> listener
     ) {
-        List<Into> intos = parsed.collect(Into.class);
+        if (parsed.anyMatch(Into.class::isInstance) == false) {
+            listener.onResponse(parsed);
+            return;
+        }
+        LogicalPlan resolved = parsed.transformDown(
+            Into.class,
+            into -> new Into(
+                into.source(),
+                into.child(),
+                IndexNameExpressionResolver.resolveDateMathExpression(into.destination()),
+                into.output()
+            )
+        );
         SubscribableListener<Void> chain = SubscribableListener.newSucceeded(null);
-        for (Into into : intos) {
-            String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+        for (Into into : resolved.collect(Into.class)) {
+            String target = into.destination();
             boolean exists = project.getIndicesLookup().containsKey(target);
             chain = chain.andThen(l -> authorizer.authorize(target, exists, l));
         }
-        chain.addListener(listener);
+        chain.addListener(listener.map(ignored -> resolved));
     }
 
     /**

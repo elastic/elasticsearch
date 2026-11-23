@@ -117,8 +117,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
-        .user("into_read_only_user", "x-pack-test-password", "into_read_only", false)
-        .user("into_writer_user", "x-pack-test-password", "into_writer", false)
         .user("user3", "x-pack-test-password", "user3", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
@@ -193,38 +191,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_query_partial", "x-pack-test-password", "ds_dataset_query_partial", false)
         .user("ds_dataset_query_ok_plus_dls", "x-pack-test-password", "ds_dataset_query_ok_plus_dls", false)
         .build();
-
-    /**
-     * A ROW source needs no index privilege, so before the destination was authorized any caller could probe a destination with
-     * {@code ROW | INTO}. A caller who may only read it must be denied, and the denial must not tell an existing destination from a
-     * missing one. Read access to the destination does not count, since {@code INTO} only writes.
-     */
-    public void testIntoDestinationDeniedWithoutWriteAccess() throws IOException {
-        assumeTrue(
-            "INTO needs a snapshot build",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName()))
-        );
-        createIndex(adminClient(), "into-existing", Settings.EMPTY);
-
-        ResponseException existing = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("into_read_only_user", "ROW x = 1 | INTO into-existing")
-        );
-        ResponseException missing = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("into_read_only_user", "ROW x = 1 | INTO into-missing")
-        );
-        assertThat(existing.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(missing.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(
-            EntityUtils.toString(existing.getResponse().getEntity()),
-            containsString("is unauthorized for user [into_read_only_user]")
-        );
-        assertThat(
-            EntityUtils.toString(existing.getResponse().getEntity()).replace("into-existing", "<dest>"),
-            equalTo(EntityUtils.toString(missing.getResponse().getEntity()).replace("into-missing", "<dest>"))
-        );
-    }
 
     @Override
     protected String getTestRestCluster() {

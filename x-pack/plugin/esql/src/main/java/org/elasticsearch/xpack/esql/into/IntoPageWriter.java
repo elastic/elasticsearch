@@ -202,8 +202,8 @@ public final class IntoPageWriter {
          * query is dispatched, and again where a node plans the write, since the destination can change in between.
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
-            // The session has authorized the caller's write access to the destination before this runs (IntoDestinationAuthorizer), so
-            // the destination-specific errors below reach only a caller who could write there.
+            // The coordinator authorizes the caller's write access to the destination before it calls this (IntoDestinationAuthorizer).
+            // A node that plans the write does not, so it must not pass these specific errors on (see LocalExecutionPlanner).
             if (batchIndexingSupported == false) {
                 throw rejection("INTO [%s] requires batch indexing", target);
             }

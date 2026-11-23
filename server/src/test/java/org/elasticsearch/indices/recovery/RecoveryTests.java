@@ -279,6 +279,32 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    public void testPeerRecoveryAfterChangingDynamicMapping() throws Exception {
+        final String properties = "\"properties\":{\"id\":{\"type\":\"keyword\"}}";
+        final IndexMetadata initialMetadata = buildIndexMetadata(0, "{\"dynamic\":false," + properties + "}");
+        try (ReplicationGroup shards = new ReplicationGroup(initialMetadata)) {
+            shards.startPrimary();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.addReplica();
+            assertFalse(
+                shards.index(new IndexRequest(initialMetadata.getIndex().getName()).id("1")
+                    .source("{\"id\":\"1\",\"extra\":\"v1\"}", XContentType.JSON)).isFailed()
+            );
+            shards.syncGlobalCheckpoint();
+
+            final IndexMetadata updatedMetadata = IndexMetadata.builder(primary.indexSettings().getIndexMetadata())
+                .putMapping("{\"dynamic\":true," + properties + "}")
+                .mappingVersion(initialMetadata.getMappingVersion() + 1)
+                .build();
+            updateMappings(primary, updatedMetadata);
+            updateMappings(replica, updatedMetadata);
+
+            // No flush: recovery needs to replay the operation indexed with dynamic mapping disabled.
+            shards.recoverReplica(replica);
+            shards.assertAllEqual(1);
+        }
+    }
+
     public void testPeerRecoveryPersistGlobalCheckpoint() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startPrimary();

@@ -39,14 +39,14 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType labelType : DataType.stringTypes()) {
-            suppliers.add(read("single value", labelType, "{\"job\":\"api\",\"pod\":\"a\"}", "pod", equalTo(new BytesRef("a"))));
-            suppliers.add(read("absent label", labelType, "{\"job\":\"api\"}", "pod", nullValue()));
-            suppliers.add(read("empty label container", labelType, "{}", "pod", nullValue()));
+        for (DataType keyType : DataType.stringTypes()) {
+            suppliers.add(read("single value", keyType, "{\"job\":\"api\",\"pod\":\"a\"}", "pod", equalTo(new BytesRef("a"))));
+            suppliers.add(read("absent key", keyType, "{\"job\":\"api\"}", "pod", nullValue()));
+            suppliers.add(read("empty metadata", keyType, "{}", "pod", nullValue()));
             suppliers.add(
                 read(
                     "multiple values",
-                    labelType,
+                    keyType,
                     "{\"pod\":[\"b\",\"a\",\"b\"]}",
                     "pod",
                     equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b")))
@@ -55,28 +55,28 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
             suppliers.add(
                 read(
                     "escaped name and value",
-                    labelType,
-                    "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
-                    "label\"\\",
+                    keyType,
+                    "{\"key\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
+                    "key\"\\",
                     equalTo(new BytesRef("value\"\\\n\u03bb\ud83d\ude00"))
                 )
             );
         }
-        // The label container is the source document: objects nest as in the mapping, and a label is named by its field path.
+        // The metadata is the source document: objects nest as in the mapping, and a key is named by its field path.
         String source = "{\"k8s\":{\"node\":[\"m\",\"n\"]},\"labels\":{\"job\":\"api\"},\"pod\":\"a\"}";
-        suppliers.add(read("prefixed label", DataType.KEYWORD, source, "job", equalTo(new BytesRef("api"))));
-        suppliers.add(read("nested label", DataType.KEYWORD, source, "k8s.node", equalTo(List.of(new BytesRef("m"), new BytesRef("n")))));
-        suppliers.add(read("prefix is not a label", DataType.KEYWORD, source, "labels.job", nullValue()));
+        suppliers.add(read("prefixed key", DataType.KEYWORD, source, "job", equalTo(new BytesRef("api"))));
+        suppliers.add(read("nested key", DataType.KEYWORD, source, "k8s.node", equalTo(List.of(new BytesRef("m"), new BytesRef("n")))));
+        suppliers.add(read("prefix is not a key", DataType.KEYWORD, source, "labels.job", nullValue()));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static TestCaseSupplier read(String name, DataType labelType, String labelContainer, String label, Matcher<?> expected) {
-        return new TestCaseSupplier(name, List.of(DataType.KEYWORD, labelType), () -> {
+    private static TestCaseSupplier read(String name, DataType keyType, String metadata, String key, Matcher<?> expected) {
+        return new TestCaseSupplier(name, List.of(DataType.KEYWORD, keyType), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.KEYWORD, "labelContainer"),
-                new TestCaseSupplier.TypedData(new BytesRef(label), labelType, "label").forceLiteral()
+                new TestCaseSupplier.TypedData(new BytesRef(metadata), DataType.KEYWORD, "metadata"),
+                new TestCaseSupplier.TypedData(new BytesRef(key), keyType, "key").forceLiteral()
             );
-            String evaluator = "TimeSeriesMetadataPathEvaluator[labelContainer=Attribute[channel=0], label=" + label + "]";
+            String evaluator = "TimeSeriesMetadataPathEvaluator[metadata=Attribute[channel=0], key=" + key + "]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.KEYWORD, expected);
         });
     }
@@ -86,47 +86,43 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
         return new TimeSeriesMetadataPath(source, args.get(0), args.get(1));
     }
 
-    /** A label name must be a non-empty constant string, so the evaluator folds it once. */
-    public void testLabelMustBeNonEmptyConstantString() {
-        Expression labelContainer = field("labelContainer", DataType.KEYWORD);
-        for (Expression label : List.of(
+    /** A key name must be a non-empty constant string, so the evaluator folds it once. */
+    public void testKeyMustBeNonEmptyConstantString() {
+        Expression metadata = field("metadata", DataType.KEYWORD);
+        for (Expression key : List.of(
             Literal.integer(Source.EMPTY, 42),
             Literal.keyword(Source.EMPTY, ""),
             Literal.NULL,
-            field("label", DataType.KEYWORD)
+            field("key", DataType.KEYWORD)
         )) {
-            assertTrue(label.toString(), new TimeSeriesMetadataPath(Source.EMPTY, labelContainer, label).typeResolved().unresolved());
+            assertTrue(key.toString(), new TimeSeriesMetadataPath(Source.EMPTY, metadata, key).typeResolved().unresolved());
         }
     }
 
     /** Only a keyword {@code _timeseries} can be read. */
-    public void testLabelContainerMustBeKeyword() {
-        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("labelContainer", DataType.LONG), Literal.keyword(Source.EMPTY, "pod"));
+    public void testMetadataMustBeKeyword() {
+        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("metadata", DataType.LONG), Literal.keyword(Source.EMPTY, "pod"));
         assertThat(path.typeResolved().message(), containsString("_timeseries"));
     }
 
-    /** A label container that is not a JSON object fails rather than reading as if the label were absent. */
-    public void testMalformedLabelContainerFails() {
+    /** Metadata that is not a JSON object fails rather than reading as if the key were absent. */
+    public void testMalformedMetadataFails() {
         for (String malformed : List.of("not JSON", "[]")) {
             expectThrows(IllegalArgumentException.class, () -> read(new BytesRef(malformed)));
         }
     }
 
-    /** A label container is one value, even when the labels inside it hold several. */
-    public void testMultivaluedLabelContainerFails() {
+    /** Metadata is one value, even when the keys inside it hold several. */
+    public void testMultivaluedMetadataFails() {
         var e = expectThrows(IllegalArgumentException.class, () -> read(List.of(new BytesRef("{}"), new BytesRef("{}"))));
         assertThat(e.getMessage(), containsString("must be single-valued"));
     }
 
-    private void read(Object labelContainer) {
-        var path = new TimeSeriesMetadataPath(
-            Source.EMPTY,
-            field("labelContainer", DataType.KEYWORD),
-            Literal.keyword(Source.EMPTY, "pod")
-        );
+    private void read(Object metadata) {
+        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("metadata", DataType.KEYWORD), Literal.keyword(Source.EMPTY, "pod"));
         try (
             ExpressionEvaluator eval = evaluator(path).get(driverContext());
-            Block block = eval.eval(row(Collections.singletonList(labelContainer)))
+            Block block = eval.eval(row(Collections.singletonList(metadata)))
         ) {
             fail("expected a failure, got " + toJavaObject(block, 0));
         }

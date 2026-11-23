@@ -38,42 +38,40 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        String labels = "{\"job\":\"api\",\"pod\":\"a\"}";
-        suppliers.add(remove("one label", labels, List.of("pod"), "{\"job\":\"api\"}"));
-        suppliers.add(remove("repeated and absent labels", labels, List.of("pod", "pod", "missing"), "{\"job\":\"api\"}"));
-        suppliers.add(remove("absent label", labels, List.of("missing"), labels));
-        suppliers.add(remove("every label", labels, List.of("job", "pod"), "{}"));
-        suppliers.add(remove("empty label container", "{}", List.of("pod"), "{}"));
+        String keys = "{\"job\":\"api\",\"pod\":\"a\"}";
+        suppliers.add(remove("one key", keys, List.of("pod"), "{\"job\":\"api\"}"));
+        suppliers.add(remove("repeated and absent keys", keys, List.of("pod", "pod", "missing"), "{\"job\":\"api\"}"));
+        suppliers.add(remove("absent key", keys, List.of("missing"), keys));
+        suppliers.add(remove("every key", keys, List.of("job", "pod"), "{}"));
+        suppliers.add(remove("empty metadata", "{}", List.of("pod"), "{}"));
         suppliers.add(
             remove("multiple values", "{\"pod\":[\"b\",\"a\"],\"single\":\"one\"}", List.of("single"), "{\"pod\":[\"b\",\"a\"]}")
         );
         suppliers.add(
             remove(
                 "escaped name and value",
-                "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
+                "{\"job\":\"api\",\"key\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
                 List.of("job"),
-                "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
+                "{\"key\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
             )
         );
-        // The label container is the source document: objects nest as in the mapping, and a label is named by its field path.
+        // The metadata is the source document: objects nest as in the mapping, and a key is named by its field path.
         String source = "{\"k8s\":{\"node\":\"n\"},\"labels\":{\"job\":\"api\"},\"pod\":\"a\"}";
         suppliers.add(remove("source document", source, List.of("pod"), "{\"k8s\":{\"node\":\"n\"},\"labels\":{\"job\":\"api\"}}"));
         suppliers.add(remove("source document, emptied object", source, List.of("job"), "{\"k8s\":{\"node\":\"n\"},\"pod\":\"a\"}"));
-        suppliers.add(remove("source document, no label", source, List.of(), source));
+        suppliers.add(remove("source document, no key", source, List.of(), source));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static TestCaseSupplier remove(String name, String labelContainer, List<String> labels, String expected) {
+    private static TestCaseSupplier remove(String name, String metadata, List<String> keys, String expected) {
         List<DataType> types = new ArrayList<>();
         types.add(DataType.KEYWORD);
-        labels.forEach(label -> types.add(DataType.KEYWORD));
+        keys.forEach(key -> types.add(DataType.KEYWORD));
         return new TestCaseSupplier(name, types, () -> {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
-            data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.KEYWORD, "labelContainer"));
-            labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
-            String evaluator = "TimeSeriesMetadataFilterEvaluator[labelContainer=Attribute[channel=0], labels="
-                + labels
-                + ", exclude=true]";
+            data.add(new TestCaseSupplier.TypedData(new BytesRef(metadata), DataType.KEYWORD, "metadata"));
+            keys.forEach(key -> data.add(new TestCaseSupplier.TypedData(new BytesRef(key), DataType.KEYWORD, key).forceLiteral()));
+            String evaluator = "TimeSeriesMetadataFilterEvaluator[metadata=Attribute[channel=0], keys=" + keys + ", exclude=true]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.KEYWORD, equalTo(new BytesRef(expected)));
         });
     }
@@ -83,65 +81,60 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
         return new TimeSeriesMetadataFilter(source, args.getFirst(), args.subList(1, args.size()), true);
     }
 
-    /** A missing label container is the empty one, so removing labels from it leaves it empty rather than null. */
+    /** A missing metadata is the empty one, so removing keys from it leaves it empty rather than null. */
     @Override
     protected Matcher<Object> allNullsMatcher() {
         return equalTo(new BytesRef("{}"));
     }
 
-    /** Label names must be non-empty constant strings, so the evaluator folds them once. */
-    public void testLabelsMustBeNonEmptyConstantStrings() {
-        Expression labelContainer = field("labelContainer", DataType.KEYWORD);
-        for (Expression label : List.of(
+    /** Key names must be non-empty constant strings, so the evaluator folds them once. */
+    public void testKeysMustBeNonEmptyConstantStrings() {
+        Expression metadata = field("metadata", DataType.KEYWORD);
+        for (Expression key : List.of(
             Literal.integer(Source.EMPTY, 42),
             Literal.keyword(Source.EMPTY, ""),
             Literal.NULL,
-            field("label", DataType.KEYWORD)
+            field("key", DataType.KEYWORD)
         )) {
-            var transform = new TimeSeriesMetadataFilter(
-                Source.EMPTY,
-                labelContainer,
-                List.of(Literal.keyword(Source.EMPTY, "pod"), label),
-                true
-            );
-            assertTrue(label.toString(), transform.typeResolved().unresolved());
+            var transform = new TimeSeriesMetadataFilter(Source.EMPTY, metadata, List.of(Literal.keyword(Source.EMPTY, "pod"), key), true);
+            assertTrue(key.toString(), transform.typeResolved().unresolved());
         }
     }
 
     /** Only a keyword {@code _timeseries} can be rewritten. */
-    public void testLabelContainerMustBeKeyword() {
+    public void testMetadataMustBeKeyword() {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.LONG),
+            field("metadata", DataType.LONG),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             true
         );
         assertThat(transform.typeResolved().message(), containsString("_timeseries"));
     }
 
-    /** A label container that is not one JSON object fails rather than dropping series' labels. */
-    public void testMalformedLabelContainerFails() {
+    /** Metadata that is not one JSON object fails rather than dropping series' keys. */
+    public void testMalformedMetadataFails() {
         for (String malformed : List.of("not JSON", "[]", "{} {}")) {
             expectThrows(IllegalArgumentException.class, () -> remove(new BytesRef(malformed)));
         }
     }
 
-    /** A label container is one value, even when the labels inside it hold several. */
-    public void testMultivaluedLabelContainerFails() {
+    /** Metadata is one value, even when the keys inside it hold several. */
+    public void testMultivaluedMetadataFails() {
         var e = expectThrows(IllegalArgumentException.class, () -> remove(List.of(new BytesRef("{}"), new BytesRef("{}"))));
         assertThat(e.getMessage(), containsString("must be single-valued"));
     }
 
-    private void remove(Object labelContainer) {
+    private void remove(Object metadata) {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.KEYWORD),
+            field("metadata", DataType.KEYWORD),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             true
         );
         try (
             ExpressionEvaluator eval = evaluator(transform).get(driverContext());
-            Block block = eval.eval(row(Collections.singletonList(labelContainer)))
+            Block block = eval.eval(row(Collections.singletonList(metadata)))
         ) {
             fail("expected a failure, got " + toJavaObject(block, 0));
         }

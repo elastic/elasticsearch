@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The dictionary and constant paths of {@link AbstractTimeSeriesMetadataFunction.AbstractEvaluator}. A label container is
- * loaded once per series and page, so a page holds it dictionary encoded: a function of the label container alone runs once per
+ * The dictionary and constant paths of {@link AbstractTimeSeriesMetadataFunction.AbstractEvaluator}. Metadata is
+ * loaded once per series and page, so a page holds it dictionary encoded: a function of the metadata alone runs once per
  * dictionary entry, or once for a constant one. Every case here is asserted to give, position for position, what the same
  * values give through the per-row path.
  */
@@ -56,7 +56,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         "{\"cluster\":\"prod\",\"pod\":\"one\"}",
         "{\"cluster\":\"prod\",\"pod\":\"two\"}",
         "{\"cluster\":\"qa\",\"pod\":\"three\"}" };
-    /** Label containers as remote write stores them, every label in a {@code labels} object. */
+    /** Key containers as remote write stores them, every key in a {@code labels} object. */
     private static final String[] NESTED_CONTAINERS = {
         "{\"labels\":{\"cluster\":\"prod\",\"pod\":\"one\"}}",
         "{\"labels\":{\"cluster\":\"prod\",\"pod\":\"two\"}}",
@@ -71,7 +71,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     }
 
     public void testReadOfAbsentOrSeveralValuesKeepsRows() {
-        // An absent label reads as null and a label of several values as one multi-valued position: neither fits a dictionary.
+        // An absent key reads as null and a key of several values as one multi-valued position: neither fits a dictionary.
         String[] containers = { "{\"pod\":\"one\"}", "{\"cluster\":\"prod\"}", "{\"pod\":[\"one\",\"two\"]}" };
         assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), containers, DENSE, false);
     }
@@ -119,7 +119,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     }
 
     public void testSetOfColumnKeepsRows() {
-        // The written value changes per row, so the result is not a function of the label container alone.
+        // The written value changes per row, so the result is not a function of the metadata alone.
         assertDictionaryPath(
             c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), field("job", DataType.KEYWORD), List.of("job")),
             CONTAINERS,
@@ -129,7 +129,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     }
 
     public void testNullContainerKeepsRows() {
-        // A rewrite of a null label container is a label container, which reused ordinals would leave null.
+        // A rewrite of a null metadata is metadata, which reused ordinals would leave null.
         Integer[] ordinals = { 0, 1, null, 2, 0, null, 1, 2, 0, 1, 2, 0, 1, 2, 0 };
         assertDictionaryPath(
             c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true),
@@ -148,24 +148,24 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
             CONTAINERS[0],
             true
         );
-        // A read of an absent label is null on every row.
+        // A read of an absent key is null on every row.
         assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("absent")), CONTAINERS[0], true);
-        // A read of a label of several values is not one value, so it is evaluated per row.
+        // A read of a key of several values is not one value, so it is evaluated per row.
         assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), "{\"pod\":[\"one\",\"two\"]}", false);
     }
 
     /**
-     * Evaluates {@code function} over a page whose label container is the constant {@code labels}, and once over the same rows as
+     * Evaluates {@code function} over a page whose metadata is the constant {@code labels}, and once over the same rows as
      * plain values, and asserts both give the same values, the first as a constant block when {@code constant}.
      */
-    private void assertConstant(Function<Expression, Expression> function, String labels, boolean constant) {
+    private void assertConstant(Function<Expression, Expression> function, String keys, boolean constant) {
         Expression expression = function.apply(field("labels", DataType.KEYWORD));
         int positions = DENSE.length;
         List<List<String>> once;
         try (
             Block result = evaluate(
                 expression,
-                driverContext().blockFactory().newConstantBytesRefBlockWith(new BytesRef(labels), positions),
+                driverContext().blockFactory().newConstantBytesRefBlockWith(new BytesRef(keys), positions),
                 positions
             )
         ) {
@@ -173,14 +173,14 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
             once = values(result);
         }
         String[] rows = new String[positions];
-        Arrays.fill(rows, labels);
+        Arrays.fill(rows, keys);
         try (Block result = evaluate(expression, plainBlock(rows), positions)) {
             assertThat(once, equalTo(values(result)));
         }
     }
 
     public void testNestedReadReusesOrdinals() {
-        // A keyword _timeseries is the source's JSON object, with its objects: a label is named by its field path.
+        // A keyword _timeseries is the source's JSON object, with its objects: a key is named by its field path.
         assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), NESTED_CONTAINERS, DENSE, true);
     }
 
@@ -208,7 +208,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     }
 
     /**
-     * Evaluates {@code function} over the label containers {@code ordinals} pick out of {@code dictionary}, once dictionary encoded
+     * Evaluates {@code function} over the metadata {@code ordinals} pick out of {@code dictionary}, once dictionary encoded
      * and once as plain rows, and asserts both give the same values, the first as a dictionary when {@code reusesOrdinals}.
      */
     private void assertDictionaryPath(
@@ -235,7 +235,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     }
 
     /** Evaluates {@code expression} over a page of {@code labels} and, when it reads one, a column {@code job} of row numbers. */
-    private Block evaluate(Expression expression, BytesRefBlock labels, int positions) {
+    private Block evaluate(Expression expression, BytesRefBlock keys, int positions) {
         DriverContext context = driverContext();
         Block job = null;
         try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positions)) {
@@ -245,10 +245,10 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
             job = builder.build();
         } finally {
             if (job == null) {
-                labels.close();
+                keys.close();
             }
         }
-        Page page = new Page(labels, job);
+        Page page = new Page(keys, job);
         try (ExpressionEvaluator evaluator = AbstractScalarFunctionTestCase.evaluator(expression).get(context)) {
             return evaluator.eval(page);
         } finally {

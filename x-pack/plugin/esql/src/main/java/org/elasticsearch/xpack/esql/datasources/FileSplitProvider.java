@@ -272,8 +272,10 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * How many survivors get a footer/probe plan under a filtered LIMIT. The rest become whole-file
      * splits with no object-store I/O. Wave size is {@code taskConcurrency}: that is how many
-     * drivers the planner will start, so extra footers would not add parallelism. Text formats have
-     * no footer, so the wave only collapsed range splits; they keep the full survivor count.
+     * drivers the planner will start, so extra footers would not add parallelism. Text has no
+     * footer to skip, so a wave would only collapse range splits and cut drivers; text keeps the
+     * full survivor count. A null reader (unresolved format) also skips the wave, which is the
+     * conservative direction: everything gets planned, as before #165532.
      */
     static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount, FormatReader reader) {
         if (context.filteredLimit() == false || survivorCount <= 0) {

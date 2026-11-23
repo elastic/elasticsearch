@@ -8569,9 +8569,30 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * Guard: if {@code gatherSkippingCachedFooters} passed a null reader, that reader would
+     * fail-open (no wave cap) and parquet would open every footer. Expected to pass with or
+     * without the text-wave skip. Does not reproduce the text regression.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfFootersAsync() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        provider.discoverSplitsAsync(contextWithFilteredLimit(files, taskConcurrency), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        SplitDiscoveryResult result = future.actionGet(30, TimeUnit.SECONDS);
+
+        assertEquals("only the first wave opens a footer", taskConcurrency, opened.get());
+        assertEquals("the rest still produce a whole-file split so a selective filter can continue", files, result.splits().size());
+    }
+
+    /**
      * Text has no footer, so the filtered-LIMIT plan wave must not collapse files past
      * {@code taskConcurrency} into whole-file splits. Each CSV file large enough to range-split
-     * still produces record-aligned macro splits.
+     * still produces record-aligned macro splits: sequential {@code executor == null},
+     * {@link FileSplitProvider#discoverSplits} with a non-null executor, and
+     * {@link FileSplitProvider#discoverSplitsAsync}.
      */
     public void testFilteredLimitDoesNotApplyPlanWaveToText() throws Exception {
         int files = 8;
@@ -8582,6 +8603,37 @@ public class FileSplitProviderTests extends ESTestCase {
             payloads.put("f" + i + ".csv", payload);
         }
 
+        List<StorageEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, byte[]> file : payloads.entrySet()) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/" + file.getKey()), file.getValue().length, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.csv"),
+                Map.of(),
+                Map.of("mode", "plain"),
+                PartitionMetadata.EMPTY,
+                List.of(),
+                ExternalSchema.EMPTY,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                () -> false,
+                DeclaredReadSpec.NONE
+            ),
+            taskConcurrency
+        );
+
+        assertTextDidNotApplyPlanWave(plainCsvProvider(payloads, null).discoverSplits(ctx), files);
+
+        FileSplitProvider parallel = plainCsvProvider(payloads, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assertTextDidNotApplyPlanWave(parallel.discoverSplits(ctx), files);
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertTextDidNotApplyPlanWave(future.actionGet(30, TimeUnit.SECONDS), files);
+    }
+
+    private static FileSplitProvider plainCsvProvider(Map<String, byte[]> payloads, @Nullable Executor executor) {
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy(
             "csv",
@@ -8591,56 +8643,17 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         formatRegistry.registerExtension(".csv", "csv");
         formatRegistry.byName("csv");
-
-        FileSplitProvider provider = new FileSplitProvider(
+        return new FileSplitProvider(
             CSV_MIN_SEGMENT_BYTES,
             new DecompressionCodecRegistry(),
             createMultiFileStorageRegistry(payloads, null),
             formatRegistry,
             Settings.EMPTY,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            executor
         );
+    }
 
-        List<StorageEntry> entries = new ArrayList<>();
-        for (String objectName : payloads.keySet()) {
-            entries.add(new StorageEntry(StoragePath.of("s3://b/" + objectName), payloads.get(objectName).length, Instant.EPOCH));
-        }
-        SplitDiscoveryContext base = new SplitDiscoveryContext(
-            null,
-            GlobExpander.fileListOf(entries, "s3://b/*.csv"),
-            Map.of(),
-            Map.of("mode", "plain"),
-            PartitionMetadata.EMPTY,
-            List.of(),
-            ExternalSchema.EMPTY,
-            null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false,
-            DeclaredReadSpec.NONE
-        );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            base.metadata(),
-            base.fileList(),
-            base.schemaMap(),
-            base.config(),
-            base.partitionInfo(),
-            base.filterHints(),
-            base.querySchema(),
-            base.unifiedSchema(),
-            base.maxRecordBytes(),
-            base.isCancelled(),
-            base.declaredReadSpec(),
-            base.metadataColumnNames(),
-            base.retainedPartitionKeys(),
-            FormatReader.NO_LIMIT,
-            null,
-            taskConcurrency,
-            TransportVersion.current(),
-            true
-        );
-
-        SplitDiscoveryResult result = provider.discoverSplits(ctx);
-
+    private static void assertTextDidNotApplyPlanWave(SplitDiscoveryResult result, int files) {
         Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
         for (ExternalSplit split : result.splits()) {
             FileSplit fileSplit = (FileSplit) split;
@@ -8662,8 +8675,13 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
-     * The wave helper itself: Parquet (a {@link RangeAwareFormatReader}) is capped at
-     * {@code taskConcurrency}; CSV is not.
+     * The wave helper itself: a {@link RangeAwareFormatReader} is capped at {@code taskConcurrency};
+     * CSV is not. A null reader fail-opens. Resolving through {@link FormatReaderRegistry#byName}
+     * then {@link FormatReader#withConfig} (the production {@code resolveConfiguredReader} shape)
+     * still waves: {@code ParquetFormatReader#withSchemaMaxFields} returns another
+     * {@code ParquetFormatReader}, and ORC's {@code NoConfigFormatReader} returns {@code this}.
+     * Neither supports whole-file compression, so the registry cannot wrap them in
+     * {@code CompressionDelegatingFormatReader}.
      */
     public void testFilteredLimitPlanWaveAppliesOnlyToRangeAwareReaders() {
         SplitDiscoveryContext ctx = contextWithFilteredLimit(8, 2);
@@ -8673,6 +8691,14 @@ public class FileSplitProviderTests extends ESTestCase {
         );
         assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, parquet));
         assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, csv));
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, null));
+
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
+        registry.byName("parquet");
+        FormatReader resolved = registry.byName("parquet").withConfig(Map.of());
+        assertThat(resolved, instanceOf(RangeAwareFormatReader.class));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, resolved));
     }
 
     /**
@@ -8821,7 +8847,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     private static SplitDiscoveryContext contextWithFilteredLimit(int fileCount, int taskConcurrency) {
-        SplitDiscoveryContext base = rangeAwareContext(fileCount);
+        return contextWithFilteredLimit(rangeAwareContext(fileCount), taskConcurrency);
+    }
+
+    private static SplitDiscoveryContext contextWithFilteredLimit(SplitDiscoveryContext base, int taskConcurrency) {
         return new SplitDiscoveryContext(
             base.metadata(),
             base.fileList(),

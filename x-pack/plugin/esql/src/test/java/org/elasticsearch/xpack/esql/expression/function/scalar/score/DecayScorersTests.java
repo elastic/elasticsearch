@@ -119,6 +119,20 @@ public class DecayScorersTests extends ESTestCase {
         }
     }
 
+    /**
+     * The dates are 2^63 + 1 apart and the offset is 2^63 - 1, so the distance past the offset is 2. Both round to 2^63 as a
+     * double, so subtracting the offset after rounding would give 0 and the maximum score.
+     */
+    public void testTemporalSubtractsOffsetBeforeRounding() {
+        long scale = randomLongBetween(1, 100);
+        double decay = randomDecay();
+        for (DecayFunction function : DecayFunction.values()) {
+            double expected = numericDecay(function, 0, scale, 0, decay, 2);
+            TemporalScorer scorer = TemporalScorer.of(function, Long.MIN_VALUE, scale, Long.MAX_VALUE, decay);
+            assertThat(function.toString(), scorer.score(1), equalTo(expected));
+        }
+    }
+
     private static double numericDecay(DecayFunction function, double origin, double scale, double offset, double decay, double value) {
         return switch (function) {
             case LINEAR -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);

@@ -15,7 +15,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests.LIMIT_NOT_ON_THE_WIRE;
 import static org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests.LIMIT_ON_THE_WIRE;
-import static org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExecSerializationTests.randomExchangeSourceExec;
 
 public class TsInfoExecSerializationTests extends AbstractPhysicalPlanSerializationTests<TsInfoExec> {
 
@@ -55,26 +54,25 @@ public class TsInfoExecSerializationTests extends AbstractPhysicalPlanSerializat
     }
 
     public void testLimitOnTheWire() throws IOException {
-        TsInfoExec instance = limitedInstance();
         for (TransportVersion version : LIMIT_ON_THE_WIRE) {
+            TsInfoExec instance = limitedInstance(version);
             assertEquals(version.toString(), instance.limit(), copyInstance(instance, version).limit());
         }
     }
 
     public void testLimitNotOnTheWire() throws IOException {
-        TsInfoExec instance = limitedInstance();
         for (TransportVersion version : LIMIT_NOT_ON_THE_WIRE) {
+            TsInfoExec instance = limitedInstance(version);
             assertNull(version.toString(), copyInstance(instance, version).limit());
         }
     }
 
-    private static TsInfoExec limitedInstance() {
-        List<Attribute> attributes = randomFieldAttributes(1, 7, false);
+    private static TsInfoExec limitedInstance(TransportVersion version) {
         return new TsInfoExec(
             randomSource(),
-            randomExchangeSourceExec(),
-            attributes,
-            attributes,
+            new ExchangeSourceExec(randomSource(), randomFieldAttributes(1, 5, false, version), randomBoolean()),
+            randomFieldAttributes(1, 5, false, version),
+            randomFieldAttributes(1, 5, false, version),
             randomFrom(TsInfoExec.Mode.values()),
             between(1, 100_000)
         );

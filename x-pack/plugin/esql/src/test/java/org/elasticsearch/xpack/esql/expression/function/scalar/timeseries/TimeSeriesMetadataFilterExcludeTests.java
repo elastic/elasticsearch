@@ -55,10 +55,11 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
                 "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
             )
         );
-        // The label container is the source document: nested, prefixed and in any order, read into the canonical form.
-        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"},\"k8s\":{\"node\":\"n\"}}";
-        suppliers.add(remove("source document", source, List.of("pod"), "{\"job\":\"api\",\"k8s.node\":\"n\"}"));
-        suppliers.add(remove("source document, no label", source, List.of(), "{\"job\":\"api\",\"k8s.node\":\"n\",\"pod\":\"a\"}"));
+        // The label container is the source document: objects nest as in the mapping, and a label is named by its field path.
+        String source = "{\"k8s\":{\"node\":\"n\"},\"labels\":{\"job\":\"api\"},\"pod\":\"a\"}";
+        suppliers.add(remove("source document", source, List.of("pod"), "{\"k8s\":{\"node\":\"n\"},\"labels\":{\"job\":\"api\"}}"));
+        suppliers.add(remove("source document, emptied object", source, List.of("job"), "{\"k8s\":{\"node\":\"n\"},\"pod\":\"a\"}"));
+        suppliers.add(remove("source document, no label", source, List.of(), source));
         return parameterSuppliersFromTypedData(suppliers);
     }
 

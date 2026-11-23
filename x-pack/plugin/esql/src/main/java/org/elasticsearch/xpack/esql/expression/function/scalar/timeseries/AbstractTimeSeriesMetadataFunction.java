@@ -43,9 +43,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -124,10 +121,11 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
     }
 
     /**
-     * Evaluates a label container function. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the source
-     * holds them, so it is first read into the canonical form - labels sorted by name, see {@link #canonical} - and every function
-     * streams over that: a read stops at its label, and a rewrite copies the labels it keeps in their order, writing a set label
-     * at its sorted position, which keeps the result canonical.
+     * Evaluates a label container function. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the
+     * synthetic source writes it: objects nest as the mapping does and keys are sorted in every object. A label is named by its
+     * field path, see {@link #find}. Every function streams over the container: a read stops at its label, and a rewrite copies
+     * the fields it keeps in their order, writing a set label at its sorted position, so it writes a label container in the
+     * same form and equal label sets get equal bytes.
      * <p>
      * When the other arguments are constant on a page, the result depends on the label containers alone: a constant label
      * container is evaluated once, and a dictionary encoded one once per dictionary entry.
@@ -224,8 +222,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
             BytesRef bytes = new BytesRef();
             try (
                 BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positions);
-                BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "ts_metadata");
-                BreakingBytesRefBuilder canonical = new BreakingBytesRefBuilder(driverContext.breaker(), "ts_metadata_source")
+                BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "ts_metadata")
             ) {
                 for (int p = 0; p < positions; p++) {
                     BytesRef labels = null;
@@ -233,7 +230,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
                         if (containers.getValueCount(p) != 1) {
                             throw new IllegalArgumentException("The label container must be single-valued");
                         }
-                        labels = canonical(containers.getBytesRef(containers.getFirstValueIndex(p), bytes), canonical);
+                        labels = containers.getBytesRef(containers.getFirstValueIndex(p), bytes);
                     }
                     try {
                         eval(labels, arguments, constant ? 0 : p, result, scratch);
@@ -260,76 +257,23 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         }
 
         /**
-         * The label container of the JSON object {@code source} of a series' dimensions, written to {@code scratch}: labels named as
-         * PromQL names them, sorted by name, each holding its non-empty values in source order, one value written as a string and
-         * several as an array. Equal label sets get equal bytes, so the result can key joins and groups.
-         * <p>
-         * TODO: an empty value is left out, so a series whose label is empty and one that lacks the label have the same label
-         * container. Prometheus has no empty label, so data written by it never holds such a pair.
+         * Moves {@code parser}, in an object at {@code prefix}, to the value of the field that holds {@code label}, returning false
+         * when no field does. A label is named by its field path as PromQL names it, see {@link PromqlLabels#labelName(String)}.
          */
-        static BytesRef canonical(BytesRef source, BreakingBytesRefBuilder scratch) {
-            scratch.clear();
-            try (XContentBuilder builder = jsonBuilder(scratch)) {
-                builder.startObject();
-                for (var label : readSource(source).entrySet()) {
-                    write(builder, label.getKey(), label.getValue());
-                }
-                builder.endObject();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Invalid label container", e);
-            }
-            return scratch.bytesRefView();
-        }
-
-        private static SortedMap<String, List<String>> readSource(BytesRef source) throws IOException {
-            try (XContentParser parser = parser(source)) {
-                var labels = new TreeMap<String, List<String>>();
-                readSourceObject(parser, "", labels);
-                end(parser);
-                return labels;
-            }
-        }
-
-        private static void readSourceObject(XContentParser parser, String prefix, Map<String, List<String>> labels) throws IOException {
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+        static boolean find(XContentParser parser, String prefix, String label) throws IOException {
+            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String field = prefix + parser.currentName();
-                token = parser.nextToken();
-                if (token == XContentParser.Token.START_OBJECT) {
-                    readSourceObject(parser, field + ".", labels);
-                    continue;
-                }
-                var values = new ArrayList<String>();
-                if (token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        readSourceValue(parser, token, field, values);
+                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                    if (find(parser, field + ".", label)) {
+                        return true;
                     }
+                } else if (PromqlLabels.labelName(field).equals(label)) {
+                    return true;
                 } else {
-                    readSourceValue(parser, token, field, values);
-                }
-                String label = PromqlLabels.labelName(field);
-                if (label.isEmpty()) {
-                    throw new IllegalArgumentException("time-series label names must be non-empty");
-                }
-                if (labels.containsKey(label)) {
-                    throw new IllegalArgumentException("multiple dimension fields resolve to time-series label [" + label + "]");
-                }
-                if (values.isEmpty() == false) {
-                    labels.put(label, values);
+                    parser.skipChildren();
                 }
             }
-        }
-
-        /** Scalars keep their source text; null and empty values are left out. */
-        private static void readSourceValue(XContentParser parser, XContentParser.Token token, String field, List<String> values)
-            throws IOException {
-            if (token.isValue()) {
-                String value = parser.text();
-                if (value.isEmpty() == false) {
-                    values.add(value);
-                }
-            } else if (token != XContentParser.Token.VALUE_NULL) {
-                throw new IllegalArgumentException("time-series dimension [" + field + "] must contain values");
-            }
+            return false;
         }
 
         /** Opens {@code labels}, positioned on its object. */
@@ -358,12 +302,52 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
             return XContentFactory.jsonBuilder(new BytesRefBuilderOutputStream(scratch));
         }
 
-        /** One value is written as a string, several as an array. */
-        static void write(XContentBuilder builder, String name, List<String> values) throws IOException {
-            if (values.size() == 1) {
-                builder.field(name, values.getFirst());
-            } else {
-                builder.array(name, values.toArray(String[]::new));
+        /**
+         * Writes a rewritten label container. An object opens only once a label is written into it, so an object left with no
+         * label is left out, as the source of a series holds no object without a dimension in it.
+         */
+        static final class LabelWriter {
+            private final XContentBuilder builder;
+            /** The objects entered but not written yet, outermost first. */
+            private final List<String> pending = new ArrayList<>();
+
+            LabelWriter(XContentBuilder builder) {
+                this.builder = builder;
+            }
+
+            void startObject(String name) {
+                pending.add(name);
+            }
+
+            void endObject() throws IOException {
+                if (pending.isEmpty()) {
+                    builder.endObject();
+                } else {
+                    pending.removeLast();
+                }
+            }
+
+            /** Starts the field {@code name}, opening the objects it is in. */
+            XContentBuilder field(String name) throws IOException {
+                for (String object : pending) {
+                    builder.startObject(object);
+                }
+                pending.clear();
+                return builder.field(name);
+            }
+
+            /** Writes the field {@code name}: one value as a string, several as an array. */
+            void field(String name, List<String> values) throws IOException {
+                field(name);
+                if (values.size() == 1) {
+                    builder.value(values.getFirst());
+                } else {
+                    builder.startArray();
+                    for (String value : values) {
+                        builder.value(value);
+                    }
+                    builder.endArray();
+                }
             }
         }
 

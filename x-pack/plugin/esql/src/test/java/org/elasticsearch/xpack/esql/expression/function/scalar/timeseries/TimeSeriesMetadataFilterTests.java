@@ -53,9 +53,12 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
                 "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
             )
         );
-        // The label container is the source document: nested, prefixed and in any order, read into the canonical form.
-        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"},\"k8s\":{\"node\":\"n\",\"empty\":\"\"}}";
-        suppliers.add(keep("source document", source, List.of("job", "k8s.node"), "{\"job\":\"api\",\"k8s.node\":\"n\"}"));
+        // The label container is the source document: objects nest as in the mapping, and a label is named by its field path.
+        String source = "{\"k8s\":{\"node\":\"n\",\"zone\":\"z\"},\"labels\":{\"job\":\"api\"},\"pod\":\"a\"}";
+        suppliers.add(
+            keep("source document", source, List.of("job", "k8s.node"), "{\"k8s\":{\"node\":\"n\"},\"labels\":{\"job\":\"api\"}}")
+        );
+        suppliers.add(keep("source document, emptied objects", source, List.of("pod"), "{\"pod\":\"a\"}"));
         suppliers.add(keep("source document, no label", source, List.of("missing"), "{}"));
         return parameterSuppliersFromTypedData(suppliers);
     }

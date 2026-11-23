@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -64,15 +65,52 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
             );
         }));
-        // The label container is the source document: nested, prefixed and in any order, read into the canonical form.
-        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"}}";
-        suppliers.add(set("source document", source, "env", "prod", "{\"env\":\"prod\",\"job\":\"api\",\"pod\":\"a\"}"));
-        suppliers.add(set("source document, prefixed label", source, "job", "web", "{\"job\":\"web\",\"pod\":\"a\"}"));
+        // The label container is the source document: objects nest as in the mapping, and a label is written at its path.
+        String source = "{\"labels\":{\"job\":\"api\",\"pod\":\"a\"},\"region\":\"eu\"}";
+        suppliers.add(
+            set(
+                "into its object",
+                source,
+                "cluster",
+                "prod",
+                "{\"labels\":{\"cluster\":\"prod\",\"job\":\"api\",\"pod\":\"a\"},\"region\":\"eu\"}"
+            )
+        );
+        suppliers.add(
+            set("replaces a nested label", source, "job", "web", "{\"labels\":{\"job\":\"web\",\"pod\":\"a\"},\"region\":\"eu\"}")
+        );
+        suppliers.add(
+            set("outside its object", source, "zone", "z", "{\"labels\":{\"job\":\"api\",\"pod\":\"a\"},\"region\":\"eu\",\"zone\":\"z\"}")
+        );
+        suppliers.add(
+            set("creates its object", "{\"region\":\"eu\"}", "cluster", "prod", "{\"labels\":{\"cluster\":\"prod\"},\"region\":\"eu\"}")
+        );
+        suppliers.add(
+            set("leaves out an emptied object", "{\"labels\":{\"job\":\"api\"},\"region\":\"eu\"}", "job", "", "{\"region\":\"eu\"}")
+        );
+        suppliers.add(
+            set(
+                "moves a label to its path",
+                "{\"job\":\"api\",\"region\":\"eu\"}",
+                "job",
+                "web",
+                "{\"labels\":{\"job\":\"web\"},\"region\":\"eu\"}"
+            )
+        );
         return parameterSuppliersFromTypedData(suppliers);
     }
 
+    /** The field a label is written to: {@code cluster} and {@code job} sit in a {@code labels} object, as remote write puts them. */
+    private static List<String> path(String label) {
+        return label.equals("cluster") || label.equals("job") ? List.of("labels", label) : List.of(label);
+    }
+
     private static String evaluator(String label) {
-        return "TimeSeriesMetadataSetEvaluator[labelContainer=Attribute[channel=0], label=" + label + ", value=Attribute[channel=1]]";
+        return "TimeSeriesMetadataSetEvaluator[labelContainer=Attribute[channel=0], label="
+            + label
+            + ", path="
+            + path(label)
+            + ", value=Attribute[channel=1]]";
     }
 
     private static TestCaseSupplier set(String name, String labelContainer, String label, String value, String expected) {
@@ -88,7 +126,16 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TimeSeriesMetadataSet(source, args.get(0), args.get(1), args.get(2));
+        return set(source, args);
+    }
+
+    /** The function over {@code args}, writing a constant label at its {@link #path}. */
+    static TimeSeriesMetadataSet set(Source source, List<Expression> args) {
+        Expression label = args.get(1);
+        List<String> path = label.foldable() && label.fold(FoldContext.small()) instanceof BytesRef name
+            ? path(name.utf8ToString())
+            : List.of("label");
+        return new TimeSeriesMetadataSet(source, args.get(0), label, args.get(2), path);
     }
 
     /** A missing label container is the empty one and a missing value removes the label: the result is the empty container. */
@@ -107,7 +154,25 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
             Literal.NULL,
             field("label", DataType.KEYWORD)
         )) {
-            assertTrue(label.toString(), new TimeSeriesMetadataSet(Source.EMPTY, labelContainer, label, value).typeResolved().unresolved());
+            assertTrue(
+                label.toString(),
+                new TimeSeriesMetadataSet(Source.EMPTY, labelContainer, label, value, List.of("label")).typeResolved().unresolved()
+            );
+        }
+    }
+
+    /** The path must name the label it writes, or a label written back would land apart from where the source holds it. */
+    public void testPathMustNameTheLabel() {
+        Expression labelContainer = field("labelContainer", DataType.KEYWORD);
+        Expression value = field("value", DataType.KEYWORD);
+        Expression pod = Literal.keyword(Source.EMPTY, "pod");
+        assertTrue(new TimeSeriesMetadataSet(Source.EMPTY, labelContainer, pod, value, List.of("labels", "pod")).typeResolved().resolved());
+        assertTrue(new TimeSeriesMetadataSet(Source.EMPTY, labelContainer, pod, value, List.of("pod")).typeResolved().resolved());
+        for (List<String> path : List.<List<String>>of(List.of(), List.of("job"), List.of("k8s", "pod"))) {
+            assertTrue(
+                path.toString(),
+                new TimeSeriesMetadataSet(Source.EMPTY, labelContainer, pod, value, path).typeResolved().unresolved()
+            );
         }
     }
 }

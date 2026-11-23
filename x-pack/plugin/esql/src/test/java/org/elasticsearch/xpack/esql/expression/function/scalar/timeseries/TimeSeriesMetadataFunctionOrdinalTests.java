@@ -56,11 +56,11 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         "{\"cluster\":\"prod\",\"pod\":\"one\"}",
         "{\"cluster\":\"prod\",\"pod\":\"two\"}",
         "{\"cluster\":\"qa\",\"pod\":\"three\"}" };
-    /** Label containers as the source holds them, labels in any order. */
-    private static final String[] UNSORTED_CONTAINERS = {
-        "{\"pod\":\"one\",\"cluster\":\"prod\"}",
-        "{\"pod\":\"two\",\"cluster\":\"prod\"}",
-        "{\"cluster\":\"qa\",\"pod\":\"three\"}" };
+    /** Label containers as remote write stores them, every label in a {@code labels} object. */
+    private static final String[] NESTED_CONTAINERS = {
+        "{\"labels\":{\"cluster\":\"prod\",\"pod\":\"one\"}}",
+        "{\"labels\":{\"cluster\":\"prod\",\"pod\":\"two\"}}",
+        "{\"labels\":{\"cluster\":\"qa\",\"pod\":\"three\"}}" };
     /** 15 rows over 3 entries: dense. */
     private static final Integer[] DENSE = { 0, 1, 0, 2, 1, 0, 1, 2, 0, 0, 1, 2, 2, 0, 1 };
 
@@ -95,12 +95,23 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     }
 
     public void testSetOfConstantReusesOrdinals() {
-        assertDictionaryPath(c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api")), CONTAINERS, DENSE, true);
+        assertDictionaryPath(
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("job")),
+            CONTAINERS,
+            DENSE,
+            true
+        );
     }
 
     public void testSetOfNullReusesOrdinals() {
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("pod"), new Literal(Source.EMPTY, null, DataType.KEYWORD)),
+            c -> new TimeSeriesMetadataSet(
+                Source.EMPTY,
+                c,
+                keyword("pod"),
+                new Literal(Source.EMPTY, null, DataType.KEYWORD),
+                List.of("pod")
+            ),
             CONTAINERS,
             DENSE,
             true
@@ -110,7 +121,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     public void testSetOfColumnKeepsRows() {
         // The written value changes per row, so the result is not a function of the label container alone.
         assertDictionaryPath(
-            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), field("job", DataType.KEYWORD)),
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), field("job", DataType.KEYWORD), List.of("job")),
             CONTAINERS,
             DENSE,
             false
@@ -132,7 +143,11 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
     public void testConstantEvaluatesOnce() {
         assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS[0], true);
         assertConstant(c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true), CONTAINERS[0], true);
-        assertConstant(c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api")), CONTAINERS[0], true);
+        assertConstant(
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("job")),
+            CONTAINERS[0],
+            true
+        );
         // A read of an absent label is null on every row.
         assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("absent")), CONTAINERS[0], true);
         // A read of a label of several values is not one value, so it is evaluated per row.
@@ -164,15 +179,24 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         }
     }
 
-    public void testUnsortedReadReusesOrdinals() {
-        // A keyword _timeseries is the source's JSON object, in the source's order: each entry is read into the canonical form.
-        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), UNSORTED_CONTAINERS, DENSE, true);
+    public void testNestedReadReusesOrdinals() {
+        // A keyword _timeseries is the source's JSON object, with its objects: a label is named by its field path.
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), NESTED_CONTAINERS, DENSE, true);
     }
 
-    public void testUnsortedDropReusesOrdinals() {
+    public void testNestedDropReusesOrdinals() {
         assertDictionaryPath(
             c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true),
-            UNSORTED_CONTAINERS,
+            NESTED_CONTAINERS,
+            DENSE,
+            true
+        );
+    }
+
+    public void testNestedSetReusesOrdinals() {
+        assertDictionaryPath(
+            c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api"), List.of("labels", "job")),
+            NESTED_CONTAINERS,
             DENSE,
             true
         );

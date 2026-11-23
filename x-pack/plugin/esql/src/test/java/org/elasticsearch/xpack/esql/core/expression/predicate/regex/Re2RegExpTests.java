@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import com.google.re2j.Pattern;
+import com.google.re2j.Re2Programs;
+
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -16,8 +19,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 
 import java.util.List;
 
@@ -97,7 +98,7 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     public void testIgnoreCase() {
-        CharacterRunAutomaton run = run(new Re2RegExp("ab(?-i)c", FLAGS | RE2.FOLD_CASE));
+        CharacterRunAutomaton run = run(new Re2RegExp("ab(?-i)c", FLAGS | Re2Programs.FOLD_CASE));
         assertTrue(run.run("ABc"));
         assertFalse(run.run("ABC"));
     }
@@ -320,7 +321,7 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     /** The parser flags Prometheus parses a label matcher with. */
-    private static final int FLAGS = RE2.PERL | RE2.DOT_NL;
+    private static final int FLAGS = Re2Programs.PERL | Re2Programs.DOT_NL;
 
     private static final List<Integer> ALPHABET = List.of(
         (int) 'a',

@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import com.google.re2j.Re2Programs;
+
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
 
 import java.util.Objects;
 
@@ -49,9 +50,9 @@ public class Re2Pattern extends AbstractStringPattern {
     }
 
     private static int flags(boolean ignoreCase) {
-        int flags = RE2.PERL | RE2.DOT_NL;
+        int flags = Re2Programs.PERL | Re2Programs.DOT_NL;
         if (ignoreCase) {
-            flags |= RE2.FOLD_CASE;
+            flags |= Re2Programs.FOLD_CASE;
         }
         return flags;
     }

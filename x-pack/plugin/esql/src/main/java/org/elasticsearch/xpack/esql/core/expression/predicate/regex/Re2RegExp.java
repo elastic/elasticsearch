@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
+import com.google.re2j.Re2Programs;
+import com.google.re2j.Re2Programs.Instruction;
+import com.google.re2j.Re2Programs.Parsed;
+import com.google.re2j.Re2Programs.Program;
+
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
@@ -16,15 +21,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Compiler;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Inst;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Parser;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Prog;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Regexp;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Simplify;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Unicode;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,7 +31,7 @@ import java.util.List;
  * A regular expression in RE2 syntax, compiled to a Lucene {@link Automaton} that accepts the strings it matches whole.
  * <p>
  * RE2 is the syntax of Go's {@code regexp} package, and so of PromQL label matchers. Lucene's {@link RegExp} has a
- * grammar of its own, so the expression is parsed and compiled by the fork of RE2/J in the {@code re2} package into the
+ * grammar of its own, so the expression is parsed and compiled by RE2/J, through {@link Re2Programs}, into the
  * program its matcher runs, and the automaton is read off that program in one pass.
  * <p>
  * The program is a nondeterministic machine whose empty moves are its {@code Alt}, {@code Nop}, {@code Capture} and
@@ -49,15 +45,15 @@ public final class Re2RegExp {
     /** The strings of an expression that is an alternation of literals, which needs no parsing; null if it isn't one. */
     private final List<String> literals;
     /** The parsed expression, simplified and compiled only once the memory of that is reserved; null for literals. */
-    private final Regexp parsed;
+    private final Parsed parsed;
 
     /**
-     * @param flags the {@link RE2} parser flags, such as {@link RE2#PERL}, {@link RE2#DOT_NL} and {@link RE2#FOLD_CASE}
+     * @param flags the RE2/J parser flags, such as {@link Re2Programs#PERL}, {@link Re2Programs#DOT_NL} and {@link Re2Programs#FOLD_CASE}
      * @throws IllegalArgumentException if the expression isn't valid RE2
      */
     public Re2RegExp(String pattern, int flags) {
-        this.literals = (flags & RE2.FOLD_CASE) == 0 ? literals(pattern) : null;
-        this.parsed = literals == null ? Parser.parse(pattern, flags) : null;
+        this.literals = (flags & Re2Programs.FOLD_CASE) == 0 ? literals(pattern) : null;
+        this.parsed = literals == null ? Re2Programs.parse(pattern, flags) : null;
     }
 
     /**
@@ -115,7 +111,7 @@ public final class Re2RegExp {
         }
         Builder builder = null;
         try {
-            builder = new Builder(Compiler.compileRegexp(Simplify.simplify(parsed)), breaker, label);
+            builder = new Builder(parsed.compile(), breaker, label);
             Automaton automaton = builder.build();
             if (builder.mayHaveDeadStates == false) {
                 return automaton;
@@ -196,7 +192,7 @@ public final class Re2RegExp {
     private static final int[] ANY_NOT_NL = { 0, '\n' - 1, '\n' + 1, Character.MAX_CODE_POINT };
 
     private static final class Builder {
-        private final Prog prog;
+        private final Program prog;
         /**
          * The assertions that hold wherever they are reached: one at the beginning that no rune comes before, as in
          * {@code ^a}, and one at the end that no rune comes after, as in {@code a$}, as the expression is matched whole.
@@ -235,7 +231,7 @@ public final class Re2RegExp {
         private long transitions;
         private long reserved;
 
-        Builder(Prog prog, CircuitBreaker breaker, String label) {
+        Builder(Program prog, CircuitBreaker breaker, String label) {
             this.prog = prog;
             this.breaker = breaker;
             this.label = label;
@@ -245,12 +241,12 @@ public final class Re2RegExp {
             BitSet beforeRune = null;
             boolean contextual = false;
             for (int pc = 0; pc < n; pc++) {
-                Inst inst = prog.getInst(pc);
-                if (inst.op != Inst.EMPTY_WIDTH) {
+                Instruction inst = prog.getInst(pc);
+                if (inst.op != Instruction.EMPTY_WIDTH) {
                     continue;
                 }
-                int begin = Utils.EMPTY_BEGIN_TEXT | Utils.EMPTY_BEGIN_LINE;
-                int end = Utils.EMPTY_END_TEXT | Utils.EMPTY_END_LINE;
+                int begin = Re2Programs.EMPTY_BEGIN_TEXT | Re2Programs.EMPTY_BEGIN_LINE;
+                int end = Re2Programs.EMPTY_END_TEXT | Re2Programs.EMPTY_END_LINE;
                 boolean holds = (inst.arg & ~(begin | end)) == 0;
                 if (holds && (inst.arg & begin) != 0) {
                     if (afterRune == null) {
@@ -341,15 +337,15 @@ public final class Re2RegExp {
                     continue;
                 }
                 visitedIn[item] = closure;
-                Inst inst = prog.getInst(item >>> 4);
+                Instruction inst = prog.getInst(item >>> 4);
                 int next = item & ALL;
                 switch (inst.op) {
-                    case Inst.ALT, Inst.ALT_MATCH -> {
+                    case Instruction.ALT, Instruction.ALT_MATCH -> {
                         stack.add(inst.arg << 4 | next);
                         stack.add(inst.out << 4 | next);
                     }
-                    case Inst.NOP, Inst.CAPTURE -> stack.add(inst.out << 4 | next);
-                    case Inst.EMPTY_WIDTH -> {
+                    case Instruction.NOP, Instruction.CAPTURE -> stack.add(inst.out << 4 | next);
+                    case Instruction.EMPTY_WIDTH -> {
                         if (holds[item >>> 4]) {
                             stack.add(inst.out << 4 | next);
                             continue;
@@ -359,12 +355,12 @@ public final class Re2RegExp {
                             stack.add(inst.out << 4 | allowed);
                         }
                     }
-                    case Inst.MATCH -> {
+                    case Instruction.MATCH -> {
                         if ((next & 1 << EDGE) != 0) {
                             automaton.setAccept(state, true);
                         }
                     }
-                    case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL -> {
+                    case Instruction.RUNE, Instruction.RUNE1, Instruction.RUNE_ANY, Instruction.RUNE_ANY_NOT_NL -> {
                         int runePc = item >>> 4;
                         if (reachedIn[runePc] == closure) {
                             this.next[runePc] |= next;
@@ -374,7 +370,7 @@ public final class Re2RegExp {
                             reached.add(runePc);
                         }
                     }
-                    case Inst.FAIL -> mayHaveDeadStates = true;
+                    case Instruction.FAIL -> mayHaveDeadStates = true;
                     default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
                 }
             }
@@ -384,8 +380,8 @@ public final class Re2RegExp {
             }
         }
 
-        private void transitions(int from, Inst inst, int next) {
-            if (contextual == false && inst.op == Inst.RUNE1) {
+        private void transitions(int from, Instruction inst, int next) {
+            if (contextual == false && inst.op == Instruction.RUNE1) {
                 addTransition(from, state(inst.out, EDGE), inst.runes[0], inst.runes[0]);
                 return;
             }
@@ -433,7 +429,7 @@ public final class Re2RegExp {
         }
 
         /** The instructions the empty moves after a rune reach, the positions that a rune comes before. */
-        private static BitSet afterRune(Prog prog) {
+        private static BitSet afterRune(Program prog) {
             BitSet reached = new BitSet(prog.numInst());
             IntArrayList stack = new IntArrayList();
             for (int pc = 0; pc < prog.numInst(); pc++) {
@@ -449,7 +445,7 @@ public final class Re2RegExp {
          * The instructions whose empty moves reach a rune instruction, them included, the positions that a rune may come
          * after: found in one walk back along the empty moves from every rune instruction, rather than one walk per assertion.
          */
-        private static BitSet beforeRune(Prog prog) {
+        private static BitSet beforeRune(Program prog) {
             int n = prog.numInst();
             // the empty moves into each instruction, as linked lists: head[to] and next[edge], from[edge]
             int[] head = new int[n];
@@ -457,14 +453,20 @@ public final class Re2RegExp {
             IntArrayList from = new IntArrayList();
             IntArrayList next = new IntArrayList();
             for (int pc = 0; pc < n; pc++) {
-                Inst inst = prog.getInst(pc);
+                Instruction inst = prog.getInst(pc);
                 switch (inst.op) {
-                    case Inst.ALT, Inst.ALT_MATCH -> {
+                    case Instruction.ALT, Instruction.ALT_MATCH -> {
                         head[inst.out] = edge(from, next, pc, head[inst.out]);
                         head[inst.arg] = edge(from, next, pc, head[inst.arg]);
                     }
-                    case Inst.NOP, Inst.CAPTURE, Inst.EMPTY_WIDTH -> head[inst.out] = edge(from, next, pc, head[inst.out]);
-                    case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL, Inst.MATCH, Inst.FAIL -> {
+                    case Instruction.NOP, Instruction.CAPTURE, Instruction.EMPTY_WIDTH -> head[inst.out] = edge(
+                        from,
+                        next,
+                        pc,
+                        head[inst.out]
+                    );
+                    case Instruction.RUNE, Instruction.RUNE1, Instruction.RUNE_ANY, Instruction.RUNE_ANY_NOT_NL, Instruction.MATCH,
+                        Instruction.FAIL -> {
                         // a move past a rune, or the end of the way
                     }
                     default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
@@ -497,21 +499,22 @@ public final class Re2RegExp {
         }
 
         /** Adds the instructions the empty moves from those on {@code stack} reach, them included, to {@code reached}. */
-        private static void emptyMoves(Prog prog, IntArrayList stack, BitSet reached) {
+        private static void emptyMoves(Program prog, IntArrayList stack, BitSet reached) {
             while (stack.isEmpty() == false) {
                 int pc = stack.removeLast();
                 if (reached.get(pc)) {
                     continue;
                 }
                 reached.set(pc);
-                Inst inst = prog.getInst(pc);
+                Instruction inst = prog.getInst(pc);
                 switch (inst.op) {
-                    case Inst.ALT, Inst.ALT_MATCH -> {
+                    case Instruction.ALT, Instruction.ALT_MATCH -> {
                         stack.add(inst.out);
                         stack.add(inst.arg);
                     }
-                    case Inst.NOP, Inst.CAPTURE, Inst.EMPTY_WIDTH -> stack.add(inst.out);
-                    case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL, Inst.MATCH, Inst.FAIL -> {
+                    case Instruction.NOP, Instruction.CAPTURE, Instruction.EMPTY_WIDTH -> stack.add(inst.out);
+                    case Instruction.RUNE, Instruction.RUNE1, Instruction.RUNE_ANY, Instruction.RUNE_ANY_NOT_NL, Instruction.MATCH,
+                        Instruction.FAIL -> {
                         // a move past a rune, or the end of the way
                     }
                     default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
@@ -519,26 +522,29 @@ public final class Re2RegExp {
             }
         }
 
-        private static boolean isRune(Inst inst) {
+        private static boolean isRune(Instruction inst) {
             return switch (inst.op) {
-                case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL -> true;
-                case Inst.ALT, Inst.ALT_MATCH, Inst.NOP, Inst.CAPTURE, Inst.EMPTY_WIDTH, Inst.MATCH, Inst.FAIL -> false;
+                case Instruction.RUNE, Instruction.RUNE1, Instruction.RUNE_ANY, Instruction.RUNE_ANY_NOT_NL -> true;
+                case Instruction.ALT, Instruction.ALT_MATCH, Instruction.NOP, Instruction.CAPTURE, Instruction.EMPTY_WIDTH,
+                    Instruction.MATCH, Instruction.FAIL -> false;
                 default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
             };
         }
 
         /** The runes a rune instruction matches, as sorted {@code [lo, hi]} pairs. */
-        private static int[] runes(Inst inst) {
+        private static int[] runes(Instruction inst) {
             return switch (inst.op) {
-                case Inst.RUNE_ANY -> ANY;
-                case Inst.RUNE_ANY_NOT_NL -> ANY_NOT_NL;
-                case Inst.RUNE1 -> new int[] { inst.runes[0], inst.runes[0] };
-                case Inst.RUNE -> inst.runes.length == 1 ? literal(inst.runes[0], (inst.arg & RE2.FOLD_CASE) != 0) : inst.runes;
+                case Instruction.RUNE_ANY -> ANY;
+                case Instruction.RUNE_ANY_NOT_NL -> ANY_NOT_NL;
+                case Instruction.RUNE1 -> new int[] { inst.runes[0], inst.runes[0] };
+                case Instruction.RUNE -> inst.runes.length == 1
+                    ? literal(inst.runes[0], (inst.arg & Re2Programs.FOLD_CASE) != 0)
+                    : inst.runes;
                 default -> throw new IllegalStateException("[" + inst.op + "] is no rune instruction");
             };
         }
 
-        /** A literal rune and, if it folds case, the runes it folds to, as the matcher's {@code Inst.matchRune} has them. */
+        /** A literal rune and, if it folds case, the runes it folds to, as the matcher's {@code Instruction.matchRune} has them. */
         private static int[] literal(int rune, boolean fold) {
             if (fold == false) {
                 return new int[] { rune, rune };
@@ -547,7 +553,7 @@ public final class Re2RegExp {
             int r = rune;
             do {
                 orbit.add(r);
-                r = Unicode.simpleFold(r);
+                r = Re2Programs.simpleFold(r);
             } while (r != rune);
             int[] sorted = orbit.toArray();
             Arrays.sort(sorted);
@@ -563,22 +569,22 @@ public final class Re2RegExp {
         private static int allowedNext(int empty, int previous) {
             int allowed = ALL;
             int word = 1 << WORD;
-            if ((empty & Utils.EMPTY_BEGIN_TEXT) != 0 && previous != EDGE) {
+            if ((empty & Re2Programs.EMPTY_BEGIN_TEXT) != 0 && previous != EDGE) {
                 allowed = 0;
             }
-            if ((empty & Utils.EMPTY_BEGIN_LINE) != 0 && previous != EDGE && previous != NEWLINE) {
+            if ((empty & Re2Programs.EMPTY_BEGIN_LINE) != 0 && previous != EDGE && previous != NEWLINE) {
                 allowed = 0;
             }
-            if ((empty & Utils.EMPTY_END_TEXT) != 0) {
+            if ((empty & Re2Programs.EMPTY_END_TEXT) != 0) {
                 allowed &= 1 << EDGE;
             }
-            if ((empty & Utils.EMPTY_END_LINE) != 0) {
+            if ((empty & Re2Programs.EMPTY_END_LINE) != 0) {
                 allowed &= 1 << EDGE | 1 << NEWLINE;
             }
-            if ((empty & Utils.EMPTY_WORD_BOUNDARY) != 0) {
+            if ((empty & Re2Programs.EMPTY_WORD_BOUNDARY) != 0) {
                 allowed &= previous == WORD ? ALL & ~word : word;
             }
-            if ((empty & Utils.EMPTY_NO_WORD_BOUNDARY) != 0) {
+            if ((empty & Re2Programs.EMPTY_NO_WORD_BOUNDARY) != 0) {
                 allowed &= previous == WORD ? word : ALL & ~word;
             }
             return allowed;

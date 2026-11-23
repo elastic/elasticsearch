@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
@@ -19,9 +23,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Matcher;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.PatternSyntaxException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,9 +31,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -179,8 +178,8 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
     /**
      * Validates a user-supplied {@code label_replace} regular expression by compiling it exactly as {@link #toEvaluator}
      * will, so an invalid pattern is rejected during analysis rather than surfacing later during execution. Returns
-     * {@code null} when {@code regex} compiles, otherwise the RE2 syntax-error message. Returning the message rather than
-     * throwing keeps the regex engine contained to this class: the analyzer need not depend on it.
+     * {@code null} when {@code regex} compiles, otherwise the RE2/J syntax-error message. Returning the message rather than
+     * throwing keeps the RE2/J dependency contained to this class: the analyzer need not depend on {@code com.google.re2j}.
      */
     public static String validateRegex(String regex) {
         try {
@@ -287,10 +286,9 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
     static final class Replacement {
         private final byte[] template;
         private final int groupCount;
-        /** The groups of each name, by index, so that a name used more than once expands to the first of them that matched. */
-        private final Map<String, int[]> namedGroups;
+        private final Map<String, Integer> namedGroups;
 
-        private Replacement(byte[] template, int groupCount, Map<String, int[]> namedGroups) {
+        private Replacement(byte[] template, int groupCount, Map<String, Integer> namedGroups) {
             this.template = template;
             this.groupCount = groupCount;
             this.namedGroups = namedGroups;
@@ -298,19 +296,7 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
 
         /** Binds {@code template} to {@code pattern}'s group metadata, holding it as UTF-8 bytes for per-row expansion. */
         static Replacement of(String template, Pattern pattern) {
-            return new Replacement(template.getBytes(StandardCharsets.UTF_8), pattern.groupCount(), namedGroups(pattern.groupNames()));
-        }
-
-        private static Map<String, int[]> namedGroups(String[] groupNames) {
-            Map<String, List<Integer>> lists = new HashMap<>();
-            for (int g = 1; g < groupNames.length; g++) {
-                if (groupNames[g] != null) {
-                    lists.computeIfAbsent(groupNames[g], k -> new ArrayList<>()).add(g);
-                }
-            }
-            Map<String, int[]> groups = new HashMap<>(lists.size());
-            lists.forEach((name, indices) -> groups.put(name, indices.stream().mapToInt(Integer::intValue).toArray()));
-            return groups;
+            return new Replacement(template.getBytes(StandardCharsets.UTF_8), pattern.groupCount(), pattern.namedGroups());
         }
 
         /**
@@ -374,16 +360,10 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
                         appendGroup(matcher, input, out, num);
                     }
                 } else {
-                    String name = new String(t, nameStart, nameEnd - nameStart, StandardCharsets.UTF_8);
-                    int[] groups = namedGroups.get(name);
-                    // As in Go, the first group of that name that matched; an unknown named reference expands to "".
-                    if (groups != null) {
-                        for (int g : groups) {
-                            if (matcher.start(g) >= 0) {
-                                appendGroup(matcher, input, out, g);
-                                break;
-                            }
-                        }
+                    Integer group = namedGroups.get(new String(t, nameStart, nameEnd - nameStart, StandardCharsets.UTF_8));
+                    // An unknown named reference expands to "", i.e. contributes nothing.
+                    if (group != null) {
+                        appendGroup(matcher, input, out, group);
                     }
                 }
             }

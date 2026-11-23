@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -23,8 +26,6 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Matcher;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -142,12 +143,6 @@ public class RegexExpandTests extends ESTestCase {
         // Group names may contain digits and underscores; both the braced and unbraced forms resolve to the capture.
         assertThat(replace("(?P<foo_1>.*)", "${foo_1}", "hi"), equalTo("hi"));
         assertThat(replace("(?P<foo_1>.*)", "$foo_1", "hi"), equalTo("hi"));
-    }
-
-    public void testNameUsedMoreThanOnceExpandsToFirstGroupThatMatched() {
-        // As Go's Regexp.Expand: the first group of the name that took part in the match, by index.
-        assertThat(replace("(?P<n>a)(?P<n>b)", "$n", "ab"), equalTo("a"));
-        assertThat(replace("(?P<n>a)|(?P<n>b)", "${n}", "b"), equalTo("b"));
     }
 
     // --- UTF-8 / byte-offset correctness: matching is on raw bytes and groups are sliced by byte offset ---

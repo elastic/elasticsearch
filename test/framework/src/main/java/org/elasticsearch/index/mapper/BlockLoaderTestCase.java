@@ -450,7 +450,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        builder.put("index.mapping.source.mode", params.sourceMode().name());
+        if (params.syntheticSource()) {
+            builder.put("index.mapping.source.mode", "synthetic");
+        } else {
+            builder.put("index.mapping.source.mode", params.sourceMode().name());
+        }
         builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         if (params.indexMode() == IndexMode.TIME_SERIES) {
             builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), TIME_SERIES_DIMENSION_FIELD);

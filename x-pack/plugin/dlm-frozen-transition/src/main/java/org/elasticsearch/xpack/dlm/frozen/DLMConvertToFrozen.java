@@ -77,6 +77,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -526,12 +527,43 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
         if (dataStreamName != null) {
             swapIndicesInDataStream(dataStreamName);
+        } else if (isMountedReplacementInDataStream(projectMetadata) == false) {
+            // The original left its data stream before the mounted snapshot was swapped in.
+            // Abort as the data may exist only in the original.
+            throw new DLMUnrecoverableException(
+                indexName,
+                "Index [{}] is no longer part of a data stream and frozen index [{}] is not a DLM mount of it in a data stream, "
+                    + "so DLM will not delete the index",
+                indexName,
+                snapshotName(indexName)
+            );
         }
         // Delete the force merge index if it is different from the original.
         if (indexName.equals(forceMergeIndex) == false) {
             deleteIndex(forceMergeIndex);
         }
         deleteIndex(indexName);
+    }
+
+    /**
+     * Returns true only if the frozen-named index is in a data stream and is the DLM-created mount of a snapshot of the original
+     * index or its clone. The source comes from the mount, not from this attempt's force merge choice, which a replica change
+     * can alter between attempts.
+     */
+    private boolean isMountedReplacementInDataStream(ProjectMetadata projectMetadata) {
+        String frozenIndexName = snapshotName(indexName);
+        IndexMetadata frozenIndexMetadata = projectMetadata.index(frozenIndexName);
+        if (frozenIndexMetadata == null || resolveDataStreamName(frozenIndexName, projectMetadata) == null) {
+            return false;
+        }
+        Settings frozenSettings = frozenIndexMetadata.getSettings();
+        String mountedSourceIndex = frozenSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
+        boolean sourceIsFromThisTransition = indexName.equals(mountedSourceIndex) || getDLMCloneIndexName().equals(mountedSourceIndex);
+        return DataStreamLifecycleService.frozenTransitionCompleted(frozenIndexMetadata)
+            && sourceIsFromThisTransition
+            && snapshotName(mountedSourceIndex).equals(
+                frozenSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY)
+            );
     }
 
     private boolean isIndexReadOnly() {

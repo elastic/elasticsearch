@@ -93,7 +93,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomIntBetween(1, Integer.MAX_VALUE),
                 settingsVersion1,
                 mappingVersion1,
-                null
+                new TimeSeriesStats(1_000, 0, 999)
             ),
             new FieldCapabilitiesIndexResponse(
                 "index_b",
@@ -105,7 +105,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomIntBetween(1, Integer.MAX_VALUE),
                 settingsVersion2,
                 mappingVersion2,
-                null
+                new TimeSeriesStats(2_000, 1_000, 1_999)
             )
         );
 

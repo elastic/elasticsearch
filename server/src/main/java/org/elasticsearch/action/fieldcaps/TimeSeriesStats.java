@@ -90,7 +90,12 @@ public record TimeSeriesStats(double seriesMillis, long startMillis, long endMil
 
     static long[] timestampBounds(@Nullable QueryBuilder filter, DateFieldMapper.DateFieldType timestamp, long nowInMillis) {
         final long[] bounds = { Long.MIN_VALUE, Long.MAX_VALUE };
-        collectTimestampBounds(filter, timestamp, nowInMillis, bounds);
+        try {
+            collectTimestampBounds(filter, timestamp, nowInMillis, bounds);
+        } catch (RuntimeException unused) {
+            // ignored invalid time bounds
+            return null;
+        }
         return bounds;
     }
 

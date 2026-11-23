@@ -235,7 +235,7 @@ tests:
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackFieldsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testFetchTooManyBigFields
@@ -322,7 +322,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackStringFunctionsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testManyDissectFromRow
@@ -361,12 +361,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
-  issue: https://github.com/elastic/incident-management/issues/2018
-- class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT
-  issue: https://github.com/elastic/incident-management/issues/2018
-- class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyWarmHeapPressureIT
-  issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
@@ -402,11 +396,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.xpack.stateless.cache.SearchShardCacheWarmingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
-  issue: https://github.com/elastic/elasticsearch/issues/163325
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:rolling-upgrade:v9.0.8#yamlBwcTest
@@ -474,11 +463,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShardFilesNotDeletedOnStateNotRecoveredDedicatedMaster
   issue: https://github.com/elastic/elasticsearch/issues/164248
-- class: org.elasticsearch.datastreams.DataStreamAutoshardingIT
-  tasks:
-  - :modules:data-streams:internalClusterTest
-  method: testReduceShardsOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/164371
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -603,6 +587,7 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
@@ -631,10 +616,6 @@ tests:
   - :x-pack:plugin:transform:yamlRestTest
   method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
   issue: https://github.com/elastic/elasticsearch/issues/165722
-- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
-  tasks:
-  - :x-pack:plugin:esql:qa:security:javaRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/165735
 - class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
   tasks:
   - :x-pack:plugin:spatial:internalClusterTest
@@ -713,11 +694,6 @@ tests:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
-- class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testOversizedInSubqueryFailsBeforeReadingAllInput
-  issue: https://github.com/elastic/elasticsearch/issues/166371
 - class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
   tasks:
   - :server:test
@@ -779,31 +755,11 @@ tests:
 - class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
   method: testContainsPointClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueCausesColumnarFallback
-  issue: https://github.com/elastic/elasticsearch/issues/166579
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure
-  issue: https://github.com/elastic/elasticsearch/issues/166451
 - class: org.elasticsearch.snapshots.SnapshotResiliencyTests
   tasks:
   - :server:test
   method: testSnapshotDeleteWithMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/166596
-- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testClosingNodeShouldWaitForOngoingMerge
-  issue: https://github.com/elastic/elasticsearch/issues/166623
-- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchShardGenerationFilesRetention
-  issue: https://github.com/elastic/elasticsearch/issues/166692
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -814,26 +770,6 @@ tests:
   - :x-pack:plugin:esql:test
   method: testCrankyBreakerReleasesAndStatsMatchWrittenRows
   issue: https://github.com/elastic/elasticsearch/issues/166741
-- class: org.elasticsearch.xpack.ml.integration.EsqlDatafeedNodeChurnIT
-  tasks:
-  - :x-pack:plugin:ml:internalClusterTest
-  method: testNodeChurnDuringRealtimeShouldRecoverAndKeepDatafeedStarted
-  issue: https://github.com/elastic/elasticsearch/issues/166780
-- class: org.elasticsearch.xpack.ml.integration.EsqlDatafeedNodeChurnIT
-  tasks:
-  - :x-pack:plugin:ml:internalClusterTest
-  method: testNodeChurnDuringLookbackShouldRecoverAndKeepDatafeedStarted
-  issue: https://github.com/elastic/elasticsearch/issues/166782
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitorTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testRerouteBasedOnEstimatedHeapUsage
-  issue: https://github.com/elastic/elasticsearch/issues/166784
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
-  method: test {yaml=indices.sort/50_sort_expression/Sort expression configures the index sort}
-  issue: https://github.com/elastic/elasticsearch/issues/166730
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
   tasks:
   - :server:test
@@ -844,3 +780,78 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithoutPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166894
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166909
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testOnPageFetchedSeesEveryArrivingPage
+  issue: https://github.com/elastic/elasticsearch/issues/166977
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166996
+- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
+  tasks:
+  - :modules:aggregations:yamlRestTest
+  method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
+  issue: https://github.com/elastic/elasticsearch/issues/167016
+- class: org.elasticsearch.index.codec.vectors.es816.BinaryQuantizationTests
+  tasks:
+  - :server:test
+  method: testQuantizeForQuery
+  issue: https://github.com/elastic/elasticsearch/issues/167018
+- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/167009
+- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripDropsClusterWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/167022
+- class: org.elasticsearch.compute.operator.DriverTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testDriverFailingWhileBlockedClosesItsSleep
+  issue: https://github.com/elastic/elasticsearch/issues/167028
+- class: org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInputTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:test
+  method: testWithMemorySegmentSliceColdCacheCopiesIntoConfinedScratchBeyondBlobCacheIndexRange
+  issue: https://github.com/elastic/elasticsearch/issues/167030
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSourceRelocationCancelsClone
+  issue: https://github.com/elastic/elasticsearch/issues/167032
+- class: org.elasticsearch.xpack.esql.action.FetchContextsIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testCancellingTheQueryFreesTheContextsOfTheRowsInTheSinks
+  issue: https://github.com/elastic/elasticsearch/issues/167058
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecEqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
+  method: test {csv-spec:eql.sampleSimpleIpAsKey}
+  issue: https://github.com/elastic/elasticsearch/issues/167064
+- class: org.elasticsearch.xpack.esql.action.IntoIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testShardFailureAfterBulkIsNotRetried
+  issue: https://github.com/elastic/elasticsearch/issues/167131
+- class: org.elasticsearch.xpack.esql.action.IntoIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailureDuringTheWriteIsNotRetried
+  issue: https://github.com/elastic/elasticsearch/issues/167145
+- class: org.elasticsearch.xpack.esql.action.EsqlAsyncParsedContentChargeIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testChargeIsHeldUntilTheDeletedQueryStops
+  issue: https://github.com/elastic/elasticsearch/issues/167149

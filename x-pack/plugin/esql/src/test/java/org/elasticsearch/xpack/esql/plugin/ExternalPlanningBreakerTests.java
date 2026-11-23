@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -160,14 +159,14 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
     }
 
     /**
-     * Charge for one listing at the default discovered-files cap, on the compacted form planning keeps.
-     * Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes of schema-map
-     * slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
+     * Charge for one listing at the floor of the heap-derived discovered-files default, on the compacted
+     * form planning keeps. Listing charge is {@link ExternalSourceResolver#listingPlanningCharge} (320 bytes
+     * of schema-map slack per file). Phase 2 is one {@link Phase2Reservation#SHELL_BYTES} shell per file.
      * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
+     * Pins the floor rather than {@code Settings.EMPTY} so a fat test JVM does not build a million entries.
      */
-    public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
-        int files = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(Settings.EMPTY);
-        assertEquals(25_000, files);
+    public void testPlanningChargeAtDiscoveredFilesFloor() {
+        int files = 25_000;
         List<StorageEntry> entries = new ArrayList<>(files);
         for (int i = 0; i < files; i++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/part-" + i + ".parquet"), 1024L, Instant.EPOCH));
@@ -669,6 +668,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             null,
             mock(PlannerSettings.Holder.class),
+            null,
             null
         );
         return new ComputeService(

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167118
+summary: Return 4xx for KEYWORD cast on old nodes
+type: enhancement

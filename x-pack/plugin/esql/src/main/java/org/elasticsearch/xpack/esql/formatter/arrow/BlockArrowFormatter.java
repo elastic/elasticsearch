@@ -526,6 +526,16 @@ public abstract class BlockArrowFormatter {
             this.valueConverter = valueConverter;
         }
 
+        protected TransformedBytesRef(
+            DataType esqlType,
+            Types.MinorType minorType,
+            Map<String, String> extraMetadata,
+            BiFunction<BytesRef, BytesRef, BytesRef> valueConverter
+        ) {
+            super(esqlType, minorType, extraMetadata);
+            this.valueConverter = valueConverter;
+        }
+
         @Override
         public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BytesRefBlock transformed = transformValues((BytesRefBlock) b);
@@ -544,7 +554,11 @@ public abstract class BlockArrowFormatter {
                     int start = block.getFirstValueIndex(position);
                     int end = start + block.getValueCount(position);
                     if (end - start == 1) {
-                        convertAndAppend(builder, block, start, scratch);
+                        if (emptyAsNull() && block.getBytesRef(start, scratch).length == 0) {
+                            builder.appendNull();
+                        } else {
+                            convertAndAppend(builder, block, start, scratch);
+                        }
                         continue;
                     }
                     builder.beginPositionEntry();
@@ -555,6 +569,14 @@ public abstract class BlockArrowFormatter {
                 }
                 return builder.build();
             }
+        }
+
+        /**
+         * Whether zero-length single values must be emitted as null rather than passed through unconverted. Needed when an
+         * empty value isn't valid for the target type (e.g. {@code arrow.json}).
+         */
+        protected boolean emptyAsNull() {
+            return false;
         }
 
         private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int valueIndex, BytesRef scratch) {
@@ -575,6 +597,38 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Values stored as xcontent in a {@code BytesRefBlock}, converted to JSON text and exposed as a variable-size string vector
+     * tagged with the <a href="https://arrow.apache.org/docs/format/CanonicalExtensions.html#json">{@code arrow.json}</a>
+     * Arrow extension type.
+     */
+    public static class AsJson extends TransformedBytesRef {
+        public static final String ARROW_JSON = "arrow.json";
+
+        public AsJson(DataType esqlType) {
+            super(
+                esqlType,
+                Types.MinorType.VARCHAR,
+                Map.of(
+                    ExtensionType.EXTENSION_METADATA_KEY_NAME,
+                    ARROW_JSON,
+                    // From https://arrow.apache.org/docs/format/CanonicalExtensions.html#json
+                    // "Metadata is either an empty string or a JSON string with an empty object. In the future, additional fields may be
+                    // added, but they are not required to interpret the array."
+                    ExtensionType.EXTENSION_METADATA_KEY_METADATA,
+                    ""
+                ),
+                ValueConversions::sourceToJson
+            );
+        }
+
+        /** An empty string isn't valid JSON, so it is exposed as null. */
+        @Override
+        protected boolean emptyAsNull() {
+            return true;
         }
     }
 
@@ -607,6 +661,8 @@ public abstract class BlockArrowFormatter {
             };
             var metadata = new HashMap<String, String>();
             metadata.put(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB);
+            // From https://geoarrow.org/extension-types.html
+            // "If all metadata keys are omitted, the ARROW:extension:metadata should also be omitted"
             if (geographic) {
                 metadata.put(ExtensionType.EXTENSION_METADATA_KEY_METADATA, GEO_CRS_METADATA);
             }

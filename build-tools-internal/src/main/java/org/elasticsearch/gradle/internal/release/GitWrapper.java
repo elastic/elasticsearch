@@ -41,7 +41,7 @@ public class GitWrapper {
             .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1]));
     }
 
-    String runCommand(String... args) {
+    public String runCommand(String... args) {
         final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
 
         execOperations.exec(spec -> {

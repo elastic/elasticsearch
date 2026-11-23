@@ -188,6 +188,12 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private void addRawInput(IntVector groups) {
         if (groups.isConstant()) {
             accumulateCount(groups.getInt(0), groups.getPositionCount());
+        } else if (groups.runEnds() != null) {
+            int start = 0;
+            for (int end : groups.runEnds()) {
+                accumulateCount(groups.getInt(start), end - start);
+                start = end;
+            }
         } else {
             for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
                 int groupId = groups.getInt(groupPosition);

@@ -316,6 +316,11 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
+        /**
+         * Sets {@link IntVector#hasRuns()} on the vector this builds, if it builds one.
+         */
+        Builder hasRuns(boolean hasRuns);
+
         @Override
         IntBlock build();
     }

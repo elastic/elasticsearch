@@ -2867,6 +2867,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private NumericDocValues getNumeric(NumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo) throws IOException {
+        // Docs read in order from a segment sorted on this field come with equal values next to each other.
+        final boolean primarySortField = fieldInfo != null && fieldInfo.number == primarySortFieldNumber;
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyNumeric();
         }
@@ -3009,7 +3011,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     boolean toInt,
                     boolean binaryMultiValuedFormat
                 ) throws IOException {
-                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt)) {
+                    try (
+                        var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt, primarySortField)
+                    ) {
                         return tryRead(singletonLongBuilder, docs, offset);
                     }
                 }
@@ -3158,7 +3162,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             assert disi.index() == firstIndex + i : "unexpected disi index " + (firstIndex + i) + "!=" + disi.index();
                         }
                     }
-                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt, primarySortField)) {
                         for (int i = 0; i < valueCount;) {
                             final int index = firstIndex + i;
                             final int blockIndex = index >>> numericBlockShift;
@@ -3575,14 +3579,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         BlockLoader.BlockFactory factory,
         BlockDocValuesReader.ToDouble toDouble,
         int valueCount,
-        boolean toInt
+        boolean toInt,
+        boolean primarySortField
     ) {
         assert (toInt && toDouble != null) == false;
 
         if (toDouble != null) {
             return new SingletonLongToDoubleDelegate(factory.singletonDoubles(valueCount), toDouble);
         } else if (toInt) {
-            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount));
+            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount, primarySortField));
         } else {
             return factory.singletonLongs(valueCount);
         }

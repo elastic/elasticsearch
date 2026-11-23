@@ -141,6 +141,11 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public boolean hasRuns() {
+        return true;
+    }
+
+    @Override
     public IntVector deepCopy(BlockFactory blockFactory) {
         return blockFactory.newConstantIntVector(value, getPositionCount());
     }

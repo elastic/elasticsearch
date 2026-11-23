@@ -149,6 +149,23 @@ $if(int)$
      */
     int max();
 
+    /**
+     * Whether equal values sit in adjacent positions, as runs, like values read in the order of an index sorted on them.
+     * {@code false} means unknown. Fixed when the vector is built. Consumers may switch to a path that handles a run at a time.
+     */
+    default boolean hasRuns() {
+        return false;
+    }
+
+    /**
+     * The exclusive end position of each run of equal values, in order, the last being {@link #getPositionCount()}; or
+     * {@code null} if not known. Set by whoever built the vector after finding the runs anyway, so consumers do not have to
+     * find them again. The array is shared and must not be modified.
+     */
+    default int[] runEnds() {
+        return null;
+    }
+
 $elseif(boolean)$
     /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.

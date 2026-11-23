@@ -114,6 +114,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.IntBuilder intsFromDocValues(int expectedCount, boolean hasRuns) {
+        return factory.newIntBlockBuilder(expectedCount, true).mvOrdering(Block.MvOrdering.SORTED_ASCENDING).hasRuns(hasRuns);
+    }
+
+    @Override
     public BlockLoader.IntBuilder ints(int expectedCount) {
         return factory.newIntBlockBuilder(expectedCount, true);
     }
@@ -136,6 +141,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
         return new SingletonIntBuilder(expectedCount, factory);
+    }
+
+    @Override
+    public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount, boolean hasRuns) {
+        return new SingletonIntBuilder(expectedCount, factory, hasRuns);
     }
 
     @Override

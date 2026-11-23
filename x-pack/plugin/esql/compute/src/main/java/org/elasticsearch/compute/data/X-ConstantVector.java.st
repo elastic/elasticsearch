@@ -218,6 +218,13 @@ $endif$
         return true;
     }
 
+$if(int)$
+    @Override
+    public boolean hasRuns() {
+        return true;
+    }
+
+$endif$
     @Override
     public $Type$Vector deepCopy(BlockFactory blockFactory) {
         return blockFactory.newConstant$Type$Vector(value, getPositionCount());

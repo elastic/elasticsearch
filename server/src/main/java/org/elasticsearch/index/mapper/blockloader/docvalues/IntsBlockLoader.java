@@ -37,7 +37,12 @@ public class IntsBlockLoader extends AbstractNumericBlockLoader {
 
     @Override
     protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
-        return new Singleton(readerName, docValues);
+        return new Singleton(readerName, docValues, false);
+    }
+
+    @Override
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, boolean primarySortField) {
+        return new Singleton(readerName, docValues, primarySortField);
     }
 
     @Override
@@ -51,8 +56,11 @@ public class IntsBlockLoader extends AbstractNumericBlockLoader {
     }
 
     static final class Singleton extends AbstractNumericBlockLoader.Singleton {
-        Singleton(String name, TrackingNumericDocValues numericDocValues) {
+        private final boolean hasRuns;
+
+        Singleton(String name, TrackingNumericDocValues numericDocValues, boolean hasRuns) {
             super(name, numericDocValues);
+            this.hasRuns = hasRuns;
         }
 
         @Override
@@ -65,7 +73,7 @@ public class IntsBlockLoader extends AbstractNumericBlockLoader {
                     return result;
                 }
             }
-            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset, hasRuns)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (docValues.advanceExact(doc)) {

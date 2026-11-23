@@ -475,6 +475,13 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
+$if(int)$
+        /**
+         * Sets {@link IntVector#hasRuns()} on the vector this builds, if it builds one.
+         */
+        Builder hasRuns(boolean hasRuns);
+
+$endif$
         @Override
         $Type$Block build();
     }

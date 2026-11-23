@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
@@ -77,7 +79,7 @@ public abstract class AbstractNumericBlockLoader extends BlockDocValuesReader.Do
 
         // Doc values are single-valued
         if (dv.singleton() != null) {
-            return singletonReader(dv.singleton());
+            return singletonReader(dv.singleton(), isPrimarySortField(context));
         }
 
         // Otherwise, doc values are multi-valued but without offsets
@@ -85,6 +87,23 @@ public abstract class AbstractNumericBlockLoader extends BlockDocValuesReader.Do
     }
 
     protected abstract ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues);
+
+    /**
+     * Like {@link #singletonReader(TrackingNumericDocValues)}, also told whether the segment is sorted on this field first,
+     * so that docs read in order come with equal values next to each other.
+     */
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, boolean primarySortField) {
+        return singletonReader(docValues);
+    }
+
+    private boolean isPrimarySortField(LeafReaderContext context) {
+        Sort sort = context.reader().getMetaData().sort();
+        if (sort == null) {
+            return false;
+        }
+        SortField[] sortFields = sort.getSort();
+        return sortFields.length > 0 && fieldName.equals(sortFields[0].getField());
+    }
 
     protected abstract ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues);
 

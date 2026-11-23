@@ -85,6 +85,23 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     int max();
 
     /**
+     * Whether equal values sit in adjacent positions, as runs, like values read in the order of an index sorted on them.
+     * {@code false} means unknown. Fixed when the vector is built. Consumers may switch to a path that handles a run at a time.
+     */
+    default boolean hasRuns() {
+        return false;
+    }
+
+    /**
+     * The exclusive end position of each run of equal values, in order, the last being {@link #getPositionCount()}; or
+     * {@code null} if not known. Set by whoever built the vector after finding the runs anyway, so consumers do not have to
+     * find them again. The array is shared and must not be modified.
+     */
+    default int[] runEnds() {
+        return null;
+    }
+
+    /**
      * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
      * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
      */

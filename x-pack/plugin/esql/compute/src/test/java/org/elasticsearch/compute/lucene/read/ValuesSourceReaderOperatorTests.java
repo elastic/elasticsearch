@@ -21,6 +21,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
@@ -59,6 +62,7 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -117,7 +121,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -978,6 +984,79 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     public void testLoadLong() throws IOException {
         testLoadLong(false, false);
+    }
+
+    public void testIndexSortedIntHasRuns() throws IOException {
+        testIndexSortedIntHasRuns(false);
+    }
+
+    public void testIndexSortedIntShuffledHasNoRuns() throws IOException {
+        testIndexSortedIntHasRuns(true);
+    }
+
+    /**
+     * Ints read in doc order from a segment sorted on their field report {@link IntVector#hasRuns()};
+     * other fields, and docs read out of order, do not.
+     */
+    private void testIndexSortedIntHasRuns(boolean shuffle) throws IOException {
+        initMapping();
+        int numDocs = between(20, 500);
+        Sort sort = new Sort(new SortedNumericSortField("int", SortField.Type.INT));
+        try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setIndexSort(sort))) {
+            for (int d = 0; d < numDocs; d++) {
+                XContentBuilder source = JsonXContent.contentBuilder();
+                source.startObject();
+                source.field("int", d / 10);
+                source.field("key", d);
+                source.endObject();
+                ParsedDocument doc = mapperService.documentParser()
+                    .parseDocument(
+                        new SourceToParse("id" + d, BytesReference.bytes(source), XContentType.JSON),
+                        mapperService.mappingLookup()
+                    );
+                writer.addDocuments(doc.docs());
+            }
+            writer.forceMerge(1);
+        }
+        reader = DirectoryReader.open(directory);
+
+        var runner = new TestDriverRunner().builder(driverContext());
+        List<Page> input = CannedSourceOperator.collectPages(sourceOperator(runner.context(), numDocs));
+        if (shuffle) {
+            input = input.stream().map(this::shuffle).toList();
+        }
+        runner.input(input);
+        // The result sink deep copies pages, which drops hasRuns, so look at the pages before it.
+        List<Boolean> sortedHasRuns = Collections.synchronizedList(new ArrayList<>());
+        List<Boolean> unsortedHasRuns = Collections.synchronizedList(new ArrayList<>());
+        Operator check = new AbstractPageMappingOperator() {
+            @Override
+            protected Page process(Page page) {
+                IntVector sorted = page.<IntBlock>getBlock(1).asVector();
+                IntVector unsorted = page.<IntBlock>getBlock(2).asVector();
+                if (sorted.isConstant() == false && unsorted.isConstant() == false) {
+                    sortedHasRuns.add(sorted.hasRuns());
+                    unsortedHasRuns.add(unsorted.hasRuns());
+                }
+                return page;
+            }
+
+            @Override
+            public String toString() {
+                return "check";
+            }
+        };
+        List<Page> result = runner.run(
+            List.of(
+                factory(reader, mapperService.fieldType("int"), ElementType.INT).get(runner.context()),
+                factory(reader, mapperService.fieldType("key"), ElementType.INT).get(runner.context()),
+                check
+            )
+        );
+        assertThat(result, not(empty()));
+        assertThat(sortedHasRuns, not(empty()));
+        assertThat(sortedHasRuns, everyItem(equalTo(shuffle == false)));
+        assertThat(unsortedHasRuns, everyItem(equalTo(false)));
     }
 
     public void testLoadLongManySegments() throws IOException {

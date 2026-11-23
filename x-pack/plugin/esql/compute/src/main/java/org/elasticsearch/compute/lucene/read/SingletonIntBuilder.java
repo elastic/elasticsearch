@@ -26,10 +26,17 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
 
     private int count;
 
+    private final boolean hasRuns;
+
     public SingletonIntBuilder(int expectedCount, BlockFactory blockFactory) {
+        this(expectedCount, blockFactory, false);
+    }
+
+    public SingletonIntBuilder(int expectedCount, BlockFactory blockFactory, boolean hasRuns) {
         this.blockFactory = blockFactory;
         this.expectedCount = expectedCount;
         this.values = blockFactory.acquireInts(expectedCount);
+        this.hasRuns = hasRuns;
     }
 
     @Override
@@ -71,7 +78,7 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
         if (expectedCount != count) {
             throw new IllegalStateException("expected " + expectedCount + " values but got " + count);
         }
-        IntVector vector = blockFactory.newIntArrayVector(values, count, valuesSize(values.length));
+        IntVector vector = blockFactory.newIntArrayVector(values, count, valuesSize(values.length), hasRuns);
         built = true;
         vector.enablePooling();
         return vector.asBlock();

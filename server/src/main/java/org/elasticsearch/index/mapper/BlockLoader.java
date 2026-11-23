@@ -687,6 +687,14 @@ public interface BlockLoader {
         IntBuilder intsFromDocValues(int expectedCount);
 
         /**
+         * Like {@link #intsFromDocValues(int)}. {@code hasRuns} says the docs are read in the order of an index sorted on
+         * this field, so equal values come in runs. The factory may ignore it.
+         */
+        default IntBuilder intsFromDocValues(int expectedCount, boolean hasRuns) {
+            return intsFromDocValues(expectedCount);
+        }
+
+        /**
          * Build a builder to load ints without any loading constraints.
          */
         IntBuilder ints(int expectedCount);
@@ -723,6 +731,13 @@ public interface BlockLoader {
          * @param expectedCount The maximum number of values to be collected.
          */
         SingletonIntBuilder singletonInts(int expectedCount);
+
+        /**
+         * Like {@link #singletonInts(int)}, with {@code hasRuns} as in {@link #intsFromDocValues(int, boolean)}.
+         */
+        default SingletonIntBuilder singletonInts(int expectedCount, boolean hasRuns) {
+            return singletonInts(expectedCount);
+        }
 
         /**
          * Build a specialized builder for singleton dense double based fields with the following constraints:

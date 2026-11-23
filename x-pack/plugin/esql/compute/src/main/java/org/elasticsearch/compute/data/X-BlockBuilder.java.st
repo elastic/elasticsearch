@@ -42,6 +42,9 @@ $if(BytesRef)$
 
 $else$
     private $type$[] values;
+$if(int)$
+    private boolean hasRuns;
+$endif$
 $if(int||long||double)$
     private final boolean enablePooling;
     private long extraPooledBytes;
@@ -266,6 +269,14 @@ $endif$
         return this;
     }
 
+$if(int)$
+    @Override
+    public $Type$BlockBuilder hasRuns(boolean hasRuns) {
+        this.hasRuns = hasRuns;
+        return this;
+    }
+
+$endif$
 $if(int||long||double)$
     @Override
     public long estimatedBytes() {
@@ -374,7 +385,11 @@ $endif$
             } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
                 theBlock = buildBigArraysBlock();
             } else if (isDense() && singleValued()) {
+$if(int)$
+                theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes, hasRuns).asBlock();
+$else$
                 theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
+$endif$
             } else {
                 theBlock = blockFactory.new$Type$ArrayBlock(
                     values, // stylecheck

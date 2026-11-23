@@ -25,6 +25,7 @@ import java.util.Arrays;
 final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Builder {
 
     private int[] values;
+    private boolean hasRuns;
     private final boolean enablePooling;
     private long extraPooledBytes;
 
@@ -174,6 +175,12 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     }
 
     @Override
+    public IntBlockBuilder hasRuns(boolean hasRuns) {
+        this.hasRuns = hasRuns;
+        return this;
+    }
+
+    @Override
     public long estimatedBytes() {
         return isReleased() ? 0 : estimatedBytes - extraPooledBytes;
     }
@@ -221,7 +228,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
                 theBlock = buildBigArraysBlock();
             } else if (isDense() && singleValued()) {
-                theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
+                theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes, hasRuns).asBlock();
             } else {
                 theBlock = blockFactory.newIntArrayBlock(
                     values, // stylecheck

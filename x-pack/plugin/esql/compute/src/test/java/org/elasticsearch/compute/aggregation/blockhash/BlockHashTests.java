@@ -37,6 +37,7 @@ import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,6 +49,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class BlockHashTests extends BlockHashTestCase {
@@ -80,6 +82,90 @@ public class BlockHashTests extends BlockHashTestCase {
             }
             assertKeys(ordsAndKeys.keys(), 1, 2, 3);
         }, blockFactory.newIntArrayVector(values, values.length).asBlock());
+    }
+
+    /**
+     * Hashing a vector with {@link IntVector#hasRuns()} gives the same ids and keys as without it, whether the values really
+     * come in runs or are random.
+     */
+    public void testIntHashWithRuns() {
+        int positions = between(1, 1000);
+        int[] values = new int[positions];
+        boolean runs = randomBoolean();
+        int v = between(-10, 10);
+        for (int p = 0; p < positions; p++) {
+            if (runs) {
+                if (randomInt(9) == 0) {
+                    v += between(1, 3);
+                }
+                values[p] = v;
+            } else {
+                values[p] = between(-20, 20);
+            }
+        }
+        List<Integer> plainKeys = new ArrayList<>();
+        List<Integer> runsKeys = new ArrayList<>();
+        int[] plain = hashIntOrds(values, false, plainKeys);
+        int[] withRuns = hashIntOrds(values, true, runsKeys);
+        assertArrayEquals(plain, withRuns);
+        assertThat(runsKeys, equalTo(plainKeys));
+    }
+
+    /**
+     * Sorted, unique keys hash like any others, and their ids come without {@link IntVector#runEnds()}.
+     */
+    public void testIntHashWithRunsUniqueKeys() {
+        int positions = between(2, 1000);
+        int[] values = new int[positions];
+        int v = between(-1000, 1000);
+        for (int p = 0; p < positions; p++) {
+            values[p] = v;
+            v += between(1, 3);
+        }
+        List<Integer> plainKeys = new ArrayList<>();
+        List<Integer> runsKeys = new ArrayList<>();
+        assertArrayEquals(hashIntOrds(values, false, plainKeys), hashIntOrds(values, true, runsKeys));
+        assertThat(runsKeys, equalTo(plainKeys));
+    }
+
+    private int[] hashIntOrds(int[] values, boolean hasRuns, List<Integer> keys) {
+        int[] ords = new int[values.length];
+        Consumer<OrdsAndKeys> callback = ordsAndKeys -> {
+            IntVector vector = ordsAndKeys.ords().asVector();
+            for (int p = 0; p < values.length; p++) {
+                ords[p] = vector.getInt(p);
+            }
+            if (hasRuns && forcePackedHash == false && vector.isConstant() == false) {
+                List<Integer> expectedEnds = new ArrayList<>();
+                for (int p = 1; p < values.length; p++) {
+                    if (vector.getInt(p) != vector.getInt(p - 1)) {
+                        expectedEnds.add(p);
+                    }
+                }
+                expectedEnds.add(values.length);
+                if (expectedEnds.size() > values.length / 2) {
+                    // Runs shorter than two rows on average: the ids come without run ends.
+                    assertThat(vector.runEnds(), nullValue());
+                    assertFalse(vector.hasRuns());
+                } else {
+                    // The hash hands over the run ends of the ids it found while hashing.
+                    assertThat(Arrays.stream(vector.runEnds()).boxed().toList(), equalTo(expectedEnds));
+                }
+            }
+            IntBlock keyBlock = (IntBlock) ordsAndKeys.keys()[0];
+            for (int i = 0; i < keyBlock.getPositionCount(); i++) {
+                keys.add(keyBlock.getInt(i));
+            }
+        };
+        // Hash directly: the lookup check in hash(Consumer, Block...) only compares the first lookup chunk, which large
+        // inputs to the packed hash can split.
+        Block block = blockFactory.newIntArrayVector(values.clone(), values.length, 0L, hasRuns).asBlock();
+        try (BlockHash hash = buildBlockHash(16 * 1024, block)) {
+            hash(true, hash, callback, block);
+        } finally {
+            block.close();
+        }
+        return ords;
     }
 
     public void testIntHashWithNulls() {

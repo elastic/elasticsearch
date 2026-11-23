@@ -45,6 +45,9 @@ $if(partitioned)$
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
 $endif$
+$if(int)$
+import java.util.Arrays;
+$endif$
 import java.util.BitSet;
 // end generated imports
 
@@ -69,6 +72,19 @@ $endif$
      */
     private boolean seenNull;
 
+$if(int)$
+    /**
+     * Scratch for the run ends of the page being added, reused for every page and grown to the most runs seen in one page.
+     */
+    private int[] runEndsScratch = new int[16];
+
+    /**
+     * Below this average run length a page's group ids are handed over without {@link IntVector#runEnds()}: per-run
+     * aggregation only pays when runs repeat a key.
+     */
+    private static final int MIN_AVERAGE_RUN_LENGTH = 2;
+
+$endif$
 $if(BytesRef)$
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
@@ -151,6 +167,11 @@ $if(long)$
             return addWithPrefetch(vector, swiss);
         }
 $endif$
+$if(int)$
+        if (vector.hasRuns() && vector.getPositionCount() > 0) {
+            return addWithRuns(vector);
+        }
+$endif$
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -168,6 +189,72 @@ $endif$
     }
 $endif$
 
+$if(int)$
+    /**
+     * Hashes a vector whose equal values come in runs: one probe per run. Equal keys get equal ids, so the group ids keep
+     * the {@link IntVector#runEnds() run ends} found here and aggregators need not look for them again. A page that is one
+     * run becomes a constant vector.
+     */
+    private IntVector addWithRuns(IntVector vector) {
+        int positions = vector.getPositionCount();
+        int prevKey = vector.getInt(0);
+        int prevGroup = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(prevKey)));
+        int i = 1;
+        while (i < positions && vector.getInt(i) == prevKey) {
+            i++;
+        }
+        if (i == positions) {
+            return blockFactory.newConstantIntVector(prevGroup, positions);
+        }
+        long preAdjustedBytes = blockFactory.preAdjustBreakerForInt(positions);
+        boolean success = false;
+        try {
+            int[] groupIds = new int[positions];
+            for (int p = 0; p < i; p++) {
+                groupIds[p] = prevGroup;
+            }
+            // Nearly unique keys gain nothing from runs: stop recording ends once the page has more runs than
+            // MIN_AVERAGE_RUN_LENGTH allows, and hand the ids over without them.
+            int maxRuns = positions / MIN_AVERAGE_RUN_LENGTH;
+            boolean recordRunEnds = true;
+            int runs = 0;
+            for (; i < positions; i++) {
+                int v = vector.getInt(i);
+                if (v != prevKey) {
+                    if (recordRunEnds) {
+                        // runs + 2: the run that ends here and the one that starts here
+                        if (runs + 2 > maxRuns) {
+                            recordRunEnds = false;
+                        } else {
+                            if (runs == runEndsScratch.length) {
+                                runEndsScratch = Arrays.copyOf(runEndsScratch, runs << 1);
+                            }
+                            runEndsScratch[runs++] = i;
+                        }
+                    }
+                    prevKey = v;
+                    prevGroup = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+                }
+                groupIds[i] = prevGroup;
+            }
+            IntVector result;
+            if (recordRunEnds) {
+                int[] runEnds = Arrays.copyOf(runEndsScratch, runs + 1);
+                runEnds[runs] = positions;
+                result = blockFactory.newIntArrayVector(groupIds, positions, runEnds, preAdjustedBytes);
+            } else {
+                result = blockFactory.newIntArrayVector(groupIds, positions, preAdjustedBytes);
+            }
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+$endif$
 $if(BytesRef)$
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
         int positions = vector.getPositionCount();

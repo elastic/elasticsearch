@@ -63,10 +63,41 @@ $if(int||long||double)$
     private boolean pooled;
 
 $endif$
+$if(int)$
+    private final boolean hasRuns;
+
+    /**
+     * The exclusive end of each run, or {@code null} if not known. Never modified.
+     */
+    private final int[] runEnds;
+
+    $Type$ArrayVector($type$[] values, int positionCount, BlockFactory blockFactory) {
+        this(values, positionCount, blockFactory, false, null);
+    }
+
+    $Type$ArrayVector($type$[] values, int positionCount, BlockFactory blockFactory, boolean hasRuns, int[] runEnds) {
+        super(positionCount, blockFactory);
+        assert runEnds == null || (runEnds.length > 0 && runEnds[runEnds.length - 1] == positionCount);
+        this.values = values;
+        this.hasRuns = hasRuns;
+        this.runEnds = runEnds;
+    }
+
+    @Override
+    public boolean hasRuns() {
+        return hasRuns || runEnds != null;
+    }
+
+    @Override
+    public int[] runEnds() {
+        return runEnds;
+    }
+$else$
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
     }
+$endif$
 
     static $Type$ArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
 $if(BytesRef)$
@@ -341,6 +372,8 @@ $endif$
     public long ramBytesUsed() {
 $if(BytesRef)$
         return ramBytesEstimated(values, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
+$elseif(int)$
+        return ramBytesEstimated(values) + (runEnds == null ? 0 : RamUsageEstimator.sizeOf(runEnds));
 $else$
         return ramBytesEstimated(values);
 $endif$

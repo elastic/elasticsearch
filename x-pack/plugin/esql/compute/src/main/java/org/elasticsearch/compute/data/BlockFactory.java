@@ -371,7 +371,24 @@ public class BlockFactory {
      * var vector = blockFactory.newIntArrayVector(values, positionCount, preAdjustedBytes);
      */
     public IntVector newIntArrayVector(int[] values, int positionCount, long preAdjustedBytes) {
-        var b = new IntArrayVector(values, positionCount, this);
+        return newIntArrayVector(values, positionCount, preAdjustedBytes, false);
+    }
+
+    /**
+     * Like {@link #newIntArrayVector(int[], int, long)}, also fixing {@link IntVector#hasRuns()}.
+     */
+    public IntVector newIntArrayVector(int[] values, int positionCount, long preAdjustedBytes, boolean hasRuns) {
+        var b = new IntArrayVector(values, positionCount, this, hasRuns, null);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
+        return b;
+    }
+
+    /**
+     * Like {@link #newIntArrayVector(int[], int, long)}, with the {@link IntVector#runEnds()} of the values. The
+     * pre-adjusted bytes may include both arrays.
+     */
+    public IntVector newIntArrayVector(int[] values, int positionCount, int[] runEnds, long preAdjustedBytes) {
+        var b = new IntArrayVector(values, positionCount, this, true, runEnds);
         adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }

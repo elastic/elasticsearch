@@ -46,6 +46,7 @@ import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
@@ -739,7 +740,21 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
      * groups should too. But for testing we'd sometimes like to force chunking just so we
      * run the aggregation with funny chunked inputs.
      */
+    private static int[] runEnds(int[] values, int count) {
+        int[] ends = new int[count];
+        int runs = 0;
+        for (int p = 1; p < count; p++) {
+            if (values[p] != values[p - 1]) {
+                ends[runs++] = p;
+            }
+        }
+        ends[runs++] = count;
+        return Arrays.copyOf(ends, runs);
+    }
+
     private AggregatorFunctionSupplier chunkGroups(int emitChunkSize, AggregatorFunctionSupplier supplier) {
+        // Sometimes hand the aggregators the run ends of the group ids, as the hash does for keys with runs.
+        boolean withRunEnds = randomBoolean();
         return new AggregatorFunctionSupplier() {
             @Override
             public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
@@ -828,7 +843,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                         chunk[count++] = group;
                                     }
                                     BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance(); // TODO: just for compile
-                                    delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count));
+                                    delegateAddInput.add(
+                                        positionOffset + offset,
+                                        withRunEnds
+                                            ? blockFactory.newIntArrayVector(chunk, count, runEnds(chunk, count), 0L)
+                                            : blockFactory.newIntArrayVector(chunk, count)
+                                    );
                                 }
                             }
 

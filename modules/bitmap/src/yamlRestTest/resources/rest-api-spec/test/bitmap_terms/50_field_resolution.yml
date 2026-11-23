@@ -1,0 +1,79 @@
+setup:
+  - do:
+      indices.create:
+        index: test_bitmap_mapped
+        body:
+          mappings:
+            properties:
+              num:
+                type: integer
+              num_alias:
+                type: alias
+                path: num
+              num_terms:
+                type: integer
+                index_terms: true
+              num_terms_alias:
+                type: alias
+                path: num_terms
+
+  - do:
+      indices.create:
+        index: test_bitmap_unmapped
+        body:
+          mappings:
+            properties:
+              other:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_bitmap_mapped"}}'
+          - '{"num": 1, "num_terms": 1}'
+          - '{"index": {"_index": "test_bitmap_mapped"}}'
+          - '{"num": 30, "num_terms": 30}'
+          - '{"index": {"_index": "test_bitmap_unmapped"}}'
+          - '{"other": "a"}'
+
+---
+"bitmap_terms matches nothing in indices that do not map the field":
+
+  # 32-bit bitmap {1..20}
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_mapped,test_bitmap_unmapped
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OzAAAAEAABMAAQABABMA"
+  - match: { hits.total: 1 }
+  - match: { _shards.failed: 0 }
+
+---
+"bitmap_terms on a field alias queries the target field":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_mapped
+        body:
+          query:
+            bitmap_terms:
+              field: num_alias
+              value: "OzAAAAEAABMAAQABABMA"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bitmap_mapped
+        body:
+          query:
+            bitmap_terms:
+              field: num_terms_alias
+              value: "OzAAAAEAABMAAQABABMA"
+  - match: { hits.total: 1 }

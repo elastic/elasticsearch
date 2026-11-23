@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 165987
+pr: 167039
+summary: Fix `bitmap_terms` query on unmapped fields and field aliases to return `MatchNone`
+type: bug

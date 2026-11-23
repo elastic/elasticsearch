@@ -59,16 +59,6 @@
               field: shrt
               value: "OzAAAAEAAAoAAQAFAAoA"
 
-  - do:
-      catch: bad_request
-      search:
-        index: test_bitmap_validation
-        body:
-          query:
-            bitmap_terms:
-              field: does_not_exist
-              value: "OzAAAAEAAAoAAQAFAAoA"
-
   # --- fields with indexing disabled -------------------------------------------------------------
 
   - do:

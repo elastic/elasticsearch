@@ -16,10 +16,7 @@ If the same setting is defined multiple times, the last definition takes precede
 
 ## Where to set a query setting [esql-set-sources]
 
-Besides the `SET` directive, a query setting can come from the request body, from a cluster setting, and, for a few settings, from a view definition. The following table shows where each setting can be set:
-
-:::{include} ../../generated/x-pack-esql/commands/settings/surfaces.md
-:::
+Besides the `SET` directive, a query setting can come from the request body, from a cluster setting, and, for a few settings, from a view definition. The section of each setting in [Allowed settings](#allowed-settings) says which of these it supports.
 
 {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The `unmapped_fields` setting can be set in the request body. Its `LOAD_ALL` value is in technical preview.
 

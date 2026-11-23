@@ -11,6 +11,10 @@ The default timezone to be used in the query. Defaults to UTC, and overrides the
 
 **Type**: `keyword`
 
+**Can also be set in**:
+- the request body, as `settings.time_zone`
+- a cluster setting, `esql.query.settings.time_zone`
+
 #### Example
 
 ```esql

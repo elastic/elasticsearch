@@ -11,3 +11,8 @@ When enabled, a wildcard in `FROM` also matches registered views. Defaults to `f
 
 **Type**: `boolean`
 
+**Can also be set in**:
+- the request body, as `settings.wildcards_match_views`
+- a cluster setting, `esql.query.settings.wildcards_match_views`
+- a view definition
+

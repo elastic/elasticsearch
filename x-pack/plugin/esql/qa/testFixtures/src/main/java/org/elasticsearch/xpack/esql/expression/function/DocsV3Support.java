@@ -1396,59 +1396,6 @@ public abstract class DocsV3Support {
         }
     }
 
-    /**
-     * Renders the table of where each query setting can be supplied besides {@code SET}: the request body, a cluster
-     * setting, or a view definition. It is derived from the declarations in {@link QuerySettings} and
-     * {@link ViewQuerySettings#SETTINGS}, so the docs cannot claim a surface that the code does not offer.
-     * Which versions offer a surface is not declared in code and stays in the prose around the table.
-     */
-    public static class SettingsSurfacesDocsSupport extends DocsV3Support {
-
-        private final Collection<QuerySettingDef<?>> settings;
-
-        public SettingsSurfacesDocsSupport(List<QuerySettingDef<?>> settings, Class<?> testClass, Callbacks callbacks) {
-            super("settings", "surfaces", testClass, Set::of, callbacks);
-            this.settings = settings;
-        }
-
-        @Override
-        public void renderDocs() throws Exception {
-            StringBuilder builder = new StringBuilder();
-            builder.append(docsWarning());
-            builder.append("| Setting | Request body | Cluster setting | View definition |\n");
-            builder.append("| --- | --- | --- | --- |\n");
-            for (QuerySettingDef<?> setting : settings) {
-                if (setting.snapshotOnly()) {
-                    continue;
-                }
-                builder.append("| [`").append(setting.name()).append("`](#esql-").append(setting.name()).append(")");
-                builder.append(setting.serverlessOnly() ? " (serverless only)" : "").append(" | ");
-                builder.append(requestBodyCell(setting)).append(" | ");
-                builder.append(setting.clusterSetting() == null ? "—" : "`" + setting.clusterSetting().getKey() + "`").append(" | ");
-                builder.append(ViewQuerySettings.SETTINGS.contains(setting) ? "Yes" : "—").append(" |\n");
-            }
-            builder.append("\n");
-
-            String rendered = builder.toString();
-            logger.debug("{}", rendered);
-            writeToTempSettingsDir(rendered);
-        }
-
-        private static String requestBodyCell(QuerySettingDef<?> setting) {
-            if (setting.requestBody() == false) {
-                return "—";
-            }
-            StringBuilder cell = new StringBuilder("`settings.").append(setting.name()).append("`");
-            for (QuerySettingDef.RequestBodyBinding alias : setting.aliases()) {
-                if (alias.isAtRoot() == false) {
-                    throw new IllegalStateException("Cannot document the nested body alias of setting [" + setting.name() + "]");
-                }
-                cell.append(" or `").append(alias.name()).append("`");
-            }
-            return cell.toString();
-        }
-    }
-
     public static class SettingsDocsSupport extends DocsV3Support {
 
         private final QuerySettingDef<?> setting;
@@ -1518,6 +1465,7 @@ public abstract class DocsV3Support {
                 builder.append(" `").append(type).append("`");
             }
             builder.append("\n\n");
+            builder.append(alsoSetIn(setting));
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
@@ -1543,6 +1491,30 @@ public abstract class DocsV3Support {
             logger.info("Writing settings definition for [{}]", name);
             logger.debug("{}", rendered);
             writeToTempSettingsDir(rendered);
+        }
+
+        /**
+         * The places a setting can be supplied besides {@code SET}: the request body, a cluster setting, or a view
+         * definition. It is derived from the declarations in {@link QuerySettings} and {@link ViewQuerySettings#SETTINGS},
+         * so the docs cannot claim a place that the code does not offer. Which versions offer a place is not declared in
+         * code, so it is not stated here. The request body is documented under its canonical {@code settings.<name>}
+         * key only, not under the top-level aliases that a few settings keep for compatibility.
+         */
+        static String alsoSetIn(QuerySettingDef<?> setting) {
+            List<String> places = new ArrayList<>();
+            if (setting.requestBody()) {
+                places.add("- the request body, as `settings." + setting.name() + "`");
+            }
+            if (setting.clusterSetting() != null) {
+                places.add("- a cluster setting, `" + setting.clusterSetting().getKey() + "`");
+            }
+            if (ViewQuerySettings.SETTINGS.contains(setting)) {
+                places.add("- a view definition");
+            }
+            if (places.isEmpty()) {
+                return "";
+            }
+            return "**Can also be set in**:\n" + String.join("\n", places) + "\n\n";
         }
 
         private void renderExample(Example example, StringBuilder builder) throws IOException {

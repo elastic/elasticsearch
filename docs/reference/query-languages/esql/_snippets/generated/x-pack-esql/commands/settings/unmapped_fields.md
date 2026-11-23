@@ -58,6 +58,11 @@ either, the value is `DEFAULT`.
 
 **Type**: `keyword`
 
+**Can also be set in**:
+- the request body, as `settings.unmapped_fields`
+- a cluster setting, `esql.query.settings.unmapped_fields`
+- a view definition
+
 #### Example
 
 Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,

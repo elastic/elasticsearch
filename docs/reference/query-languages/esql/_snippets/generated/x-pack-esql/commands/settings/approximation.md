@@ -11,6 +11,10 @@ Enables [query approximation](/reference/query-languages/esql/esql-query-approxi
 
 **Type**: `boolean` `map_param`
 
+**Can also be set in**:
+- the request body, as `settings.approximation`
+- a cluster setting, `esql.query.settings.approximation`
+
 Map entries:
 - `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.
 - `confidence_level` (`[double]`): Confidence level of the computed confidence intervals. Default is 0.90. Null disables computing confidence intervals.

@@ -11,3 +11,8 @@ When enabled, a wildcard in `FROM` also matches registered datasets. Defaults to
 
 **Type**: `boolean`
 
+**Can also be set in**:
+- the request body, as `settings.wildcards_match_datasets`
+- a cluster setting, `esql.query.settings.wildcards_match_datasets`
+- a view definition
+

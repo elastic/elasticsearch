@@ -9,6 +9,9 @@ Limits the scope of a [cross-project search (CPS)](/reference/query-languages/es
 
 **Type**: `keyword`
 
+**Can also be set in**:
+- the request body, as `settings.project_routing`
+
 #### Example
 
 Route a query to a specific project by alias:

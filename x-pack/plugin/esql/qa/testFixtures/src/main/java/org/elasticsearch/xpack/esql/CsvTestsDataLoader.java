@@ -334,6 +334,14 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
+        // The same unmapped fields as k8s_unmapped, but in an index that stores its _source (the fields are read from it directly,
+        // not rebuilt from _ignored_source) and in a downsampled-shaped one.
+        new TestDataset("k8s_unmapped_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_downsampled_unmapped", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json")
+            .withTypeMapping(removeFields("event", "network.bytes_in", "network.cost"))
+            .withDynamic("false"),
         new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),

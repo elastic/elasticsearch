@@ -130,7 +130,7 @@ public final class QuerySettings {
         Special notes about the `LOAD` and `LOAD_ALL` options:
         - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
         - Referencing subfields of `flattened` parents is not supported.
-        - `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+        - `LOAD_ALL` supports a subset of commands.
           Other commands fail with an error that lists the supported ones.
           {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,

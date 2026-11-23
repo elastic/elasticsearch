@@ -32,6 +32,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -165,6 +166,79 @@ public class FillNullTests extends ESTestCase {
         for (List<NamedExpression> targets : List.of(List.<NamedExpression>of(metadata), List.<NamedExpression>of(other, metadata))) {
             FillNull fillNull = new FillNull(Source.EMPTY, unionWith(output), keyword("x"), targets).withConfiguration(TEST_CFG);
             assertTrue("naming _index fills it", filledNames(fillNull).contains("_index"));
+        }
+    }
+
+    /**
+     * Types that have no default and that no value converts into, not even a string that would cast: ES|QL converts a string only to
+     * datetime, date_nanos, ip, version and boolean. Both forms leave the column unchanged and report it.
+     */
+    private static final List<DataType> UNFILLABLE_TYPES = List.of(
+        DataType.GEO_POINT,
+        DataType.GEO_SHAPE,
+        DataType.CARTESIAN_POINT,
+        DataType.CARTESIAN_SHAPE,
+        DataType.GEOHASH,
+        DataType.GEOTILE,
+        DataType.GEOHEX,
+        DataType.DENSE_VECTOR,
+        DataType.AGGREGATE_METRIC_DOUBLE,
+        DataType.DATE_RANGE,
+        DataType.DOUBLE_RANGE,
+        DataType.HISTOGRAM,
+        DataType.EXPONENTIAL_HISTOGRAM,
+        DataType.TDIGEST,
+        DataType.COUNTER_LONG,
+        DataType.COUNTER_INTEGER,
+        DataType.COUNTER_DOUBLE
+    );
+
+    /** Strings that parse as a value of a type that FILLNULL still does not convert a string into. */
+    private static final Map<DataType, List<String>> VALID_STRINGS = Map.of(
+        DataType.GEOTILE,
+        List.of("4/8/5"),
+        DataType.GEOHEX,
+        List.of("841f059ffffffff")
+    );
+
+    public void testDefaultFillLeavesTypesWithoutADefaultUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            FillNull materialized = materialize(allFields(List.of(column)), List.of(column), TEST_CFG);
+            assertTrue("DEFAULT has no value for " + type, materialized.fillAliases().isEmpty());
+            assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+        }
+    }
+
+    public void testStringFillLeavesTypesThatCannotTakeItUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            List<String> values = new ArrayList<>(List.of("POINT(1 2)", "0", "{}"));
+            // A string that is valid for the type, so that it is the type that refuses it and not a value that does not parse.
+            values.addAll(VALID_STRINGS.getOrDefault(type, List.of()));
+            for (String value : values) {
+                FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), keyword(value), List.of(column));
+                FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
+                assertTrue("[" + value + "] is not converted into " + type, materialized.fillAliases().isEmpty());
+                assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+            }
+        }
+    }
+
+    public void testNumericFillLeavesTypesThatCannotTakeItUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            List<Literal> fills = List.of(
+                new Literal(Source.EMPTY, 0, DataType.INTEGER),
+                new Literal(Source.EMPTY, 0L, DataType.LONG),
+                new Literal(Source.EMPTY, 0.0, DataType.DOUBLE)
+            );
+            for (Literal fill : fills) {
+                FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), fill, List.of(column));
+                FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
+                assertTrue(fill + " is not converted into " + type, materialized.fillAliases().isEmpty());
+                assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+            }
         }
     }
 

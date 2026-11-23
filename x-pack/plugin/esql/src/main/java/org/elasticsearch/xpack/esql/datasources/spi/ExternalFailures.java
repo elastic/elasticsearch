@@ -168,8 +168,15 @@ public final class ExternalFailures {
      * {@link #detach}, which has already dropped the cause and logged it here rather than forwarding it, so the cause
      * arm cannot run and is not the backstop. The backstop is the pair that does cross the wire -- the message itself,
      * and the suppressed failures, which {@link #detach} keeps where they are themselves {@link ExternalException}s
-     * and which {@code innerToXContent} serializes into the response. A cause is checked where it still exists, at the
-     * throw site: {@link #rowError} asserts its own before anything is detached.
+     * and which {@code innerToXContent} serializes into the response, though only one level of those is read here:
+     * {@link #suppressedNameNoLocation} says what that leaves.
+     * <p>
+     * Two throw sites compose a marked failure over a cause, and they do not agree, so neither generalises:
+     * {@link #rowError} asserts its own cause before anything is detached, and the CSV reader's
+     * {@code failFastSamplingError} passes the row's failure in as a cause and asserts nothing about it. Both causes
+     * are dropped at this boundary and neither reaches the client. What a reader quotes out of such a cause does
+     * reach the client, inside the marked message, and is unchecked by construction -- that is the trade the mark
+     * makes, not an oversight of it.
      * <p>
      * Unmarked, every heuristic still applies, and that is the point of spending a mark rather than relaxing the
      * boundary itself: the storage providers build typed failures too, and an SDK endpoint host or a bare filesystem
@@ -194,14 +201,52 @@ public final class ExternalFailures {
         return chainNamesNoLocation(e);
     }
 
-    /** Whether every failure suppressed on {@code e} itself is free of a location. Its cause chain is walked separately. */
+    /**
+     * Whether every failure suppressed on {@code e} itself is free of a location. Its cause chain is walked
+     * separately, and so is each suppressed failure's own: this reads one level and the message only, while
+     * {@link #detach} rebuilds the suppressed tree recursively and the response renderer serializes all of it. A
+     * location nested below a suppressed failure therefore crosses the wire unasserted. Stated rather than closed,
+     * because deepening the walk widens what can raise an {@link AssertionError} on a read path this change exists
+     * to stop doing that.
+     */
     private static boolean suppressedNameNoLocation(Throwable e) {
         for (Throwable suppressed : e.getSuppressed()) {
-            if (containsStoragePath(suppressed.getMessage())) {
+            if (containsStoragePath(messageOutsideRenderedBasename(suppressed))) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * {@code e}'s message with the object basename the condition renderer placed in it blanked out.
+     * <p>
+     * Every structured {@link ExternalException} carries one: {@link ExternalException.Condition} renders
+     * {@code path.objectName()} into the message, so an access denial, a throttle and a not-found all quote the
+     * basename whether or not any reader asked them to. A basename is the one path segment that is not a location --
+     * it has no host and no directory by construction -- but it is text a user chose, so an object they are entitled
+     * to call {@code logs.amazonaws.com.csv} matched the host heuristic and turned a plain 403 into a fatal
+     * {@link AssertionError} under {@code -ea}. That is the same failure the mark exists to stop, reached through the
+     * renderer rather than through a reader, and the mark cannot answer it: these failures are the provider's, and
+     * exempting them wholesale is what {@link #noStoragePathLeakedBesideQuotedInput} refuses to do.
+     * <p>
+     * Only the rendered occurrence goes, never the string wherever it appears: the templates all bracket it, so
+     * {@code [name]} is removed and a basename of {@code a} cannot blank every {@code a} in the sentence. Everything
+     * the provider wrote -- its detail code, its remedy, its own diagnostic text -- is still read in full, which is
+     * where an SDK endpoint host or a bare filesystem path would actually appear.
+     */
+    private static String messageOutsideRenderedBasename(Throwable e) {
+        String msg = e.getMessage();
+        if (msg == null) {
+            return null;
+        }
+        if (e instanceof ExternalException external) {
+            String objectName = external.objectName();
+            if (objectName.isEmpty() == false) {
+                return msg.replace("[" + objectName + "]", "[]");
+            }
+        }
+        return msg;
     }
 
     /**
@@ -212,12 +257,12 @@ public final class ExternalFailures {
     private static boolean chainNamesNoLocation(Throwable start) {
         Throwable current = start;
         for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
-            if (containsStoragePath(current.getMessage())) {
+            if (containsStoragePath(messageOutsideRenderedBasename(current))) {
                 return false;
             }
             // suppressed[] is serialized into the response via innerToXContent; guard it too.
             for (Throwable suppressed : current.getSuppressed()) {
-                if (containsStoragePath(suppressed.getMessage())) {
+                if (containsStoragePath(messageOutsideRenderedBasename(suppressed))) {
                     return false;
                 }
             }
@@ -239,8 +284,9 @@ public final class ExternalFailures {
     );
 
     /**
-     * Whether {@code msg} names a storage-URI scheme. Split out from {@link #containsStoragePath} because it is the
-     * one test that holds on a message we composed ourselves: see {@link #noStoragePathLeakedBesideQuotedInput}.
+     * Whether {@code msg} names a storage-URI scheme. Its own method because the scheme list is worth reading on its
+     * own, not because any caller wants this test alone: {@link #containsStoragePath} is the only one, and a marked
+     * message now skips every heuristic rather than keeping this one.
      */
     private static boolean namesStorageUriScheme(String msg) {
         if (msg == null) {
@@ -408,15 +454,22 @@ public final class ExternalFailures {
      *     failure's condition already says what is wrong, so its cause is logged at DEBUG, except for an access denial:
      *     the provider's reason for refusing is its only diagnosis too, so it reaches WARN at most once a minute.
      *     <p>
-     *     A server-side failure is logged whether or not it has a cause, which a client failure is not. A 500 from this
-     *     package is a bug on this node and its stack is what an operator has to work from; raised directly, with no
-     *     cause under it, that stack exists nowhere else, because only the message crosses the wire. Logging just the
-     *     cause would make an invariant breach the quietest failure the read path has.
+     *     A 500 is logged whether or not it has a cause, which no other status is. A 500 from this package is a bug on
+     *     this node and its stack is what an operator has to work from; raised directly, with no cause under it, that
+     *     stack exists nowhere else, because only the message crosses the wire. Logging just the cause would make an
+     *     invariant breach the quietest failure the read path has. The rest of the server-side band is left alone
+     *     deliberately: a causeless 503 is the expected shape of an object changing under a read, which every provider
+     *     raises and the read retries, and it is not something an operator has to see once per occurrence.
      */
     private static ExternalException detach(ExternalException e, Level serverFailureLevel) {
         boolean hasCause = e.getCause() != null;
         boolean serverSide = e.status().getStatus() >= 500;
-        if (hasCause || serverSide) {
+        // Exactly 500, not every server-side status: the record is for an invariant breach raised with nothing under
+        // it, and the band above 500 is mostly the opposite of that. An object rewritten under a read is a causeless
+        // 503 that every provider raises and the read retries, so admitting the band would put a WARN and a stack in
+        // the log for ordinary back-pressure, on every query it happens to.
+        boolean causelessInvariantBreach = hasCause == false && e.status() == RestStatus.INTERNAL_SERVER_ERROR;
+        if (hasCause || causelessInvariantBreach) {
             Level level;
             if (serverSide) {
                 level = serverFailureLevel;

@@ -618,6 +618,51 @@ public class ExternalFailuresTests extends ESTestCase {
      * those is the leak this guard exists to catch. Relaxing the boundary itself would have retired it for precisely
      * the throw sites it watches.
      */
+    /**
+     * The provider's own failures quote the object's basename because the condition renderer puts it there, not
+     * because any reader asked -- so a user who names an object after a storage host used to turn a polite 403 into
+     * a fatal {@link AssertionError}. The mark cannot answer this one: these failures are the provider's, and
+     * trusting them wholesale is exactly what the boundary refuses to do.
+     */
+    public void testAProviderFailureMayNameAnObjectAfterAStorageHost() {
+        for (String objectName : List.of("logs.amazonaws.com.csv", "blob.core.windows.net.csv", "data.googleapis.com.ndjson")) {
+            var denied = new ExternalClientException(
+                ExternalException.Condition.ACCESS_DENIED,
+                StoragePath.of("s3://bucket/" + objectName),
+                "HTTP 403",
+                ""
+            );
+            assertThat("the renderer quotes the basename", denied.getMessage(), containsString(objectName));
+            assertFalse("unmarked, as a provider failure is", denied.messageQuotesInput());
+            assertTrue(objectName, ExternalFailures.noStoragePathLeakedBesideQuotedInput(denied));
+
+            // The point is that it classifies at all: before this, the heuristic matched the name the user chose and
+            // the read died under -ea instead of answering.
+            RuntimeException classified = ExternalFailures.classify(denied);
+            assertEquals(denied.status(), ExceptionsHelper.status(classified));
+            assertThat(classified.getMessage(), containsString(objectName));
+        }
+    }
+
+    /** Only the rendered basename is excused. Everything the provider wrote around it is still read in full. */
+    public void testTheBasenameExcuseReachesNothingBesideTheBasename() {
+        var denied = new ExternalClientException(
+            ExternalException.Condition.ACCESS_DENIED,
+            StoragePath.of("s3://bucket/logs.amazonaws.com.csv"),
+            "HTTP 403",
+            ""
+        );
+        denied.setDetail("bucket.s3.us-east-1.amazonaws.com refused the connection");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(denied));
+        AssertionError caught = expectThrows(AssertionError.class, () -> ExternalFailures.classify(denied));
+        assertThat(caught.getMessage(), containsString("storage path leaked in ExternalException"));
+
+        // And a basename of one character cannot blank that character everywhere: only the bracketed occurrence goes.
+        var shortName = new ExternalClientException(ExternalException.Condition.ACCESS_DENIED, StoragePath.of("s3://b/a"), "", "");
+        shortName.setDetail("endpoint s3.amazonaws.com refused");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(shortName));
+    }
+
     public void testAnUnmarkedTypedFailureIsStillCheckedInFull() {
         for (String leak : List.of("bucket.s3.us-east-1.amazonaws.com refused the connection", "cannot open /var/lib/esdata/x.csv")) {
             var providerFailure = new ExternalServerException("Unexpected internal failure reading external source");
@@ -819,6 +864,16 @@ public class ExternalFailuresTests extends ESTestCase {
             () -> ExternalFailures.detach(new ExternalClientException("bad file")),
             ExternalFailures.class,
             new MockLog.UnseenEventExpectation("causeless client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+        // Nor does a causeless 503. An object rewritten under a read raises one, every provider does it, and the read
+        // retries: a WARN and a stack per occurrence would be noise, and the record is for the invariant breach above.
+        var changed = new ExternalObjectChangedException(StoragePath.of("s3://bucket/a.csv"));
+        assertNull(changed.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, changed.status());
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(changed),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("causeless 503", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
         );
     }
 

@@ -1395,17 +1395,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             return ErrorExcerpts.summarizeEscaped(whole.toString());
         }
+        String[] names = duplicates.toArray(new String[0]);
         StringBuilder head = new StringBuilder(window);
-        for (String name : duplicates) {
-            if (head.length() >= window) {
-                break;
-            }
-            if (head.isEmpty() == false) {
+        // Position, not head.isEmpty(): an empty name is a duplicate like any other -- two leading commas are the
+        // common way to get one -- and it appends nothing, so emptiness cannot tell the first name from the second.
+        // Read the other way the separator went missing, the head came up short of the cap, and summarizeEscaped's
+        // own assertion fired on a message that was supposed to be a plain 400.
+        for (int i = 0; i < names.length && head.length() < window; i++) {
+            if (i > 0) {
                 appendBounded(head, DUPLICATE_NAME_SEPARATOR, window);
             }
-            appendBounded(head, name, window);
+            appendBounded(head, names[i], window);
         }
-        String[] names = duplicates.toArray(new String[0]);
         StringBuilder tail = new StringBuilder(window);
         for (int i = names.length - 1; i >= 0 && tail.length() < window; i--) {
             prependBounded(tail, names[i], window);
@@ -3145,8 +3146,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // object clause is withheld for exactly the names the clause exists to carry: classify's final arm
             // answers an IllegalStateException with safeDetail, which falls back to the class name whenever
             // forwardableDetail withholds. ExternalServerException keeps the status and the sentence both.
-            // The operator's WARN and stack come from ExternalFailures.detach, which logs a server-side failure
-            // whether or not it has a cause -- this one has none, and typing it must not cost the node that record.
+            // The operator's WARN and stack come from ExternalFailures.detach, which logs a 500 whether or not it
+            // has a cause -- this one has none, and typing it must not cost the node that record.
             ExternalServerException invariant = new ExternalServerException(
                 ExternalException.Condition.CLIENT_BUG,
                 StoragePath.NONE,

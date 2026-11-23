@@ -9178,6 +9178,40 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
     }
 
+    /**
+     * An empty column name is a duplicate like any other, and two leading commas are the ordinary way to get one. It
+     * contributes no characters, so it used to leave the head window empty and the name after it lost its separator;
+     * at the one width where that shortfall crossed the cap, the rendering helper's own assertion fired and a plain
+     * 400 became a fatal failure under {@code -ea}.
+     */
+    public void testAnEmptyDuplicateNameStillSeparatesTheNameAfterIt() {
+        String wide = "w".repeat(253);
+        String header = ",," + wide + "," + wide;
+        String row = "1,1,1,1";
+
+        StringJoiner whole = new StringJoiner("', '");
+        whole.add("");
+        whole.add(wide);
+        String expected = ErrorExcerpts.summarizeEscaped(whole.toString());
+        assertThat("the fixture has to cross the cap, or it pins nothing", expected, containsString("truncated,"));
+
+        ExternalClientException onInference = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(createStorageObject(header + "\n" + row + "\n", "empty_dup.csv"))
+        );
+        assertThat(onInference.getMessage(), containsString("['" + expected + "']"));
+
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        ExternalClientException onBinding = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject(header + "\n" + row + "\n", "empty_dup.csv"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(onBinding.getMessage(), containsString("['" + expected + "']"));
+    }
+
     /** Only a headered dialect has a header line to deliver to later splits; the answer is the setting, nothing else. */
     public void testReadsHeaderLineFollowsHeaderRow() {
         assertTrue(((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))).readsHeaderLine());

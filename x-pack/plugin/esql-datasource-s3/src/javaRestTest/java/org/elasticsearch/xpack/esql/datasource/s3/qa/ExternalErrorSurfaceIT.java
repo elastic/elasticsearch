@@ -339,6 +339,25 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     );
 
     /**
+     * Phrases a probe's {@code error.reason} must contain, for the conditions a status and a type cannot tell apart.
+     * Two conditions answering 400 {@code external_client_exception} is the normal case here, so those two columns
+     * cannot pin which site refused: a probe aimed at one of them passes just as well when the read takes the other
+     * route. A phrase only that site writes closes the gap.
+     * <p>
+     * Deliberately sparse. A phrase pinned here is a sentence this suite promises not to change silently, which is
+     * worth paying where two conditions would otherwise be indistinguishable and is dead weight anywhere else. An
+     * entry naming no probe fails the run, the same way a stale {@link #EXPECTED_STATUS} entry does.
+     */
+    private static final Map<String, List<String>> EXPECTED_REASON_PHRASES = Map.ofEntries(
+        // Inference refuses the same file one step earlier, with the same status and type and a different remedy.
+        // The object and the duplicated column say the refusal read this file; the clause says binding raised it.
+        entry(
+            "duplicate header name under a declared schema",
+            List.of("duplicate_header.csv", "duplicate column names ['id']", "columns cannot bind by name")
+        )
+    );
+
+    /**
      * The {@code error.type} every probe is expected to return. Clients read this alongside the status, so a
      * rename is as visible as a status change, and this map is what makes one a deliberate edit rather than a
      * surprise a client finds first.
@@ -359,28 +378,10 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * A typed refusal is handed back as it stands, so {@code error.reason} opens with the
      * {@code Malformed external data:} prefix {@code MALFORMED_DATA} renders, with the diagnosis word for word
      * inside it. A client matching a whole reason string sees a different one; a client reading the diagnosis
-     * does not. The status is 400 either way. This map pins the type and no map here pins a reason, which is why
-     * the prefix is recorded here.
+     * does not. The status is 400 either way. This map pins the type; {@link #EXPECTED_REASON_PHRASES} pins the few
+     * reasons a type cannot tell apart, and the prefix is recorded here because it is the part every typed reason
+     * opens with rather than anything that map singles out.
      */
-    /**
-     * Phrases a probe's {@code error.reason} must contain, for the conditions a status and a type cannot tell apart.
-     * Two conditions answering 400 {@code external_client_exception} is the normal case here, so those two columns
-     * cannot pin which site refused: a probe aimed at one of them passes just as well when the read takes the other
-     * route. A phrase only that site writes closes the gap.
-     * <p>
-     * Deliberately sparse. A phrase pinned here is a sentence this suite promises not to change silently, which is
-     * worth paying where two conditions would otherwise be indistinguishable and is dead weight anywhere else. An
-     * entry naming no probe fails the run, the same way a stale {@link #EXPECTED_STATUS} entry does.
-     */
-    private static final Map<String, List<String>> EXPECTED_REASON_PHRASES = Map.ofEntries(
-        // Inference refuses the same file one step earlier, with the same status and type and a different remedy.
-        // The object and the duplicated column say the refusal read this file; the clause says binding raised it.
-        entry(
-            "duplicate header name under a declared schema",
-            List.of("duplicate_header.csv", "duplicate column names ['id']", "columns cannot bind by name")
-        )
-    );
-
     private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
         entry("tsv object does not exist", "external_client_exception"),
         entry("tsv object is empty", "external_client_exception"),

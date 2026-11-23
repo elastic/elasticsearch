@@ -48,6 +48,8 @@ public final class Messages {
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
     public static final String DATAFEED_ESQL_DESCRIBE_UNAVAILABLE =
         "{0} cannot be validated in this build. Validation uses the ES|QL DESCRIBE command, which is only available in snapshot builds.";
+    public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
+        "{0} query contains an outer LIMIT clause. It caps every extraction chunk and the delayed data check, so remove it.";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "

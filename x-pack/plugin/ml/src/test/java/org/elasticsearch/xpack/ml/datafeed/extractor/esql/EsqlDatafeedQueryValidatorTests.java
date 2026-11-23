@@ -154,6 +154,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("only available in snapshot builds"));
     }
 
+    public void testOuterLimitShouldWarn() {
+        assertValidationSucceeds(harness(row("@timestamp", "date")), validation().query("FROM logs | LIMIT 10"));
+
+        assertWarnings(
+            "ES|QL datafeed query contains an outer LIMIT clause. It caps every extraction chunk and the delayed data check, "
+                + "so remove it."
+        );
+    }
+
     public void testRemoteClusterShouldFailValidation() {
         ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),

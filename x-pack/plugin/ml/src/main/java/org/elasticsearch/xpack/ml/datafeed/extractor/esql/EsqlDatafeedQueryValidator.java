@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -131,6 +132,7 @@ public class EsqlDatafeedQueryValidator {
             );
             return;
         }
+        warnOnOuterLimit(esqlQuery, datafeedId);
         // Filter and LIMIT so the default result row cap cannot hide a required column when the query has many columns.
         boolean needsSummaryCount = summaryCountField != null;
         String describeSuffix = needsSummaryCount
@@ -179,6 +181,16 @@ public class EsqlDatafeedQueryValidator {
             ExecutionMetadata.CCS_ONLY,
             responseListener
         );
+    }
+
+    /**
+     * Extraction keeps a user's outer {@code LIMIT}, so it caps every chunk and the delayed data check. Warn at PUT until extraction
+     * always appends its own LIMIT (https://github.com/elastic/elasticsearch/pull/167093), which removes this warning.
+     */
+    static void warnOnOuterLimit(String esqlQuery, @Nullable String datafeedId) {
+        if (EsqlQueryClauseScanner.hasOuterLimit(esqlQuery)) {
+            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, esqlDatafeedSubject(datafeedId)));
+        }
     }
 
     private static void checkDescription(

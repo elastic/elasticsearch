@@ -13,8 +13,8 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.64.0'
-def otelInstrumentationVersion = '2.30.0-alpha'
+def otelVersion = '1.67.0'
+def otelInstrumentationVersion = '2.33.1-alpha'
 def otelContribDiskBufferingVersion = '1.59.0-alpha'
 
 dependencies {

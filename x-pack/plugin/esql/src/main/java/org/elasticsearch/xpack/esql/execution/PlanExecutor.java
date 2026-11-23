@@ -91,6 +91,8 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    @Nullable
+    private final IntSupplier maxDirectoryListings;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -142,6 +144,44 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
@@ -159,6 +199,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.maxDirectoryListings = maxDirectoryListings;
     }
 
     /**
@@ -194,6 +235,7 @@ public class PlanExecutor {
             threadContext,
             null,
             null,
+            null,
             null
         );
     }
@@ -210,6 +252,34 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -220,7 +290,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
     }
 
@@ -280,7 +351,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
         final var session = new EsqlSession(
             sessionId,

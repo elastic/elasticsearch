@@ -35,11 +35,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
@@ -132,7 +134,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        if (grouping() == WITHOUT) {
+        // A without partition is a packing of its own next to the series' one, derived from it after the per-series
+        // aggregate, which takes the label container functions.
+        if (grouping() == WITHOUT && context.containerFunctions() == false) {
             throw new VerificationException("function [{}] is not yet supported with [{}]", functionName(), WITHOUT.name());
         }
 
@@ -142,9 +146,14 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         // from the child nor materialized below.
         List<String> partitions = TranslationContext.mapFinite(groupings());
         boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
+        if (grouping() == WITHOUT && context.cmd().storesMetricName()) {
+            // Prometheus partitions a without by every label but the listed ones and the metric name.
+            partitions = Stream.concat(partitions.stream(), Stream.of(LabelMatcher.NAME)).distinct().toList();
+        }
+        TranslationSchema partitioning = grouping() == WITHOUT ? open(partitions) : finite(partitions);
         TranslationSchema childRequired = isLimitRatio
             ? union(context.required(), open())
-            : union(union(context.required(), open()), finite(partitions));
+            : union(union(context.required(), open()), partitioning);
         IntermediateResult childResult = context.withRequired(childRequired).translate(child());
         if (childResult.kind().constant) {
             if (isLimitRatio) {
@@ -156,7 +165,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             return childResult;
         }
 
-        var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), finite(partitions));
+        var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), partitioning);
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, childResult.step(), context.configuration());
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
@@ -262,7 +271,20 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         var groupings = new ArrayList<Expression>();
         groupings.add(table.step());
         LogicalPlan plan = table.plan();
-        if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
+        if (grouping() == WITHOUT) {
+            // The packing of every label but the listed ones, plus each label column the packing may not hold: one a
+            // relabel derived. A label column the packing holds too adds nothing to the partition.
+            Set<String> skip = Set.copyOf(partitions);
+            Attribute packing = table.packed(skip);
+            assert packing != null : "invariant: packing " + skip + " must be carried by the reduced table";
+            groupings.add(packing);
+            for (String label : table.schema().labels()) {
+                Attribute carrier = table.label(label);
+                if (skip.contains(label) == false && carrier != null) {
+                    groupings.add(carrier);
+                }
+            }
+        } else if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
             var nulls = new ArrayList<Alias>();
             for (String partition : partitions) {
                 Attribute carrier = table.label(partition);

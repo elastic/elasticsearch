@@ -14,7 +14,7 @@ import java.time.Clock;
 
 /**
  * One factory method per piece of the collector, so that the changes that implement the pieces in parallel each replace the body
- * of one method and do not conflict. Until then every method returns the no-op or simple implementation: nothing is reported.
+ * of one method and do not conflict. Until a piece is implemented its method returns the no-op or simple implementation.
  */
 public final class UsageComponents {
 
@@ -25,11 +25,11 @@ public final class UsageComponents {
     }
 
     public static UsageRecordBuilder newRecordBuilder(UsageReportingSettings settings) {
-        return NoopUsageRecordBuilder.INSTANCE;
+        return new HostedUsageRecordBuilder();
     }
 
     public static PendingStore newPendingStore(UsageReportingSettings settings) {
-        return new UnboundedPendingStore();
+        return new BoundedPendingStore(settings.pendingMax());
     }
 
     public static UsagePublisher newPublisher(UsageReportingSettings settings, SslProfile sslProfile) {

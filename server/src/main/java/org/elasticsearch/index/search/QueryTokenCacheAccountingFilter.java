@@ -82,19 +82,17 @@ public final class QueryTokenCacheAccountingFilter extends TokenFilter {
             return false;
         }
         long bytes = fixedBytesPerToken();
-        // Analyzer streams expose TermToBytesRefAttribute via CharTermAttributeImpl. Since lucene#17020
-        // that clone no longer copies builder bytes, so getBytesRef() would overcharge. Count term bytes
-        // only when the stream has no CharTermAttribute: then clone still deep-copies the BytesRef.
-        if (termAtt != null && charTermAtt == null) {
+        if (charTermAtt != null) {
+            // The clone copies the chars. Since lucene#17020 its byte buffer is empty, so there is no term byte charge.
+            bytes += RamUsageEstimator.alignObjectSize(
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Character.BYTES * charTermAtt.length()
+            );
+        } else if (termAtt != null) {
+            // Bytes-only stream, the clone deep-copies the BytesRef.
             int length = termAtt.getBytesRef().length;
             if (length > 0) {
                 bytes += RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + ArrayUtil.oversize(length, 1));
             }
-        }
-        if (charTermAtt != null) {
-            bytes += RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Character.BYTES * charTermAtt.length()
-            );
         }
         estimatedBytes += bytes;
         if (breaker != null && estimatedBytes - chargedBytes >= CHARGE_BATCH_BYTES) {

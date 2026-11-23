@@ -38,11 +38,11 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
 
     @Override
     protected Response runESQLCommand(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
-        // The submission may return the finished result, and then the warnings, or a still running query and none. It is checked for
-        // the warnings of the test only when one is expected; the async GET below is where they are required.
+        // The submission may return the finished result, and then the warnings, or a still running query and none. No warnings is fine
+        // there, and any it carries are checked by the handler of the test; the async GET below is where they are required.
         WarningsHandler onSubmission = warningsHandler == null
             ? null
-            : warnings -> warnings.stream().anyMatch(w -> w.contains("[FILLNULL] the fill value could not be applied") == false);
+            : warnings -> warnings.isEmpty() == false && warningsHandler.warningsShouldFailRequest(warnings);
         var response = runAsync(user, command, onSubmission);
         assertOK(response);
         var respMap = entityAsMap(response.getEntity());

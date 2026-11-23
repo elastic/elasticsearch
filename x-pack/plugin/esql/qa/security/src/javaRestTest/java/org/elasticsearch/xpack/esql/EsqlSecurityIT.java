@@ -1259,7 +1259,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(result.columnNames(), not(hasItem("org")));
         // the visible columns hold no nulls, so the fill changes nothing, and no denied value ("sales"/"engineering") appears
         assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
-        assertThat(result.values("partial"), equalTo(List.of("sales10.0", "engineering20.0")));
+        assertThat(result.values("partial"), equalTo(partialValuesAfterFillNullAll()));
+    }
+
+    /**
+     * What the granted text field {@code partial} holds after {@code FILLNULL "redacted" ON *}: its own values, since it holds no
+     * nulls to fill. A mode that reads it as null overrides this with the fill value.
+     */
+    protected List<Object> partialValuesAfterFillNullAll() {
+        return List.of("sales10.0", "engineering20.0");
     }
 
     /**

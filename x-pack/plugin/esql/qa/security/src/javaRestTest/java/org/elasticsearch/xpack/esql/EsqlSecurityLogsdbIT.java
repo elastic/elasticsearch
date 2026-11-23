@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * Reruns the entire {@link EsqlSecurityIT} field-level-security suite with the FLS indices in {@code logsdb} mode, proving that ESQL
  * FLS enforcement is identical whether {@code _source} is stored or reconstructed from doc values / {@code _ignored_source}.
@@ -48,6 +50,15 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
         return " | DROP @timestamp";
     }
 
+    /**
+     * The granted text field reconstructs to null here (elastic/security#6714), so {@code FILLNULL ON *} fills it. The test still
+     * checks that {@code *} does not reach the denied field.
+     */
+    @Override
+    protected List<Object> partialValuesAfterFillNullAll() {
+        return List.of("redacted", "redacted");
+    }
+
     // FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null
 
     @Override
@@ -65,12 +76,6 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
     public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {}
-
-    // The granted text field reconstructs to null, so FILLNULL ON * fills it, where the test expects the original values
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
-    public void testFieldLevelSecurityFillNullAllFieldsDoesNotRevealDeniedField() throws Exception {}
 
     // FLS-excluded fields are still reconstructed from _ignored_source (both the except:_source and the grant-allow-list shapes)
 

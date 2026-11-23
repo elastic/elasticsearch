@@ -530,6 +530,14 @@ public class EsqlSession {
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
         listener = wrapForAnonymizedFailureLog(listener);
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
+        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
+        // an empty time range). Also kept on the request, so the time range the query asked for is known however the query
+        // ends, including when it fails to parse or its views fail to resolve.
+        final long requestStartedMillis = System.currentTimeMillis();
+        request.setRequestedTimeRange(
+            QueryDslTimestampBoundsExtractor.extractTimestampBounds(request.filter(), () -> requestStartedMillis)
+        );
         // Planning CPU is frozen at the end of planning. A query that fails before it gets there would report none, although it
         // spent some, so it is frozen on any failure too. Freezing is idempotent: a query that fails while it executes keeps the total
         // that planning froze.
@@ -738,15 +746,6 @@ public class EsqlSession {
         // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
-        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
-        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
-        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
-        // Also kept on the request, so the time range the query asked for is known however the query ends.
-        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            request.filter(),
-            finalConfiguration::absoluteStartedTimeInMillis
-        );
-        request.setRequestedTimeRange(timestampBounds);
 
         analyzedPlan(
             plan,
@@ -754,7 +753,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
-            timestampBounds,
+            request.requestedTimeRange(),
             viewResolution.indexViewOrigins(),
             viewResolution.viewSettings(),
             new ActionListener<Versioned<LogicalPlan>>() {

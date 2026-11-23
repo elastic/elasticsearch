@@ -11,6 +11,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -54,9 +55,17 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
         assertThat(request.requestedTimeRange(), equalTo(new TimestampBounds(FROM, TO)));
     }
 
+    public void testFailureBeforeAnalysis() {
+        var request = syncEsqlQueryRequest("FROM logs | NOT_A_COMMAND").filter(
+            new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString())
+        );
+        expectThrows(ParsingException.class, () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet());
+        assertThat(request.requestedTimeRange(), equalTo(new TimestampBounds(FROM, TO)));
+    }
+
     public void testNoRequestedTimeRange() {
         // A range in the query itself is not interpreted, and neither is a filter range with only one bound.
-        var withoutFilter = syncEsqlQueryRequest("FROM logs | WHERE @timestamp >= NOW() - 1 hour | LIMIT 1");
+        var withoutFilter = syncEsqlQueryRequest("FROM logs | WHERE @timestamp >= NOW() - 1 hour AND @timestamp <= NOW() | LIMIT 1");
         var withLowerBoundOnly = syncEsqlQueryRequest("FROM logs | LIMIT 1").filter(new RangeQueryBuilder("@timestamp").gte("now-1h"));
         for (EsqlQueryRequest request : new EsqlQueryRequest[] { withoutFilter, withLowerBoundOnly }) {
             client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();

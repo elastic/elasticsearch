@@ -12,11 +12,14 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -55,12 +58,15 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -68,7 +74,9 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -138,12 +146,26 @@ public class ArrowResponseTests extends ESTestCase {
         BigIntVector::get
     );
 
-    static final ValueType ULONG_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
-        "ulong",
+    /**
+     * Unsigned long blocks with the sign bit flipped, used for {@link DataType#UNSIGNED_LONG}.
+     */
+    static final ValueType ULONG_FLIPPED_SIGN_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
+        "ulong_flipped_sign",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
         // Blocks store unsigned longs with the sign bit flipped
         (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
+        UInt8Vector::get
+    );
+
+    /**
+     * Long blocks holding raw unsigned 64-bit values, with no sign bit flipping, as done for {@link DataType#GEOHASH} cell ids.
+     */
+    static final ValueType ULONG_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
+        "ulong",
+        factory -> factory.newLongBlockBuilder(0),
+        block -> block.appendLong(randomLong()),
+        (block, i, scratch) -> block.getLong(i),
         UInt8Vector::get
     );
 
@@ -171,6 +193,14 @@ public class ArrowResponseTests extends ESTestCase {
         Float8Vector::get
     );
 
+    static final ValueType DENSE_VECTOR_VALUES = new ValueTypeImpl<FloatBlock.Builder, FloatBlock, Float4Vector>(
+        "dense_vector",
+        factory -> factory.newFloatBlockBuilder(0),
+        block -> block.appendFloat(randomFloat()),
+        (block, i, scratch) -> block.getFloat(i),
+        Float4Vector::get
+    );
+
     static final ValueType BOOLEAN_VALUES = new ValueTypeImpl<BooleanBlock.Builder, BooleanBlock, BitVector>(
         "boolean",
         factory -> factory.newBooleanBlockBuilder(0),
@@ -192,7 +222,11 @@ public class ArrowResponseTests extends ESTestCase {
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
-        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8),
+        metadata -> {
+            assertEquals("arrow.json", metadata.get("ARROW:extension:name"));
+            assertEquals("", metadata.get("ARROW:extension:metadata"));
+        }
     );
 
     static final ValueType FLATTENED_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
@@ -200,7 +234,11 @@ public class ArrowResponseTests extends ESTestCase {
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
-        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8),
+        metadata -> {
+            assertEquals("arrow.json", metadata.get("ARROW:extension:name"));
+            assertEquals("", metadata.get("ARROW:extension:metadata"));
+        }
     );
 
     static final ValueType IP_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
@@ -315,6 +353,26 @@ public class ArrowResponseTests extends ESTestCase {
         )
     );
 
+    // GEOTILE: struct with non-nullable "zoom" uint8, "x" and "y" uint32 children. Values are [zoom, x, y] as longs.
+    static final ValueType GEOTILE_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, StructVector>(
+        "geotile",
+        factory -> factory.newLongBlockBuilder(0),
+        block -> {
+            int zoom = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            int tiles = 1 << zoom;
+            block.appendLong(GeoTileUtils.longEncodeTiles(zoom, randomIntBetween(0, tiles - 1), randomIntBetween(0, tiles - 1)));
+        },
+        (block, i, scratch) -> {
+            int[] zxy = GeoTileUtils.parseHash(block.getLong(i));
+            return List.of((long) zxy[0], (long) zxy[1], (long) zxy[2]);
+        },
+        (vec, position) -> List.of(
+            (long) ((UInt1Vector) vec.getChild("zoom")).get(position) & 0xFFL,
+            ((UInt4Vector) vec.getChild("x")).get(position) & 0xFFFFFFFFL,
+            ((UInt4Vector) vec.getChild("y")).get(position) & 0xFFFFFFFFL
+        )
+    );
+
     static final ValueType AGGREGATE_METRIC_DOUBLE_VALUES = new ValueType() {
         @Override
         public Block.Builder createBlockBuilder(BlockFactory factory) {
@@ -369,13 +427,73 @@ public class ArrowResponseTests extends ESTestCase {
         }
     };
 
+    /**
+     * TDIGEST: struct with nullable min/max/sum float64 children, and centroids/counts list children.
+     * Values are compared as {@link TDigestHolder}s. A fifth of the digests are empty ones, which must be valid structs.
+     */
+    static final ValueType TDIGEST_VALUES = new ValueType() {
+        @Override
+        public Block.Builder createBlockBuilder(BlockFactory factory) {
+            return factory.newTDigestBlockBuilder(0);
+        }
+
+        @Override
+        public void addValue(Block.Builder builder, Density density) {
+            if (density.nextIsNull()) {
+                builder.appendNull();
+            } else if (randomInt(4) == 0) {
+                TDigestHolder empty = new TDigestHolder();
+                empty.reset(EncodedTDigest.encodeCentroids(List.of(), List.of()), Double.NaN, Double.NaN, Double.NaN, 0L);
+                ((TDigestBlock.Builder) builder).appendTDigest(empty);
+            } else {
+                ((TDigestBlock.Builder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
+            }
+        }
+
+        @Override
+        public Object valueAt(Block block, int position, BytesRef scratch) {
+            TDigestHolder holder = ((TDigestBlock) block).getTDigestHolder(block.getFirstValueIndex(position), new TDigestHolder());
+            // Copy the encoded digest, as it refers to the block's memory
+            TDigestHolder copy = new TDigestHolder();
+            copy.reset(BytesRef.deepCopyOf(holder.getEncodedDigest()), holder.getMin(), holder.getMax(), holder.getSum(), holder.size());
+            return copy;
+        }
+
+        @Override
+        public Object valueAt(ValueVector arrowVec, int position) {
+            StructVector vector = (StructVector) arrowVec;
+            Float8Vector min = (Float8Vector) vector.getChild("min");
+            Float8Vector max = (Float8Vector) vector.getChild("max");
+            Float8Vector sum = (Float8Vector) vector.getChild("sum");
+            ListVector centroidsVector = (ListVector) vector.getChild("centroids");
+            ListVector countsVector = (ListVector) vector.getChild("counts");
+            assertFalse(centroidsVector.isNull(position));
+            assertFalse(countsVector.isNull(position));
+            @SuppressWarnings("unchecked")
+            List<Double> centroids = (List<Double>) (List<?>) centroidsVector.getObject(position);
+            @SuppressWarnings("unchecked")
+            List<Long> counts = (List<Long>) (List<?>) countsVector.getObject(position);
+            assertEquals(centroids.size(), counts.size());
+            TDigestHolder holder = new TDigestHolder();
+            holder.reset(
+                EncodedTDigest.encodeCentroids(centroids, counts),
+                min.isNull(position) ? Double.NaN : min.get(position),
+                max.isNull(position) ? Double.NaN : max.get(position),
+                sum.isNull(position) ? Double.NaN : sum.get(position),
+                counts.stream().mapToLong(Long::longValue).sum()
+            );
+            return holder;
+        }
+    };
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
         Map.entry(DataType.LONG, LONG_VALUES),
         Map.entry(DataType.COUNTER_LONG, LONG_VALUES),
-        Map.entry(DataType.UNSIGNED_LONG, ULONG_VALUES),
+        Map.entry(DataType.UNSIGNED_LONG, ULONG_FLIPPED_SIGN_VALUES),
         Map.entry(DataType.DOUBLE, DOUBLE_VALUES),
+        Map.entry(DataType.DENSE_VECTOR, DENSE_VECTOR_VALUES),
         Map.entry(DataType.COUNTER_DOUBLE, DOUBLE_VALUES),
 
         Map.entry(DataType.TEXT, TEXT_VALUES),
@@ -399,16 +517,22 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.CARTESIAN_POINT, CARTESIAN_POINT_VALUES),
         Map.entry(DataType.CARTESIAN_SHAPE, CARTESIAN_SHAPE_VALUES),
 
+        // Geo grid cell ids are longs. Geohash uses all 64 bits so it is unsigned. random longs also exercise bit 63.
+        Map.entry(DataType.GEOHASH, ULONG_VALUES),
+        Map.entry(DataType.GEOTILE, GEOTILE_VALUES),
+        Map.entry(DataType.GEOHEX, LONG_VALUES),
+
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
-        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES)
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES),
+        Map.entry(DataType.TDIGEST, TDIGEST_VALUES)
     );
 
     /**
      * Types whose blocks are always single-valued, so tests can't build multivalued columns of them. Kept independent of
      * the formatters so that a formatter that wrongly rejects multivalued columns fails the tests instead of skipping them.
      */
-    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE);
+    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TDIGEST);
 
     // ---------------------------------------------------------------------------------------------
     // Tests
@@ -602,6 +726,137 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
+    public void testDenseVectorOutput() throws IOException {
+        FloatBlock block;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(4)) {
+            builder.appendFloat(1.25f);
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendFloat(Float.MAX_VALUE);
+            builder.appendFloat(-Float.MAX_VALUE);
+            builder.appendFloat(Float.MIN_VALUE);
+            builder.appendFloat(-0.0f);
+            builder.endPositionEntry();
+            builder.appendFloat(0.0f);
+            block = builder.build();
+        }
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, true);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 1, 1, 5, 6);
+            assertEquals(List.of(1.25f), vector.getObject(0));
+            assertTrue(vector.isNull(1));
+            assertEquals(List.of(Float.MAX_VALUE, -Float.MAX_VALUE, Float.MIN_VALUE, -0.0f), vector.getObject(2));
+            assertEquals(List.of(0.0f), vector.getObject(3));
+        }
+    }
+
+    public void testSingleDimensionDenseVectorOutput() throws IOException {
+        FloatBlock block;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(3)) {
+            block = builder.appendFloat(1.0f).appendNull().appendFloat(2.0f).build();
+        }
+        assertFalse(block.mayHaveMultivaluedFields());
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(column),
+                List.of(
+                    new TestPage(List.of(TestBlock.create(column, block))),
+                    new TestPage(List.of(TestBlock.create(column, blockFactory.newConstantNullBlock(2))))
+                )
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 1, 1, 2, 2, 2);
+            assertEquals(List.of(1.0f), vector.getObject(0));
+            assertEquals(List.of(2.0f), vector.getObject(2));
+        }
+    }
+
+    public void testDenseVectorListSchemaAcrossPages() throws IOException {
+        FloatBlock singleCoordinate;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(1)) {
+            singleCoordinate = builder.appendFloat(1.5f).build();
+        }
+        FloatBlock multipleCoordinates;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(3)) {
+            builder.beginPositionEntry().appendFloat(2.0f).appendFloat(3.0f).appendFloat(4.0f).endPositionEntry();
+            multipleCoordinates = builder.appendNull().appendFloat(-1.0f).build();
+        }
+        assertFalse(singleCoordinate.mayHaveMultivaluedFields());
+        assertTrue(multipleCoordinates.mayHaveMultivaluedFields());
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, true);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(column),
+                List.of(
+                    new TestPage(List.of(TestBlock.create(column, blockFactory.newConstantNullBlock(2)))),
+                    new TestPage(List.of(TestBlock.create(column, singleCoordinate))),
+                    new TestPage(List.of(TestBlock.create(column, multipleCoordinates)))
+                )
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 0, 0, 1, 4, 4, 5);
+            assertTrue(vector.isNull(0));
+            assertTrue(vector.isNull(1));
+            assertEquals(List.of(1.5f), vector.getObject(2));
+            assertEquals(List.of(2.0f, 3.0f, 4.0f), vector.getObject(3));
+            assertTrue(vector.isNull(4));
+            assertEquals(List.of(-1.0f), vector.getObject(5));
+        }
+    }
+
+    public void testAllNullDenseVectorOutput() throws IOException {
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(column),
+                List.of(new TestPage(List.of(TestBlock.create(column, blockFactory.newConstantNullBlock(3)))))
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 0, 0, 0);
+            for (int position = 0; position < 3; position++) {
+                assertTrue(vector.isNull(position));
+            }
+        }
+    }
+
+    public void testDenseVectorEmptyResponse() throws IOException {
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, false);
+        try (TestCase testCase = new TestCase(List.of(column), List.of()); VectorSchemaRoot root = toArrowVectors(testCase)) {
+            assertEquals(0, root.getRowCount());
+            assertDenseVectorSchema((ListVector) root.getVector("vector"));
+        }
+    }
+
+    private static void assertDenseVectorSchema(ListVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.LIST.getType(), field.getType());
+        assertTrue(field.isNullable());
+        assertEquals("dense_vector", field.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+        assertEquals(1, field.getChildren().size());
+        Field coordinates = field.getChildren().getFirst();
+        assertEquals(Types.MinorType.FLOAT4.getType(), coordinates.getType());
+        assertFalse(coordinates.isNullable());
+    }
+
     public void testAggregateMetricDoubleOutput() throws IOException {
         List<AggregateMetricDoubleLiteral> expected = List.of(
             new AggregateMetricDoubleLiteral(10.0, 30.0, 60.0, 3),
@@ -772,9 +1027,9 @@ public class ArrowResponseTests extends ESTestCase {
     }
 
     public void testDroppedUnsupportedColumnIsNotValidated() throws IOException {
-        assertFalse(ArrowResponse.ESQL_FORMATTERS.containsKey(DataType.DENSE_VECTOR));
+        assertFalse(ArrowResponse.ESQL_FORMATTERS.containsKey(DataType.OBJECT));
         List<TestColumn> columns = List.of(
-            new TestColumn("unsupported", DataType.DENSE_VECTOR, NULL_VALUES, false),
+            new TestColumn("unsupported", DataType.OBJECT, NULL_VALUES, false),
             TestColumn.create("retained", DataType.INTEGER, false)
         );
         TestCase testCase = new TestCase(

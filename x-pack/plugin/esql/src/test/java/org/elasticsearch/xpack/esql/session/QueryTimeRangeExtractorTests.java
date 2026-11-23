@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.session.QueryTimeRangeExtractor.TimeRange;
 
@@ -36,7 +37,10 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
         assertRanges("FROM logs", Map.of("logs", TimeRange.UNBOUNDED));
         assertRanges("FROM logs | WHERE level == \"error\"", Map.of("logs", TimeRange.UNBOUNDED));
         assertRanges("ROW a = 1", Map.of());
-        assertThat(QueryTimeRangeExtractor.extract(TEST_PARSER.parseQuery("FROM logs | LIMIT 1"), TEST_CFG), anEmptyMap());
+        assertThat(
+            QueryTimeRangeExtractor.extract(TEST_PARSER.parseQuery("FROM logs | LIMIT 1"), TEST_CFG, new EsqlFunctionRegistry()),
+            anEmptyMap()
+        );
     }
 
     public void testComparisons() {
@@ -448,7 +452,8 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
 
         Map<IndexPattern, QueryBuilder> filters = QueryTimeRangeExtractor.extract(
             TEST_PARSER.parseQuery("FROM logs, (FROM metrics | LIMIT 1) | WHERE @timestamp >= \"2024-05-01T00:00:00Z\""),
-            TEST_CFG
+            TEST_CFG,
+            new EsqlFunctionRegistry()
         );
         Map<String, QueryBuilder> byName = new HashMap<>();
         filters.forEach((pattern, filter) -> byName.put(pattern.indexPattern(), filter));
@@ -461,7 +466,7 @@ public class QueryTimeRangeExtractorTests extends ESTestCase {
 
     private static void assertRanges(String query, Map<String, TimeRange> expected) {
         Map<String, TimeRange> ranges = new HashMap<>();
-        QueryTimeRangeExtractor.ranges(TEST_PARSER.parseQuery(query), TEST_CFG)
+        QueryTimeRangeExtractor.ranges(TEST_PARSER.parseQuery(query), TEST_CFG, new EsqlFunctionRegistry())
             .forEach((pattern, range) -> ranges.put(pattern.indexPattern(), range));
         assertThat(query, ranges, equalTo(expected));
     }

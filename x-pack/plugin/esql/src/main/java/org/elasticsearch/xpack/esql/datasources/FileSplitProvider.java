@@ -825,7 +825,7 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
-            // Resolution (bounded sample) cannot hit the 25k cap; skip the predicate there.
+            // Resolution (bounded sample) cannot hit the discovered-files cap; skip the predicate there.
             FolderRangePredicate folderRange = extents.boundsFileSet()
                 ? null
                 : folderRangePredicateForQuery(context.filterHints(), PartitionSpec.fromConfig(config));

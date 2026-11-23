@@ -390,11 +390,15 @@ public interface FormatReader extends Closeable {
 
     /**
      * Returns a reader that allocates pages and per-read scratch against {@code blockFactory}.
-     * Node-level caches (Parquet/ORC footers) stay bound to the factory the reader was constructed
-     * with. The operator applies this immediately before each {@link #read}, {@link #readAsync}, or
-     * {@code readRange} so a query factory charges that query. CSV overrides this; formats that still
-     * allocate on the construction factory (NDJSON, Parquet, ORC) keep this no-op default until they
-     * opt in.
+     * Node-level caches (Parquet/ORC footers) stay on the receiver: a copy forwards those
+     * instances and must not close them. The operator applies this immediately before each
+     * {@link #read}, {@link #readAsync}, or {@code readRange} so a query factory charges that
+     * query. CSV, NDJSON, Parquet, and ORC override this; other formats keep this no-op default.
+     * <p>
+     * A copy must not share closeable state with the receiver ({@link DynamicThreshold}, a
+     * footer handle). The operator closes the pre-bind mint when this returns a distinct object;
+     * identity ({@code this}) is not a mint. Sharing a releasable with the receiver would close
+     * it under the copy.
      * <p>
      * {@code blockFactory} must be safe for concurrent allocations: parallel-parsing workers and
      * {@code esql_external_io} threads may allocate from it at the same time. The default returns
@@ -502,8 +506,7 @@ public interface FormatReader extends Closeable {
      * #readsHeaderLine} is false: headerless text, NDJSON, columnar formats). Passed to the splits of a file through
      * {@link FormatReadContext#fileHeaderColumns}, so that none reads it from its own bytes.
      * <p>
-     * Must abort its stream ({@link StorageObject#abortStream}) rather than close it: a provider that drains the
-     * remaining bytes on close would transfer the whole object.
+     * Must close the sample stream when done; the leaf decides drain vs drop.
      *
      * @param file the whole file, positioned at its first byte (not a range of it)
      */

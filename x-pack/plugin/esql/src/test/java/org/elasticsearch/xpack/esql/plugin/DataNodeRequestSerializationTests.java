@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -63,6 +64,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
     @Override
@@ -259,7 +261,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         ).v2();
         UnmappedFieldsAttribute before = unmappedFieldsAttribute(dataNodePlan);
         assertTrue(before.pattern().matches("first_name_suffix"));
-        assertFalse(before.pattern().matches("first_name"));
+        // A mapped field is not excluded from the pattern: only KEEP and DROP restrict it, and a shard skips the fields it maps.
+        assertTrue(before.pattern().matches("first_name"));
+        assertFalse(before.pattern().matches("last_name"));
 
         DataNodeRequest request = new DataNodeRequest(
             "load-all-session",
@@ -279,6 +283,32 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         DataNodeRequest copy = copyInstance(request, TransportVersion.current());
         UnmappedFieldsAttribute after = unmappedFieldsAttribute(copy.plan());
         assertThat(after, equalTo(before));
+    }
+
+    public void testValidIntoQueryProducesNoDataNodePlanEvenAtOldestVersion() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+
+        TransportVersion oldest = TransportVersion.minimumCompatible();
+        var oldAnalyzer = analyzer().addIndex("test", "mapping-basic.json").minimumTransportVersion(oldest).buildAnalyzer();
+        VerificationException rejected = expectThrows(
+            VerificationException.class,
+            () -> oldAnalyzer.analyze(TEST_PARSER.parseQuery("FROM test | INTO dst"))
+        );
+        assertThat(rejected.getMessage(), containsString("INTO currently only supports ROW as a source, without FORK"));
+
+        String query = "ROW a = 1 | INTO dst";
+        Configuration configuration = randomConfiguration(query, randomTables());
+        LogicalPlan analyzed = oldAnalyzer.analyze(TEST_PARSER.parseQuery(query));
+        LogicalPlan logicallyOptimized = new LogicalPlanOptimizer(logicalOptimizerContext(configuration, FoldContext.small(), oldest))
+            .optimize(analyzed);
+        PhysicalPlan physicalPlan = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, oldest)).optimize(
+            new Mapper().map(new Versioned<>(logicallyOptimized, oldest))
+        );
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            EstimatesRowSize.estimateRowSize(0, physicalPlan),
+            configuration
+        ).v2();
+        assertThat(dataNodePlan, nullValue());
     }
 
     private static UnmappedFieldsAttribute unmappedFieldsAttribute(PhysicalPlan plan) {

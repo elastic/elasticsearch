@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
@@ -65,6 +66,61 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFun
         version        | versionType | expectedLink
         '1.0'          | 'release'   | "https://artifacts.elastic.co/javadoc/org/acme/some-lib/$version"
         '1.0-SNAPSHOT' | 'snapshot'  | "https://snapshots.elastic.co/javadoc/org/acme/some-lib/$version"
+    }
+
+    def "javadoc with inter project linking is relocatable"() {
+        given:
+        def buildCacheDir = testProjectDir.newFolder("build-cache")
+        def originalDir = testProjectDir.newFolder("original")
+        def relocatedDir = testProjectDir.newFolder("relocated")
+        someLibProject()
+        someDependingLibProject()
+        buildFile << """
+            allprojects {
+                version = '1.0'
+            }
+        """
+        settingsFile << """
+            buildCache {
+                local {
+                    directory = file('${buildCacheDir.absolutePath.replace('\\', '/')}')
+                }
+            }
+        """
+        copyProjectTo(originalDir)
+        copyProjectTo(relocatedDir)
+
+        when:
+        gradleRunner(originalDir, ':some-depending-lib:javadoc', '--build-cache').build()
+        def result = gradleRunner(relocatedDir, ':some-depending-lib:javadoc', '--build-cache').build()
+
+        then:
+        result.task(":some-lib:javadoc").outcome == TaskOutcome.FROM_CACHE
+        result.task(":some-depending-lib:javadoc").outcome == TaskOutcome.FROM_CACHE
+    }
+
+    def "javadoc is not taken from the build cache when the linked version changes"() {
+        given:
+        someLibProject()
+        someDependingLibProject()
+        buildFile << """
+            allprojects {
+                version = providers.gradleProperty('acmeVersion').get()
+                // the default title contains the version; keep it stable so only the links change
+                tasks.withType(Javadoc).configureEach { title = 'Acme' }
+            }
+        """
+
+        when:
+        gradleRunner(':some-depending-lib:javadoc', '--build-cache', '-PacmeVersion=1.0').build()
+        def result = gradleRunner('clean', ':some-depending-lib:javadoc', '--build-cache', '-PacmeVersion=2.0').build()
+
+        then:
+        // the upstream javadoc content does not depend on the version, only the links of the depending javadoc do
+        result.task(":some-lib:javadoc").outcome == TaskOutcome.FROM_CACHE
+        result.task(":some-depending-lib:javadoc").outcome == TaskOutcome.SUCCESS
+        def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/2.0' '../some-lib/build/docs/javadoc/'")
     }
 
     def "sources of shadowed dependencies are added to projects javadoc"() {
@@ -272,6 +328,50 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFun
                 public class Something {
                 }
             """
+        }
+    }
+
+    private File someDependingLibProject() {
+        subProject("some-depending-lib") {
+            buildFile << """
+                plugins {
+                    id 'elasticsearch.java-doc'
+                    id 'java'
+                }
+                group = 'org.acme.depending'
+
+                dependencies {
+                    implementation project(':some-lib')
+                }
+            """
+            classFile('org.acme.depending.SomeDepending') << """
+                package org.acme.depending;
+
+                import org.acme.Something;
+
+                public class SomeDepending {
+                    public Something createSomething() {
+                        return new Something();
+                    }
+                }
+            """
+        }
+    }
+
+    /**
+     * Copies the test project (without the copy targets themselves) into {@code targetDir} so the same build
+     * can be run from different locations.
+     */
+    private void copyProjectTo(File targetDir) {
+        def root = testProjectDir.root
+        root.eachFile { f ->
+            if (f.name in ['build-cache', 'original', 'relocated'] == false) {
+                if (f.isDirectory()) {
+                    FileUtils.copyDirectory(f, new File(targetDir, f.name))
+                } else {
+                    FileUtils.copyFileToDirectory(f, targetDir)
+                }
+            }
         }
     }
 }

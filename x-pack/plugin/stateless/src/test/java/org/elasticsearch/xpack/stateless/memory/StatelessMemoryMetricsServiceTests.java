@@ -221,6 +221,14 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
         );
         assertThat(tierAggregate.totalShardHeapInBytes(), equalTo(floor));
+
+        // Changing only the caller's index count must change the autoscaling floor.
+        var aggregateWithMoreIndices = service.aggregateShardMetrics(
+            totalIndices + between(1, 100),
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE,
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
+        );
+        assertThat(aggregateWithMoreIndices.totalShardHeapInBytes(), lessThan(tierAggregate.totalShardHeapInBytes()));
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {
@@ -476,6 +484,26 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     /**
      * Per-node heap follows primary routing, not {@link StatelessMemoryMetricsService.ShardMemoryMetrics#getMetricShardNodeId()}.
      */
+    public void testPerNodeMemoryMetricsUsesCallerIndexCount() {
+        final int initialIndices = between(1, 10);
+        final ClusterState appliedState = randomInitialTwoNodeClusterState(initialIndices);
+        service.clusterChanged(new ClusterChangedEvent("init", appliedState, ClusterState.EMPTY_STATE));
+        final var baseline = service.getPerNodeMemoryMetrics(appliedState);
+
+        final int extraIndices = between(1, 10);
+        final ClusterState callerState = randomInitialTwoNodeClusterState(initialIndices + extraIndices);
+        // Do not deliver another listener event: the estimate must use the caller's snapshot.
+        final var updated = service.getPerNodeMemoryMetrics(callerState);
+        assertThat(updated.keySet(), equalTo(baseline.keySet()));
+        assertThat(updated.size(), equalTo(2));
+        for (var entry : updated.entrySet()) {
+            assertThat(
+                entry.getValue().nonShardHeapUsage() - baseline.get(entry.getKey()).nonShardHeapUsage(),
+                equalTo(extraIndices * StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD)
+            );
+        }
+    }
+
     public void testPerNodeMemoryMetricsUsesPrimaryRoutingNotMetricReporterNode() {
         final String indexName = randomIdentifier();
 

@@ -456,7 +456,7 @@ public class MaxMindSupportTests extends ESTestCase {
                     Type genericReturnType = method.getGenericReturnType();
                     if (genericReturnType instanceof ParameterizedType parameterizedGenericReturnType) {
                         Type[] actualTypes = parameterizedGenericReturnType.getActualTypeArguments();
-                        if (actualTypes != null && actualTypes.length == 1 && actualTypes[0] instanceof Class<?> actualTypeClass) {
+                        if (actualTypes.length == 1 && actualTypes[0] instanceof Class<?> actualTypeClass) {
                             allActualMaxMindClasses.add(actualTypeClass.asSubclass(AbstractResponse.class));
                             if (KNOWN_UNSUPPORTED_RESPONSE_CLASSES.contains(actualTypeClass) == false) {
                                 assertTrue(

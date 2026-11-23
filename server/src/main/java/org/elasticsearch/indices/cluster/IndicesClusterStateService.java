@@ -1750,10 +1750,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // Getting here should not be possible, see the comment at the very top of the try block.
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
-            assert false : e;
             // If we get here, something unexpected has happened. To be on the safe side, send a failure to the master: if it still thinks
             // the shard is recovering, it should be told; if it does not, it will discard the spurious message.
             sendFailShard(shardRouting, primaryTerm, wrappedException.getMessage(), failure, clusterService.state());
+            assert false : e;
         } finally {
             // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins), or we swapped it
             // for one above; otherwise there's no further attempt coming for this ticket, so clear it here. Unconditional (not

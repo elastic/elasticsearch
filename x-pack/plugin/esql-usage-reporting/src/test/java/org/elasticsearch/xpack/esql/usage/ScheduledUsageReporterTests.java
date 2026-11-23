@@ -164,6 +164,14 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         );
     }
 
+    /** Puts records in the store as a previous cycle that could not publish them would have. */
+    private void addPending(int count) {
+        builder.recordsPerSnapshot = count;
+        Instant time = at("2026-11-23T10:00:00Z");
+        UsageSnapshot snapshot = new UsageSnapshot(time, Map.of(Outcome.SUCCESS, new CpuComponents(0, 0, 2_000_000, 0)));
+        store.add(builder.build(snapshot, IDENTITY, Duration.ofMinutes(5), time));
+    }
+
     private static PublishResult accepted(List<UsageRecord> records) {
         return new PublishResult(Set.copyOf(records.stream().map(UsageRecord::id).toList()), List.of());
     }
@@ -397,7 +405,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         assertThat(accumulator.drains, contains(at("2026-11-23T10:05:00Z")));
     }
 
-    public void testCloseDrainsAndFlushesThenStopsTheSchedule() {
+    public void testCloseFlushesWhatIsPendingWithoutDrainingThenStopsTheSchedule() {
         ScheduledUsageReporter reporter = reporter(10);
         reporter.start();
         runUntil("2026-11-23T10:05:00Z");
@@ -405,9 +413,6 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         publisher.script.add(records -> failed(PublishResult.FailureClass.RETRYABLE, Set.of()));
         runUntil("2026-11-23T10:10:00Z");
         assertThat(store.size(), equalTo(1));
-        // Closes a few seconds after the tick, as in production, so that the final drain has its own time and ids.
-        taskQueue.scheduleAt(Duration.ofSeconds(405).toMillis(), () -> {});
-        runUntil("2026-11-23T10:10:05Z");
 
         try (MockLog mockLog = MockLog.capture(ScheduledUsageReporter.class)) {
             mockLog.addExpectation(
@@ -417,12 +422,12 @@ public class ScheduledUsageReporterTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
         }
 
-        assertThat("the final flush drains too", accumulator.drains.size(), equalTo(3));
-        assertThat(store.size(), equalTo(0));
+        assertThat("the pending record is flushed", store.size(), equalTo(0));
+        assertThat("the usage of the partial period is not drained", accumulator.drains.size(), equalTo(2));
 
         reporter.close(); // idempotent
         runUntil("2026-11-23T10:30:00Z");
-        assertThat(accumulator.drains.size(), equalTo(3));
+        assertThat(accumulator.drains.size(), equalTo(2));
         assertThat(publisher.closed, equalTo(false));
     }
 
@@ -457,14 +462,15 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     }
 
     /**
-     * The deadline is measured with the real clock. The timeout is long enough for the first batch to start even on a loaded host, and
-     * the publisher sleeps well past it: the sleep can only make the deadline pass sooner, never later.
+     * The deadline is measured with the clock of the thread pool, which here is the one of the task queue: the first publish moves it
+     * past the timeout, so that no real time is involved.
      */
-    public void testCloseStopsStartingBatchesAfterTheTimeout() throws Exception {
-        builder.recordsPerSnapshot = 3;
-        ScheduledUsageReporter reporter = reporter(1, "200ms");
+    public void testCloseStopsStartingBatchesAfterTheTimeout() {
+        ScheduledUsageReporter reporter = reporter(1, "1s");
+        addPending(3);
         publisher.script.add(records -> {
-            safeSleep(500);
+            taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 2000, () -> {});
+            taskQueue.advanceTime();
             return accepted(records);
         });
 
@@ -597,6 +603,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
 
     public void testCloseWarnsWhenTheFinalFlushFails() {
         ScheduledUsageReporter reporter = reporter(10);
+        addPending(1);
         publisher.failure = new IllegalStateException("down");
 
         try (MockLog mockLog = MockLog.capture(ScheduledUsageReporter.class)) {

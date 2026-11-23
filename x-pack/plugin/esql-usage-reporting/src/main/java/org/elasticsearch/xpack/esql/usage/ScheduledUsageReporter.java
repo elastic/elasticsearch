@@ -33,7 +33,8 @@ import java.util.stream.Collectors;
  * The invariants that keep the count safe: a snapshot is drained once and its records are in the store before anything is published,
  * so a failure of the publisher loses nothing that the store holds (a failure of the builder or the store after the drain loses that
  * period, with a warning); a record leaves the store only when it was accepted or rejected for good, so everything else is sent again
- * with the same id; and a failure of any piece ends the cycle but never the schedule. Whatever is lost on the way can only under-count.
+ * with the same id; and no failure ends the schedule: one of the accumulator, the builder or the store loses that period but the
+ * pending records are still published, and one of the publisher ends the cycle. Whatever is lost on the way can only under-count.
  * <p>
  * {@link #start} is called once, by the node.
  */
@@ -138,7 +139,8 @@ public final class ScheduledUsageReporter implements UsageReporter {
         try {
             // A cycle that races with close() must not run after the final flush, when the publisher is about to be closed.
             if (closed.get() == false) {
-                drainAndPublish(now, () -> closed.get() == false);
+                drain(now);
+                publish(() -> closed.get() == false);
             }
         } finally {
             cycle.release();
@@ -146,10 +148,10 @@ public final class ScheduledUsageReporter implements UsageReporter {
     }
 
     /**
-     * One cycle. A failure of a piece is logged once and ends the cycle: what was drained is already in the store, and what was not
-     * published stays there to be sent again with the same ids.
+     * The first half of a cycle: drains the accumulator and puts the records in the store, before anything is published. A failure is
+     * logged once, and loses that period only.
      */
-    private void drainAndPublish(Instant now, BooleanSupplier mayContinue) {
+    private void drain(Instant now) {
         try {
             UsageSnapshot snapshot = accumulator.drain(now);
             if (snapshot.isEmpty() == false) {
@@ -158,6 +160,13 @@ public final class ScheduledUsageReporter implements UsageReporter {
         } catch (Exception e) {
             logger.warn("failed to build the usage records of the period ending at [{}]", now, e);
         }
+    }
+
+    /**
+     * The second half of a cycle: publishes what is pending. A failure is logged once and ends the cycle; what was not published stays
+     * in the store to be sent again with the same ids.
+     */
+    private void publish(BooleanSupplier mayContinue) {
         try {
             publishPending(mayContinue);
         } catch (Exception e) {
@@ -171,9 +180,11 @@ public final class ScheduledUsageReporter implements UsageReporter {
      * does not hold, cannot make this loop ask for the same batch forever.
      */
     private void publishPending(BooleanSupplier mayContinue) {
-        while (mayContinue.getAsBoolean()) {
+        while (true) {
             List<UsageRecord> batch = store.next(batchSize);
-            if (batch.isEmpty()) {
+            // Asked last, right before the hand-off to the publisher, so that a close or a deadline that came while the batch was read
+            // is not missed.
+            if (batch.isEmpty() || mayContinue.getAsBoolean() == false) {
                 return;
             }
             int before = store.size();
@@ -212,10 +223,12 @@ public final class ScheduledUsageReporter implements UsageReporter {
     }
 
     /**
-     * Stops the schedule and makes one last cycle, so that the usage of the partial period and what is pending is not lost on a
-     * restart. The flush waits at most the request timeout for a cycle that is still running, and stops starting batches after the same
-     * timeout from the start of the close; a batch already in flight is bounded by the publisher's own request timeout, so the close
-     * can take about twice as long. What is not sent is lost, which can only under-count, and is reported with a warning.
+     * Stops the schedule and makes a last attempt to publish the records that are pending. It does not drain the accumulator: the usage
+     * since the last tick is not a whole period, and a record has to carry the period it covers. That usage is lost on every restart,
+     * which can only under-count. The flush waits at most the request timeout for a cycle that is still running, and stops starting
+     * batches after the same timeout from the start of the close. It cannot bound a batch that is already being published: a publisher
+     * may make several requests for one batch, so the close can take longer than the timeout. What is not sent is lost, and reported
+     * with a warning.
      */
     @Override
     public void close() {
@@ -227,12 +240,12 @@ public final class ScheduledUsageReporter implements UsageReporter {
                 scheduled.cancel();
             }
         }
-        long deadline = System.nanoTime() + flushTimeout.nanos();
+        long deadline = threadPool.relativeTimeInNanos() + flushTimeout.nanos();
         boolean acquired = false;
         try {
             acquired = cycle.tryAcquire(flushTimeout.nanos(), TimeUnit.NANOSECONDS);
             if (acquired) {
-                drainAndPublish(clock.instant(), () -> System.nanoTime() - deadline < 0);
+                publish(() -> threadPool.relativeTimeInNanos() - deadline < 0);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -241,11 +254,10 @@ public final class ScheduledUsageReporter implements UsageReporter {
                 cycle.release();
             }
         }
-        int pending = store.size();
         if (acquired == false) {
             logger.warn("usage may be lost: the cycle that was running did not finish, so the final flush did not run");
-        } else if (pending > 0) {
-            logger.warn("usage may be lost: [{}] records are still pending after the final flush", pending);
+        } else if (store.size() > 0) {
+            logger.warn("usage may be lost: [{}] records are still pending after the final flush", store.size());
         }
     }
 

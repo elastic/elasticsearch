@@ -177,12 +177,13 @@ public abstract class ExternalException extends QlException {
      */
     private volatile String datasetContext;
     /**
-     * Set when this exception's message is a row of the file quoted verbatim, which only {@link ExternalFailures#rowError}
-     * builds. A row may hold anything the file holds, a storage URL included, so the read boundary checks nothing in such
-     * a message: see {@link ExternalFailures#noStoragePathLeakedBesideFileText}. Copied by the copy constructor, so it
-     * survives the detach every classified failure goes through.
+     * Set when this exception's message quotes the read's own input back to the user -- an object's basename, a column
+     * name, a row, a clause of the declared schema. Such text may hold anything its source holds, a storage URL
+     * included, so the read boundary checks nothing in a message that carries it: see
+     * {@link ExternalFailures#noStoragePathLeakedBesideQuotedInput}. Copied by the copy constructor, so it survives the
+     * detach every classified failure goes through.
      */
-    private volatile boolean messageIsRowContent;
+    private volatile boolean messageQuotesInput;
 
     protected ExternalException(String message, Throwable cause) {
         super(message, cause);
@@ -271,7 +272,7 @@ public abstract class ExternalException extends QlException {
         this.remedy = source.remedy;
         this.detail = source.detail;
         this.datasetContext = source.datasetContext;
-        this.messageIsRowContent = source.messageIsRowContent;
+        this.messageQuotesInput = source.messageQuotesInput;
         recordConditionMetadata();
     }
 
@@ -413,18 +414,24 @@ public abstract class ExternalException extends QlException {
     }
 
     /**
-     * Declares that this exception's message quotes a row of the file verbatim. Only {@link ExternalFailures#rowError}
-     * sets it, and its own javadoc says why: row content is the caller's to vouch for, and can legitimately look like a
-     * location. Nothing else may claim this -- a message assembled from a basename and a column name is checked, and
-     * {@link ExternalFailures#noStoragePathLeakedBesideFileText} says what that check still is.
+     * Declares that this exception's message quotes the read's input -- the file's bytes, or the schema the user
+     * declared -- so the read boundary's storage-path guard leaves the message alone and checks only the chain below
+     * it. A format reader's refusals say this, because naming what the user has to fix means quoting the object, the
+     * column, the row or the schema clause that is wrong; a storage provider's failures do not, because what they
+     * carry is an endpoint or a path, and that is the thing the guard exists to catch.
+     * {@link ExternalFailures#noStoragePathLeakedBesideQuotedInput} is the whole argument.
+     * <p>
+     * Quoting is the claim, not origin: say it where the message puts input text in verbatim, not merely because the
+     * failure arose while reading a file. Never say it of text a library handed us -- a cause is checked in full
+     * whatever this says, and third-party text belongs in {@link ExternalFailures#forwardableDetail}, which screens it.
      */
-    void markMessageIsRowContent() {
-        this.messageIsRowContent = true;
+    public void markMessageQuotesInput() {
+        this.messageQuotesInput = true;
     }
 
-    /** See {@link #markMessageIsRowContent()}. */
-    boolean messageIsRowContent() {
-        return messageIsRowContent;
+    /** See {@link #markMessageQuotesInput()}. */
+    boolean messageQuotesInput() {
+        return messageQuotesInput;
     }
 
     /**

@@ -582,28 +582,51 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     /**
-     * A refusal this package composed carries the file's own tokens -- the object's basename, a column name, a row
-     * excerpt -- and two of them look exactly like a location. Both shapes below are legitimate input a reader is
-     * meant to refuse with an HTTP 400, so neither may cost the user the sentence that says what to fix.
+     * A refusal that quotes the read's input carries tokens that look exactly like a location -- an object a user may
+     * name {@code logs.amazonaws.com.csv}, a column literally named {@code /data}, a quoted column name holding a URL.
+     * All three are legitimate input a reader is meant to refuse with an HTTP 400, so none of them may cost the user
+     * the sentence that says what to fix.
      */
-    public void testAComposedRefusalMayCarryFileTextThatLooksLikeALocation() {
-        var namedLikeAHost = new ExternalClientException("Malformed external data: CSV file [logs.amazonaws.com.csv] has no data rows");
-        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText(namedLikeAHost));
-        assertThat(ExternalFailures.classify(namedLikeAHost), instanceOf(ExternalClientException.class));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(namedLikeAHost)));
+    public void testARefusalThatQuotesInputMayCarryTextThatLooksLikeALocation() {
+        for (String sentence : List.of(
+            "Malformed external data: CSV file [logs.amazonaws.com.csv] has no data rows",
+            // A column name is not an object name, and nothing escapes a leading slash out of one.
+            "Malformed external data: CSV header of [data.csv] has duplicate column names ['/data']; columns cannot bind by name",
+            // A CSV field may be quoted, and a quoted field may hold anything -- a URL included.
+            "Malformed external data: CSV header of [data.csv] has duplicate column names ['https://x.test/a']; "
+                + "columns cannot bind by name"
+        )) {
+            var refusal = new ExternalClientException(sentence);
+            refusal.markMessageQuotesInput();
+            assertTrue(sentence, ExternalFailures.noStoragePathLeakedBesideQuotedInput(refusal));
+            RuntimeException classified = ExternalFailures.classify(refusal);
+            assertThat(sentence, classified, instanceOf(ExternalClientException.class));
+            assertEquals(sentence, RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
 
-        // A column name is not an object name, and nothing escapes a leading slash out of one.
-        var columnNamedLikeAPath = new ExternalClientException(
-            "Malformed external data: CSV header of [data.csv] has duplicate column names ['/data']; columns cannot bind by name"
-        );
-        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText(columnNamedLikeAPath));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(columnNamedLikeAPath)));
-
-        // Both still fail the full predicate, which is why the two entry points are not one: that one answers about
-        // foreign text, where the same shapes are a leak.
-        assertFalse(ExternalFailures.noStoragePathLeaked(namedLikeAHost));
-        assertFalse(ExternalFailures.noStoragePathLeaked(columnNamedLikeAPath));
+            // The boundary reads the mark, never the shape of the text: the identical sentence unmarked is refused.
+            assertFalse(sentence, ExternalFailures.noStoragePathLeakedBesideQuotedInput(new ExternalClientException(sentence)));
+            // And the full predicate refuses it either way, which is why the two entry points are not one: that one
+            // answers about text we did not write, where these same shapes are a leak.
+            assertFalse(sentence, ExternalFailures.noStoragePathLeaked(new ExternalClientException(sentence)));
+        }
         assertFalse(ExternalFailures.safeForUserMessage("secret-bucket.s3.amazonaws.com: Name or service not known"));
+    }
+
+    /**
+     * Why the exemption is a mark the thrower asks for rather than a property of this boundary. Every typed failure
+     * the storage providers raise reaches the same place, and an SDK endpoint host or a bare filesystem path in one of
+     * those is the leak this guard exists to catch. Relaxing the boundary itself would have retired it for precisely
+     * the throw sites it watches.
+     */
+    public void testAnUnmarkedTypedFailureIsStillCheckedInFull() {
+        for (String leak : List.of("bucket.s3.us-east-1.amazonaws.com refused the connection", "cannot open /var/lib/esdata/x.csv")) {
+            var providerFailure = new ExternalServerException("Unexpected internal failure reading external source");
+            providerFailure.setDetail(leak);
+            assertFalse(leak, ExternalFailures.noStoragePathLeakedBesideQuotedInput(providerFailure));
+            // Which is the whole point: it still fails the read boundary under -ea, where a developer sees it.
+            AssertionError caught = expectThrows(AssertionError.class, () -> ExternalFailures.classify(providerFailure));
+            assertThat(caught.getMessage(), containsString("storage path leaked in ExternalException"));
+        }
     }
 
     /**
@@ -616,14 +639,14 @@ public class ExternalFailuresTests extends ESTestCase {
             new IllegalArgumentException("not a long"),
             "Row [7] of [hits.csv]: cannot parse [https://example.com/a?b=1] as [long]"
         );
-        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText(rowHoldingAUrl));
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideQuotedInput(rowHoldingAUrl));
 
         RuntimeException classified = ExternalFailures.classify(rowHoldingAUrl);
         assertThat(classified, instanceOf(ExternalClientException.class));
         assertThat(classified.getMessage(), containsString("https://example.com/a?b=1"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         // The detach that classify performs copies the exemption, or a second pass over the result would fail.
-        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText((ExternalException) classified));
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideQuotedInput((ExternalException) classified));
 
         // The cause is still foreign text and is still read in full -- at the throw site, which is earlier than
         // this boundary and is why a leaking cause never reaches it.
@@ -642,29 +665,33 @@ public class ExternalFailuresTests extends ESTestCase {
             "{}",
             "Row [7] of [hits.csv]: cannot parse [x] as [long]"
         );
-        leakingCause.markMessageIsRowContent();
-        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(leakingCause));
+        leakingCause.markMessageQuotesInput();
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(leakingCause));
     }
 
     /**
-     * What the carve-out does not give up. A scheme is the one shape no file-supplied token carries, so it condemns a
-     * composed message as before; and the cause chain and suppressed failures -- where an SDK writes a real path --
-     * are checked in full whatever the top message is.
+     * What the mark does not buy. It speaks for one message -- the one the reader wrote -- and for nothing under it:
+     * the cause chain and every suppressed failure, which is where an SDK writes a real path, are read in full whether
+     * the message is marked or not.
      */
-    public void testAComposedRefusalStillCannotCarryASchemeOrABuriedPath() {
-        var concatenatedUri = new ExternalClientException("Access denied [s3://bucket/prefix/file.parquet]");
-        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(concatenatedUri));
-
+    public void testTheMarkCoversOneMessageAndNothingBelowIt() {
         var sdkCause = new ExternalClientException(
             new IOException("secret-bucket.s3.us-east-1.amazonaws.com: Name or service not known"),
             "{}",
             "CSV file [data.csv] could not be read"
         );
-        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(sdkCause));
+        sdkCause.markMessageQuotesInput();
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(sdkCause));
 
         var suppressedLeak = new ExternalClientException("CSV file [data.csv] could not be read");
+        suppressedLeak.markMessageQuotesInput();
         suppressedLeak.addSuppressed(new IOException("Path is not a regular file: /data/private/x.csv"));
-        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(suppressedLeak));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(suppressedLeak));
+
+        // And an unmarked message is read exactly as noStoragePathLeaked reads it, concatenated URI and all.
+        var concatenatedUri = new ExternalClientException("Access denied [s3://bucket/prefix/file.parquet]");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(concatenatedUri));
+        assertFalse(ExternalFailures.noStoragePathLeaked(concatenatedUri));
     }
 
     public void testDatasetContextAppendsToMessage() {
@@ -766,6 +793,32 @@ public class ExternalFailuresTests extends ESTestCase {
             () -> ExternalFailures.detach(new ExternalClientException("bad file", new IOException("root"))),
             ExternalFailures.class,
             new MockLog.UnseenEventExpectation("client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /**
+     * A 500 raised directly, with nothing under it, is the quietest failure the read path can produce if only causes
+     * are logged: the message crosses the wire and the stack exists nowhere. An invariant breach is exactly that
+     * shape, so the node has to keep a record of it whether or not anything wrapped it.
+     */
+    public void testDetachLogsACauselessServerFailureSoItsStackSurvives() {
+        var invariant = new ExternalServerException("invariant violated");
+        assertNull("the point of this case is that there is no cause to log instead", invariant.getCause());
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(invariant),
+            ExternalFailures.class,
+            new MockLog.SeenEventExpectation(
+                "causeless server failure",
+                ExternalFailures.class.getCanonicalName(),
+                Level.WARN,
+                "External failure reading external source*"
+            )
+        );
+        // A causeless client failure still says nothing: its condition is the diagnosis and it is not a bug here.
+        MockLog.assertThatLogger(
+            () -> ExternalFailures.detach(new ExternalClientException("bad file")),
+            ExternalFailures.class,
+            new MockLog.UnseenEventExpectation("causeless client", ExternalFailures.class.getCanonicalName(), Level.WARN, "*")
         );
     }
 

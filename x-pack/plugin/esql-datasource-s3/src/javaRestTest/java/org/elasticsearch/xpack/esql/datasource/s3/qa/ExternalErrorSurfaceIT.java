@@ -362,6 +362,25 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * does not. The status is 400 either way. This map pins the type and no map here pins a reason, which is why
      * the prefix is recorded here.
      */
+    /**
+     * Phrases a probe's {@code error.reason} must contain, for the conditions a status and a type cannot tell apart.
+     * Two conditions answering 400 {@code external_client_exception} is the normal case here, so those two columns
+     * cannot pin which site refused: a probe aimed at one of them passes just as well when the read takes the other
+     * route. A phrase only that site writes closes the gap.
+     * <p>
+     * Deliberately sparse. A phrase pinned here is a sentence this suite promises not to change silently, which is
+     * worth paying where two conditions would otherwise be indistinguishable and is dead weight anywhere else. An
+     * entry naming no probe fails the run, the same way a stale {@link #EXPECTED_STATUS} entry does.
+     */
+    private static final Map<String, List<String>> EXPECTED_REASON_PHRASES = Map.ofEntries(
+        // Inference refuses the same file one step earlier, with the same status and type and a different remedy.
+        // The object and the duplicated column say the refusal read this file; the clause says binding raised it.
+        entry(
+            "duplicate header name under a declared schema",
+            List.of("duplicate_header.csv", "duplicate column names ['id']", "columns cannot bind by name")
+        )
+    );
+
     private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
         entry("tsv object does not exist", "external_client_exception"),
         entry("tsv object is empty", "external_client_exception"),
@@ -1551,6 +1570,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             } else if (expected != p.status()) {
                 violations.add("status changed for [" + p.group() + "/" + p.name() + "]: expected " + expected + ", got " + p.status());
             }
+            for (String phrase : EXPECTED_REASON_PHRASES.getOrDefault(p.name(), List.of())) {
+                if (p.reason().contains(phrase) == false) {
+                    violations.add("reason for [" + p.group() + "/" + p.name() + "] no longer says [" + phrase + "]: " + p.reason());
+                }
+            }
             String expectedType = EXPECTED_TYPE.get(p.name());
             if (expectedType == null) {
                 violations.add("no expected error.type recorded for [" + p.group() + "/" + p.name() + "]");
@@ -1571,6 +1595,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         for (String recorded : EXPECTED_STATUS.keySet()) {
             if (probed.contains(recorded) == false) {
                 violations.add("EXPECTED_STATUS entry [" + recorded + "] matches no probe -- remove it");
+            }
+        }
+        for (String recorded : EXPECTED_REASON_PHRASES.keySet()) {
+            if (probed.contains(recorded) == false) {
+                violations.add("EXPECTED_REASON_PHRASES entry [" + recorded + "] matches no probe -- remove it");
             }
         }
 

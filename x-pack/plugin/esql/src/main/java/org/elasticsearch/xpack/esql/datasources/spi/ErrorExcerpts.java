@@ -79,6 +79,35 @@ public final class ErrorExcerpts {
     }
 
     /**
+     * {@link #summarizeEscaped} for a value assembled from many pieces, given its two ends and its length instead of
+     * the value itself. A caller joining a long list -- the duplicate column names in a header -- can build just those
+     * ends as it walks and never hold the whole join to show {@link #MAX_EXCERPT_CHARS} of it, which is all this would
+     * ever have shown. The width in the marker is {@code totalLength}, the join's own, so it still names something the
+     * reader can count in the object.
+     * <p>
+     * {@code head} and {@code tail} are a prefix and a suffix of that value, each at least {@link #MAX_EXCERPT_CHARS}
+     * long unless the value is shorter than that and is passed whole: no window either one feeds can be wider, since
+     * both windows plus the marker have to fit the cap. They may overlap, and what comes back never does, because the
+     * two kept windows together are narrower than the cap and the value is wider.
+     */
+    public static String summarizeEscaped(String head, String tail, int totalLength) {
+        assert head.length() >= Math.min(totalLength, MAX_EXCERPT_CHARS) : "head window narrower than the cap can draw";
+        assert tail.length() >= Math.min(totalLength, MAX_EXCERPT_CHARS) : "tail window narrower than the cap can draw";
+        if (totalLength <= MAX_EXCERPT_CHARS) {
+            assert head.length() == totalLength : "a value that fits the cap must be passed whole";
+            return summarizeEscaped(head);
+        }
+        String marker = "… (truncated, " + totalLength + " chars total) …";
+        int remaining = Math.max(0, MAX_EXCERPT_CHARS - marker.length());
+        int headBudget = remaining / 2;
+        int headChars = charsEscapingWithin(head, headBudget, true);
+        int tailChars = charsEscapingWithin(tail, remaining - headBudget, false);
+        return RowLocation.escapedForDisplay(head.substring(0, headChars)) + marker + RowLocation.escapedForDisplay(
+            tail.substring(tail.length() - tailChars)
+        );
+    }
+
+    /**
      * How many characters from one end of {@code value} escape to no more than {@code budget} characters. The
      * walk is over the value, so nothing past the two windows is ever escaped, and a window that would end
      * between the halves of a surrogate pair gives the orphan up: a lone surrogate encodes to no UTF-8 sequence,

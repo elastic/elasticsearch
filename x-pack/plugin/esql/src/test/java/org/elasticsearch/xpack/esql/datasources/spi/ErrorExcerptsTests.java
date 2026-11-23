@@ -157,4 +157,42 @@ public class ErrorExcerptsTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * The windowed form exists so a caller joining a long list never holds the whole join to show
+     * {@link ErrorExcerpts#MAX_EXCERPT_CHARS} of it. It earns that only by rendering what the whole value would have,
+     * so every case here is checked against the single-argument form over the same value: a value that fits and is
+     * passed whole, one that truncates, one whose escapes expand it past the cap, and one whose windows are wider
+     * than either side can draw on, which must change nothing.
+     */
+    public void testTheWindowedFormRendersWhatTheWholeValueWould() {
+        for (String value : List.of(
+            "short",
+            "a".repeat(ErrorExcerpts.MAX_EXCERPT_CHARS),
+            "a".repeat(5_000),
+            "[".repeat(100),
+            "[".repeat(5_000),
+            // Built rather than written as a unicode escape, which the lexer substitutes wherever it appears and
+            // would put a real control character into this file.
+            String.valueOf((char) 1).repeat(5_000)
+        )) {
+            String whole = ErrorExcerpts.summarizeEscaped(value);
+            int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
+            String head = value.length() <= window ? value : value.substring(0, window);
+            String tail = value.length() <= window ? value : value.substring(value.length() - window);
+            assertEquals("windows of exactly the cap", whole, ErrorExcerpts.summarizeEscaped(head, tail, value.length()));
+            if (value.length() > window) {
+                // Wider windows than the cap can draw on are allowed and must not move the cut.
+                assertEquals(
+                    "windows wider than the cap",
+                    whole,
+                    ErrorExcerpts.summarizeEscaped(
+                        value.substring(0, window * 2),
+                        value.substring(value.length() - window * 2),
+                        value.length()
+                    )
+                );
+            }
+        }
+    }
 }

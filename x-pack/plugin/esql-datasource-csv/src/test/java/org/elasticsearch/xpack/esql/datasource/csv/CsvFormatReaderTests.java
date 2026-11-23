@@ -88,6 +88,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -6775,7 +6776,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * {@code ExternalFailures.forwardableDetail} withholds, remedy and all, which is why the refusal is typed.
      * <p>
      * Classification — the read boundary applies the same predicate as an assertion, and it is the half that must
-     * not fire here: {@code ExternalFailures.noStoragePathLeakedBesideFileText} exempts the message this package
+     * not fire here: {@code ExternalFailures.noStoragePathLeakedBesideQuotedInput} exempts the message this package
      * composed, because the file's own basename is in it by design. So the refusal comes back out of
      * {@code classify} as itself, with its 400 and its sentence, under {@code -ea} as well as without.
      */
@@ -6810,7 +6811,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * <p>
      * The read path answers these same two objects the same way, and that half is pinned here as well:
      * {@code ExternalFailures.classify} asserts over a composed message with
-     * {@code noStoragePathLeakedBesideFileText}, which a basename cannot trip, so both come back as themselves
+     * {@code noStoragePathLeakedBesideQuotedInput}, which a basename cannot trip, so both come back as themselves
      * with their 400. {@code checkBudget}, the FAIL_FAST row error and the read path's own duplicate-header
      * refusal ({@link #testTheBindingRefusalSurvivesAnObjectNamedLikeAStorageHost}) reach that boundary on the
      * same terms.
@@ -9063,7 +9064,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * <p>
      * Classification -- the same predicate is also an assertion inside {@code ExternalFailures.classify}, and this
      * message is the case the assertion must not fire on. It is composed here out of two things the file supplies,
-     * the basename and the column names, so {@code noStoragePathLeakedBesideFileText} is what the read boundary
+     * the basename and the column names, so {@code noStoragePathLeakedBesideQuotedInput} is what the read boundary
      * applies to it; the duplicate below is named {@code /data} precisely because a column name reaches the same
      * guard with no storage-host name anywhere, and a leading slash is not something the escape touches.
      */
@@ -9104,6 +9105,77 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(pathShapedColumn.getMessage(), containsString("duplicate column names ['/data']"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(pathShapedColumn)));
+
+        // And a duplicated column name that is a URL. A CSV field may be quoted and a quoted field may hold anything,
+        // so this is the third shape the guard would otherwise read as a leak -- and the one a scheme check cannot be
+        // narrowed around, since the scheme is exactly what it carries.
+        ExternalClientException urlShapedColumn = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject("\"https://x.test/a\",ts,\"https://x.test/a\"\n1,2,3\n", "data.csv"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(urlShapedColumn.getMessage(), containsString("duplicate column names ['https://x.test/a']"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(urlShapedColumn)));
+
+        // Inference refuses the same file from its own site, and reaches the same boundary with the same three shapes.
+        ExternalClientException urlOnInference = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(
+                createStorageObject("\"https://x.test/a\",ts,\"https://x.test/a\"\n1,2,3\n", "data.csv")
+            )
+        );
+        assertThat(urlOnInference.getMessage(), containsString("duplicate column names ['https://x.test/a']"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(urlOnInference)));
+    }
+
+    /**
+     * The duplicate list is assembled from its two ends rather than joined whole: a header built to be hostile joins
+     * to far more text than the 256 characters that survive, and a declared read binds once per split, so several
+     * splits can be holding that join at once before the first refusal ends the query. What the reader sees must not
+     * change for that, which is the only reason the bounded assembly is worth having rather than a shorter message.
+     * This pins it against the join it replaced, on a header wide enough that the two differ if either window is
+     * built from the wrong end.
+     */
+    public void testTheDuplicateListIsBoundedAndStillRendersAsTheWholeJoinWould() {
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            names.add("col" + i + "_" + "x".repeat(40));
+        }
+        StringJoiner header = new StringJoiner(",");
+        StringJoiner row = new StringJoiner(",");
+        for (int pass = 0; pass < 2; pass++) {
+            for (String name : names) {
+                header.add(name);
+                row.add("1");
+            }
+        }
+
+        StringJoiner whole = new StringJoiner("', '");
+        names.forEach(whole::add);
+        String expected = ErrorExcerpts.summarizeEscaped(whole.toString());
+        assertThat("the fixture has to be wide enough to truncate, or it pins nothing", expected, containsString("truncated,"));
+
+        ExternalClientException onInference = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(createStorageObject(header + "\n" + row + "\n", "wide.csv"))
+        );
+        assertThat(onInference.getMessage(), containsString("['" + expected + "']"));
+
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        ExternalClientException onBinding = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject(header + "\n" + row + "\n", "wide.csv"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(
+            "both refusals render the list the same way, through the same helper",
+            onBinding.getMessage(),
+            containsString("['" + expected + "']")
+        );
     }
 
     /** Only a headered dialect has a header line to deliver to later splits; the answer is the setting, nothing else. */

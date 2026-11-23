@@ -627,6 +627,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 + ByteSizeValue.ofBytes(schemaSampleBytes)
                 + "] before reading a complete record; declare a schema"
         );
+        limitEx.markMessageQuotesInput();
         throw limitEx;
     }
 

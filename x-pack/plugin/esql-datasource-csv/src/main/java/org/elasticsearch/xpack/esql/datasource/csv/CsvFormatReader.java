@@ -113,6 +113,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1365,6 +1366,72 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return index <= MAX_HEADERLESS_COLUMN_INDEX ? index : ABSENT_FIELD;
     }
 
+    /** The separator {@link #renderDuplicateNames} puts between two names: the closing and opening quotes of the list. */
+    private static final String DUPLICATE_NAME_SEPARATOR = "', '";
+
+    /**
+     * The capped, quoted list of duplicate column names the two duplicate-header refusals show, assembled without ever
+     * holding the whole join. The duplicate set is as wide as half the header and each name as wide as a field, so a
+     * header built to be hostile joins to far more text than the {@link ErrorExcerpts#MAX_EXCERPT_CHARS} characters
+     * that survive -- and a declared read binds per split, so several splits can be assembling it at once before the
+     * first refusal ends the query. The width is summed first, then only the two ends the cap can draw on are built.
+     * <p>
+     * The escape is taken once, on the kept windows, rather than per name: escaping each name first would spend six
+     * characters and a formatter call on every bracket or control character in the header to show 256 of them. The
+     * brackets go on outside this, because the escape rewrites {@code [} and {@code ]} and would otherwise spell the
+     * message's own delimiters. The width the marker reports is the list's -- the names, plus the four characters
+     * spent between each pair of them -- and not the header's spelling of the same names, which separates with one.
+     */
+    private static String renderDuplicateNames(Collection<String> duplicates) {
+        int window = ErrorExcerpts.MAX_EXCERPT_CHARS;
+        long total = (long) DUPLICATE_NAME_SEPARATOR.length() * (duplicates.size() - 1);
+        for (String name : duplicates) {
+            total += name.length();
+        }
+        if (total <= window) {
+            StringJoiner whole = new StringJoiner(DUPLICATE_NAME_SEPARATOR);
+            for (String name : duplicates) {
+                whole.add(name);
+            }
+            return ErrorExcerpts.summarizeEscaped(whole.toString());
+        }
+        StringBuilder head = new StringBuilder(window);
+        for (String name : duplicates) {
+            if (head.length() >= window) {
+                break;
+            }
+            if (head.isEmpty() == false) {
+                appendBounded(head, DUPLICATE_NAME_SEPARATOR, window);
+            }
+            appendBounded(head, name, window);
+        }
+        String[] names = duplicates.toArray(new String[0]);
+        StringBuilder tail = new StringBuilder(window);
+        for (int i = names.length - 1; i >= 0 && tail.length() < window; i--) {
+            prependBounded(tail, names[i], window);
+            if (i > 0) {
+                prependBounded(tail, DUPLICATE_NAME_SEPARATOR, window);
+            }
+        }
+        // The sum is the join's true width and only has to fit an int for the marker: a header carrying 2GB of names
+        // would have failed the read long before binding.
+        return ErrorExcerpts.summarizeEscaped(head.toString(), tail.toString(), (int) Math.min(total, Integer.MAX_VALUE));
+    }
+
+    /** Appends as much of {@code text} as leaves {@code sb} no wider than {@code window}. */
+    private static void appendBounded(StringBuilder sb, String text, int window) {
+        sb.append(text, 0, Math.min(text.length(), window - sb.length()));
+    }
+
+    /** Prepends the last characters of {@code text} that leave {@code sb} no wider than {@code window}. */
+    private static void prependBounded(StringBuilder sb, String text, int window) {
+        int room = window - sb.length();
+        if (room <= 0) {
+            return;
+        }
+        sb.insert(0, text, Math.max(0, text.length() - room), text.length());
+    }
+
     /**
      * A duplicate header name makes by-name binding ambiguous — a schema column could resolve to either file column.
      * The inference path rejects duplicate header names, so binding does too, rather than silently binding the first.
@@ -1377,16 +1444,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code classify}'s assertion as a message this package composed, which is the form that lets a basename -- or a
      * column named {@code /data}, which no escape here touches -- through.
      * <p>
-     * Renders the way that sibling does, because the two refuse one condition and a user who meets this sentence on
-     * a declared read meets the other one on inference over the same file: the format's own name, so a {@code .tsv}
-     * is not called a CSV; every duplicate rather than the first, so one pass over the header answers for the whole
-     * of it; and the names quoted, so an empty name -- which a header of {@code ,,ts} produces -- is visible rather
-     * than collapsing to nothing. The cap and the escape go on the joined list and the brackets go on after the cap,
-     * both for the reasons stated there. That sibling's declined escape comes with them: the escape covers the
-     * brackets and not the quote, so a column holding {@code ', '} renders as two entries and the sentence names a
-     * column the file does not have. Left as it is there, because quoting the quote costs every ordinary name its
-     * legibility to defend against a count a reader can check against the file.
-     * The remedy is the one part that differs, because binding cannot be told the file has no header row.
+     * Renders the way that sibling does, through the same {@link #renderDuplicateNames}, because the two refuse one
+     * condition and a user who meets this sentence on a declared read meets the other one on inference over the same
+     * file: the format's own name, so a {@code .tsv} is not called a CSV; every duplicate rather than the first, so
+     * one pass over the header answers for the whole of it; and the names quoted, so an empty name -- which a header
+     * of {@code ,,ts} produces -- is visible rather than collapsing to nothing. The remedy is the one part that
+     * differs, because binding cannot be told the file has no header row.
      */
     private void rejectDuplicateHeaderNames(String[] headerNames, StorageObject object) {
         Set<String> seen = new HashSet<>(headerNames.length);
@@ -1402,20 +1465,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (duplicates == null) {
             return;
         }
-        StringJoiner rendered = new StringJoiner("', '");
-        for (String dup : duplicates) {
-            rendered.add(dup);
-        }
         ExternalClientException bindEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
         bindEx.setDetail(
             displayName(formatName())
                 + " header"
                 + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
                 + " has duplicate column names ['"
-                + ErrorExcerpts.summarizeEscaped(rendered.toString())
+                + renderDuplicateNames(duplicates)
                 + "']"
                 + "; columns cannot bind by name"
         );
+        bindEx.markMessageQuotesInput();
         throw bindEx;
     }
 
@@ -2021,11 +2081,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * whole query here, and without the name the user is told that one of their files duplicates a column
      * without being told which one.
      * <p>
-     * The cap and the escape are taken once on the assembled list, by {@link ErrorExcerpts#summarizeEscaped}:
-     * the duplicate set is as wide as half the header, so escaping each name first spends six characters and one
-     * formatter call on every bracket or control character in a header to show 256 of them. The width the marker
-     * reports is the list's own -- the duplicate names, plus the four characters this message spends between each
-     * pair of them -- and not the header's spelling of the same names, which separates with one.
+     * {@link #renderDuplicateNames} assembles, caps and escapes the list for this message and for the declared-read
+     * sibling alike, and states what the cap costs the names and what the marker's width counts.
+     * <p>
+     * The escape it applies covers the brackets and not the quote, so a column name holding {@code ', '} renders as
+     * two entries and this sentence names a column the file does not have. Left that way: an apostrophe is ordinary
+     * in a column name and quoting the quote would disfigure every {@code O'Brien} in a header to defend against a
+     * count the reader can check against the file. {@link #rejectDuplicateHeaderNames} inherits the same decision.
      */
     private static void checkUniqueAttributeNames(List<Attribute> attributes, String format, String sourceLocation) {
         Set<String> seen = new HashSet<>(attributes.size());
@@ -2043,13 +2105,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // than collapsing to nothing. The quotes and separators are part of the joined text and the brackets
             // go on after the cap, because the escape rewrites [ and ] and would spell this message's own
             // delimiters \u005B and \u005D. Only the names pass through it.
-            // The escape does not cover the quote, so a column name holding the separator itself renders as two
-            // entries. A name may hold anything, and spending an escape on the quote would buy a reader less
-            // than the brackets do, which are what carries the structure of the sentence around this list.
-            StringJoiner rendered = new StringJoiner("', '");
-            for (String dup : duplicates) {
-                rendered.add(dup);
-            }
             ExternalClientException headerEx = new ExternalClientException(
                 ExternalException.Condition.MALFORMED_DATA,
                 StoragePath.NONE,
@@ -2061,10 +2116,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + " header"
                     + RowLocation.objectClause(" of", sourceLocation)
                     + " has duplicate column names ['"
-                    + ErrorExcerpts.summarizeEscaped(rendered.toString())
+                    + renderDuplicateNames(duplicates)
                     + "']"
                     + "; if the file has no header row, set header_row=false"
             );
+            headerEx.markMessageQuotesInput();
             throw headerEx;
         }
     }
@@ -2400,6 +2456,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + ByteSizeValue.ofBytes(maxSampleBytes)
                 + "] before reading a complete record; declare a schema"
         );
+        limitEx.markMessageQuotesInput();
         return limitEx;
     }
 
@@ -2415,6 +2472,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static ExternalClientException noDataRowsError(String format, String sourceLocation) {
         ExternalClientException noRows = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
         noRows.setDetail(displayName(format) + " file" + RowLocation.objectClause("", sourceLocation) + " has no data rows");
+        noRows.markMessageQuotesInput();
         return noRows;
     }
 
@@ -2433,6 +2491,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + RowLocation.objectClause("", sourceLocation)
                 + " has no schema line: the object is empty or contains only comments"
         );
+        noHeader.markMessageQuotesInput();
         return noHeader;
     }
 
@@ -2455,6 +2514,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + rowErrorReason(cause != null ? cause.getMessage() : "(no message)", format)
                 + "; set [error_mode] to [skip_row] to skip the row instead"
         );
+        result.markMessageQuotesInput();
         return result;
     }
 
@@ -2488,6 +2548,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cause
         );
         budgetEx.setDetail(details.toString());
+        budgetEx.markMessageQuotesInput();
         return budgetEx;
     }
 
@@ -2537,6 +2598,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cause
         );
         zeroEx.setDetail(details.toString());
+        zeroEx.markMessageQuotesInput();
         return zeroEx;
     }
 
@@ -3079,6 +3141,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // object clause is withheld for exactly the names the clause exists to carry: classify's final arm
             // answers an IllegalStateException with safeDetail, which falls back to the class name whenever
             // forwardableDetail withholds. ExternalServerException keeps the status and the sentence both.
+            // The operator's WARN and stack come from ExternalFailures.detach, which logs a server-side failure
+            // whether or not it has a cause -- this one has none, and typing it must not cost the node that record.
             ExternalServerException invariant = new ExternalServerException(
                 ExternalException.Condition.CLIENT_BUG,
                 StoragePath.NONE,
@@ -3090,6 +3154,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + RowLocation.displayObjectName(object.path().objectName())
                     + "] reached a non-first split without the file's header columns; cannot bind the schema by name"
             );
+            invariant.markMessageQuotesInput();
             throw invariant;
         }
         // The names are charged by whoever holds them; this charges the binding's own scratch, which a declared read
@@ -3278,6 +3343,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + ErrorExcerpts.summarizeEscaped(column)
                         + "]. Expected 'name:type'"
                 );
+                schemaEx.markMessageQuotesInput();
                 throw schemaEx;
             }
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
@@ -3320,6 +3386,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     ""
                 );
                 dtEx.setDetail("illegal data type [" + ErrorExcerpts.summarizeEscaped(typeName) + "]");
+                dtEx.markMessageQuotesInput();
                 throw dtEx;
             }
         };

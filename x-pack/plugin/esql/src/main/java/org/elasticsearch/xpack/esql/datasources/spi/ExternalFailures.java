@@ -155,36 +155,37 @@ public final class ExternalFailures {
      * user-facing exception message.
      */
     static boolean noStoragePathLeaked(RuntimeException e) {
-        return chainNamesNoLocation(e, true);
+        return chainNamesNoLocation(e);
     }
 
     /**
-     * {@link #noStoragePathLeaked} for an exception whose own message this package composed, out of tokens the file
-     * supplies: an object's basename, a column name, a row excerpt. Only a storage-URI scheme condemns that message.
-     * The cause chain and every suppressed failure are still checked in full, so the leak this guard exists to catch
-     * -- a reader concatenating a path, or an SDK message carried along -- is caught exactly as before.
+     * {@link #noStoragePathLeaked} at the read boundary, where one message in the chain may be a refusal that quotes
+     * the read's own input: an object's basename, a column name, a row, a clause of the declared schema. The reader
+     * that composed it says so with {@link ExternalException#markMessageQuotesInput()}, and only a marked message goes
+     * unchecked. Its cause chain and every failure suppressed on it are still walked in full, so the leak this guard
+     * exists to catch -- a reader concatenating a path, or an SDK message carried along -- is caught exactly as before.
      * <p>
-     * The two heuristics it drops are the ones that cannot tell our text from the file's. {@link #STORAGE_HOST_DOMAINS}
-     * answers about an endpoint host, which a storage SDK or a DNS failure writes; {@link #ABSOLUTE_FILESYSTEM_PATH}
-     * answers about a bare path, which a filesystem provider writes. Both arrive as a cause, or as third-party text
-     * already screened by {@link #forwardableDetail}. On a message we assembled they also match what the file is
-     * entitled to contain -- an object a user may legitimately name {@code logs.amazonaws.com.csv}, a column literally
-     * named {@code /data} -- and a scheme does not, because no file-supplied token carries one.
+     * Unmarked, every heuristic still applies, and that is the point of spending a mark rather than relaxing the
+     * boundary itself: the storage providers build typed failures too, and an SDK endpoint host or a bare filesystem
+     * path in one of those is the leak this guard is for, not a column name. A boundary that trusted every
+     * {@link ExternalException} reaching it would have retired the guard for precisely the throw sites it was written
+     * to watch. A reader that forgets the mark instead fails loudly on the first input that exercises it, which is the
+     * safe direction for a check that runs only under {@code -ea}.
      * <p>
-     * This is the rule {@link #rowError} already states for row content, applied where the message is finally
-     * asserted rather than only where it is built. Without it a deliberate HTTP 400 becomes a fatal
-     * {@link AssertionError} under {@code -ea} for input the reader is supposed to refuse politely.
-     * <p>
-     * A row error goes one step further and gets no check on its message at all, because the scheme is the one shape
-     * row content may legitimately hold too: a cell is free to be a URL, and {@link ErrorExcerpts} sizes its cap
-     * around values that usually are. That is {@link ExternalException#messageIsRowContent()}, which only
-     * {@link #rowError} sets, and it is the same decline that method's own cause-only assertion already makes.
+     * Nothing weaker than unchecked works for a marked message, because all three heuristics match something the input
+     * is entitled to hold: {@link #STORAGE_HOST_DOMAINS} an object a user may name {@code logs.amazonaws.com.csv},
+     * {@link #ABSOLUTE_FILESYSTEM_PATH} a column literally named {@code /data}, and a URI scheme both a cell holding a
+     * URL -- which {@link ErrorExcerpts} sizes its cap around -- and a quoted column name holding one, a CSV field
+     * being free to carry any text at all. This is the rule {@link #rowError} already states for row content, applied
+     * to every refusal that quotes input and at the point the message is finally asserted rather than only where it is
+     * built. Without it a deliberate HTTP 400 becomes a fatal {@link AssertionError} under {@code -ea} for input the
+     * reader is supposed to refuse politely.
      */
-    static boolean noStoragePathLeakedBesideFileText(ExternalException e) {
-        if (e.messageIsRowContent()) {
-            return chainNamesNoLocation(e.getCause(), true) && suppressedNameNoLocation(e);
+    static boolean noStoragePathLeakedBesideQuotedInput(ExternalException e) {
+        if (e.messageQuotesInput()) {
+            return chainNamesNoLocation(e.getCause()) && suppressedNameNoLocation(e);
         }
-        return chainNamesNoLocation(e, false);
+        return chainNamesNoLocation(e);
     }
 
     /** Whether every failure suppressed on {@code e} itself is free of a location. Its cause chain is walked separately. */
@@ -199,19 +200,13 @@ public final class ExternalFailures {
 
     /**
      * Walks {@code start} and its cause chain, checking each message and its suppressed failures for a location.
-     * {@code null} is accepted and trivially passes: used by {@link #rowError}, where only the cause (not the
-     * caller-supplied top message, which is row data) must be checked.
-     *
-     * @param startMessageIsForeign {@code true} when {@code start}'s own message is text this package did not compose,
-     *     so every heuristic applies to it; {@code false} when we composed it from file-supplied tokens and only a
-     *     storage-URI scheme condemns it. Everything below depth 0, and every suppressed failure at any depth, is
-     *     foreign by definition and always checked in full.
+     * {@code null} is accepted and trivially passes: used where only the cause must be checked and the top message
+     * is text the file supplied.
      */
-    private static boolean chainNamesNoLocation(Throwable start, boolean startMessageIsForeign) {
+    private static boolean chainNamesNoLocation(Throwable start) {
         Throwable current = start;
         for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
-            boolean checkInFull = startMessageIsForeign || depth > 0;
-            if (checkInFull ? containsStoragePath(current.getMessage()) : namesStorageUriScheme(current.getMessage())) {
+            if (containsStoragePath(current.getMessage())) {
                 return false;
             }
             // suppressed[] is serialized into the response via innerToXContent; guard it too.
@@ -239,7 +234,7 @@ public final class ExternalFailures {
 
     /**
      * Whether {@code msg} names a storage-URI scheme. Split out from {@link #containsStoragePath} because it is the
-     * one test that holds on a message we composed ourselves: see {@link #noStoragePathLeakedBesideFileText}.
+     * one test that holds on a message we composed ourselves: see {@link #noStoragePathLeakedBesideQuotedInput}.
      */
     private static boolean namesStorageUriScheme(String msg) {
         if (msg == null) {
@@ -294,8 +289,8 @@ public final class ExternalFailures {
     public static ExternalClientException rowError(Throwable cause, String safeMessage) {
         Exception e = cause instanceof Exception ex ? ex : null;
         ExternalClientException result = new ExternalClientException(e, "{}", safeMessage);
-        result.markMessageIsRowContent();
-        assert chainNamesNoLocation(cause, true) : "storage path leaked via row error cause chain: " + result.getMessage();
+        result.markMessageQuotesInput();
+        assert chainNamesNoLocation(cause) : "storage path leaked via row error cause chain: " + result.getMessage();
         return result;
     }
 
@@ -306,7 +301,7 @@ public final class ExternalFailures {
      * Under {@code -ea} (assertions enabled), verifies that no message in the result's full cause chain
      * contains a known storage-URI scheme — a debug guard that fires immediately if a new throw site
      * embeds a full path instead of using the structured constructors on {@link ExternalException}.
-     * See {@link #noStoragePathLeaked}, and {@link #noStoragePathLeakedBesideFileText} for the one message
+     * See {@link #noStoragePathLeaked}, and {@link #noStoragePathLeakedBesideQuotedInput} for the one message
      * in that chain this package wrote itself.
      * <p>
      * An {@link IllegalArgumentException} or I/O failure whose message is withheld (see {@link #forwardableDetail}) is
@@ -337,9 +332,9 @@ public final class ExternalFailures {
         }
         if (t instanceof ExternalException ee) {
             ExternalException detached = detach(ee, failureLevel);
-            // Its message is one this package built, so the file's own tokens are in it by design; only a scheme
-            // condemns it. noStoragePathLeakedBesideFileText says why the other two heuristics cannot run here.
-            assert noStoragePathLeakedBesideFileText(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
+            // Every heuristic applies, unless a reader marked the message as one it composed from the file's own
+            // tokens. noStoragePathLeakedBesideQuotedInput says why that mark has to be asked for rather than assumed.
+            assert noStoragePathLeakedBesideQuotedInput(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
             return detached;
         }
         if (t instanceof ElasticsearchException ese) {
@@ -402,14 +397,21 @@ public final class ExternalFailures {
     }
 
     /**
-     * @param serverFailureLevel the level a server-side failure's cause is logged at: it is its only diagnosis. A client
+     * @param serverFailureLevel the level a server-side failure is logged at: it is its only diagnosis. A client
      *     failure's condition already says what is wrong, so its cause is logged at DEBUG, except for an access denial:
      *     the provider's reason for refusing is its only diagnosis too, so it reaches WARN at most once a minute.
+     *     <p>
+     *     A server-side failure is logged whether or not it has a cause, which a client failure is not. A 500 from this
+     *     package is a bug on this node and its stack is what an operator has to work from; raised directly, with no
+     *     cause under it, that stack exists nowhere else, because only the message crosses the wire. Logging just the
+     *     cause would make an invariant breach the quietest failure the read path has.
      */
     private static ExternalException detach(ExternalException e, Level serverFailureLevel) {
-        if (e.getCause() != null) {
+        boolean hasCause = e.getCause() != null;
+        boolean serverSide = e.status().getStatus() >= 500;
+        if (hasCause || serverSide) {
             Level level;
-            if (e.status().getStatus() >= 500) {
+            if (serverSide) {
                 level = serverFailureLevel;
             } else if (serverFailureLevel == Level.WARN
                 && e.condition() == ExternalException.Condition.ACCESS_DENIED
@@ -418,7 +420,13 @@ public final class ExternalFailures {
                 } else {
                     level = Level.DEBUG;
                 }
-            logger.log(level, () -> "External failure detached from its cause (cause logged, not forwarded)", e);
+            logger.log(
+                level,
+                () -> hasCause
+                    ? "External failure detached from its cause (cause logged, not forwarded)"
+                    : "External failure reading external source (stack logged, not forwarded)",
+                e
+            );
         }
         ExternalException detached = e.withoutCause();
         for (Throwable suppressed : e.getSuppressed()) {

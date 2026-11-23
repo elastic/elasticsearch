@@ -202,7 +202,7 @@ Use the following pages to configure, query, and administer federated data:
 [Query datasets](esql-data-federation-querying.md)
 :   Learn how the engine reduces storage reads, query external and indexed data together, review current limitations, and troubleshoot common issues.
 
-[Sizing and performance](esql-data-federation-sizing.md)
+[Amazon S3 sizing and performance](esql-data-federation-sizing-s3.md)
 :   Size heap and cores for your query concurrency, lay out files for parallel reads, and scale out.
 
 [Costs](esql-data-federation-costs.md)

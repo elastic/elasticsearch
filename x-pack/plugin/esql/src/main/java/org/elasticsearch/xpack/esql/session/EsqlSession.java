@@ -87,6 +87,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -104,6 +107,7 @@ import org.elasticsearch.xpack.esql.dsltranslate.QueryDslFieldNameExtractor;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
@@ -442,14 +446,53 @@ public class EsqlSession {
     }
 
     /**
-     * Whether the view branches have to survive resolution and compaction so that the keys of a flattened column of a view can be
-     * added at its boundary: a view is a virtual index, and a query that names a dotted field may mean a key of a flattened column
-     * that a view's definition produces, which only the view's own branch can tell. Pass-through views still collapse.
+     * Whether the view branches have to survive view resolution, so that the keys of a flattened column of a view can be added at its
+     * boundary: a view is a virtual index, and a name that is a key of a flattened column that a view's definition produces can only
+     * be told apart from an unknown column by the view's own branch. Whether they are kept through analysis is decided once the
+     * resolutions are known, see {@link #resolvesAFlattenedField}: where no resolved field is {@code flattened}, there is no key to
+     * expose, and the branches collapse as before.
      */
-    private boolean flattenedKeysNeedViewBranches(LogicalPlan plan) {
-        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled()
-            && indexResolver.flattenedDataTypeEnabled()
-            && FieldNameUtils.namedFields(plan).stream().anyMatch(name -> name.indexOf('.') > 0);
+    private boolean flattenedKeysMayNeedViewBranches() {
+        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled() && indexResolver.flattenedDataTypeEnabled();
+    }
+
+    /**
+     * Whether any resolved index, lookup index or enrich policy has a {@code flattened} field, or a field that is {@code flattened} in
+     * some index and another type in another.
+     */
+    private static boolean resolvesAFlattenedField(PreAnalysisResult r) {
+        for (IndexResolution resolution : r.indexResolution().values()) {
+            if (resolution.isValid() && hasFlattenedField(resolution.get().mapping())) {
+                return true;
+            }
+        }
+        for (IndexResolution resolution : r.lookupIndices().values()) {
+            if (resolution.isValid() && hasFlattenedField(resolution.get().mapping())) {
+                return true;
+            }
+        }
+        for (IndexResolution resolution : r.linkedResolution().values()) {
+            if (resolution.isValid() && hasFlattenedField(resolution.get().mapping())) {
+                return true;
+            }
+        }
+        for (ResolvedEnrichPolicy policy : r.enrichResolution().resolvedPolicies()) {
+            if (hasFlattenedField(policy.mapping())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasFlattenedField(Map<String, EsField> fields) {
+        for (EsField field : fields.values()) {
+            if (field.getDataType() == DataType.FLATTENED
+                || field instanceof InvalidMappedField invalid && invalid.getTypesToIndices().containsKey(DataType.FLATTENED.typeName())
+                || hasFlattenedField(field.getProperties())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String sessionId() {
@@ -561,7 +604,7 @@ public class EsqlSession {
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
-        if (boundaryPreservation == ViewBoundaryPreservation.NONE && flattenedKeysNeedViewBranches(parsedPlan)) {
+        if (boundaryPreservation == ViewBoundaryPreservation.NONE && flattenedKeysMayNeedViewBranches()) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
         viewResolver.replaceViews(
@@ -1966,8 +2009,7 @@ public class EsqlSession {
         // mirroring the decision in execute(): ViewCompaction (an analyzer rule reading AnalyzerContext.preserveViewBoundaries()) must not
         // collapse the lone-view wrappers that ResolveUnmapped null-fills outer references on. esql-planning#2273.
         boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
-            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings)
-            || flattenedKeysNeedViewBranches(parsed);
+            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings);
 
         resolveIndicesAndAnalyze(
             parsed,
@@ -3385,7 +3427,9 @@ public class EsqlSession {
             r,
             timestampBounds,
             resolveIpLocations(parsed),
-            preserveViewBoundaries,
+            // With flattened fields in the query's resolutions the view branches stay through analysis, so that the keys of a
+            // flattened column that a view exposes can be added at its boundary; ViewCompaction collapses them afterwards as before
+            preserveViewBoundaries || (configuration.flattenedKeys() && resolvesAFlattenedField(r)),
             viewSettings,
             flags
         );

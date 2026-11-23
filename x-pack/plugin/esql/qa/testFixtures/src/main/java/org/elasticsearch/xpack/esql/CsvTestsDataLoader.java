@@ -606,6 +606,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("nested_partial_mapping_view"),
         new ViewConfig("view_flattened_paths_mapped"),
         new ViewConfig("view_flattened_renamed"),
+        new ViewConfig("view_flattened_kept"),
         new ViewConfig("view_flattened_subqueries", List.of(EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET)),
         new ViewConfig("view_partially_unmapped_sample_data"),
         new ViewConfig("view_partially_unmapped_conflicting_sample_data"),

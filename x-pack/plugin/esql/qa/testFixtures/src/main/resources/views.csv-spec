@@ -3825,6 +3825,22 @@ f2         | c                  | null
 f2         | null               | blue
 ;
 
+// The view drops the keys that flowed from its index but keeps the flattened column, so the query reads the key from the view's output
+flattenedKeyOfColumnThatTheViewKept
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM view_flattened_kept
+| WHERE attributes.host == "a"
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+;
+
 flattenedKeyInViewAndIndex
 skip_flattened_rewrite: keyword_also_a_flattened_key
 required_capability: flattened_keys

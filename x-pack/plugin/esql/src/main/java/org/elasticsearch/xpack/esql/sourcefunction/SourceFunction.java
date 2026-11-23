@@ -67,10 +67,14 @@ public interface SourceFunction {
      * this one.
      * <p>
      * Asked once for every place a call appears, which is not the same as once per call the user wrote: a plan
-     * reaches one leaf from several parents — one per {@code FORK} branch — and each of those places is asked on
-     * its own. That is what the rest of the pipeline does with a fork, where every branch is planned into its own
-     * fragment and an index above one is scanned per branch. So a function that does I/O pays a round trip per
-     * branch, and what comes back is installed as it came rather than shared between places.
+     * can reach one leaf from several parents, and each of those places is asked on its own. {@code FORK} is the
+     * common way to get there — every branch is handed the one plan above it — but not the only one:
+     * {@code LetResolver} splices a bound plan in <i>by reference</i>, so a {@code LET} naming a call and
+     * referenced twice reaches this the same way.
+     * <p>
+     * Asking per place is what the rest of the pipeline already does with a fork, where every branch is planned
+     * into its own fragment and an index above one is scanned per branch. So a function that does I/O pays a
+     * round trip per place, and what comes back is installed as it came rather than shared between places.
      * <p>
      * Which makes the first line of this javadoc a requirement and not a description: a function <i>of</i> an
      * invocation. Two branches over one written call are answered separately, so a function reading something

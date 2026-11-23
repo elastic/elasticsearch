@@ -218,15 +218,16 @@ public class SourceFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * One call read by several consumers. FORK hands every branch the one plan above it, so a call written once
-     * ends up under each branch, and the relation the function returned is read once per branch.
+     * One call written, one relation per branch. FORK hands every branch the one plan above it, so a call
+     * written once stands under each branch -- and each of those places is asked on its own, so each branch
+     * reads a relation built for it.
      * <p>
-     * A relation holding a page cannot survive that on its own: the page is handed downstream and released by the
-     * first reader, and the second finds it gone. The engine already meets this wherever a {@code LocalRelation}
-     * is read twice -- {@code InlineJoin} and {@code Approximation} both rewrite one to copy per read -- and this
-     * is the same situation reached by a different route.
+     * Which is what keeps a page safe here without the facility touching it. Were one relation installed under
+     * both, its page would be released by whichever branch read first and the second would find it gone. There
+     * is no shared page to lose, and that matches the rest of the pipeline: every branch is planned into its
+     * own fragment.
      */
-    public void testOneCallReadByEveryForkBranch() {
+    public void testACallUnderEveryForkBranchIsAskedPerBranch() {
         try (
             EsqlQueryResponse response = run(
                 "FROM letters(\"abc\") | FORK (WHERE letter == \"a\") (WHERE letter == \"b\") | STATS c = COUNT(*)"
@@ -353,8 +354,8 @@ public class SourceFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * FORK over a source list holding both a call and an index pattern, so one shared relation the function built
-     * and one relation the analyzer resolved per visit are read by every branch together.
+     * FORK over a source list holding both a call and an index pattern, so a relation the function built per
+     * branch and one the analyzer resolved per visit are read by every branch together.
      */
     public void testAForkOverACallBesideAnIndexPattern() {
         assertAcked(client().admin().indices().prepareCreate("fork_hetero_index").setMapping("letter", "type=keyword"));
@@ -370,8 +371,9 @@ public class SourceFunctionFacilityIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * FORK over the contract's unresolved arm. The leaf is resolved per visit rather than shared, so it needs none
-     * of the copying the built-relation arm does -- and that difference is only reached by a multi-branch query.
+     * FORK over the contract's unresolved arm. Both arms are asked per place now, so this differs from the
+     * built-relation arm only in who completes the leaf -- and that difference is only reached by a
+     * multi-branch query.
      */
     public void testAForkOverAnUnresolvedLeaf() {
         assertAcked(client().admin().indices().prepareCreate("fork_unresolved_index").setMapping("letter", "type=keyword"));

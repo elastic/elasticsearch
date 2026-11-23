@@ -621,11 +621,11 @@ public class SourceFunctionResolverTests extends ESTestCase {
     }
 
     /**
-     * And the mirror of it: one leaf the plan reaches from several parents is one call, asked once. {@code FORK}
-     * builds exactly this shape — {@code LogicalPlanBuilder#visitForkCommand} applies every branch's factory to
-     * the one plan above it — so {@code FROM f(x) | FORK (..) (..)} arrives here with the same leaf object under
-     * each branch. Asked per arrival, a function doing I/O pays a round trip per branch for a call written once,
-     * and every relation but the last is built and discarded.
+     * And the mirror of it: one leaf the plan reaches from several parents is asked once per parent. {@code FORK}
+     * builds that shape — {@code LogicalPlanBuilder#visitForkCommand} applies every branch's factory to the one
+     * plan above it — so {@code FROM f(x) | FORK (..) (..)} arrives here with the same leaf object under each
+     * branch, and each place gets its own relation. A function doing I/O therefore pays a round trip per place,
+     * which is what the rest of the pipeline already costs for a fork.
      */
     public void testALeafReachedFromSeveralParentsIsAskedPerParent() {
         Numbers function = new Numbers();
@@ -700,7 +700,28 @@ public class SourceFunctionResolverTests extends ESTestCase {
             IllegalStateException.class,
             () -> resolve(new Caching(), new UnionAll(Source.EMPTY, List.of(named("caching"), named("caching")), List.of()))
         );
-        assertThat(e.getMessage(), containsString("source function [caching] answered twice with one relation"));
+        assertThat(e.getMessage(), containsString("source function [caching] answered more than one place with one relation"));
+    }
+
+    /**
+     * And the arm asking per place created: ONE call, written once, standing under two parents. A function that
+     * caches per argument is correct for every query without a FORK or a repeated LET reference, and wrong the
+     * moment there is one -- the two places would hold one page and one set of attribute ids. Refused the same
+     * way, and the message has to name that shape, because the author of such a function is looking for a second
+     * call that was never written.
+     */
+    public void testOneCallUnderSeveralParentsAnsweredWithOneRelationIsRefused() {
+        UnresolvedSourceFunctionRelation shared = named("caching");
+        LogicalPlan plan = new UnionAll(
+            Source.EMPTY,
+            List.of(new Filter(Source.EMPTY, shared, Literal.TRUE), new Filter(Source.EMPTY, shared, Literal.TRUE)),
+            List.of()
+        );
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> resolve(new Caching(), plan));
+
+        assertThat(e.getMessage(), containsString("source function [caching] answered more than one place"));
+        assertThat(e.getMessage(), containsString("FORK branches or LET references"));
     }
 
     /** The discriminating half: that same cached relation under a single call stands, because it is in one place. */

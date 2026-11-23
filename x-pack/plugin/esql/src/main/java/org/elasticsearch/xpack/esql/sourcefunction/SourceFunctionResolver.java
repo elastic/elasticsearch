@@ -84,9 +84,10 @@ public class SourceFunctionResolver {
     public void resolveSourceFunctions(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
         List<UnresolvedSourceFunctionRelation> leaves = new ArrayList<>();
         // Every place a call appears, not every call a user wrote. A plan reaches one leaf from more than one
-        // parent: FORK hands every branch the one plan above it -- LogicalPlanBuilder#visitForkCommand applies
-        // each branch's factory to the same input -- so FROM f("x") | FORK (..) (..) walks down to one leaf once
-        // per branch, and each of those places is asked on its own.
+        // parent two ways. FORK hands every branch the one plan above it -- LogicalPlanBuilder#visitForkCommand
+        // applies each branch's factory to the same input -- so FROM f("x") | FORK (..) (..) walks down to one
+        // leaf once per branch. And LetResolver splices a bound plan in by reference rather than by copy, so a
+        // LET naming a call and referenced twice arrives the same way. Each of those places is asked on its own.
         //
         // Which is what the rest of the pipeline already does with a fork: Mapper#mapMergePlan maps every branch
         // into its own fragment, so an EVAL above one runs per branch too, and two branches over an index scan it
@@ -218,7 +219,10 @@ public class SourceFunctionResolver {
         for (int i = 0; i < leaves.size(); i++) {
             if (relations[i] instanceof Unresolvable == false && installed.put(relations[i], leaves.get(i)) != null) {
                 throw new IllegalStateException(
-                    "source function [" + functions.get(i).name() + "] answered twice with one relation, which cannot stand in both places"
+                    "source function ["
+                        + functions.get(i).name()
+                        + "] answered more than one place with one relation, which cannot stand in both. A call under"
+                        + " several FORK branches or LET references is asked once per place, and each place needs its own"
                 );
             }
         }

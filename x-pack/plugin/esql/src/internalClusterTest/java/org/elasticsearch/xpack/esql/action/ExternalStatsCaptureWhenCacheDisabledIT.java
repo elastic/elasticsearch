@@ -37,6 +37,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -239,10 +240,11 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
      * The read ended before EOF, which is the non-clean close the marker answers. Deliberately not an exact
      * count: {@code documentsFound} counts rows READ, and a reader stops on a batch boundary once the downstream
      * limiter is satisfied, so the number depends on batch size. What this arm needs is only that the scan did
-     * not reach the end of the file.
+     * not reach the end of the file -- and that it read something, so a scan that returned nothing for an
+     * unrelated reason cannot satisfy this arm.
      */
     private static Matcher<Long> stoppedShort() {
-        return lessThan((long) ROWS);
+        return both(greaterThan(0L)).and(lessThan((long) ROWS));
     }
 
     /** Writes one file, scans it, and returns what the read captured, keyed by file path. */

@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -212,6 +213,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(indexDoc);
     }
 
+    private void indexMinMaxDocument(int id, int n, String org) throws IOException {
+        Request indexDoc = new Request("PUT", "min-max-dls/_doc/" + id);
+        indexDoc.setJsonEntity("{\"n\":" + n + ",\"org\":\"" + org + "\"}");
+        client().performRequest(indexDoc);
+    }
+
     /**
      * Indexes a document with the shared FLS-test shape into either {@link #INDEX_PARTIAL_MAPPING} (where most fields
      * end up unmapped via {@code dynamic:false}) or {@link #INDEX_FULL_MAPPING} (where every field is mapped with its
@@ -334,6 +341,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
+
+        String minMaxMapping = """
+            "properties":{"n": {"type": "integer"}, "org": {"type": "keyword"}}
+            """;
+        createIndex("min-max-dls", indexSettings(), mappingPrefix() + minMaxMapping);
+        indexMinMaxDocument(1, 5, "marketing");
+        indexMinMaxDocument(2, 100, "sales");
+        indexMinMaxDocument(3, 1, "sales");
+        refresh("min-max-dls");
 
         createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
@@ -607,6 +623,77 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
             assertMap(responseMap, matcher);
         }
+    }
+
+    /**
+     * With the fetch phase, a {@code TopN} loads the columns its sort doesn't need through fetch requests. Security
+     * authorizes those on their own, with the index expressions of the query, and they must return what the query returns
+     * without the fetch phase: the documents that document level security lets through, the fields that field level
+     * security grants, and an index that the role reads only through a filtered alias, matched with a wildcard. The
+     * cluster has one node, so every fetch request goes through the local transport.
+     */
+    public void testFetchPhaseReadsWhatTheQueryReads() throws Exception {
+        assumeTrue("the fetch_phase pragma needs a snapshot build", Build.current().isSnapshot());
+
+        // user3 reads the sales documents of index only
+        EsqlResult dls = assertFetchPhaseMatchesEager("user3", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(dls.values("org"), equalTo(List.of("sales")));
+
+        // fls_user reads value and partial of index, but not org. The values of partial depend on the index mode: synthetic
+        // source loads them from partial.keyword, which the role doesn't grant.
+        EsqlResult fls = assertFetchPhaseMatchesEager("fls_user", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(fls.columnNames(), not(hasItem("org")));
+        assertThat(fls.columnNames(), hasItem("partial"));
+
+        // alias_user1 reads index-user1 only through first-alias, whose filter keeps its sales documents
+        EsqlResult alias = assertFetchPhaseMatchesEager("alias_user1", "FROM first-*,index-* | SORT value DESC | LIMIT 10");
+        assertThat(alias.values("value"), equalTo(List.of(31.0d)));
+        assertThat(alias.values("org"), equalTo(List.of("sales")));
+    }
+
+    /**
+     * Runs {@code query} as {@code user} with the fetch phase and without it. Checks that both return the same columns and
+     * rows, and that the fetch phase fetched documents.
+     */
+    private EsqlResult assertFetchPhaseMatchesEager(String user, String query) throws IOException {
+        Map<String, Object> eager = entityAsMap(runWithFetchPhase(user, query, false));
+        Map<String, Object> fetched = entityAsMap(runWithFetchPhase(user, query, true));
+        assertThat(fetched.get("columns"), equalTo(eager.get("columns")));
+        assertThat(fetched.get("values"), equalTo(eager.get("values")));
+        assertThat("documents fetched by [" + query + "] as [" + user + "]", fetchedDocuments(fetched), greaterThan(0));
+        return EsqlResult.of(fetched);
+    }
+
+    /**
+     * Runs a profiled query that sets the {@code fetch_phase} pragma, and no other pragma.
+     */
+    private Response runWithFetchPhase(String user, String query, boolean fetchPhase) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder().startObject();
+        json.field("query", query);
+        json.field("profile", true);
+        json.startObject("pragma").field("fetch_phase", fetchPhase).endObject();
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.setOptions(runAsUserOptions(user, null));
+        request.addParameter("error_trace", "true");
+        return client().performRequest(request);
+    }
+
+    /**
+     * The documents that the fetch operators of a profiled query fetched.
+     */
+    @SuppressWarnings("unchecked")
+    private static int fetchedDocuments(Map<String, Object> result) {
+        int documents = 0;
+        for (Map<String, Object> driver : (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers")) {
+            for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
+                if (((String) operator.get("operator")).startsWith("FetchOperator")) {
+                    documents += ((Number) ((Map<String, Object>) operator.get("status")).get("documents")).intValue();
+                }
+            }
+        }
+        return documents;
     }
 
     public void testUnauthorizedIndices() throws IOException {
@@ -1479,6 +1566,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
         );
+    }
+
+    /**
+     * An ungrouped {@code MIN}/{@code MAX} over an integer field can be answered from segment metadata, which spans every document
+     * of the segment. Document-level security hides documents without deleting them from the segment, so the answer must still
+     * come from the documents the role may see.
+     */
+    public void testDLS_MinMaxIgnoresFilteredDocuments() throws Exception {
+        String query = "FROM min-max-dls | STATS min_n = MIN(n), max_n = MAX(n)";
+        List<MapMatcher> expectedColumns = List.of(column("min_n", "integer"), column("max_n", "integer"));
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(1, 100)))
+        );
+
+        Response dlsResp = runESQLCommand("dls_user", query);
+        assertOK(dlsResp);
+        assertMap(entityAsMap(dlsResp), matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(5, 5))));
     }
 
     public void testDLS_DoesNotExposeFilteredDocuments_WithUnmappedFieldsLoadAll() throws Exception {

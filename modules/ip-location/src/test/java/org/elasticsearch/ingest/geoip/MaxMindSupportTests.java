@@ -435,7 +435,7 @@ public class MaxMindSupportTests extends ESTestCase {
         }
     }
 
-    public void testUnknownMaxMindResponseClassess() {
+    public void testUnknownMaxMindResponseClasses() {
         Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
         // First just a sanity check that there's no overlap between what's supported and what's not:
         Set<Class<? extends AbstractResponse>> supportedAndUnsupportedMaxMindClasses = Sets.intersection(

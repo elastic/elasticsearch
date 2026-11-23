@@ -48,7 +48,7 @@ public class TestTransportChannels {
 
     /**
      * Wraps {@code channel} so that {@code breakerConsumer} gets the breaker a response is sent with, before the response is sent.
-     * A test can then read it as soon as the response arrives. The consumer isn't called for a response sent without a breaker.
+     * A test can then read it as soon as the response arrives.
      */
     public static TransportChannel capturingResponseBreaker(TransportChannel channel, Consumer<CircuitBreaker> breakerConsumer) {
         return new TransportChannel() {

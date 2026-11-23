@@ -27,10 +27,10 @@ import java.util.TreeMap;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * {@code SUM(int)}, {@code COUNT(field)}, {@code COUNT(*)} and {@code MAX(int)} over an int key built as the index's primary sort
- * field, whose group ids reach the aggregators as runs. Combining a run before touching its group's state must give what adding
- * every position does, so each case is read three ways: through the run path, through the plain path, and from the rows
- * themselves. {@code MAX} has no run form of its own, so it covers the default that expands the runs.
+ * {@code SUM(int)}, {@code COUNT(field)}, {@code COUNT(*)} and {@code MAX(int)} over an int key whose group ids reach the
+ * aggregators as runs when equal keys are adjacent. Combining a run before touching its group's state must give what adding
+ * every position does, so each case is compared with the result computed from the rows themselves. {@code MAX} has no run
+ * form of its own, so it covers the default that expands the runs.
  */
 public class RunAwareGroupingAggregationTests extends ComputeTestCase {
 
@@ -105,7 +105,7 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
         assertAllWays(new Input(keys, values));
     }
 
-    /** Keys that are not sorted at all: a flag only says the ids tend to come in runs, never that they do. */
+    /** Keys that are not sorted at all: the runs are only a statement about the shape of the ids, never about their order. */
     public void testKeysThatAreNotSorted() {
         final List<int[]> keys = new ArrayList<>();
         final List<Integer[]> values = new ArrayList<>();
@@ -144,9 +144,7 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
     }
 
     private void assertAllWays(Input input) {
-        final Map<Integer, List<Object>> expected = expected(input);
-        assertThat("run path", read(input, true), equalTo(expected));
-        assertThat("plain path", read(input, false), equalTo(expected));
+        assertThat(read(input), equalTo(expected(input)));
     }
 
     /**
@@ -179,13 +177,13 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
         return result;
     }
 
-    private Map<Integer, List<Object>> read(Input input, boolean primarySorted) {
+    private Map<Integer, List<Object>> read(Input input) {
         final DriverContext driverContext = driverContext();
         final AggregatorMode mode = AggregatorMode.SINGLE;
         final Map<Integer, List<Object>> result = new TreeMap<>();
         try (
             Operator operator = HashAggregationOperatorTests.randomBuilder()
-                .groups(List.of(new BlockHash.GroupSpec(0, ElementType.INT, null, null, primarySorted)))
+                .groups(List.of(new BlockHash.GroupSpec(0, ElementType.INT)))
                 .mode(mode)
                 .aggregators(
                     List.of(

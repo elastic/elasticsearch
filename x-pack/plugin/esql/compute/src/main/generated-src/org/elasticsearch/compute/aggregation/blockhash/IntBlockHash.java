@@ -58,44 +58,40 @@ final class IntBlockHash extends PartitionedBlockHash {
     private boolean seenNull;
 
     /**
-     * When {@code true}, the input to {@link #add(Page, GroupingAggregatorFunction.AddInput)} is known to arrive from Lucene
-     * ordered by this field (it is the shard's primary {@code index.sort.field}), so equal values are adjacent. Pages without
-     * nulls or multivalues are then split into {@link GroupRuns runs} of equal values that are hashed once each.
-     */
-    private final boolean primarySorted;
-
-    /**
-     * Scratch for the runs of the page being added, reused for every page. Only created for a {@link #primarySorted} hash.
+     * Scratch for the runs of the page being added, reused for every page.
      */
     private GroupRuns runs;
 
     /**
-     * How many pages took the runs path, so a profile can confirm that the sorted path was really used.
+     * How many pages took the runs path, so a profile can confirm that it paid off.
      */
-    private long sortedPages;
+    private long runPages;
 
     /**
-     * How many pages of a {@link #primarySorted} hash skipped the runs path because their keys were nearly unique, so a profile
-     * shows why a sorted key did not get faster.
+     * How many pages looked for runs and gave up because their keys repeat too little, so a profile shows that the page
+     * was hashed row by row.
      */
-    private long fallbackPages;
+    private long rowByRowPages;
 
     /**
-     * The smallest average run length at which a page still takes the runs path. Finding the runs costs a comparison per row
-     * and saves one hash probe per row that repeats the previous key, so it only pays when keys repeat. Below this, a page
-     * is hashed row by row like an unsorted one.
+     * The smallest average run length at which a page takes the runs path. Finding the runs costs a comparison per row and
+     * saves one hash probe per row that repeats the previous key, and the aggregators that cannot combine a run still pay
+     * to expand it, so it only pays when keys repeat several times in a row. Measured with {@code COUNT}, {@code AVG},
+     * {@code MIN}, {@code MAX} and filtered aggregations: at 2 the aggregators that expand runs lose up to 40% on keys whose
+     * runs average 2 to 3 rows, at 4 and above every measured shape stays within noise of the row by row path.
      */
-    private static final int MIN_AVERAGE_RUN_LENGTH = 2;
+    private static final int MIN_AVERAGE_RUN_LENGTH = 4;
 
-    IntBlockHash(int channel, BlockFactory blockFactory, boolean primarySorted) {
+    /**
+     * How many rows are scanned before the average run length is first checked. A few short runs at the start of a page
+     * must not decide for the whole page, but a page of unique keys should stop being scanned after a few dozen rows.
+     */
+    private static final int PROBE_ROWS = 64;
+
+    IntBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.newLongHash(blockFactory);
-        this.primarySorted = primarySorted;
-    }
-
-    IntBlockHash(int channel, BlockFactory blockFactory) {
-        this(channel, blockFactory, false);
     }
 
     @Override
@@ -117,7 +113,7 @@ final class IntBlockHash extends PartitionedBlockHash {
             }
             return;
         }
-        if (primarySorted && vector.getPositionCount() > 0) {
+        if (vector.getPositionCount() > 0) {
             addRuns(vector, addInput);
             return;
         }
@@ -141,13 +137,15 @@ final class IntBlockHash extends PartitionedBlockHash {
     }
 
     /**
-     * Path of {@link #add(Page, GroupingAggregatorFunction.AddInput)} for a {@link #primarySorted} vector page. First finds the
-     * runs of equal adjacent values with a plain comparison per row, then hashes one value per run and hands the runs
-     * to the aggregators, which then do not have to look for the same boundaries again.
+     * Path of {@link #add(Page, GroupingAggregatorFunction.AddInput)} for a vector page. Keys often arrive in runs of equal
+     * adjacent values: the primary {@code index.sort.field} of the shard, a time series, or just a dominant value. This
+     * finds the runs with a plain comparison per row, hashes one value per run and hands the runs to the aggregators once,
+     * so that none of them has to look for the same boundaries again. The result is the same as for the row by row path,
+     * only the cost differs.
      * <p>
-     *     A page whose keys are nearly unique has nothing to save, so it is hashed row by row like an unsorted one instead:
-     *     as soon as the page has more runs than {@code positions / MIN_AVERAGE_RUN_LENGTH} the search for runs stops. The
-     *     choice is made for every page on its own and never changes the result, only the cost.
+     *     The search stops, and the page is hashed row by row, as soon as the completed runs average fewer than
+     *     {@link #MIN_AVERAGE_RUN_LENGTH} rows, after at least {@link #PROBE_ROWS} rows. So a page of unique keys costs a
+     *     few dozen comparisons, not a whole scan. The choice is made for every page on its own.
      * </p>
      */
     private void addRuns(IntVector vector, GroupingAggregatorFunction.AddInput addInput) {
@@ -156,14 +154,12 @@ final class IntBlockHash extends PartitionedBlockHash {
         }
         runs.reset();
         int positions = vector.getPositionCount();
-        int maxRuns = positions / MIN_AVERAGE_RUN_LENGTH;
         int prev = vector.getInt(0);
         for (int i = 1; i < positions; i++) {
             int v = vector.getInt(i);
             if (v != prev) {
                 runs.appendRunEnd(i);
-                if (runs.runCount() >= maxRuns) {
-                    // The run in progress makes one more run than counted, so the page is already over the limit.
+                if (i >= PROBE_ROWS && (long) runs.runCount() * MIN_AVERAGE_RUN_LENGTH > i) {
                     addRowByRow(vector, addInput);
                     return;
                 }
@@ -172,22 +168,23 @@ final class IntBlockHash extends PartitionedBlockHash {
         }
         runs.appendRunEnd(positions);
         int runCount = runs.runCount();
-        if (runCount > maxRuns) {
+        if ((long) runCount * MIN_AVERAGE_RUN_LENGTH > positions) {
             addRowByRow(vector, addInput);
             return;
         }
-        sortedPages++;
+        runPages++;
         for (int run = 0; run < runCount; run++) {
             runs.setGroupId(run, Math.toIntExact(hashOrdToGroupNullReserved(hash.add(vector.getInt(runs.start(run))))));
         }
-        addInput.addRuns(0, runs);
+        try {
+            addInput.addRuns(0, runs);
+        } finally {
+            runs.release();
+        }
     }
 
-    /**
-     * The fallback of {@link #addRuns} for a page with too few repeated keys: the same work as for a page that is not sorted.
-     */
     private void addRowByRow(IntVector vector, GroupingAggregatorFunction.AddInput addInput) {
-        fallbackPages++;
+        rowByRowPages++;
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
@@ -386,8 +383,8 @@ final class IntBlockHash extends PartitionedBlockHash {
         b.append("IntBlockHash{channel=").append(channel);
         b.append(", entries=").append(hash.size());
         b.append(", seenNull=").append(seenNull);
-        if (primarySorted) {
-            b.append(", primarySorted=true, sortedPages=").append(sortedPages).append(", fallbackPages=").append(fallbackPages);
+        if (runPages + rowByRowPages > 0) {
+            b.append(", runPages=").append(runPages).append(", rowByRowPages=").append(rowByRowPages);
         }
         return b.append('}').toString();
     }

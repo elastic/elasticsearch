@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSortConfig;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,11 +24,12 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 
 /**
- * {@code STATS ... BY} the field an index is sorted on takes the sort-aware path: the hash finds the runs of equal keys and the
- * aggregators combine a run at a time. That is only about speed, so a sorted index and an identical unsorted one, which takes the
- * plain path, must answer every query the same way, and the profile must show which path ran.
+ * {@code STATS ... BY} an int key whose equal values are adjacent, like the field an index is sorted on: the hash finds the runs of
+ * equal keys and the aggregators combine a run at a time. That is only about speed, so an index sorted on the key and an identical
+ * one whose documents arrive in no order, which hashes row by row, must answer every query the same way, and the profile must show
+ * which path ran.
  */
-public class PrimarySortedGroupingIT extends AbstractEsqlIntegTestCase {
+public class RunAwareGroupingIT extends AbstractEsqlIntegTestCase {
 
     private static final String QUERY_TEMPLATE = "FROM %s | STATS c = COUNT(*), cv = COUNT(v), s = SUM(v), a = AVG(v) BY k | SORT k";
 
@@ -46,11 +48,12 @@ public class PrimarySortedGroupingIT extends AbstractEsqlIntegTestCase {
             );
         }
         index("sorted", sources);
-        index("plain", sources);
+        index("plain", shuffled(sources));
 
-        final List<List<Object>> expected = runQuery("plain", false);
+        final List<List<Object>> expected = runQuery("plain");
         assertThat(expected.isEmpty(), equalTo(false));
-        assertThat(runQuery("sorted", true), equalTo(expected));
+        assertThat(runQuery("sorted"), equalTo(expected));
+        assertThat(operatorsOf("sorted"), hasItem(matchesPattern(".*runPages=[1-9][0-9]*, rowByRowPages=[0-9]+.*")));
     }
 
     /** Keys that are all different have no run to combine: the page is hashed row by row, and the profile says so. */
@@ -62,14 +65,14 @@ public class PrimarySortedGroupingIT extends AbstractEsqlIntegTestCase {
             sources.add(new Object[] { doc, randomInt(1000) });
         }
         index("sorted", sources);
-        index("plain", sources);
+        index("plain", shuffled(sources));
 
-        final List<List<Object>> expected = runQuery("plain", false);
-        assertThat(runQuery("sorted", null), equalTo(expected));
-        assertThat(operatorsOf("sorted"), hasItem(matchesPattern(".*primarySorted=true, sortedPages=0, fallbackPages=[1-9][0-9]*.*")));
+        final List<List<Object>> expected = runQuery("plain");
+        assertThat(runQuery("sorted"), equalTo(expected));
+        assertThat(operatorsOf("sorted"), hasItem(matchesPattern(".*runPages=0, rowByRowPages=[1-9][0-9]*.*")));
     }
 
-    /** Only an int key uses the sort order so far: a long key on a sorted index takes the plain path and still agrees. */
+    /** Only an int key looks for runs so far: a long key on a sorted index is hashed as usual and still agrees. */
     public void testLongKeyOnASortedIndexIsHashedAsUsual() {
         createIndices();
         final int docs = between(200, 1000);
@@ -82,9 +85,10 @@ public class PrimarySortedGroupingIT extends AbstractEsqlIntegTestCase {
             sources.add(new Object[] { key, randomInt(1000) });
         }
         index("sorted_long", sources);
-        index("plain", sources);
+        index("plain", shuffled(sources));
 
-        assertThat(withLongKeys(runQuery("sorted_long", false)), equalTo(withLongKeys(runQuery("plain", false))));
+        assertThat(withLongKeys(runQuery("sorted_long")), equalTo(withLongKeys(runQuery("plain"))));
+        assertThat(operatorsOf("sorted_long"), not(hasItem(containsString("runPages"))));
     }
 
     /** The key is the last column; an int index and a long one answer with it as different number types. */
@@ -110,29 +114,25 @@ public class PrimarySortedGroupingIT extends AbstractEsqlIntegTestCase {
             sources.add(new Object[] { randomInt(15) == 0 ? null : key, randomInt(5) == 0 ? null : randomInt(1000) });
         }
         index("sorted", sources);
-        index("plain", sources);
+        index("plain", shuffled(sources));
 
-        assertThat(runQuery("sorted", null), equalTo(runQuery("plain", null)));
+        assertThat(runQuery("sorted"), equalTo(runQuery("plain")));
     }
 
-    /**
-     * @param expectSortedPath whether the profile must show the sorted path, must show the plain one, or, when {@code null},
-     *                         is not checked
-     */
-    private List<List<Object>> runQuery(String index, Boolean expectSortedPath) {
-        final EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(String.format(java.util.Locale.ROOT, QUERY_TEMPLATE, index));
-        request.profile(true);
-        try (EsqlQueryResponse response = run(request)) {
-            if (expectSortedPath != null) {
-                final List<String> operators = operatorsOf(response);
-                if (expectSortedPath) {
-                    assertThat(operators, hasItem(containsString("primarySorted=true")));
-                } else {
-                    assertThat(operators, not(hasItem(containsString("primarySorted"))));
-                }
-            }
+    private List<List<Object>> runQuery(String index) {
+        try (
+            EsqlQueryResponse response = run(
+                EsqlQueryRequest.syncEsqlQueryRequest(String.format(java.util.Locale.ROOT, QUERY_TEMPLATE, index))
+            )
+        ) {
             return getValuesList(response).stream().map(row -> (List<Object>) new ArrayList<>(row)).toList();
         }
+    }
+
+    private static List<Object[]> shuffled(List<Object[]> sources) {
+        final List<Object[]> copy = new ArrayList<>(sources);
+        Collections.shuffle(copy, random());
+        return copy;
     }
 
     private List<String> operatorsOf(String index) {

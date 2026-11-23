@@ -103,14 +103,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return simpleWithMode(options, mode, Function.identity());
     }
 
-    /**
-     * The key the tests group by. Half the time it is declared the index's primary sort field. Only the int key hash acts on
-     * that, so a long key must behave exactly as without it: the flag is a hint about speed that the other hashes ignore.
-     */
-    private BlockHash.GroupSpec longGroup() {
-        return new BlockHash.GroupSpec(0, ElementType.LONG, null, null, randomBoolean());
-    }
-
     protected List<Integer> channels(AggregatorMode mode) {
         return mode.isInputPartial()
             ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList()
@@ -135,14 +127,14 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         if (options.requiresDeterministicFactory()) {
             return HashAggregationOperatorTests.randomBuilder()
-                .groups(List.of(longGroup()))
+                .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
                 .mode(mode)
                 .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
                 .build();
         } else {
 
             return new RandomizingHashAggregationOperatorFactory(
-                new HashAggregationOperator.Builder().groups(List.of(longGroup()))
+                new HashAggregationOperator.Builder().groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
                     .mode(mode)
                     .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
                     .partialEmit(between(1, 1000), randomDoubleBetween(0.1, 1.0, true))
@@ -380,7 +372,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     private Operator.OperatorFactory chunkedFactory(AggregatorMode mode) {
         return HashAggregationOperatorTests.randomBuilder()
-            .groups(List.of(longGroup()))
+            .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
             .mode(mode)
             .aggregators(List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))))
             .maxPageSize(1)
@@ -955,7 +947,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         @Override
         protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
-            return new BlockHashWrapper(driverContext.blockFactory(), hash) {
+            final BlockFactory blockFactory = driverContext.blockFactory();
+            return new BlockHashWrapper(blockFactory, hash) {
                 @Override
                 public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
                     blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
@@ -977,7 +970,32 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                         @Override
                         public void add(int positionOffset, IntVector groupIds) {
-                            add(positionOffset, groupIds.asBlock());
+                            if (groupIds.getPositionCount() > 0 && randomInt(2) == 0) {
+                                addAsRuns(positionOffset, groupIds);
+                            } else {
+                                add(positionOffset, groupIds.asBlock());
+                            }
+                        }
+
+                        /**
+                         * Hand the same ids over the way a hash does when its keys come in runs, so that every aggregator
+                         * is checked on {@code addRuns}: the ones that combine a run, and the default that expands it.
+                         */
+                        private void addAsRuns(int positionOffset, IntVector groupIds) {
+                            final GroupRuns runs = new GroupRuns(blockFactory);
+                            try {
+                                int start = 0;
+                                for (int p = 1; p <= groupIds.getPositionCount(); p++) {
+                                    if (p == groupIds.getPositionCount() || groupIds.getInt(p) != groupIds.getInt(start)) {
+                                        runs.appendRunEnd(p);
+                                        runs.setGroupId(runs.runCount() - 1, groupIds.getInt(start));
+                                        start = p;
+                                    }
+                                }
+                                addInput.addRuns(positionOffset, runs);
+                            } finally {
+                                runs.release();
+                            }
                         }
 
                         @Override

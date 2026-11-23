@@ -15,8 +15,9 @@ import java.util.Arrays;
 /**
  * The group ids of one page, as <strong>runs</strong>: maximal stretches of adjacent positions that share one group id.
  * <p>
- *     A hash that knows its input is sorted by the grouping key (the shard's primary {@code index.sort.field}) finds
- *     the run boundaries while it hashes. It hands them over once, through {@link GroupingAggregatorFunction.AddInput#addRuns},
+ *     A hash whose keys repeat in runs (typically the shard's primary {@code index.sort.field}, but also a time series
+ *     or a dominant value) finds the run boundaries while it hashes. It hands them over once, through
+ *     {@link GroupingAggregatorFunction.AddInput#addRuns},
  *     so no aggregator has to rescan the ids to find the same boundaries. An aggregator can then combine a whole run
  *     and touch its group's state once.
  * </p>
@@ -36,6 +37,7 @@ public final class GroupRuns {
     private int[] groupIds = new int[16];
     private int[] ends = new int[16];
     private int runCount;
+    private IntVector expanded;
 
     public GroupRuns(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
@@ -46,6 +48,18 @@ public final class GroupRuns {
      */
     public void reset() {
         runCount = 0;
+        release();
+    }
+
+    /**
+     * Release the group id vector that {@link #toVector} shares between the callers. The hash calls this once the
+     * aggregators are done with the page.
+     */
+    public void release() {
+        if (expanded != null) {
+            expanded.close();
+            expanded = null;
+        }
     }
 
     /**
@@ -124,12 +138,21 @@ public final class GroupRuns {
 
     /**
      * Expand the runs into one group id per position. This is what an {@link GroupingAggregatorFunction.AddInput}
-     * that cannot use runs falls back to. The caller owns, and must close, the result.
+     * that cannot use runs falls back to. The vector is built once for all the callers that expand the same page, like
+     * the row by row path builds one vector for every aggregator. The caller must close its reference to the result.
      */
     public IntVector toVector() {
         if (runCount == 1) {
             return blockFactory.newConstantIntVector(groupIds[0], ends[0]);
         }
+        if (expanded == null) {
+            expanded = build();
+        }
+        expanded.incRef();
+        return expanded;
+    }
+
+    private IntVector build() {
         try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount())) {
             int position = 0;
             for (int run = 0; run < runCount; run++) {

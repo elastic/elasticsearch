@@ -49,6 +49,37 @@ public class GroupRunsTests extends ComputeTestCase {
             for (int p = 0; p < expected.length; p++) {
                 assertThat("position " + p, vector.getInt(p), equalTo(expected[p]));
             }
+        } finally {
+            runs.release();
+        }
+    }
+
+    /** The aggregators that expand the same page share one vector, built on first use and kept until the runs are released. */
+    public void testToVectorIsSharedUntilReleased() {
+        GroupRuns runs = new GroupRuns(blockFactory());
+        runs.appendRunEnd(2);
+        runs.appendRunEnd(5);
+        runs.setGroupId(0, 3);
+        runs.setGroupId(1, 8);
+        IntVector first = runs.toVector();
+        IntVector second = runs.toVector();
+        assertSame(first, second);
+        first.close();
+        // the second reference and the runs' own one still keep the vector alive
+        assertThat(second.getInt(4), equalTo(8));
+        second.close();
+        runs.release();
+        // after the release the next page builds a new one
+        runs.reset();
+        runs.appendRunEnd(2);
+        runs.appendRunEnd(3);
+        runs.setGroupId(0, 1);
+        runs.setGroupId(1, 2);
+        try (IntVector next = runs.toVector()) {
+            assertThat(next.getPositionCount(), equalTo(3));
+            assertThat(next.getInt(2), equalTo(2));
+        } finally {
+            runs.release();
         }
     }
 

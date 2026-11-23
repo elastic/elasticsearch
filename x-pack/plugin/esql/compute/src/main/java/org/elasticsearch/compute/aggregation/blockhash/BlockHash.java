@@ -163,33 +163,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         }
     }
 
-    /**
-     * One grouping key.
-     *
-     * @param primarySorted whether this key is the shard's primary {@code index.sort.field} and the rows arrive from Lucene in
-     *                      that order, so equal keys sit next to each other. Only the single int key hash uses it: it
-     *                      finds the runs of equal keys without probing the hash table for each row and hands them to the
-     *                      aggregators as {@link org.elasticsearch.compute.aggregation.GroupRuns}, unless a page has too few
-     *                      repeated keys to gain from it. It is a hint about speed, never about results: unsorted input
-     *                      gives the same answer, only without the savings.
-     */
-    public record GroupSpec(
-        int channel,
-        ElementType elementType,
-        @Nullable CategorizeDef categorizeDef,
-        @Nullable TopNDef topNDef,
-        boolean primarySorted
-    ) {
-        public GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
-            this(channel, elementType, categorizeDef, topNDef, false);
-        }
-
+    public record GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
         public GroupSpec(int channel, ElementType elementType) {
-            this(channel, elementType, null, null, false);
+            this(channel, elementType, null, null);
         }
 
         public GroupSpec(int channel, ElementType elementType, CategorizeDef categorizeDef) {
-            this(channel, elementType, categorizeDef, null, false);
+            this(channel, elementType, categorizeDef, null);
         }
 
         public boolean isCategorize() {
@@ -225,7 +205,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                     );
                 }
             }
-            return newForElementType(group.channel(), group.elementType(), blockFactory, group.primarySorted());
+            return newForElementType(group.channel(), group.elementType(), blockFactory);
         }
         // Multi-key with a pushed TopN hint: route to the composite TopN hash for primary-key pruning.
         TopNDef multiTopN = groups.stream().map(GroupSpec::topNDef).filter(Objects::nonNull).findFirst().orElse(null);
@@ -304,11 +284,11 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory, boolean primarySorted) {
+    private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
         return switch (type) {
             case NULL -> new NullBlockHash(channel, blockFactory);
             case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);
-            case INT -> new IntBlockHash(channel, blockFactory, primarySorted);
+            case INT -> new IntBlockHash(channel, blockFactory);
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
             case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);

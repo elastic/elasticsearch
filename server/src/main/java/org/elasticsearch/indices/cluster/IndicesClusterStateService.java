@@ -2042,7 +2042,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /// Removes shard with given id.
         ///
-        /// This mujst never call [ActionListener#onFailure] on `closeListener`. It should call [ActionListener#onResponse] whether the
+        /// This must never call [ActionListener#onFailure] on `closeListener`. It should call [ActionListener#onResponse] whether the
         /// shard is removed successfully or not.
         void removeShard(int shardId, String message, Executor closeExecutor, ActionListener<Void> closeListener);
     }

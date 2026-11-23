@@ -1449,6 +1449,35 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Integer {@code month == 6} leaves {@code month=*} on a glob the walk does not run. The post-filter
+     * still drops other months, so the hint must join the cache key. A data-column equality must not.
+     */
+    public void testListingCacheDiscriminatorReflectsIntegerEqualsOnNonWalkableKeyedGlob() {
+        String pattern = "s3://bucket/data/*/month=*/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        var six = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        var seven = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 7));
+        var user = List.of(hint("user_id", PartitionFilterHintExtractor.Operator.EQUALS, 42));
+        var flagged = List.of(hint("flag", PartitionFilterHintExtractor.Operator.EQUALS, true));
+
+        assertNotEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, six, HIVE_ON));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, six, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(pattern, seven, HIVE_ON)
+        );
+        assertEquals(
+            "a data-column hint cannot narrow this glob",
+            unhinted,
+            GlobExpander.listingCacheDiscriminator(pattern, user, HIVE_ON)
+        );
+        assertEquals(
+            "a hive key absent from the glob cannot narrow this listing",
+            unhinted,
+            GlobExpander.listingCacheDiscriminator(pattern, flagged, HIVE_ON)
+        );
+    }
+
+    /**
      * Integer {@code month == 6} leaves {@code month=*}, which is walk-eligible, so a deeper open range joins
      * the cache key. That walk keeps different days for {@code day > 5} and {@code day < 5}. Equal discriminators
      * would cache one listing for the other.
@@ -2390,6 +2419,68 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * First glob segment is {@code *}, so the walk does not run and {@code month == 6} does not splice.
+     * The flat value filter still keeps the two padded files and a cap of 4 must not throw.
+     */
+    public void testNonWalkableKeyedGlobIntegerEqualsKeepsPaddedMonthUnderCap() throws IOException {
+        PrefixAwareStubProvider provider = nestedPaddedMonthTree();
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*/month=*/*.parquet", provider, hints, HIVE_ON, 4, MAX);
+
+        assertEquals(List.of("s3://bucket/data/x/month=06/a.parquet", "s3://bucket/data/x/month=06/b.parquet"), paths(result));
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /** A one-element {@code IN (6)} on a non-leading {@code month=*} glob keeps the same two padded files under cap 4. */
+    public void testNonWalkableKeyedGlobIntegerInKeepsPaddedMonthUnderCap() throws IOException {
+        PrefixAwareStubProvider provider = nestedPaddedMonthTree();
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*/month=*/*.parquet", provider, hints, HIVE_ON, 4, MAX);
+
+        assertEquals(List.of("s3://bucket/data/x/month=06/a.parquet", "s3://bucket/data/x/month=06/b.parquet"), paths(result));
+    }
+
+    /**
+     * {@code region=*-x} is Hive-keyed but not walkable. Integer {@code month == 6} must still drop
+     * {@code month=07} rather than list every month.
+     */
+    public void testNonWalkableGlobbedHiveValueIntegerEqualsKeepsPaddedMonth() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/region=us-x/month=06/a.parquet", 100),
+                    entry("s3://bucket/data/region=eu-x/month=07/b.parquet", 100)
+                )
+            )
+        );
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/region=*-x/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/region=us-x/month=06/a.parquet"), paths(result));
+    }
+
+    /**
+     * Boolean {@code flag == true} on a non-leading {@code flag=*} glob keeps {@code TRUE} and drops {@code FALSE}.
+     */
+    public void testNonWalkableKeyedGlobBooleanEqualsKeepsUppercaseFolder() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/x/flag=TRUE/a.parquet", 100), entry("s3://bucket/data/x/flag=FALSE/b.parquet", 100))
+            )
+        );
+        var hints = List.of(hint("flag", PartitionFilterHintExtractor.Operator.EQUALS, true));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*/flag=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/x/flag=TRUE/a.parquet"), paths(result));
+    }
+
+    /**
      * Integer {@code month == 6} leaves {@code month=*}. Both {@code month=6} and {@code month=06} typed-match.
      */
     public void testUnpaddedAndPaddedMonthFoldersBothKept() throws IOException {
@@ -3325,6 +3416,22 @@ public class GlobExpanderTests extends ESTestCase {
                     entry("s3://bucket/data/month=07/c.parquet", 100),
                     entry("s3://bucket/data/month=07/d.parquet", 100),
                     entry("s3://bucket/data/month=07/e.parquet", 100)
+                )
+            )
+        );
+    }
+
+    /** Same five files under {@code data/x/}, for a glob whose first segment is {@code *} rather than {@code key=*}. */
+    private static PrefixAwareStubProvider nestedPaddedMonthTree() {
+        return new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/x/month=06/a.parquet", 100),
+                    entry("s3://bucket/data/x/month=06/b.parquet", 100),
+                    entry("s3://bucket/data/x/month=07/c.parquet", 100),
+                    entry("s3://bucket/data/x/month=07/d.parquet", 100),
+                    entry("s3://bucket/data/x/month=07/e.parquet", 100)
                 )
             )
         );
@@ -7822,6 +7929,40 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(result.isTruncated());
         assertEquals(
             "year is typed from every matching path, not from the first one",
+            DataType.KEYWORD,
+            result.partitionMetadata().partitionColumns().get("year")
+        );
+    }
+
+    /**
+     * String {@code region == "west"} splices {@code region=west}. The on-disk folder is {@code region=w%65st}
+     * (an extra-escaped {@code e}); the spliced prefix is empty. Bound 1 does not change that. The Hive retry
+     * lists the original glob unbounded, so {@code year} is typed from every matching file rather than from a
+     * one-file sample.
+     */
+    public void testRelistAfterANarrowingThatMatchedNothingTypesPartitionsFromEveryFile() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/region=w%65st/a.parquet", 100),
+            entry("s3://bucket/data/year=abc/region=w%65st/b.parquet", 100)
+        );
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "west"));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/year=*/region=*/*.parquet",
+            new CountingStubProvider(listing),
+            hints,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+
+        assertEquals("the re-list is unbounded, so both files are returned", 2, result.fileCount());
+        assertFalse(result.isTruncated());
+        assertEquals(
+            "year is typed from every path the re-list returned, not from the first one",
             DataType.KEYWORD,
             result.partitionMetadata().partitionColumns().get("year")
         );

@@ -374,6 +374,11 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testStopQueryInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/166991
+- class: org.elasticsearch.index.replication.RecoveryDuringReplicationTests
+  tasks:
+  - :server:test
+  method: testCheckpointsAndMarkingInSync
+  issue: https://github.com/elastic/elasticsearch/issues/167061
 
 # Examples:
 #

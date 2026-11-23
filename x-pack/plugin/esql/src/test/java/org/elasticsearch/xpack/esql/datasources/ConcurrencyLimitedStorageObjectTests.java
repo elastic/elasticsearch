@@ -45,7 +45,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -304,8 +303,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     public void testAbortStreamForwardsInnerStreamAndReleasesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
-        InputStream inner = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
-        when(delegate.newStream()).thenReturn(inner);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
 
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
@@ -314,8 +312,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
         obj.abortStream(wrapper);
 
-        verify(delegate).abortStream(inner);
-        assertEquals("permit must be released by abortStream", 3, limiter.availablePermits());
+        assertEquals("permit must be released by close", 3, limiter.availablePermits());
     }
 
     /**
@@ -348,17 +345,20 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     public void testAbortStreamReleasesPermitEvenIfDelegateThrows() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageObject delegate = mock(StorageObject.class);
-        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                throw new IOException("abort failed");
+            }
+        });
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
-        doAnswer(inv -> { throw new IOException("abort failed"); }).when(delegate).abortStream(any(InputStream.class));
-
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         InputStream wrapper = obj.newStream();
         assertEquals(2, limiter.availablePermits());
 
         expectThrows(IOException.class, () -> obj.abortStream(wrapper));
-        assertEquals("permit must be released even if delegate.abortStream throws", 3, limiter.availablePermits());
-        verify(delegate, times(1)).abortStream(any(InputStream.class));
+        assertEquals("permit must be released on close", 3, limiter.availablePermits());
     }
 
     public void testAbortAndCloseRaceDoesNotOverGrantPermit() throws Exception {

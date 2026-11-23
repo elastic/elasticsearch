@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;

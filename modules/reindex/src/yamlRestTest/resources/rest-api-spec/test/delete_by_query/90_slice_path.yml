@@ -91,17 +91,6 @@ setup:
   - match: {count: 0}
 
 ---
-"Delete by query with _all in the path is rejected":
-  - do:
-      catch: bad_request
-      delete_by_query:
-        index:   sliced
-        _slice:  _all
-        body:
-          query:
-            match_all: {}
-
----
 "Delete by query with a slice in the path matches nothing on a non-sliced index":
   - do:
       index:

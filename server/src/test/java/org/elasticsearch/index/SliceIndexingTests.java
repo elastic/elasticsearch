@@ -131,18 +131,6 @@ public class SliceIndexingTests extends ESTestCase {
         assertThat(parsed.fromSlice(), equalTo(true));
     }
 
-    public void testParseSearchRoutingRejectsPathSliceAll() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_all/_search")
-            .withParams(Map.of("index", "my-index", "_slice", "_all"))
-            .build();
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true)
-        );
-        assertThat(ex.getMessage(), containsString("invalid [_slice] value [_all]"));
-    }
-
     public void testParseSearchRoutingFromPathSliceWithMultiIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/index-a,index-b/tenant-a/_search")

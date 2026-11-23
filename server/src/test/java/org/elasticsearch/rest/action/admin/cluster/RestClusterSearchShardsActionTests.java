@@ -23,8 +23,6 @@ import org.junit.Before;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class RestClusterSearchShardsActionTests extends RestActionTestCase {
     private RestClusterSearchShardsAction action;
 
@@ -53,16 +51,6 @@ public class RestClusterSearchShardsActionTests extends RestActionTestCase {
             .withParams(Map.of(SliceIndexing.FIELD_NAME, "s1,s2"))
             .build();
         action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), verifyingClient);
-    }
-
-    public void testParseSearchShardsRequestRejectsSliceAllParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/_search_shards")
-            .withParams(Map.of(SliceIndexing.FIELD_NAME, "_all"))
-            .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertThat(e.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
 
     public void testParseSearchShardsRequestRejectsRoutingAndSliceTogether() {

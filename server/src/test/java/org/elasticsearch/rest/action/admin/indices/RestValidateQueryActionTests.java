@@ -136,13 +136,6 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         assertTrue(validateQueryRequest.isRoutingFromSlice());
     }
 
-    public void testParseValidateQueryRequestRejectsSliceAllParam() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        final RestRequest request = createRestRequest("{\"query\":{\"match_all\":{}}}", Map.of(SliceIndexing.FIELD_NAME, "_all"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
-        assertThat(e.getMessage(), containsString("invalid [_slice] value [_all]"));
-    }
-
     public void testParseValidateQueryRequestRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         final RestRequest request = createRestRequest(

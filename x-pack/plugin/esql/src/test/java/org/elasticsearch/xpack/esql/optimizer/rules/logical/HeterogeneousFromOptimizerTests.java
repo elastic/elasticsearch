@@ -707,8 +707,8 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * The combiner of a pushed {@code MIN}/{@code MAX} must skip {@code NaN} exactly when the per-branch aggregates do,
-     * whether through {@code skipNan} or through the PromQL {@code allowNonFinite} variant.
+     * The combiner of a pushed {@code MIN}/{@code MAX} and its per-branch aggregates must both skip {@code NaN} exactly when
+     * the original aggregate does, whether through {@code skipNan} or through the PromQL {@code allowNonFinite} variant.
      */
     public void testMinMaxCombinerKeepsNanSkipping() {
         for (boolean max : new boolean[] { false, true }) {
@@ -728,13 +728,22 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
                 Aggregate outerAgg = as(new PushAggregateThroughUnionAll().apply(aggregate), Aggregate.class);
                 Expression combiner = as(outerAgg.aggregates().get(0), Alias.class).child();
                 boolean expected = allowNonFinite || skipNan;
-                if (max) {
-                    assertThat(as(combiner, Max.class).skipNan(), equalTo(expected));
-                } else {
-                    assertThat(as(combiner, Min.class).skipNan(), equalTo(expected));
+                UnionAll pushed = as(outerAgg.child(), UnionAll.class);
+                for (LogicalPlan branch : pushed.children()) {
+                    Expression partial = as(as(branch, Aggregate.class).aggregates().get(0), Alias.class).child();
+                    assertThat(skipsNan(partial), equalTo(expected));
                 }
+                assertThat(skipsNan(combiner), equalTo(expected));
             }
         }
+    }
+
+    private static boolean skipsNan(Expression minOrMax) {
+        if (minOrMax instanceof Min min) {
+            return min.skipNan() || min.allowNonFinite();
+        }
+        Max max = as(minOrMax, Max.class);
+        return max.skipNan() || max.allowNonFinite();
     }
 
     /**

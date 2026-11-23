@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
@@ -47,7 +50,14 @@ public class MinSerializationTests extends AbstractExpressionSerializationTests<
 
     public void testSkipNanIsNotWrittenToNodesThatPredateIt() throws IOException {
         TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Min.ESQL_MINMAX_SKIP_NAN);
-        Min skipping = new Min(randomSource(), randomChild(), randomChild(), randomChild(), false, true);
+        Min skipping = new Min(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, 1.0, DataType.DOUBLE),
+            Literal.TRUE,
+            AggregateFunction.NO_WINDOW,
+            false,
+            true
+        );
 
         Min copy = copyInstance(skipping, oldVersion);
 

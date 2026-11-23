@@ -79,8 +79,7 @@ public class ResourceLoaderTests extends ESTestCase {
         loader.startNewCluster();
 
         for (int i = 0; i < 3; i++) {
-            IllegalStateException e = expectThrows(IllegalStateException.class, loader::unloadAll);
-            assertThat(e.getMessage(), containsString("view [view] not found"));
+            expectThrows(IllegalStateException.class, containsString("view [view] not found"), loader::unloadAll);
         }
     }
 
@@ -111,8 +110,7 @@ public class ResourceLoaderTests extends ESTestCase {
     public void testResetForgetsAFailureOfThePreviousCluster() {
         LoaderOfACluster loader = new LoaderOfACluster();
         loader.failToLoad = true;
-        RuntimeException e = expectThrows(RuntimeException.class, () -> loader.maybeLoad("a", "a"));
-        assertThat(e.getMessage(), containsString("Resource loading failure"));
+        expectThrows(RuntimeException.class, containsString("Resource loading failure"), () -> loader.maybeLoad("a", "a"));
         expectThrows(RuntimeException.class, loader::ensureNoFailures);
 
         loader.failToLoad = false;
@@ -124,7 +122,6 @@ public class ResourceLoaderTests extends ESTestCase {
 
     public void testAMissingResourceIsAnError() {
         LoaderOfACluster loader = new LoaderOfACluster();
-        AssertionError e = expectThrows(AssertionError.class, () -> loader.maybeLoad("a", null));
-        assertThat(e.getMessage(), containsString("Resource [a] is not found!"));
+        expectThrows(AssertionError.class, containsString("Resource [a] is not found!"), () -> loader.maybeLoad("a", null));
     }
 }

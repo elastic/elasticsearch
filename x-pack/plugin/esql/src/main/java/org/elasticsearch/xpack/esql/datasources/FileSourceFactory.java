@@ -208,9 +208,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Nullable
     private final DatasetListingService listingService;
     /**
-     * Whether the node's external-source cache is accepting writes. Statistics are harvested for that cache and
-     * nothing else, and {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} drops them when
-     * it is off. A supplier rather than a flag: the setting is dynamic and this factory is a per-node singleton.
+     * Whether the node's external-source cache is accepting writes. Statistics are harvested to populate that
+     * cache, and {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} drops them when it is
+     * off. A supplier rather than a flag: the setting is dynamic and this factory is a per-node singleton.
      */
     private final BooleanSupplier externalSourceCacheEnabled;
     /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */

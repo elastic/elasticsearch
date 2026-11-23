@@ -4390,7 +4390,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * whole-file path. Snapshotted at close alongside {@link #columnStats} — its superset wins per column.
          */
         private ColumnStatsAccumulator allFileColumnStats;
-        /** True when the direct path feeds {@link #columnStats} inline (cacheable read with tracked columns). */
+        /** True when the direct path feeds {@link #columnStats} inline (gridless PROJECTED read, tracked columns). */
         private boolean accumulateDirectStats;
         /** True when the most recent batch already accumulated stats inline, so {@link #captureBlockStats} must skip it. */
         private boolean lastBatchAccumulatedStats;
@@ -5504,12 +5504,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stageBool = new boolean[columnCount];
                 stageRef = new BytesRef[columnCount];
                 stageNull = new boolean[columnCount];
-                // For cacheable reads, fold the cache's per-column null/min/max stats into the parse
-                // loop (see appendStagedRow) instead of re-walking every built block. Build the
-                // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
-                // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                // Only a gridless PROJECTED read publishes this accumulator. Under any other scope, or under a
-                // stripe grid, the fold is a min/max/null per cell on the parse loop that nothing goes on to read.
+                // A gridless PROJECTED read is the only one that publishes this accumulator, so it is the only
+                // one that builds it. Folding per-column null/min/max into the parse loop (see appendStagedRow)
+                // beats re-walking every built block; captureBlockStats then skips direct-produced pages
+                // (lastBatchAccumulatedStats) to avoid double counting.
                 if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED && statsStripeSize <= 0) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;

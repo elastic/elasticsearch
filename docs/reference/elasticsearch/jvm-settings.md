@@ -235,6 +235,6 @@ Supported variables and their allowed values:
 On Linux, {{es}} sets these defaults to limit native memory retention from glibc `malloc` (native-heap allocations):
 - `MALLOC_ARENA_MAX`: set to be equal to the number of allocated cores (see [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors)),
 - `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_`: both set to 1MB (1048576),
-- `-XX:TrimNativeHeapInterval=3600000`: set to have the JVM trim the native heap every hour.
+- `-XX:TrimNativeHeapInterval=3600000` (HotSpot, JDK 21.0.1+): set to have the JVM trim the native heap every hour.
 
 Each default applies only if you haven't set that value yourself: an `es.glibc.env.` JVM option or an environment variable of the same name (or the equivalent tunable in `GLIBC_TUNABLES`) takes precedence, and so does an explicitly set `-XX:TrimNativeHeapInterval` JVM option.

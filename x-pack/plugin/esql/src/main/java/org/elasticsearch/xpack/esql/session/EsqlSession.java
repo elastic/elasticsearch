@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -530,14 +531,6 @@ public class EsqlSession {
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
         listener = wrapForAnonymizedFailureLog(listener);
-        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
-        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
-        // an empty time range). Also kept on the request, so the time range the query asked for is known however the query
-        // ends, including when it fails to parse or its views fail to resolve.
-        final long requestStartedMillis = System.currentTimeMillis();
-        request.setRequestedTimeRange(
-            QueryDslTimestampBoundsExtractor.extractTimestampBounds(request.filter(), () -> requestStartedMillis)
-        );
         // Planning CPU is frozen at the end of planning. A query that fails before it gets there would report none, although it
         // spent some, so it is frozen on any failure too. Freezing is idempotent: a query that fails while it executes keeps the total
         // that planning froze.
@@ -746,6 +739,21 @@ public class EsqlSession {
         // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
+        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
+        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
+        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis, the query's now.
+        // Also kept on the request, together with that now, so the time range the query asked for is known however the query
+        // ends from here on. It is deliberately not extracted earlier, against a now of its own: planning must resolve date math
+        // against the same now as NOW() and the filter on the data nodes.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            request.filter(),
+            finalConfiguration::absoluteStartedTimeInMillis
+        );
+        if (timestampBounds != null) {
+            // The millisecond now that date math was resolved against, rather than the configuration's finer-grained now().
+            Instant now = Instant.ofEpochMilli(finalConfiguration.absoluteStartedTimeInMillis());
+            request.setRequestedTimeRange(new RequestedTimeRange(timestampBounds, now));
+        }
 
         analyzedPlan(
             plan,
@@ -753,7 +761,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
-            request.requestedTimeRange(),
+            timestampBounds,
             viewResolution.indexViewOrigins(),
             viewResolution.viewSettings(),
             new ActionListener<Versioned<LogicalPlan>>() {

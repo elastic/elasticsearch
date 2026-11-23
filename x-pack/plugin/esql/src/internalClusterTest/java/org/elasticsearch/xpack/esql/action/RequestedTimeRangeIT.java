@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -44,7 +45,7 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
             new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString()))
         );
         client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();
-        assertThat(request.requestedTimeRange(), equalTo(new TimestampBounds(FROM, TO)));
+        assertThat(request.requestedTimeRange().bounds(), equalTo(new TimestampBounds(FROM, TO)));
     }
 
     public void testFailure() {
@@ -52,15 +53,24 @@ public class RequestedTimeRangeIT extends AbstractEsqlIntegTestCase {
             new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString())
         );
         expectThrows(VerificationException.class, () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet());
-        assertThat(request.requestedTimeRange(), equalTo(new TimestampBounds(FROM, TO)));
+        assertThat(request.requestedTimeRange().bounds(), equalTo(new TimestampBounds(FROM, TO)));
+    }
+
+    public void testRelativeRange() {
+        var request = syncEsqlQueryRequest("FROM logs | LIMIT 1").filter(new RangeQueryBuilder("@timestamp").gte("now-1h").lte("now"));
+        client().execute(EsqlQueryAction.INSTANCE, request).actionGet().close();
+        // Date math is resolved against the now that is kept with the bounds, so the age of the range is exact.
+        RequestedTimeRange range = request.requestedTimeRange();
+        assertThat(range.bounds(), equalTo(new TimestampBounds(range.now().minus(Duration.ofHours(1)), range.now())));
     }
 
     public void testFailureBeforeAnalysis() {
+        // The range is only extracted once the query's now is fixed, after parsing, so that it does not need a now of its own.
         var request = syncEsqlQueryRequest("FROM logs | NOT_A_COMMAND").filter(
             new RangeQueryBuilder("@timestamp").gte(FROM.toString()).lte(TO.toString())
         );
         expectThrows(ParsingException.class, () -> client().execute(EsqlQueryAction.INSTANCE, request).actionGet());
-        assertThat(request.requestedTimeRange(), equalTo(new TimestampBounds(FROM, TO)));
+        assertThat(request.requestedTimeRange(), nullValue());
     }
 
     public void testNoRequestedTimeRange() {

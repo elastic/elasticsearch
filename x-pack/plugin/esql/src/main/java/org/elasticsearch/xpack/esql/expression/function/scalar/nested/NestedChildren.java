@@ -65,7 +65,7 @@ import java.util.stream.IntStream;
  */
 public final class NestedChildren implements Releasable {
     /** Children per page, so a parent with many objects does not need them all in memory at once. */
-    static final int PAGE_SIZE = 1024;
+    public static final int PAGE_SIZE = 1024;
 
     /**
      * One shard's filters selecting parents and the children of this nested field, both {@code null} where it is not mapped.

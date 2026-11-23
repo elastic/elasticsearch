@@ -26,6 +26,9 @@ import org.elasticsearch.core.Releasables;
  * Evaluates a {@link NestedPredicate} for each parent of a page by reading the parent's child documents through
  * {@link NestedChildren}, running the body over each child, and ORing the results per parent. A parent stops being read once
  * a page of its children has matched it.
+ * <p>
+ * This is the production child cursor. The predicate prototype describes the same shape and stays unused here: the batch
+ * is this page, and the body is the expression evaluator a {@code FilterExec} would run.
  */
 final class NestedPredicateEvaluator implements ExpressionEvaluator {
     private final DriverContext context;

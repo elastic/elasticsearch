@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.predicate;
 
 /**
- * {@code NESTED_ANY} over a child cursor. The child predicate runs on each batch's own positions, so both sides of a
- * conjunction see the same child. Parents become false only once the cursor is exhausted.
+ * Prototype of {@code NESTED_ANY} over a child cursor. The child predicate runs on each batch's own positions, so both
+ * sides of a conjunction see the same child. Parents become false only once the cursor is exhausted.
+ * <p>
+ * Production reads children through {@code NestedChildren} and reduces them in {@code NestedPredicateEvaluator}. This
+ * class records that shape for a source that does not yet have its own page.
  */
 public final class NestedAnyPlan {
     private NestedAnyPlan() {}

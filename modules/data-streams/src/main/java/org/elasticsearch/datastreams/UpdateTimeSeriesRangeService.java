@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -69,7 +70,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             LOGGER.debug("starting tsdb update task");
             var task = new UpdateTimeSeriesTask(e -> {
                 if (e != null) {
-                    LOGGER.warn("failed to update tsdb data stream end times", e);
+                    if (MasterService.isPublishFailureException(e)) {
+                        // Expected when mastership changes. The new master runs its own update right after being elected.
+                        LOGGER.info("tsdb data stream end time update did not complete because the master changed");
+                    } else {
+                        LOGGER.warn("failed to update tsdb data stream end times", e);
+                    }
                 }
                 running.set(false);
                 onComplete.run();
@@ -204,7 +210,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     public void onMaster() {
         // Update right away instead of waiting for the first poll interval. Otherwise, back-to-back master elections, each of which
         // restarts the countdown, could starve the update and let end_time expire. The update is idempotent and cheap.
-        perform(() -> LOGGER.debug("completed tsdb update task after becoming master"));
+        try {
+            perform(() -> LOGGER.debug("completed tsdb update task after becoming master"));
+        } catch (Exception e) {
+            // Never let a failure here prevent the periodic job from being scheduled.
+            LOGGER.warn("failed to start tsdb update task after becoming master", e);
+        }
         scheduleTask();
     }
 

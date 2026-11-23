@@ -81,22 +81,18 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
+            TargetIndex resourceTargetIndex = TargetIndex.defaultForLogs().withAttributeOverrides(resource.getAttributesList());
             List<ScopeLogs> scopeLogsList = resourceLogs.getScopeLogsList();
             for (int j = 0, scopeLogsListSize = scopeLogsList.size(); j < scopeLogsListSize; j++) {
                 ScopeLogs scopeLogs = scopeLogsList.get(j);
                 InstrumentationScope scope = scopeLogs.getScope();
                 List<LogRecord> logRecordsList = scopeLogs.getLogRecordsList();
-                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
+                TargetIndex scopeTargetIndex = resourceTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                    .maybeApplyScopeBasedRouting(scope);
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
                     LogRecord logRecord = logRecordsList.get(k);
                     context.incrementTotalLogRecords();
-                    TargetIndex index = TargetIndex.evaluate(
-                        TargetIndex.TYPE_LOGS,
-                        logRecord.getAttributesList(),
-                        scopeRoutingDataset,
-                        scope.getAttributesList(),
-                        resource.getAttributesList()
-                    );
+                    TargetIndex index = scopeTargetIndex.withAttributeOverrides(logRecord.getAttributesList());
                     try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
                         logDocumentBuilder.buildLogDocument(
                             xContentBuilder,

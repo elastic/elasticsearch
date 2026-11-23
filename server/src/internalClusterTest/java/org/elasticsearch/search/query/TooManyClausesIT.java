@@ -23,7 +23,7 @@ import org.junit.Before;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -79,7 +79,7 @@ public class TooManyClausesIT extends ESIntegTestCase {
             IndexSearcher.setMaxClauseCount(MAX_CLAUSE_COUNT);
             SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, request);
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.shardFailures(), not(empty()));
+            assertThat(e.shardFailures(), not(emptyArray()));
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
             }

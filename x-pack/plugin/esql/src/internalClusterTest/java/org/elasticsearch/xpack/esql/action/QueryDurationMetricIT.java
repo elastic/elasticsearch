@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Each ES|QL query is counted once on the coordinator, labelled with its source command, the bucketed age of the lower bound of the
- * request filter's {@code @timestamp} range and its outcome, whichever node coordinates it and however it is run. Only successful queries also
- * record their duration.
+ * request filter's {@code @timestamp} range and its outcome, whichever node coordinates it and however it is run. Only successful queries
+ * also record their duration.
  */
 public class QueryDurationMetricIT extends AbstractEsqlIntegTestCase {
 

@@ -27,7 +27,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedActionTests;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -54,6 +57,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +68,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -96,10 +101,13 @@ public class DatafeedRunnerTests extends ESTestCase {
     private AnomalyDetectionAuditor auditor;
     private final ArgumentCaptor<ClusterStateListener> capturedClusterStateListener = ArgumentCaptor.forClass(ClusterStateListener.class);
     private AtomicBoolean hasOpenAutodetectCommunicator;
+    private RecordingMeterRegistry meterRegistry;
+    private DatafeedTask startedTask;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpTests() {
+        meterRegistry = new RecordingMeterRegistry();
         Job.Builder job = createDatafeedJob().setCreateTime(new Date());
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -173,7 +181,7 @@ public class DatafeedRunnerTests extends ESTestCase {
             auditor,
             autodetectProcessManager,
             datafeedContextProvider,
-            MeterRegistry.NOOP
+            meterRegistry
         );
 
         verify(clusterService).addListener(capturedClusterStateListener.capture());
@@ -197,6 +205,118 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, false, handler);
 
         assertThat(datafeedRunner.countDatafeedsWithUnavailableProjects(), equalTo(1L));
+    }
+
+    public void testRealtimeDatafeedShouldRecordHorizonLagRatioWithOnlyExtractorTypeAttribute() throws Exception {
+        givenRealtimeDatafeedHorizon(2.5, ExtractorType.AGGREGATION);
+
+        datafeedRunner.reportHorizonLag();
+
+        List<Measurement> measurements = horizonLagMeasurements();
+        assertThat(measurements.size(), equalTo(1));
+        assertThat(measurements.get(0).getDouble(), equalTo(2.5));
+        assertThat(measurements.get(0).attributes(), equalTo(Map.of("es_extractor_type", "aggregation")));
+    }
+
+    public void testLookbackInProgressShouldNotRecordHorizonLagRatio() throws Exception {
+        when(datafeedJob.horizonLagRatio()).thenReturn(2.5);
+        when(datafeedJob.extractorType()).thenReturn(ExtractorType.SCROLL);
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenAnswer(invocation -> {
+            datafeedRunner.reportHorizonLag();
+            return 1L;
+        });
+
+        runTask(new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L));
+
+        assertThat(horizonLagMeasurements(), empty());
+    }
+
+    public void testRealtimeDatafeedWithoutKnownEndTimeShouldNotRecordHorizonLagRatio() throws Exception {
+        givenRealtimeDatafeedHorizon(null, ExtractorType.SCROLL);
+
+        datafeedRunner.reportHorizonLag();
+
+        assertThat(horizonLagMeasurements(), empty());
+    }
+
+    public void testLookbackOnlyDatafeedShouldNotRecordHorizonLagRatio() throws Exception {
+        when(datafeedJob.horizonLagRatio()).thenReturn(2.5);
+        when(datafeedJob.extractorType()).thenReturn(ExtractorType.SCROLL);
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenReturn(1L);
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        params.setEndTime(60000L);
+
+        runTask(params);
+        datafeedRunner.reportHorizonLag();
+
+        assertThat(horizonLagMeasurements(), empty());
+    }
+
+    public void testStoppingDatafeedShouldNotRecordHorizonLagRatio() throws Exception {
+        givenRealtimeDatafeedHorizon(2.5, ExtractorType.SCROLL);
+        when(datafeedJob.isRunning()).thenReturn(false);
+
+        datafeedRunner.reportHorizonLag();
+
+        assertThat(horizonLagMeasurements(), empty());
+    }
+
+    public void testIsolatedDatafeedShouldNotRecordHorizonLagRatio() throws Exception {
+        givenRealtimeDatafeedHorizon(2.5, ExtractorType.SCROLL);
+        when(datafeedJob.isIsolated()).thenReturn(true);
+
+        datafeedRunner.reportHorizonLag();
+
+        assertThat(horizonLagMeasurements(), empty());
+    }
+
+    public void testStoppedDatafeedShouldNotRecordHorizonLagRatio() throws Exception {
+        givenRealtimeDatafeedHorizon(2.5, ExtractorType.SCROLL);
+        datafeedRunner.stopDatafeed(startedTask, "test", TimeValue.timeValueSeconds(1));
+
+        datafeedRunner.reportHorizonLag();
+
+        assertThat(horizonLagMeasurements(), empty());
+    }
+
+    public void testStartedRunnerShouldReportHorizonLagOncePerMinuteUntilStopped() throws Exception {
+        Scheduler.Cancellable cancellable = mock(Scheduler.Cancellable.class);
+        when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(mock(ExecutorService.class));
+        ArgumentCaptor<Runnable> reporter = ArgumentCaptor.forClass(Runnable.class);
+        when(threadPool.scheduleWithFixedDelay(reporter.capture(), eq(TimeValue.timeValueMinutes(1)), any(Executor.class))).thenReturn(
+            cancellable
+        );
+        givenRealtimeDatafeedHorizon(2.5, ExtractorType.COMPOSITE);
+
+        datafeedRunner.start();
+        reporter.getValue().run();
+
+        assertThat(horizonLagMeasurements().size(), equalTo(1));
+        verify(threadPool).executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
+        verify(cancellable, never()).cancel();
+
+        datafeedRunner.stop();
+
+        verify(cancellable).cancel();
+    }
+
+    private void givenRealtimeDatafeedHorizon(Double horizonLagRatio, ExtractorType extractorType) throws Exception {
+        when(datafeedJob.horizonLagRatio()).thenReturn(horizonLagRatio);
+        when(datafeedJob.extractorType()).thenReturn(extractorType);
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenReturn(1L);
+        runTask(new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L));
+    }
+
+    private void runTask(StartDatafeedAction.DatafeedParams params) {
+        startedTask = spyDatafeedTask(
+            TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner)
+        );
+        datafeedRunner.run(startedTask, false, mockConsumer());
+    }
+
+    private List<Measurement> horizonLagMeasurements() {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, DatafeedHorizonTelemetry.HORIZON_LAG_RATIO_METRIC);
     }
 
     private static LinkedClusterState available(String alias) {

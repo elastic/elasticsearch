@@ -943,10 +943,12 @@ final class PartitionPruningWalk {
          */
         private double estimatedPrefixWidth = 1.0;
         /**
-         * Pruned dirs from the previous level, candidates for a one-level retroactive peek. A peek fires
+         * Pruned dirs from the last placeholder, candidates for a one-level retroactive peek. A peek fires
          * only when the current level introduces a new partition key (confirming a multi-level layout):
          * peeking into a pruned dir whose direct children are files (single-level layout) would pollute
-         * enumeration tracking without adding any partition-key information.
+         * enumeration tracking without adding any partition-key information. TEMPLATE identity levels
+         * between placeholders advance these dirs one folder deeper so {@code {year}/data/{month}} peeks
+         * month folders under a pruned year, not {@code data} itself as a month value.
          */
         private List<StoragePath> pendingPeeks = List.of();
 
@@ -1186,6 +1188,40 @@ final class PartitionPruningWalk {
             });
         }
 
+        /**
+         * Walks each pending peek one identity folder deeper. Without this, a later placeholder would
+         * list the identity folder itself as if it were a partition value. Budget miss or a directory
+         * too wide to buffer fails closed (same as {@link #applyPeeksIfNeeded}). Stray siblings inside
+         * a pruned subtree are skipped — that layout is already untrusted for walking.
+         */
+        private boolean advancePendingPeeks(WalkLayout.Level role) throws IOException {
+            if (pendingPeeks.isEmpty()) {
+                return true;
+            }
+            List<StoragePath> next = new ArrayList<>(pendingPeeks.size());
+            for (StoragePath pruned : pendingPeeks) {
+                if (cancelled.getAsBoolean()) {
+                    throw new TaskCancelledException("listing cancelled");
+                }
+                int issued = listings.get();
+                if (issued >= maxDirectoryListings) {
+                    return false;
+                }
+                listings.set(issued + 1);
+                StorageChildren children = provider.listChildren(pruned, MAX_LISTED_CHILDREN);
+                if (children == null) {
+                    return false;
+                }
+                for (StoragePath sub : children.directories()) {
+                    if (role.isLiteral() == false || role.literal().equals(sub.objectName())) {
+                        next.add(sub);
+                    }
+                }
+            }
+            pendingPeeks = next;
+            return true;
+        }
+
         private WalkResult finishSurvivors() throws IOException {
             return PartitionPruningWalk.finishSurvivors(
                 collector,
@@ -1374,9 +1410,11 @@ final class PartitionPruningWalk {
                     }
                 }
             }
-            pendingPeeks = newPeeks != null ? newPeeks : List.of();
-
             if (level.identityLevel) {
+                if (advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
+                    level.continueWalk = false;
+                    return null;
+                }
                 for (StorageEntry file : level.levelFiles) {
                     collector.add(file);
                 }
@@ -1386,6 +1424,7 @@ final class PartitionPruningWalk {
                 level.continueWalk = true;
                 return null;
             }
+            pendingPeeks = newPeeks != null ? newPeeks : List.of();
             if (level.hintedLevel == false) {
                 if (descendUnhintedKeyedLevel(level.levelKeys, pending, keyedGlobKeys)) {
                     for (StorageEntry file : level.levelFiles) {

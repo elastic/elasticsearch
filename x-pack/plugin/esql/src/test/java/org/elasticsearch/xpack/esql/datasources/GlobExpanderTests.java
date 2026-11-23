@@ -5662,6 +5662,40 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Same type-widening as {@link #testGlobstarPrunedSubtreeSoleSourceOfTypeWideningCausesFlat}, but a TEMPLATE
+     * identity folder sits between placeholders. Clearing {@code pendingPeeks} at {@code data/} would peek
+     * {@code 2023/}'s children as month values ({@code "data"}) and miss {@code abc}. Advancing peeks through
+     * the identity lists {@code 2023/data/} and discovers the widening folder.
+     */
+    public void testTemplateIdentityPreservesPendingPeeksForTypeWidening() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/logs/2023/data/abc/a.parquet", 100), entry("s3://bucket/logs/2024/data/06/b.parquet", 100))
+        );
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6)
+        );
+        Map<String, Object> config = configMapOf(new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/data/{month}"));
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/data/*/*.parquet", provider, hints, config, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/logs/2023/data/abc/a.parquet", "s3://bucket/logs/2024/data/06/b.parquet"), paths(result));
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+        // year, identity data under the survivor, identity advance under the pruned year, month, then month peek.
+        assertEquals(
+            List.of(
+                "s3://bucket/logs/",
+                "s3://bucket/logs/2024/",
+                "s3://bucket/logs/2023/",
+                "s3://bucket/logs/2024/data/",
+                "s3://bucket/logs/2023/data/"
+            ),
+            provider.childListedPrefixes
+        );
+        assertEquals(List.of("s3://bucket/logs/2024/data/06/", "s3://bucket/logs/"), provider.listedPrefixes);
+    }
+
+    /**
      * Type consistency for a directly-pruned column: when the pruned folder is the sole source of the
      * type-widening value AND it is the pruned column itself (single-level partition), {@code walkTypesConsistent}
      * must still detect the mismatch. Before the fix, the method skipped pruned columns, so a walk that pruned

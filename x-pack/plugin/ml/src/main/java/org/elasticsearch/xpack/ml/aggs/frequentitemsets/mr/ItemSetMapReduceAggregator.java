@@ -88,9 +88,11 @@ public abstract class ItemSetMapReduceAggregator<
         boolean rewriteBasedOnOrdinals = false;
 
         for (var c : configsAndValueFilters) {
+            // a numeric field builds no filter, so without this its pattern would be accepted unchecked
+            IncludeExclude.validateRegex(c.v2(), context);
             ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()
                 .getAggregator(registryKey, c.v1())
-                .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx);
+                .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx, context);
             if (e.getField().getName() != null) {
                 fields.add(e.getField());
                 valueSources.add(e);

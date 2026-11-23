@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.aggregation.blockhash.RowKeyHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -143,6 +144,9 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
             if (o instanceof BytesRefHashTable h) {
                 return h.ramBytesUsed();
+            }
+            if (o instanceof RowKeyHash) {
+                return 0; // charged to the breaker but not reported by the operator, like the hash of STATS ... BY
             }
             return super.accumulateObject(o, shallowSize, fieldValues, queue);
         }

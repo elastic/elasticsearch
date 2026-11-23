@@ -29,7 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.FileTimestampResolver;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
@@ -446,7 +445,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
     }
 
     private BccBlob blobFile(long generation) {
-        return new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), termAndGen(1, generation));
+        return new BccBlob(BccBlob.blobNameFromGeneration(generation), termAndGen(1, generation));
     }
 
     private static PrimaryTermAndGeneration termAndGen(long term, long generation) {

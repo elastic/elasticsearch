@@ -29,12 +29,19 @@ public final class ExternalLimitSplits {
     public static final int DEFAULT_ROW_BYTES = 4096;
 
     /**
-     * Query-pragma default for {@code task_concurrency}: the search thread-pool size on an empty
-     * settings object. Discovery uses this when the caller did not pass a pragma value.
+     * Query-pragma default for {@code task_concurrency}: the search thread-pool size
+     * ({@code 1.5P+1}) for {@code nodeSettings}' allocated processors. Pass {@link Settings#EMPTY}
+     * only in tests.
      */
-    public static final int DEFAULT_TASK_CONCURRENCY = ThreadPool.searchOrGetThreadPoolSize(
-        EsExecutors.allocatedProcessors(Settings.EMPTY)
-    );
+    public static int defaultTaskConcurrency(Settings nodeSettings) {
+        return ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(nodeSettings));
+    }
+
+    /**
+     * Class-load default: {@link #defaultTaskConcurrency} on {@link Settings#EMPTY} (host JVM).
+     * Production must pass node settings.
+     */
+    public static final int DEFAULT_TASK_CONCURRENCY = defaultTaskConcurrency(Settings.EMPTY);
 
     /**
      * Minimum pages of work each pushed-LIMIT driver must have. Same number

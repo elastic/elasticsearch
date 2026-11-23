@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -53,7 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 public class InlinedSubqueryGuardedRelationsTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
-    private static final int HASH_JOIN_THRESHOLD = PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY);
+    private static final int HASH_JOIN_THRESHOLD = AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
     private static final BlockFactory BLOCK_FACTORY = TestBlockFactory.getNonBreakingInstance();
 
     /**

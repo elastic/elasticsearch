@@ -307,7 +307,8 @@ public class DatafeedJobBuilder {
     // visible for testing
     void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // ES|QL sources are in esql_query, not indices; remote checks live in EsqlDatafeedQueryValidator (#160858).
+            // ES|QL sources are in esql_query, not indices. TransportStartDatafeedAction probes them at start; a node without the role
+            // then fails in ES|QL at run time.
             if (datafeedConfig.getIndices() == null) {
                 return;
             }

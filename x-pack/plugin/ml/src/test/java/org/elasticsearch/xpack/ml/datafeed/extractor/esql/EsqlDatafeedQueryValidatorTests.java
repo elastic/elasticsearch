@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -81,17 +80,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     public void testComputedDateColumnWithoutTimeRoleShouldPassValidation() {
         assertValidationSucceeds(harness(row("event.ingested", "date")), validation().timeField("event.ingested"));
-    }
-
-    public void testRemoteClusterWithoutIndexExpressionShouldNameOnlyAlias() {
-        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
-            new EsqlClusterInfo("east", null, EsqlClusterInfo.Status.SUCCESSFUL)
-        );
-
-        Exception failure = assertValidationFails(harness, validation());
-
-        assertThat(failure.getMessage(), containsString("reads remote cluster [east] through index expression [east]."));
-        assertThat(failure.getMessage(), not(containsString("null")));
     }
 
     public void testRemoteClusterSourceWithUnknownIndexShouldDeferValidation() {
@@ -145,7 +133,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null,
             TIME_FIELD,
             null,
-            false,
             ActionListener.wrap(ok -> fail("expected validation failure"), failure::set),
             "feed-1"
         );
@@ -164,40 +151,76 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
     }
 
-    public void testRemoteClusterShouldFailValidation() {
+    public void testRemoteClusterSourceShouldPassValidation() {
         ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
             new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
-        );
-
-        Exception failure = assertValidationFails(harness, validation());
-
-        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.getMessage(), containsString("do not support remote cluster sources"));
-        assertThat(failure.getMessage(), containsString("reads remote cluster [east] through index expression [east:logs-*]."));
-    }
-
-    public void testRemoteClusterShouldBeCheckedBeforeColumns() {
-        ValidatorHarness harness = harness(row("other_field", "keyword")).withClusters(
-            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
-        );
-        assertThat(assertValidationFails(harness, validation()), instanceOf(ElasticsearchStatusException.class));
-    }
-
-    public void testLocalAndOriginClustersShouldPassValidation() {
-        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
-            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
-            new EsqlClusterInfo("_origin", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
         );
         assertValidationSucceeds(harness, validation());
     }
 
-    public void testRemoteClusterShouldPassValidationWhenCrossProjectIsEnabled() {
+    public void testRemoteIndexExpressionsShouldListOnlyRemoteClusters() {
         ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
-            new EsqlClusterInfo("linked-project-1", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("_origin", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("west", null, EsqlClusterInfo.Status.SUCCESSFUL)
         );
-        assertValidationSucceeds(harness, validation().crossProjectEnabled(true));
+
+        assertThat(remoteIndexExpressions(harness), equalTo(List.of("east:logs-*", "west:*")));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
+        assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
+    }
+
+    public void testRemoteIndexExpressionsGivenResponseWithoutDescribeColumnsShouldListRemoteClusters() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(List.of(new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)), List.of(), List.of())
+            )
+        );
+        assertThat(remoteIndexExpressions(harness), equalTo(List.of("east:logs-*")));
+    }
+
+    public void testRemoteIndexExpressionsShouldBeEmptyForLocalSource() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
+        );
+        assertThat(remoteIndexExpressions(harness), equalTo(List.of()));
+    }
+
+    public void testRemoteIndexExpressionsShouldBeEmptyWhenSourceDoesNotExistYet() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new VerificationException("Found 1 problem\nline 1:1: Unknown index [east:logs-new]")
+        );
+        assertThat(remoteIndexExpressions(harness), equalTo(List.of()));
+    }
+
+    public void testRemoteIndexExpressionsShouldPropagateOtherFailures() {
+        ValidatorHarness harness = new ValidatorHarness(new IllegalStateException("boom"));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.validator.remoteIndexExpressions(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(remote -> fail("expected failure"), failure::set),
+            null
+        );
+        assertThat(failure.get(), instanceOf(IllegalStateException.class));
+    }
+
+    private List<String> remoteIndexExpressions(ValidatorHarness harness) {
+        AtomicReference<List<String>> remote = new AtomicReference<>();
+        harness.validator.remoteIndexExpressions(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(remote::set, e -> fail("unexpected failure " + e)),
+            null
+        );
+        assertThat(remote.get(), notNullValue());
+        return remote.get();
     }
 
     public void testIndexNotFoundShouldSucceedValidation() {
@@ -754,7 +777,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         private String projectRouting;
         private String timeField = TIME_FIELD;
         private String summaryCountField;
-        private boolean crossProjectEnabled;
 
         Validation query(String query) {
             this.query = query;
@@ -776,11 +798,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             return this;
         }
 
-        Validation crossProjectEnabled(boolean crossProjectEnabled) {
-            this.crossProjectEnabled = crossProjectEnabled;
-            return this;
-        }
-
         void run(ValidatorHarness harness, ActionListener<Boolean> listener) {
             harness.validator.validateQuery(
                 null,
@@ -789,7 +806,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 projectRouting,
                 timeField,
                 summaryCountField,
-                crossProjectEnabled,
                 listener,
                 null
             );

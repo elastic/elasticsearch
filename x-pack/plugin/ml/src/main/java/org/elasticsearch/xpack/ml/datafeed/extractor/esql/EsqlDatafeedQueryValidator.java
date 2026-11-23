@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.time.DateTimeException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -63,8 +65,6 @@ public class EsqlDatafeedQueryValidator {
     // https://github.com/elastic/elasticsearch/pull/166439 releases it. Until then validateQuery rejects ES|QL datafeeds in release
     // builds with a clear error; remove that guard once DESCRIBE is released.
     private static final String DESCRIBE = "\n| DESCRIBE";
-    /** Under cross-project search {@code _origin} names the local project, so it is not a remote. */
-    private static final String ORIGIN_PROJECT_ALIAS = "_origin";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
@@ -106,9 +106,8 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Runs {@code esqlQuery | DESCRIBE} filtered to the required columns, with {@code _clusters} metadata, and checks:
-     * no remote clusters (unless cross-project), that the time column is a date, and the summary count column.
-     * Tolerates deferred source existence.
+     * Runs {@code esqlQuery | DESCRIBE} filtered to the required columns and checks that the time column is a date and the summary
+     * count column. Tolerates deferred source existence.
      */
     public void validateQuery(
         Client client,
@@ -117,7 +116,6 @@ public class EsqlDatafeedQueryValidator {
         @Nullable String projectRouting,
         String timeField,
         @Nullable String summaryCountField,
-        boolean crossProjectEnabled,
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
@@ -139,13 +137,7 @@ public class EsqlDatafeedQueryValidator {
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
-                checkDescription(
-                    EsqlQueryDescription.from(response.response()),
-                    timeField,
-                    summaryCountField,
-                    crossProjectEnabled,
-                    datafeedId
-                );
+                checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -155,9 +147,6 @@ public class EsqlDatafeedQueryValidator {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
                 // Source may not exist yet; skip column checks (same as DSL datafeed PUT).
-                // There is no response, so there is no _clusters either: a remote source whose index does not exist yet passes PUT.
-                // MUST FIX before production: check remote sources at datafeed start. See
-                // https://github.com/elastic/elasticsearch/issues/161207
                 logger.debug(() -> "[" + datafeedId + "] ES|QL DESCRIBE probe failed with [" + cause + "]. Deferring to runtime.");
                 listener.onResponse(Boolean.TRUE);
             } else {
@@ -168,6 +157,53 @@ public class EsqlDatafeedQueryValidator {
         queryRunner.executeAsync(
             client,
             describeQuery,
+            null,
+            headers,
+            projectRouting,
+            List.of(),
+            ExecutionMetadata.CCS_ONLY,
+            responseListener
+        );
+    }
+
+    /**
+     * Runs {@code esqlQuery | LIMIT 0} with {@code _clusters} metadata and returns the remote sources the query reads as
+     * {@code cluster:index_expression}, so datafeed start can apply the same remote-cluster checks as for a DSL datafeed. The local
+     * cluster and the cross-project {@code _origin} qualifier are not remote. A source that does not exist yet reports no clusters.
+     */
+    public void remoteIndexExpressions(
+        Client client,
+        Map<String, String> headers,
+        String esqlQuery,
+        @Nullable String projectRouting,
+        ActionListener<List<String>> listener,
+        @Nullable String datafeedId
+    ) {
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            List<String> remote = new ArrayList<>();
+            for (EsqlClusterInfo cluster : response.response().clusters()) {
+                String alias = cluster.clusterAlias();
+                if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
+                    continue;
+                }
+                // An unknown expression still names a remote cluster, so keep it for the cluster-level checks.
+                remote.add(
+                    alias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + Objects.requireNonNullElse(cluster.indexExpression(), "*")
+                );
+            }
+            listener.onResponse(List.copyOf(remote));
+        }, e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (isDeferredExistenceFailure(cause)) {
+                logger.debug(() -> "[" + datafeedId + "] ES|QL remote source probe failed with [" + cause + "]. Deferring to runtime.");
+                listener.onResponse(List.of());
+            } else {
+                listener.onFailure(e);
+            }
+        });
+        queryRunner.executeAsync(
+            client,
+            EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO),
             null,
             headers,
             projectRouting,
@@ -197,23 +233,9 @@ public class EsqlDatafeedQueryValidator {
         EsqlQueryDescription description,
         String timeField,
         @Nullable String summaryCountField,
-        boolean crossProjectEnabled,
         @Nullable String datafeedId
     ) {
         String subject = esqlDatafeedSubject(datafeedId);
-        if (crossProjectEnabled == false) {
-            for (EsqlClusterInfo cluster : description.clusters()) {
-                String alias = cluster.clusterAlias();
-                if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) == false && alias.equals(ORIGIN_PROJECT_ALIAS) == false) {
-                    String expression = cluster.indexExpression() == null
-                        ? alias
-                        : alias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + cluster.indexExpression();
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED, subject, alias, expression)
-                    );
-                }
-            }
-        }
         Map<String, String> columnTypes = description.columnTypes();
         checkRequiredColumns(columnTypes, timeField, summaryCountField, datafeedId);
         String timeType = columnTypes.get(timeField);

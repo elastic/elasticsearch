@@ -111,9 +111,6 @@ public final class Messages {
     public static final String DATAFEED_ESQL_CREATE_UPGRADE_IN_PROGRESS =
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
-    public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
-        "{0} reads remote cluster [{1}] through index expression [{2}]. "
-            + "ES|QL datafeeds do not support remote cluster sources. Remove the cluster prefix and query local indices only.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

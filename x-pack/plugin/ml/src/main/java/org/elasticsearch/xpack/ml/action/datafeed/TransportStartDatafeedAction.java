@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -82,6 +83,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -111,6 +113,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator = new EsqlDatafeedQueryValidator();
 
     @Inject
     public TransportStartDatafeedAction(
@@ -231,8 +234,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             };
 
         // Verify data extractor factory can be created, then start persistent task
-        Consumer<Job> createDataExtractor = job -> {
-            final List<String> remoteIndices = trueRemoteIndices(params.getDatafeedIndices());
+        BiConsumer<Job, List<String>> checkRemoteSourcesAndCreateExtractor = (job, remoteIndices) -> {
             if (remoteIndices.isEmpty() == false) {
                 if (remoteClusterClient == false) {
                     responseHeaderPreservingListener.onFailure(
@@ -240,7 +242,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             Messages.getMessage(
                                 Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
                                 datafeedConfigHolder.get().getId(),
-                                RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                datafeedConfigHolder.get().getEsqlQuery() == null
+                                    ? RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices())
+                                    : remoteIndices,
                                 clusterService.getNodeName()
                             )
                         )
@@ -307,6 +311,39 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             } else {
                 createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }
+        };
+
+        // An ES|QL datafeed has no index list, so ask ES|QL which remote clusters the query reads. Cross-project mode has projects,
+        // not remote clusters, so it has nothing to check.
+        Consumer<Job> createDataExtractor = job -> {
+            DatafeedConfig datafeed = datafeedConfigHolder.get();
+            if (datafeed.getEsqlQuery() == null) {
+                checkRemoteSourcesAndCreateExtractor.accept(job, trueRemoteIndices(params.getDatafeedIndices()));
+                return;
+            }
+            DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+                datafeed,
+                crossProjectModeDecider,
+                datafeed.getCloudInternalCredential() != null
+            );
+            if (isCrossProjectMode(effectiveDatafeed)) {
+                checkRemoteSourcesAndCreateExtractor.accept(job, List.of());
+                return;
+            }
+            Client probeClient = CloudCredentialsExtension.getInstance()
+                .credentialManager()
+                .wrapClient(client, datafeed.getCloudInternalCredential());
+            esqlQueryValidator.remoteIndexExpressions(
+                probeClient,
+                datafeed.getHeaders(),
+                datafeed.getEsqlQuery(),
+                datafeed.getProjectRouting(),
+                ActionListener.wrap(
+                    remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, remoteIndices),
+                    responseHeaderPreservingListener::onFailure
+                ),
+                datafeed.getId()
+            );
         };
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {

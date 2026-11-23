@@ -427,21 +427,32 @@ public final class CsvAssert {
             if (expectedList.size() != actualList.size()) {
                 return false;
             }
-            for (int i = 0; i < expectedList.size(); i++) {
-                if (ignoreValueOrder) {
+            if (ignoreValueOrder) {
+                // Multiset comparison: each actual element satisfies at most one expected element.
+                // A plain containment check (find any match, without consuming it) accepts
+                // duplicate-skewed lists such as expected [a, a, b] vs actual [a, b, b], hiding a
+                // genuine value difference. Greedy matching with consumption is exact when element
+                // equality is an equivalence relation, which holds for everything here except
+                // Range expectations; for those greedy is an approximation, acceptable because a
+                // Range inside a multi-value cell is rare and overlap rarer still.
+                boolean[] used = new boolean[actualList.size()];
+                for (int i = 0; i < expectedList.size(); i++) {
                     boolean found = false;
                     for (int j = 0; j < actualList.size() && found == false; j++) {
-                        if (equals(expectedList.get(i), actualList.get(j), true)) {
+                        if (used[j] == false && equals(expectedList.get(i), actualList.get(j), true)) {
+                            used[j] = true;
                             found = true;
                         }
                     }
                     if (found == false) {
                         return false;
                     }
-                } else {
-                    if (equals(expectedList.get(i), actualList.get(i), ignoreValueOrder) == false) {
-                        return false;
-                    }
+                }
+                return true;
+            }
+            for (int i = 0; i < expectedList.size(); i++) {
+                if (equals(expectedList.get(i), actualList.get(i), false) == false) {
+                    return false;
                 }
             }
             return true;

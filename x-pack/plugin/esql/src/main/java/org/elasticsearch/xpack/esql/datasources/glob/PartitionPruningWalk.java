@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.WalkLayout;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -54,20 +53,20 @@ import java.util.function.Predicate;
  * value ({@link PartitionValueMatcher}, shared with the read layer), so e.g. {@code month == 6} keeps a
  * zero-padded {@code 06} (or {@code month=06}) and a NULL partition is never pruned.
  *
- * <p><b>Fail-closed.</b> Returning {@code null} means "use the flat listing", always correct since the walk is only
- * an optimisation. The walk declines when the provider cannot enumerate directories (or a directory exceeds
- * {@link #MAX_LISTED_CHILDREN}), when a listing fails mid-walk, and after one probe listing when no level matched a
- * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
- * is a deeper partition key or a data column is unknowable without listing every level in between, and
- * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively
- * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
- * unhinted leading identity key when a hinted key of that glob is still pending. A TEMPLATE layout has known
- * depth, so leftover pending after the last glob-directory level finishes survivors instead of listing past
- * the layout and withdrawing.
- * Survivors are finished with one recursive listing each, but only when something was pruned and
- * {@link #cheaperToFinish} says the remaining listings cost no more LIST pages than one flat listing of the
- * prefix (the first survivor is already listed); otherwise the walk returns {@code null} and the caller
- * flat-lists.
+ * <p><b>Fail-closed.</b> Returning {@code null} means "use the flat listing", a superset, used when the walk cannot
+ * prove a narrowing: the provider cannot enumerate directories (or a directory exceeds {@link #MAX_LISTED_CHILDREN}),
+ * after one probe listing when no level matched a hint (typically a data-column filter), and at the first level no
+ * pending hint matches — whether a pending hint is a deeper partition key or a data column is unknowable without
+ * listing every level in between, and {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk
+ * never descends speculatively on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may
+ * descend an unhinted leading identity key when a hinted key of that glob is still pending. A TEMPLATE layout has
+ * known depth, so leftover pending after the last glob-directory level finishes survivors instead of listing past
+ * the layout and withdrawing. A mid-walk store {@link IOException} is not a withdraw: it fails the listing rather
+ * than flattening the prefix. Transient retries sit on the storage provider; this class does not add a second retry.
+ * Limit errors ({@link DiscoveredFilesLimitException}) likewise propagate. Survivors are finished with one recursive
+ * listing each, but only when something was pruned and {@link #cheaperToFinish} says the remaining listings cost no
+ * more LIST pages than one flat listing of the prefix (the first survivor is already listed); otherwise the walk
+ * returns {@code null} and the caller flat-lists.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -205,8 +204,9 @@ final class PartitionPruningWalk {
     ) {}
 
     /**
-     * Walks the tree under {@code prefix}, or returns {@code null} when the caller should fall back to the flat
-     * listing — including on a mid-walk listing failure, which the flat listing will surface on its own if genuine.
+     * Walks the tree under {@code prefix}, or returns {@code null} when the caller should fall back to the
+     * flat listing (unprovable narrowing). A store {@link IOException} is thrown rather than converted to a
+     * flat listing of the prefix.
      */
     @Nullable
     static WalkResult tryWalk(
@@ -217,7 +217,7 @@ final class PartitionPruningWalk {
         List<PartitionFilterHint> hints,
         int maxDiscoveredFiles,
         String glob
-    ) {
+    ) throws IOException {
         return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, null, null);
     }
 
@@ -230,7 +230,7 @@ final class PartitionPruningWalk {
         int maxDiscoveredFiles,
         String glob,
         @Nullable FolderRangePredicate folderRange
-    ) {
+    ) throws IOException {
         return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, folderRange, null, Integer.MAX_VALUE);
     }
 
@@ -244,7 +244,7 @@ final class PartitionPruningWalk {
         String glob,
         @Nullable FolderRangePredicate folderRange,
         @Nullable Predicate<StorageEntry> fileKeep
-    ) {
+    ) throws IOException {
         return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, folderRange, fileKeep, Integer.MAX_VALUE);
     }
 
@@ -259,7 +259,7 @@ final class PartitionPruningWalk {
         @Nullable FolderRangePredicate folderRange,
         @Nullable Predicate<StorageEntry> fileKeep,
         int maxListedObjects
-    ) {
+    ) throws IOException {
         return tryWalk(
             provider,
             prefix,
@@ -289,7 +289,7 @@ final class PartitionPruningWalk {
         int maxListedObjects,
         int maxDirectoryListings,
         BooleanSupplier cancelled
-    ) {
+    ) throws IOException {
         return tryWalk(
             provider,
             prefix,
@@ -321,39 +321,32 @@ final class PartitionPruningWalk {
         int maxDirectoryListings,
         BooleanSupplier cancelled,
         @Nullable String pathTemplate
-    ) {
-        try {
-            return walk(
-                provider,
-                prefix,
-                matcher,
-                nameFilter,
-                hints,
-                maxDiscoveredFiles,
-                glob,
-                folderRange,
-                fileKeep,
-                maxListedObjects,
-                maxDirectoryListings,
-                cancelled,
-                pathTemplate
-            );
-        } catch (TaskCancelledException | ExternalUnavailableException e) {
-            throw e;
-        } catch (IOException e) {
-            logger.debug("Partition-pruning walk of [{}] failed; falling back to a flat listing", prefix, e);
-            return null;
-        }
+    ) throws IOException {
+        return walk(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            pathTemplate
+        );
     }
 
     /**
      * Async counterpart of {@link #tryWalk}: each directory level and each retroactive peek batch is
      * listed concurrently on {@code executor} via {@link ThrottledIterator}, results merged in
      * directory-slot order. The calling thread is not blocked; {@code listener} fires on an executor
-     * thread. A failed or cancelled child fails the walk closed ({@code null} for {@link IOException},
-     * {@link TaskCancelledException} for cancel, other failures on {@code listener.onFailure}).
-     * Output and LIST count match the sequential walk: peeks consume the remaining listing budget
-     * greedily, then fail closed if any peek was skipped.
+     * thread. A cancelled child fails with {@link TaskCancelledException}. A store {@link IOException}
+     * fails the listener rather than completing with {@code null}. {@code null} remains a walk withdraw
+     * (unsupported {@code listChildren}, ceiling, stray). Output and LIST count match the sequential
+     * walk: peeks consume the remaining listing budget greedily, then fail closed if any peek was skipped.
      */
     static void tryWalkAsync(
         StorageProvider provider,
@@ -431,14 +424,7 @@ final class PartitionPruningWalk {
             listener.onFailure(e);
             return;
         }
-        session.runAsync(Math.max(1, concurrency), executor, listener.delegateResponse((l, e) -> {
-            if (e instanceof IOException) {
-                logger.debug("Partition-pruning walk of [{}] failed; falling back to a flat listing", prefix, e);
-                l.onResponse(null);
-            } else {
-                l.onFailure(e);
-            }
-        }));
+        session.runAsync(Math.max(1, concurrency), executor, listener);
     }
 
     /**
@@ -790,9 +776,9 @@ final class PartitionPruningWalk {
                                 );
                                 discardSlotResults(results);
                             } else if (children == null) {
-                                // Same as sequential: a null child withdraws the walk. Treat as failure so
-                                // unstarted siblings skip and LIST count stays close to sequential.
-                                failure.compareAndSet(null, new IOException("listChildren unsupported or too wide"));
+                                // Same as sequential: a null child withdraws the walk. Signal so
+                                // unstarted siblings skip; completion maps this to onResponse(null).
+                                failure.compareAndSet(null, new ListChildrenUnsupported());
                                 discardSlotResults(results);
                             } else {
                                 results.set(i, children);
@@ -837,6 +823,10 @@ final class PartitionPruningWalk {
                 return;
             }
             Exception e = failure.get();
+            if (e instanceof ListChildrenUnsupported) {
+                listener.onResponse(null);
+                return;
+            }
             if (e != null) {
                 discardSlotResults(results);
                 listener.onFailure(e);
@@ -1608,6 +1598,16 @@ final class PartitionPruningWalk {
                 fileKeepStash,
                 globKeptCount
             );
+        }
+    }
+
+    /**
+     * {@link StorageProvider#listChildren} returned {@code null}: the walk cannot continue and the caller
+     * falls back to a flat listing. Not a store failure.
+     */
+    private static final class ListChildrenUnsupported extends IOException {
+        ListChildrenUnsupported() {
+            super("listChildren unsupported or too wide");
         }
     }
 }

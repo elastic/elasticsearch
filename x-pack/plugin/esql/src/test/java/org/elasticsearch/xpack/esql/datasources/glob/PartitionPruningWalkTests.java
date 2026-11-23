@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.junit.After;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +60,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.W
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expand;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expandAsync;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.folderRange;
@@ -264,25 +268,23 @@ public class PartitionPruningWalkTests extends ESTestCase {
         List<StorageEntry> tree = fieldShapedTree();
         List<Expression> filters = List.of(window(LAST_DAY, NOW));
         FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
-        ListingWalkHarness provider = new ListingWalkHarness(tree);
-        provider.setFailListChildrenContaining("/month=");
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+
+        ListingWalkHarness sequential = new ListingWalkHarness(tree);
+        sequential.setFailListChildrenContaining("/month=");
+        assertInjectedListingFailureWithoutFlatListing(() -> tryWalk(sequential, hints, pred, () -> false), sequential);
+
+        ListingWalkHarness parallel = new ListingWalkHarness(tree);
+        parallel.setFailListChildrenContaining("/month=");
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            PartitionPruningWalk.WalkResult parallel = tryWalkAsync(
-                provider,
-                listingHints(filters, DAY_SPEC),
-                pred,
-                () -> false,
-                4,
-                threadPool.generic()
+            assertInjectedListingFailureWithoutFlatListing(
+                () -> tryWalkAsync(parallel, hints, pred, () -> false, 4, threadPool.generic()),
+                parallel
             );
-            assertNull("failed sub-listing must fail the walk closed", parallel);
         } finally {
             terminate(threadPool);
         }
-        ListingWalkHarness sequential = new ListingWalkHarness(tree);
-        sequential.setFailListChildrenContaining("/month=");
-        assertNull(tryWalk(sequential, listingHints(filters, DAY_SPEC), pred, () -> false));
     }
 
     public void testParallelWalkNullChildSkipsUnstarted() throws Exception {
@@ -322,6 +324,62 @@ public class PartitionPruningWalkTests extends ESTestCase {
             PlainActionFuture<FileList> future = new PlainActionFuture<>();
             expandAsync(provider, LOGS_GLOB, listingHints(filters, DAY_SPEC), Integer.MAX_VALUE, pred, 4, threadPool.generic(), future);
             expectThrows(ExternalUnavailableException.class, future::actionGet);
+            assertEquals(0, provider.listObjectPages());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testExpandPropagatesIOExceptionFromWalkWithoutFlatListing() throws Exception {
+        List<Expression> filters = List.of(window(LAST_DAY, NOW));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+
+        ListingWalkHarness sequential = new ListingWalkHarness(fieldShapedTree());
+        sequential.setFailListChildrenContaining("/month=");
+        assertInjectedListingFailureWithoutFlatListing(
+            () -> expand(sequential, LOGS_GLOB, hints, Integer.MAX_VALUE, pred, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS),
+            sequential
+        );
+
+        ListingWalkHarness parallel = new ListingWalkHarness(fieldShapedTree());
+        parallel.setFailListChildrenContaining("/month=");
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            expandAsync(parallel, LOGS_GLOB, hints, Integer.MAX_VALUE, pred, 4, threadPool.generic(), future);
+            assertInjectedListingFailureWithoutFlatListing(future::actionGet, parallel);
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testExpandPropagatesDiscoveredFilesLimitFromWalkWithoutFlatListing() throws Exception {
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        String prefixListing = ListingWalkHarness.WIDE_HIVE_PREFIX + "/";
+
+        ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
+        expectThrows(
+            DiscoveredFilesLimitException.class,
+            () -> PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> expand(sequential, WIDE_HIVE_GLOB, hints, 0, pred, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS)
+            )
+        );
+        assertFalse("file cap must not prefix-list the dataset", sequential.listedPrefixes().contains(prefixListing));
+
+        ListingWalkHarness parallel = new ListingWalkHarness(wideHiveTree());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            PartitionPruningWalk.withFinishMode(PartitionPruningWalk.FinishMode.ALWAYS_FINISH, () -> {
+                expandAsync(parallel, WIDE_HIVE_GLOB, hints, 0, pred, 4, threadPool.generic(), future);
+                return null;
+            });
+            expectThrows(DiscoveredFilesLimitException.class, future::actionGet);
+            assertFalse("async file cap must not prefix-list the dataset", parallel.listedPrefixes().contains(prefixListing));
         } finally {
             terminate(threadPool);
         }
@@ -762,12 +820,20 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    private static void assertInjectedListingFailureWithoutFlatListing(CheckedRunnable<Exception> walk, ListingWalkHarness provider) {
+        Exception thrown = expectThrows(Exception.class, walk::run);
+        Throwable io = thrown instanceof IOException ? thrown : ExceptionsHelper.unwrap(thrown, IOException.class);
+        assertNotNull("expected IOException, got " + thrown, io);
+        assertEquals("injected listing failure", io.getMessage());
+        assertEquals(0, provider.listObjectPages());
+    }
+
     private static PartitionPruningWalk.WalkResult tryWalk(
         ListingWalkHarness provider,
         List<PartitionFilterHint> hints,
         FolderRangePredicate pred,
         BooleanSupplier cancelled
-    ) {
+    ) throws IOException {
         return tryWalk(provider, LOGS_GLOB, hints, pred, cancelled);
     }
 
@@ -777,7 +843,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
         List<PartitionFilterHint> hints,
         FolderRangePredicate pred,
         BooleanSupplier cancelled
-    ) {
+    ) throws IOException {
         return tryWalk(provider, glob, hints, pred, cancelled, Integer.MAX_VALUE, PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS);
     }
 
@@ -789,7 +855,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
         BooleanSupplier cancelled,
         int maxDiscoveredFiles,
         int maxDirectoryListings
-    ) {
+    ) throws IOException {
         StoragePath globPath = StoragePath.of(glob);
         return PartitionPruningWalk.tryWalk(
             provider,

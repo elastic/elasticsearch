@@ -1437,9 +1437,10 @@ public final class GlobExpander {
         boolean recursive = matcher.needsRecursion();
 
         // A globstar, or a leading Hive key=*, names a partition level the textual rewrite cannot always narrow
-        // (a multi-value hint leaves key=*). The walk narrows the enumeration itself. Every declined or failed
-        // shape falls through to the flat listing below; see PartitionPruningWalk for the fail-closed rules and
-        // the trust boundary. There is no brace retry: a guessed spelling drops percent-encoded folders.
+        // (a multi-value hint leaves key=*). The walk narrows the enumeration itself. Every declined shape
+        // (unprovable narrowing) falls through to the flat listing below; a store failure or discovery-cap
+        // error does not. See PartitionPruningWalk for the fail-closed rules and the trust boundary.
+        // There is no brace retry: a guessed spelling drops percent-encoded folders.
         // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
         // requests; the flat path asks the store for the pattern's literal lead and filters the rest, which is a
         // page per thousand keys, or one request where the lead is selective AND the provider narrows on it --

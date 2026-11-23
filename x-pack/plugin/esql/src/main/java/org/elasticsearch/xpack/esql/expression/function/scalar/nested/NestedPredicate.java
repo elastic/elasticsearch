@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -284,7 +285,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
                 toEvaluator.shardContexts().map(shard -> new ShardConfig(shard.toQuery(queryBuilder), shard.searcher()))
             );
         }
-        Query matchingChildren = childFilter == null ? null : luceneChildFilter(toEvaluator);
+        IndexedByShardId<Query> matchingChildren = childFilter == null ? null : luceneChildFilter(toEvaluator);
         Layout layout = new Layout.Builder().append(inputs).build();
         ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluatorContext(layout, toEvaluator).apply(body);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
@@ -312,15 +313,16 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     }
 
     /**
-     * The child filter as a query over child documents. {@link EsPhysicalOperationProviders.ShardContext#toQuery} would add
+     * The child filter as a query over each shard's child documents. Each shard builds its own query, because a query built
+     * for one mapping is not a match against another. {@link EsPhysicalOperationProviders.ShardContext#toQuery} would add
      * the non-nested filter, which drops the children this query has to match.
      */
-    private Query luceneChildFilter(EvaluatorMapper.ToEvaluator toEvaluator) {
-        for (EsPhysicalOperationProviders.ShardContext shard : toEvaluator.shardContexts().iterable()) {
+    private IndexedByShardId<Query> luceneChildFilter(EvaluatorMapper.ToEvaluator toEvaluator) {
+        return toEvaluator.shardContexts().map(shard -> {
             if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext context) {
                 return context.executionContext().toQuery(childFilter).query();
             }
-        }
-        throw new IllegalStateException("NESTED_ANY child filter needs a shard to build its query");
+            throw new IllegalStateException("NESTED_ANY child filter needs a shard to build its query");
+        });
     }
 }

@@ -258,13 +258,14 @@ public final class NestedChildren implements Releasable {
     /**
      * As {@link #read(DocVector, IntPredicate, IntPredicate, Consumer)}, but a child that does not match
      * {@code matchingChildren} is omitted before its fields are loaded, and its parent position is omitted with it.
-     * {@code matchingChildren} is {@code null} when every child is read. A page whose children all miss is not delivered.
+     * {@code matchingChildren} holds the query built for each shard, or is {@code null} when every child is read. A page
+     * whose children all miss is not delivered.
      */
     void read(
         DocVector parents,
         IntPredicate included,
         IntPredicate keepReading,
-        @Nullable Query matchingChildren,
+        @Nullable IndexedByShardId<Query> matchingChildren,
         Consumer<Page> consumer
     ) {
         parents.ensureAttached("NESTED");
@@ -314,16 +315,16 @@ public final class NestedChildren implements Releasable {
     }
 
     /**
-     * Scores an already enumerated child batch against one query, compacting the shard, segment, doc, and parent-position
-     * buffers together. A weight is built once per shard and advanced through each segment's doc ids.
+     * Scores an already enumerated child batch against each shard's own query, compacting the shard, segment, doc, and
+     * parent-position buffers together. A weight is built once per shard and advanced through each segment's doc ids.
      */
     private static final class ChildSelector {
-        private final Query query;
+        private final IndexedByShardId<Query> queries;
         private final IndexedByShardId<Shard> shards;
         private final Map<Integer, Weight> weights = new HashMap<>();
 
-        private ChildSelector(Query query, IndexedByShardId<Shard> shards) {
-            this.query = query;
+        private ChildSelector(IndexedByShardId<Query> queries, IndexedByShardId<Shard> shards) {
+            this.queries = queries;
             this.shards = shards;
         }
 
@@ -371,7 +372,7 @@ public final class NestedChildren implements Releasable {
             Weight weight = weights.get(shardId);
             if (weight == null) {
                 IndexSearcher searcher = new IndexSearcher(shards.get(shardId).reader());
-                weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                weight = searcher.createWeight(searcher.rewrite(queries.get(shardId)), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 weights.put(shardId, weight);
             }
             return weight;

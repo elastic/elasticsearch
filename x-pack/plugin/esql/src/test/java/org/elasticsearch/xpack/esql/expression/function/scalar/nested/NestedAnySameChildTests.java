@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -23,12 +25,18 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -62,8 +70,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * {@code NESTED_ANY(items, sku == "a" AND qty * price > 100)} on real nested documents. The sku term selects child
@@ -80,6 +90,20 @@ public class NestedAnySameChildTests extends ComputeTestCase {
                   "sku": { "type": "keyword" },
                   "qty": { "type": "long" },
                   "price": { "type": "long" }
+                }
+              }
+            }
+          }
+        }
+        """;
+    private static final String NORMALIZED_MAPPING = """
+        {
+          "_doc": {
+            "properties": {
+              "items": {
+                "type": "nested",
+                "properties": {
+                  "sku": { "type": "keyword", "normalizer": "lowercase" }
                 }
               }
             }
@@ -130,31 +154,37 @@ public class NestedAnySameChildTests extends ComputeTestCase {
             DocBlock parents = parents(parentDocs);
             var evaluator = EvalMapper.toEvaluator(FoldContext.small(), product, layout).get(driverContext)
         ) {
-            children.read(parents.asVector(), position -> true, position -> matched[position] == false, sku, page -> {
-                IntVector parentPositions = page.<IntBlock>getBlock(0).asVector();
-                Page fields = page.projectBlocks(new int[] { 1, 2 });
-                Block values = null;
-                try {
-                    values = evaluator.eval(fields);
-                    for (int c = 0; c < page.getPositionCount(); c++) {
-                        loaded.add(
-                            row(
-                                parentPositions.getInt(c),
-                                BlockUtils.toJavaObject(page.<Block>getBlock(1), c),
-                                BlockUtils.toJavaObject(page.<Block>getBlock(2), c)
-                            )
-                        );
-                        if (values.getValueCount(c) == 1 && Boolean.TRUE.equals(BlockUtils.toJavaObject(values, c))) {
-                            matched[parentPositions.getInt(c)] = true;
+            children.read(
+                parents.asVector(),
+                position -> true,
+                position -> matched[position] == false,
+                new IndexedByShardIdFromSingleton<>(sku),
+                page -> {
+                    IntVector parentPositions = page.<IntBlock>getBlock(0).asVector();
+                    Page fields = page.projectBlocks(new int[] { 1, 2 });
+                    Block values = null;
+                    try {
+                        values = evaluator.eval(fields);
+                        for (int c = 0; c < page.getPositionCount(); c++) {
+                            loaded.add(
+                                row(
+                                    parentPositions.getInt(c),
+                                    BlockUtils.toJavaObject(page.<Block>getBlock(1), c),
+                                    BlockUtils.toJavaObject(page.<Block>getBlock(2), c)
+                                )
+                            );
+                            if (values.getValueCount(c) == 1 && Boolean.TRUE.equals(BlockUtils.toJavaObject(values, c))) {
+                                matched[parentPositions.getInt(c)] = true;
+                            }
                         }
+                    } finally {
+                        if (values != null) {
+                            values.close();
+                        }
+                        fields.releaseBlocks();
                     }
-                } finally {
-                    if (values != null) {
-                        values.close();
-                    }
-                    fields.releaseBlocks();
                 }
-            });
+            );
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         assertThat(loaded, equalTo(List.of(row(0, 1L, 10L), row(1, 10L, 20L), row(2, 10L, null))));
@@ -202,6 +232,55 @@ public class NestedAnySameChildTests extends ComputeTestCase {
             assertThat(flags.getBoolean(flags.getFirstValueIndex(2)), equalTo(false));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The plain keyword indexes {@code A} and the normalized keyword indexes it as {@code a}. A query built on the first
+     * shard looks for {@code A} and misses the second shard's child.
+     */
+    public void testEachShardBuildsItsOwnChildQuery() throws IOException {
+        try (
+            OpenIndex plain = openIndex(0, MAPPING, "{\"items\":[{\"sku\":\"A\"}]}");
+            OpenIndex normalized = openIndex(1, NORMALIZED_MAPPING, "{\"items\":[{\"sku\":\"A\"}]}")
+        ) {
+            var childFilter = QueryBuilders.termQuery("items.sku", "A");
+            Query plainQuery = plain.shard.executionContext().toQuery(childFilter).query();
+            Query normalizedQuery = normalized.shard.executionContext().toQuery(childFilter).query();
+            assertThat(plainQuery, not(equalTo(normalizedQuery)));
+            assertThat(new IndexSearcher(normalized.reader).count(plainQuery), equalTo(0));
+            assertThat(new IndexSearcher(normalized.reader).count(normalizedQuery), equalTo(1));
+            NestedPredicate predicate = new NestedPredicate(
+                Source.EMPTY,
+                "items",
+                Literal.TRUE,
+                List.of(),
+                List.of(),
+                null,
+                childFilter,
+                EsqlTestUtils.TEST_CFG
+            );
+            Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE)).build();
+            var blockFactory = blockFactory();
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+            try (
+                var evaluator = EvalMapper.toEvaluator(
+                    FoldContext.small(),
+                    predicate,
+                    layout,
+                    new IndexedByShardIdFromList<>(List.of(plain.shard, normalized.shard)),
+                    null,
+                    PlannerSettings.DEFAULTS
+                ).get(driverContext);
+                DocBlock.Builder parents = DocBlock.newBlockBuilder(blockFactory, 2);
+                Page page = parentPage(parents, plain, normalized);
+                Block result = evaluator.eval(page)
+            ) {
+                BooleanBlock flags = (BooleanBlock) result;
+                assertThat(flags.getBoolean(flags.getFirstValueIndex(0)), equalTo(true));
+                assertThat(flags.getBoolean(flags.getFirstValueIndex(1)), equalTo(true));
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        }
     }
 
     /** One child matches the sku and another, different, child is the expensive product. */
@@ -281,9 +360,55 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         return Arrays.asList(values);
     }
 
+    private OpenIndex openIndex(int shardId, String mapping, String source) throws IOException {
+        MapperService mapperService = mapperHelper.create(Settings.EMPTY, mapping);
+        Directory directory = newDirectory();
+        int parentDoc;
+        IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            .setRAMBufferSizeMB(256);
+        try (IndexWriter writer = new IndexWriter(directory, config)) {
+            ParsedDocument parsed = mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON));
+            writer.addDocuments(parsed.docs());
+            parentDoc = parsed.docs().size() - 1;
+        }
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), new ShardId(mapperService.index(), 0));
+        SearchExecutionContext context = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader, false));
+        var shard = new EsPhysicalOperationProviders.DefaultShardContext(shardId, new NoOpReleasable(), context, AliasFilter.EMPTY);
+        return new OpenIndex(mapperService, directory, reader, shard, parentDoc);
+    }
+
+    private Page parentPage(DocBlock.Builder parents, OpenIndex plain, OpenIndex normalized) {
+        parents.appendShard(plain.shard.index()).appendSegment(0).appendDoc(plain.parentDoc);
+        parents.appendShard(normalized.shard.index()).appendSegment(0).appendDoc(normalized.parentDoc);
+        return new Page(parents.build());
+    }
+
+    private record OpenIndex(
+        MapperService mapperService,
+        Directory directory,
+        DirectoryReader reader,
+        EsPhysicalOperationProviders.DefaultShardContext shard,
+        int parentDoc
+    ) implements java.io.Closeable {
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(reader, mapperService, directory);
+        }
+    }
+
     private static final class MapperHelper extends MapperServiceTestCase {
         MapperService create(Settings settings, String mapping) throws IOException {
             return createMapperService(settings, mapping);
+        }
+
+        @Override
+        protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+            return IndexAnalyzers.of(
+                Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+                Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                Map.of()
+            );
         }
     }
 }

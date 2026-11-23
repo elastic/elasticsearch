@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -32,14 +33,14 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
     private final ExpressionEvaluator predicate;
     private final int[] fieldChannels;
     @Nullable
-    private final Query matchingChildren;
+    private final IndexedByShardId<Query> matchingChildren;
 
     NestedPredicateEvaluator(
         DriverContext context,
         NestedChildren children,
         ExpressionEvaluator predicate,
         int[] fieldChannels,
-        @Nullable Query matchingChildren
+        @Nullable IndexedByShardId<Query> matchingChildren
     ) {
         this.context = context;
         this.children = children;

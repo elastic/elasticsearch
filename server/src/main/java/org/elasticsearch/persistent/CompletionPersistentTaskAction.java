@@ -65,6 +65,22 @@ public class CompletionPersistentTaskAction {
             this.localAbortReason = localAbortReason;
         }
 
+        String getTaskId() {
+            return taskId;
+        }
+
+        long getAllocationId() {
+            return allocationId;
+        }
+
+        Exception getException() {
+            return exception;
+        }
+
+        String getLocalAbortReason() {
+            return localAbortReason;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

@@ -11,6 +11,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 public class CompletionPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -25,7 +26,17 @@ public class CompletionPersistentTaskRequestTests extends AbstractWireSerializin
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String taskId = instance.getTaskId();
+        long allocationId = instance.getAllocationId();
+        String localAbortReason = instance.getLocalAbortReason();
+        // The exception is not mutated: Request#equals compares exceptions by reference, so test instances always use null
+        switch (between(0, 2)) {
+            case 0 -> taskId = randomValueOtherThan(taskId, () -> randomAlphaOfLength(10));
+            case 1 -> allocationId = randomValueOtherThan(allocationId, ESTestCase::randomNonNegativeLong);
+            case 2 -> localAbortReason = localAbortReason == null ? randomAlphaOfLength(20) : null;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Request(instance.masterNodeTimeout(), taskId, allocationId, instance.getException(), localAbortReason);
     }
 
     @Override

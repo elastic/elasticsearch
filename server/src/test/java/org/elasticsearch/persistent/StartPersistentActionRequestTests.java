@@ -23,6 +23,24 @@ public class StartPersistentActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected Request createTestInstance() {
+        return new Request(randomTimeValue(), UUIDs.base64UUID(), randomAlphaOfLengthBetween(1, 20), randomTestParams());
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        String taskId = instance.getTaskId();
+        String taskName = instance.getTaskName();
+        PersistentTaskParams params = instance.getParams();
+        switch (between(0, 2)) {
+            case 0 -> taskId = randomValueOtherThan(taskId, UUIDs::base64UUID);
+            case 1 -> taskName = randomValueOtherThan(taskName, () -> randomAlphaOfLengthBetween(1, 20));
+            case 2 -> params = randomValueOtherThan(params, StartPersistentActionRequestTests::randomTestParams);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Request(instance.masterNodeTimeout(), taskId, taskName, params);
+    }
+
+    private static TestParams randomTestParams() {
         TestParams testParams = new TestParams();
         if (randomBoolean()) {
             testParams.setTestParam(randomAlphaOfLengthBetween(1, 20));
@@ -30,12 +48,7 @@ public class StartPersistentActionRequestTests extends AbstractWireSerializingTe
         if (randomBoolean()) {
             testParams.setExecutorNodeAttr(randomAlphaOfLengthBetween(1, 20));
         }
-        return new Request(randomTimeValue(), UUIDs.base64UUID(), randomAlphaOfLengthBetween(1, 20), testParams);
-    }
-
-    @Override
-    protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        return testParams;
     }
 
     @Override

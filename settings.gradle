@@ -117,6 +117,7 @@ List projects = [
   'distribution:tools:ansi-console',
   'server',
   'test:framework',
+  'test:fixtures:arrow-interop-fixture',
   'test:fixtures:aws-ec2-fixture',
   'test:fixtures:aws-fixture-utils',
   'test:fixtures:aws-sts-fixture',

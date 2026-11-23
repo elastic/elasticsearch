@@ -1,0 +1,5 @@
+[
+  { "name": "ip", "type": "binary", "nullable": true,
+    "metadata": {"elastic:type": "ip"},
+    "values": [{"base64": "wKgAAQ=="}, null, {"base64": "IAENuAAAAAAAAQAAAAAAAQ=="}] }
+]

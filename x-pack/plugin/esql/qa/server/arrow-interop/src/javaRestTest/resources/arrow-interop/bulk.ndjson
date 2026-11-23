@@ -1,0 +1,6 @@
+{"index": {}}
+{"i": 1, "l": 10000000000, "d": 1.5, "k": "one", "b": true, "t": "2023-11-14T22:13:20.123Z", "mv": ["a", "b"], "ip": "192.168.0.1", "v": "1.0.1", "td": {"centroids": [1, 2, 3], "counts": [1, 2, 1]}, "m": {"min": 1.0, "max": 3.0, "sum": 6.0, "value_count": 3}, "gp": "POINT (90 45)", "gs": "LINESTRING (0 0, 90 45)", "cp": "POINT (1.5 2.5)", "cs": "LINESTRING (0 0, 1.5 2.5)"}
+{"index": {}}
+{"i": 2}
+{"index": {}}
+{"i": 3, "l": -3, "d": -0.25, "k": "três", "b": false, "t": "1969-12-31T23:59:59.999Z", "mv": ["c"], "ip": "2001:db8::1:0:0:1", "v": "2.3.4-beta", "td": {"centroids": [], "counts": []}, "m": {"min": -2.0, "max": 0.0, "sum": -2.0, "value_count": 2}, "gp": "POINT (-90 -45)", "gs": "LINESTRING (-90 -45, 0 0)", "cp": "POINT (-1.5 0.5)", "cs": "LINESTRING (-1.5 0.5, 0 0)"}

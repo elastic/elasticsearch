@@ -1,0 +1,21 @@
+apply plugin: 'java'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+description = 'Checks that the official Apache Arrow clients (Python, Node.js) can read ES|QL Arrow responses'
+
+dependencies {
+  // Runs the Arrow clients in Docker containers
+  javaRestTestImplementation project(':test:fixtures:arrow-interop-fixture')
+  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("ES|QL and its Arrow format are in the default distribution")
+}

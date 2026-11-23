@@ -1,0 +1,22 @@
+[
+  { "name": "i",  "type": "int32",  "nullable": true,
+    "metadata": {"elastic:type": "integer"},
+    "values": [1, 2, 3] },
+  { "name": "l",  "type": "int64",  "nullable": true,
+    "metadata": {"elastic:type": "long"},
+    "values": [10000000000, null, -3] },
+  { "name": "d",  "type": "double", "nullable": true,
+    "metadata": {"elastic:type": "double"},
+    "values": [1.5, null, -0.25] },
+  { "name": "k",  "type": "string", "nullable": true,
+    "metadata": {"elastic:type": "keyword"},
+    "values": ["one", null, "três"] },
+  { "name": "b",  "type": "bool",   "nullable": true,
+    "metadata": {"elastic:type": "boolean"},
+    "values": [true, null, false] },
+  { "name": "t",  "type": "timestamp[ms]", "nullable": true,
+    "metadata": {"elastic:type": "date"},
+    "values": [1700000000123, null, -1] },
+  { "name": "mv", "type": "list<string>", "nullable": true, "metadata": {"elastic:type": "keyword"},
+    "values": [["a", "b"], null, ["c"]] }
+]

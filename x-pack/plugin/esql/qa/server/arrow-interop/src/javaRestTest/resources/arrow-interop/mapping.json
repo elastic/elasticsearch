@@ -1,0 +1,21 @@
+{
+  "mappings": {
+    "properties": {
+      "i": { "type": "integer" },
+      "l": { "type": "long" },
+      "d": { "type": "double" },
+      "k": { "type": "keyword" },
+      "b": { "type": "boolean" },
+      "t": { "type": "date" },
+      "mv": { "type": "keyword" },
+      "ip": { "type": "ip" },
+      "v": { "type": "version" },
+      "td": { "type": "tdigest" },
+      "m": { "type": "aggregate_metric_double", "metrics": ["min", "max", "sum", "value_count"] },
+      "gp": { "type": "geo_point" },
+      "gs": { "type": "geo_shape" },
+      "cp": { "type": "point" },
+      "cs": { "type": "shape" }
+    }
+  }
+}

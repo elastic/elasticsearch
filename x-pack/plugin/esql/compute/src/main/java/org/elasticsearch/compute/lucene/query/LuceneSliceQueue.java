@@ -977,13 +977,13 @@ public final class LuceneSliceQueue {
                         nextPrefix = Math.min(nextPrefix, leaf.nextPrefix());
                     }
                     if (anyLeafExceedsMaxDocs || pendingDocs >= docsPerSlice) {
-                        flushSlice(metricLeaves, slices);
+                        flushSlice(metricLeaves, numMetricPartitions, slices);
                         pendingDocs = 0;
                     }
                     prefix = nextPrefix;
                 }
                 if (pendingDocs > 0) {
-                    flushSlice(metricLeaves, slices);
+                    flushSlice(metricLeaves, numMetricPartitions, slices);
                 }
             }
             return slices;
@@ -1010,17 +1010,23 @@ public final class LuceneSliceQueue {
             return leafPartitions.toArray(LeafPartitions[]::new);
         }
 
-        private static void flushSlice(LeafPartitions[] partitions, List<List<PartialLeafReaderContext>> slices) {
-            final List<PartialLeafReaderContext> slice = new ArrayList<>(partitions.length);
-            for (LeafPartitions leaf : partitions) {
+        private static void flushSlice(LeafPartitions[] partitions, int numPartitions, List<List<PartialLeafReaderContext>> slices) {
+            int numLeaves = 0;
+            for (int i = 0; i < numPartitions; i++) {
+                if (partitions[i].next > partitions[i].sliceStart) {
+                    numLeaves++;
+                }
+            }
+            assert numLeaves > 0 : numLeaves;
+            final List<PartialLeafReaderContext> slice = new ArrayList<>(numLeaves);
+            for (int i = 0; i < numPartitions; i++) {
+                final LeafPartitions leaf = partitions[i];
                 if (leaf.next > leaf.sliceStart) {
                     slice.add(new PartialLeafReaderContext(leaf.leaf, leaf.startDocs[leaf.sliceStart], leaf.startDoc(leaf.next)));
                     leaf.sliceStart = leaf.next;
                 }
             }
-            if (slice.isEmpty() == false) {
-                slices.add(slice);
-            }
+            slices.add(slice);
         }
     }
 }

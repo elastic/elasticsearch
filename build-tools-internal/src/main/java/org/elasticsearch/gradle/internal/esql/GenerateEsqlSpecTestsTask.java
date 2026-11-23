@@ -35,7 +35,9 @@ import javax.inject.Inject;
 
 /**
  * Generates test classes for each {@code *.csv-spec} file found in
- * {@link #getSpecFilesDir()}.  For every registered variant (prefix + base-class pair)
+ * {@link #getSpecFilesDir()}, not descending into subdirectories: a spec file in a subdirectory
+ * gets no generated class. Whoever owns the directory must guard against that, see
+ * {@code verifyDataSourceCsvSpecOwnership} in the ES|QL testFixtures project.  For every registered variant (prefix + base-class pair)
  * the task emits one {@code <prefix><PascalName>IT.java} that extends the named base
  * class.  All base classes must live in the same package in hand-written sources.
  *

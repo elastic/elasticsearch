@@ -947,7 +947,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         @Override
         protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
-            return new BlockHashWrapper(driverContext.blockFactory(), hash) {
+            final BlockFactory blockFactory = driverContext.blockFactory();
+            return new BlockHashWrapper(blockFactory, hash) {
                 @Override
                 public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
                     blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
@@ -969,7 +970,32 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                         @Override
                         public void add(int positionOffset, IntVector groupIds) {
-                            add(positionOffset, groupIds.asBlock());
+                            if (groupIds.getPositionCount() > 0 && randomInt(2) == 0) {
+                                addAsRuns(positionOffset, groupIds);
+                            } else {
+                                add(positionOffset, groupIds.asBlock());
+                            }
+                        }
+
+                        /**
+                         * Hand the same ids over the way a hash does when its keys come in runs, so that every aggregator
+                         * is checked on {@code addRuns}: the ones that combine a run, and the default that expands it.
+                         */
+                        private void addAsRuns(int positionOffset, IntVector groupIds) {
+                            final GroupRuns runs = new GroupRuns(blockFactory);
+                            try {
+                                int start = 0;
+                                for (int p = 1; p <= groupIds.getPositionCount(); p++) {
+                                    if (p == groupIds.getPositionCount() || groupIds.getInt(p) != groupIds.getInt(start)) {
+                                        runs.appendRunEnd(p);
+                                        runs.setGroupId(runs.runCount() - 1, groupIds.getInt(start));
+                                        start = p;
+                                    }
+                                }
+                                addInput.addRuns(positionOffset, runs);
+                            } finally {
+                                runs.release();
+                            }
                         }
 
                         @Override

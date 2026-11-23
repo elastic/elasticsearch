@@ -57,17 +57,21 @@ public class TsInfoSerializationTests extends AbstractLogicalPlanSerializationTe
     }
 
     public void testLimitOnTheWire() throws IOException {
-        TsInfo instance = new TsInfo(randomSource(), LocalRelationSerializationTests.randomLocalRelation(), between(1, 100_000));
         for (TransportVersion version : LIMIT_ON_THE_WIRE) {
+            TsInfo instance = limitedInstance(version);
             assertEquals(version.toString(), instance.limit(), copyInstance(instance, version).limit());
         }
     }
 
     public void testLimitNotOnTheWire() throws IOException {
-        TsInfo instance = new TsInfo(randomSource(), LocalRelationSerializationTests.randomLocalRelation(), between(1, 100_000));
         for (TransportVersion version : LIMIT_NOT_ON_THE_WIRE) {
+            TsInfo instance = limitedInstance(version);
             assertNull(version.toString(), copyInstance(instance, version).limit());
         }
+    }
+
+    private static TsInfo limitedInstance(TransportVersion version) {
+        return new TsInfo(randomSource(), LocalRelationSerializationTests.randomLocalRelation(version), between(1, 100_000));
     }
 
     private static Integer randomLimit() {

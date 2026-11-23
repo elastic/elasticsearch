@@ -860,3 +860,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFailureDuringTheWriteIsNotRetried
   issue: https://github.com/elastic/elasticsearch/issues/167145
+- class: org.elasticsearch.xpack.esql.action.EsqlAsyncParsedContentChargeIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testChargeIsHeldUntilTheDeletedQueryStops
+  issue: https://github.com/elastic/elasticsearch/issues/167149

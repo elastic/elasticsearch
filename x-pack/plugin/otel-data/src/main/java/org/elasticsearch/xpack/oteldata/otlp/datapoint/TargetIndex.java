@@ -108,14 +108,17 @@ public final class TargetIndex {
      * Explicit non-data-stream targets do not have an automatically derived exemplar target.
      */
     public @Nullable TargetIndex exemplarsTarget() {
-        if (cachedExemplarsTarget != null) {
-            return cachedExemplarsTarget;
+        // racy single-check: the field is read only once, as instances may be shared across threads without synchronization
+        TargetIndex cached = cachedExemplarsTarget;
+        if (cached != null) {
+            return cached;
         }
         if (TYPE_METRICS.equals(type) == false) {
             return null;
         }
-        cachedExemplarsTarget = dataStream(TYPE_EXEMPLARS, dataset, namespace, priority);
-        return cachedExemplarsTarget;
+        cached = dataStream(TYPE_EXEMPLARS, dataset, namespace, priority);
+        cachedExemplarsTarget = cached;
+        return cached;
     }
 
     public static boolean isTargetIndexAttribute(String attributeKey) {

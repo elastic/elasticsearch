@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -119,8 +120,8 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
      * function streams over it: a read stops at its label, and a rewrite copies the labels it keeps in their order, writing a set
      * label at its sorted position, which keeps the result canonical.
      * <p>
-     * A label container loads once per series and page, so a page holds it dictionary encoded. When the other arguments are
-     * constant on the page, the function depends on the label container alone and runs once per dictionary entry.
+     * When the other arguments are constant on a page, the result depends on the label containers alone: a constant label
+     * container is evaluated once, and a dictionary encoded one once per dictionary entry.
      */
     public abstract static class AbstractEvaluator implements ExpressionEvaluator {
         protected final DriverContext driverContext;
@@ -151,68 +152,66 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
 
         @Override
         public final Block eval(Page page) {
+            int positions = page.getPositionCount();
             Block[] values = new Block[arguments.length];
-            try (Block containers = labelContainer.eval(page)) {
+            try (BytesRefBlock containers = (BytesRefBlock) labelContainer.eval(page)) {
+                // The result depends on the label containers alone when every other argument is the same on every row.
+                boolean constantArguments = true;
                 for (int i = 0; i < arguments.length; i++) {
                     values[i] = arguments[i].eval(page);
+                    Vector argument = values[i].asVector();
+                    constantArguments &= values[i].areAllValuesNull() || (argument != null && argument.isConstant());
                 }
-                OrdinalBytesRefVector dictionary = dictionaryEncoded(containers, values);
-                if (dictionary != null) {
-                    return evalDictionary(dictionary, values);
+                BytesRefVector vector = containers.asVector();
+                if (vector != null && constantArguments) {
+                    if (vector.isConstant()) {
+                        // One label container on the page: evaluate it once.
+                        try (BytesRefBlock one = eval(1, containers, values, true)) {
+                            BytesRefVector single = one.asVector();
+                            if (single != null) {
+                                BytesRef result = single.getBytesRef(0, new BytesRef());
+                                return driverContext.blockFactory().newConstantBytesRefBlockWith(result, positions);
+                            }
+                            if (one.isNull(0)) {
+                                return driverContext.blockFactory().newConstantNullBlock(positions);
+                            }
+                        }
+                    }
+                    /*
+                     * A label container loads once per series and page, so a time-series aggregate leaves it dictionary encoded:
+                     * evaluate once per dictionary entry. When every entry gives one value, the result is a dictionary over the
+                     * same ordinals; when one gives none or several, as a read of an absent label or of a label of several values
+                     * does, the values per entry are copied out to the rows.
+                     *
+                     * TODO(sidosera): filters, hash joins and top-n copy a dictionary encoded block out to its rows, so a page
+                     * above them holds no dictionary and the function runs once per row. Restore the ordinals there; a typed
+                     * label container should only ever be dictionary encoded.
+                     */
+                    OrdinalBytesRefVector dictionary = vector.asOrdinals();
+                    if (dictionary != null && dictionary.isDense()) {
+                        BytesRefVector entries = dictionary.getDictionaryVector();
+                        try (BytesRefBlock perEntry = eval(entries.getPositionCount(), entries.asBlock(), values, true)) {
+                            IntVector ordinals = dictionary.getOrdinalsVector();
+                            BytesRefVector single = perEntry.asVector();
+                            if (single != null) {
+                                ordinals.incRef();
+                                single.incRef();
+                                return new OrdinalBytesRefVector(ordinals, single).asBlock();
+                            }
+                            int[] rows = new int[positions];
+                            ordinals.copyTo(0, rows, 0, positions);
+                            return perEntry.filter(true, rows, 0, positions);
+                        }
+                    }
                 }
-                return eval(page.getPositionCount(), containers, values, false);
+                return eval(positions, containers, values, false);
             } finally {
                 Releasables.closeExpectNoException(values);
             }
         }
 
-        /**
-         * The label containers of {@code containers} as a dense dictionary, or null when the result is not a function of the
-         * dictionary entries alone: a null label container, which a rewrite turns into a label container, or another argument that
-         * changes from row to row. A page holds the label containers of a time-series aggregate dictionary encoded, one entry per
-         * series.
-         * <p>
-         * TODO(sidosera): filters, hash joins and top-n copy a dictionary encoded block out to its rows, so a page above them holds
-         * no dictionary and the function runs once per row. Restore the ordinals there; a typed label container should only ever
-         * be dictionary encoded.
-         */
-        private static @Nullable OrdinalBytesRefVector dictionaryEncoded(Block containers, Block[] arguments) {
-            BytesRefVector vector = containers instanceof BytesRefBlock bytes ? bytes.asVector() : null;
-            OrdinalBytesRefVector dictionary = vector == null ? null : vector.asOrdinals();
-            if (dictionary == null || dictionary.isDense() == false) {
-                return null;
-            }
-            for (Block argument : arguments) {
-                if (argument.areAllValuesNull() == false && (argument.asVector() == null || argument.asVector().isConstant() == false)) {
-                    return null;
-                }
-            }
-            return dictionary;
-        }
-
-        /**
-         * Evaluates once per entry of {@code dictionary} rather than once per row. When every entry gives one value, the result is
-         * a dictionary over the same ordinals; when one gives none or several, as a read of an absent label or of a label of
-         * several values does, the values per entry are copied out to the rows.
-         */
-        private Block evalDictionary(OrdinalBytesRefVector dictionary, Block[] arguments) {
-            BytesRefVector entries = dictionary.getDictionaryVector();
-            try (BytesRefBlock perEntry = eval(entries.getPositionCount(), entries.asBlock(), arguments, true)) {
-                IntVector ordinals = dictionary.getOrdinalsVector();
-                BytesRefVector single = perEntry.asVector();
-                if (single != null) {
-                    ordinals.incRef();
-                    single.incRef();
-                    return new OrdinalBytesRefVector(ordinals, single).asBlock();
-                }
-                int[] rows = new int[ordinals.getPositionCount()];
-                ordinals.copyTo(0, rows, 0, rows.length);
-                return perEntry.filter(true, rows, 0, rows.length);
-            }
-        }
-
         /** One result per position of {@code containers}; {@code constant} arguments are read at their first position. */
-        private BytesRefBlock eval(int positions, Block containers, Block[] arguments, boolean constant) {
+        private BytesRefBlock eval(int positions, BytesRefBlock containers, Block[] arguments, boolean constant) {
             BytesRef bytes = new BytesRef();
             try (
                 BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positions);
@@ -224,7 +223,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
                         if (containers.getValueCount(p) != 1) {
                             throw new IllegalArgumentException("The label container must be single-valued");
                         }
-                        labels = ((BytesRefBlock) containers).getBytesRef(containers.getFirstValueIndex(p), bytes);
+                        labels = containers.getBytesRef(containers.getFirstValueIndex(p), bytes);
                     }
                     try {
                         eval(labels, arguments, constant ? 0 : p, result, scratch);

@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,9 +46,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The dictionary path of {@link AbstractTimeSeriesMetadataFunction.AbstractEvaluator}. A label container is loaded once per
- * series and page, so a page holds it dictionary encoded: a function of the label container alone runs once per dictionary
- * entry. Every case here is asserted to give, position for position, what the same values give through the per-row path.
+ * The dictionary and constant paths of {@link AbstractTimeSeriesMetadataFunction.AbstractEvaluator}. A label container is
+ * loaded once per series and page, so a page holds it dictionary encoded: a function of the label container alone runs once per
+ * dictionary entry, or once for a constant one. Every case here is asserted to give, position for position, what the same
+ * values give through the per-row path.
  */
 public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 
@@ -126,6 +128,41 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
             false
         );
         assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS, ordinals, false);
+    }
+
+    public void testConstantEvaluatesOnce() {
+        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS[0], true);
+        assertConstant(c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true), CONTAINERS[0], true);
+        assertConstant(c -> new TimeSeriesMetadataSet(Source.EMPTY, c, keyword("job"), keyword("api")), CONTAINERS[0], true);
+        // A read of an absent label is null on every row.
+        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("absent")), CONTAINERS[0], true);
+        // A read of a label of several values is not one value, so it is evaluated per row.
+        assertConstant(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), "{\"pod\":[\"one\",\"two\"]}", false);
+    }
+
+    /**
+     * Evaluates {@code function} over a page whose label container is the constant {@code labels}, and once over the same rows as
+     * plain values, and asserts both give the same values, the first as a constant block when {@code constant}.
+     */
+    private void assertConstant(Function<Expression, Expression> function, String labels, boolean constant) {
+        Expression expression = function.apply(field("labels", DataType.TIME_SERIES_METADATA_DATA_TYPE));
+        int positions = DENSE.length;
+        List<List<String>> once;
+        try (
+            Block result = evaluate(
+                expression,
+                driverContext().blockFactory().newConstantBytesRefBlockWith(new BytesRef(labels), positions),
+                positions
+            )
+        ) {
+            assertThat(result.asVector() != null && result.asVector().isConstant() || result.areAllValuesNull(), equalTo(constant));
+            once = values(result);
+        }
+        String[] rows = new String[positions];
+        Arrays.fill(rows, labels);
+        try (Block result = evaluate(expression, plainBlock(rows), positions)) {
+            assertThat(once, equalTo(values(result)));
+        }
     }
 
     public void testSparseKeepsRows() {

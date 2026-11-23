@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -175,6 +177,19 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     protected boolean supportsBulkLongBlockReading() {
         return true;
+    }
+
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "long");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(1L, context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {

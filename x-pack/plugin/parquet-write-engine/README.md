@@ -17,7 +17,8 @@ The read side is a separate prototype (`parquet_doc_value_format_2`). This plugi
    names of data files, and placement.
 3. **[Internals: how the engine works](#internals-how-the-engine-works):** the write path, the flush, the merge, the commit data, durability
    in detail, and what the benchmarks taught us.
-4. **[Working on the code](#working-on-the-code)** and **[the full list of known limits](#known-limits-and-open-questions)**.
+4. **[Working on the code](#working-on-the-code)**, **[the full list of known limits](#known-limits-and-open-questions)** and
+   **[the changes since 17 November](#changes-since-17-november-2026)**.
 
 ## What an index of this format does
 
@@ -672,3 +673,57 @@ distribution, so installing them again fails at boot with a duplicate key. What 
 - Whether `index.storage_format` is the final name, and when its definition moves from the plugin to `server`.
 - Whether to register the `parquet` extension in `LuceneFilesExtensions` and not rely on the test property.
 - Whether to delete the files of an index when the index is deleted (a data lake keeps them today).
+
+## Recent changes
+
+The commits of the engine since last review, oldest first, each with what it does and why. The measurements are from the clickbench track (see
+"Benchmarking with the clickbench track").
+
+1. **`873f6b0` Pin parquet primaries and refuse replicas.** An allocation decider keeps the primary of a parquet index on its node and
+   refuses its replicas. The local files do not move with a shard, so a relocation or a replica would lose rows without an error.
+
+2. **`847e587` Stage bulk files in the object store.** The new setting `index.parquet.durability` defaults to `staged`: a copy of each bulk
+   file goes to the repository before the bulk is acknowledged. After the loss of a node and its disk, the new engine adopts the staged files
+   into the table, and with `local` the acknowledgement point stays the local file.
+
+3. **`500811b` Write local files of a shard in parallel.** The shard-wide write lock is gone, and bulks write their local files at the same
+   time. A flush takes only files up to the processed checkpoint, so it never uploads a file while a lower range is still being written.
+
+4. **`0108006` Merge Parquet files by column, not by row.** The merge copies values from the column readers to the column writers with their
+   levels, and it never builds a row. On 600,000 rows it took 6.2 s instead of 11.2 s, with files of the same size.
+
+5. **`fca9971` Write the local file of a bulk by column.** The batch writer reads each mapped column from its cursor and writes it to the
+   column writer, with no row objects. Bulk indexing went from about 88,000 to about 180,000 documents per second in a test node.
+
+6. **`2d8889d` Fail the documents of a refused batch.** A refusal (a 429 for the local size, a 503 for the staged copy) is now a failed
+   result for each document and not an exception. An exception failed the whole shard request, and a client that retried indexed documents
+   twice (40,000 to 65,000 too many in one benchmark).
+
+7. **`9a7e9c1` Write local files without a dictionary at level 1.** Local files and their staged copies use no dictionary and ZSTD level 1,
+   because the merge encodes the rows again. The uploaded files keep the dictionary and level 3, so their size does not change.
+
+8. **`b8f3bf7` List only histories that have a staged file.** The adoption of staged files lists only the directories that hold at least
+   one staged blob. This fixed a flaky unit test that failed when the file system added an extra directory.
+
+9. **`e8f20c5` Retry the staged upload and show why it failed.** The staged upload is tried three times, with waits of 250 ms and 1 s, under a
+   new key each time. A final 503 names the class and message of the exception, and the engine logs a warning. A flush can no longer take a
+   file before its staged copy is uploaded.
+
+10. **`896366f` Count the local files again after each run.** The flusher tells the engine after each committed run, and the engine counts
+    the local rows and bytes again. Before, the counter held files that were already uploaded, and in one benchmark every client waited
+    about 4 minutes.
+
+11. **`3810090` Encode the columns of a flush merge in parallel.** The columns are split into groups, each thread encodes its group into its
+    own page store, and the stores are written to the row group in column order, so the file has the same row groups, encodings and page
+    indexes. The merge of 600,000 rows took 1.1 s with 4 threads instead of 4.2 to 4.7 s. A new `parquet_merge` pool and the setting
+    `index.parquet.flush_merge_parallelism` (default 4) control it.
+
+12. **`94a3903` Balance the merge and overlap uploads.** A merge makes two groups for each thread, and workers take the next group from a
+    queue. The upload of a run runs on a new `parquet_upload` pool while the next run of the same flush merges. A periodic flush still waits
+    for its last upload, so only the runs of one flush and the idle flush overlap.
+
+13. **`11c1ee5` Keep the commit data in memory, read footers in parallel.** The server needs one empty Lucene commit for each shard, and the
+    engine keeps its flush state (the pending marker and the uploaded high-water mark) in the user data of that commit, which is why it reads
+    and writes it. The engine now reads that data from the store once, keeps it in memory, and re-reads the last commit for the stats API only
+    after a commit of its own, because Lucene's read lists the whole directory and took about 20 s with tens of thousands of local files
+    (indexing went from 393 s to 313 s). The footers for the union schema are also read in parallel.

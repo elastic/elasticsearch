@@ -697,6 +697,40 @@ public class QuerySettingsTests extends ESTestCase {
             DocsV3Support.callbacksFromSystemProperty()
         );
         toc.renderDocs();
+
+        DocsV3Support.SettingsSurfacesDocsSupport surfaces = new DocsV3Support.SettingsSurfacesDocsSupport(
+            settings,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
+        surfaces.renderDocs();
+    }
+
+    public void testRequestBodyExposedSettings() {
+        // A tripwire for the request body schema, which is specified outside this repository: when this fails, update
+        // EsqlQuerySettings in elastic/elasticsearch-specification (specification/esql/_types/types.ts) to match.
+        // The docs table of where each setting can be supplied is generated, so it follows without further changes.
+        Set<String> bodyExposed = new HashSet<>();
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            if (def.requestBody()) {
+                bodyExposed.add(def.name());
+            }
+        }
+        assertThat(
+            bodyExposed,
+            equalTo(
+                Set.of(
+                    "project_routing",
+                    "time_zone",
+                    "unmapped_fields",
+                    "column_metadata",
+                    "wildcards_match_datasets",
+                    "wildcards_match_views",
+                    "approximation",
+                    "exemplars"
+                )
+            )
+        );
     }
 
     // ---- Cluster (operator) defaults: default < cluster < body < SET ----

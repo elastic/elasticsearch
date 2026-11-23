@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -1392,6 +1393,59 @@ public abstract class DocsV3Support {
             String rendered = builder.toString();
             logger.debug("{}", rendered);
             writeToTempSettingsDir(rendered);
+        }
+    }
+
+    /**
+     * Renders the table of where each query setting can be supplied besides {@code SET}: the request body, a cluster
+     * setting, or a view definition. It is derived from the declarations in {@link QuerySettings} and
+     * {@link ViewQuerySettings#SETTINGS}, so the docs cannot claim a surface that the code does not offer.
+     * Which versions offer a surface is not declared in code and stays in the prose around the table.
+     */
+    public static class SettingsSurfacesDocsSupport extends DocsV3Support {
+
+        private final Collection<QuerySettingDef<?>> settings;
+
+        public SettingsSurfacesDocsSupport(List<QuerySettingDef<?>> settings, Class<?> testClass, Callbacks callbacks) {
+            super("settings", "surfaces", testClass, Set::of, callbacks);
+            this.settings = settings;
+        }
+
+        @Override
+        public void renderDocs() throws Exception {
+            StringBuilder builder = new StringBuilder();
+            builder.append(docsWarning());
+            builder.append("| Setting | Request body | Cluster setting | View definition |\n");
+            builder.append("| --- | --- | --- | --- |\n");
+            for (QuerySettingDef<?> setting : settings) {
+                if (setting.snapshotOnly()) {
+                    continue;
+                }
+                builder.append("| [`").append(setting.name()).append("`](#esql-").append(setting.name()).append(")");
+                builder.append(setting.serverlessOnly() ? " (serverless only)" : "").append(" | ");
+                builder.append(requestBodyCell(setting)).append(" | ");
+                builder.append(setting.clusterSetting() == null ? "—" : "`" + setting.clusterSetting().getKey() + "`").append(" | ");
+                builder.append(ViewQuerySettings.SETTINGS.contains(setting) ? "Yes" : "—").append(" |\n");
+            }
+            builder.append("\n");
+
+            String rendered = builder.toString();
+            logger.debug("{}", rendered);
+            writeToTempSettingsDir(rendered);
+        }
+
+        private static String requestBodyCell(QuerySettingDef<?> setting) {
+            if (setting.requestBody() == false) {
+                return "—";
+            }
+            StringBuilder cell = new StringBuilder("`settings.").append(setting.name()).append("`");
+            for (QuerySettingDef.RequestBodyBinding alias : setting.aliases()) {
+                if (alias.isAtRoot() == false) {
+                    throw new IllegalStateException("Cannot document the nested body alias of setting [" + setting.name() + "]");
+                }
+                cell.append(" or `").append(alias.name()).append("`");
+            }
+            return cell.toString();
         }
     }
 

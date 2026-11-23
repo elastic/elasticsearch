@@ -58,6 +58,12 @@ import java.util.function.Supplier;
  *
  * Then add the constant to {@link #ALL} to register it. Read anywhere via
  * {@code MY_SETTING.get(resolvedSettings)}.
+ *
+ * <p>The documentation page of the setting is generated from its {@code @Param} annotation, and the table of where
+ * it can be set from its declaration, by running {@code QuerySettingsTests}. A setting that opts in with
+ * {@code withRequestBody()} must also be added to {@code EsqlQuerySettings} in the
+ * <a href="https://github.com/elastic/elasticsearch-specification">elasticsearch-specification</a> repository;
+ * {@code QuerySettingsTests#testRequestBodyExposedSettings} fails as a reminder.
  */
 public final class QuerySettings {
 

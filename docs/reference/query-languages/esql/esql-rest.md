@@ -244,6 +244,34 @@ Which returns:
 ```
 % TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
+### Setting query settings [esql-rest-query-settings]
+```{applies_to}
+stack: ga 9.5+
+serverless: ga
+```
+
+Instead of starting a query with a [`SET` directive](directives/set.md), you can pass [query settings](directives/set.md#esql-set-sources) in the `settings` object of the request body. Each key is the name of a query setting. This is useful when an application builds the request and keeps settings apart from the query text.
+
+For example, this request sets the time zone of the query:
+
+```console
+POST /_query
+{
+  "query": "ROW date = TO_DATETIME(\"2023-01-15T00:00:00.000Z\")",
+  "settings": {
+    "time_zone": "Europe/Paris"
+  }
+}
+```
+
+It is equivalent to the query `SET time_zone = "Europe/Paris"; ROW date = TO_DATETIME("2023-01-15T00:00:00.000Z")`.
+
+The `settings` object works the same way in [`POST /_query/async`]({{es-apis}}operation/operation-esql-async-query).
+
+* A `SET` directive in the query overrides the same setting in `settings`.
+* Only settings that the [table of settings](directives/set.md#esql-set-sources) shows as available in the request body are accepted. An unknown setting, or a setting that is not available in the request body, is rejected with a `400` error.
+* `time_zone`, `approximation`, and, on {{serverless-short}}, `project_routing` can also be passed as top-level fields of the request body. If you pass one of them both at the top level and in `settings`, the values must be the same, otherwise the request is rejected with a `400` error.
+
 ### Setting the query timezone [esql-timezones]
 ```{applies_to}
 stack: ga 9.4

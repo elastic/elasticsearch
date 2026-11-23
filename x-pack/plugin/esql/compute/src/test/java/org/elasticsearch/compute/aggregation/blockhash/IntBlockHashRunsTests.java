@@ -151,6 +151,39 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
         }
     }
 
+    /** A sparse start shorter than the probe does not decide for the page: unique keys, then one long run, still take the runs path. */
+    public void testASparseStartShorterThanTheProbeDoesNotDecide() {
+        int[] keys = new int[8192];
+        for (int i = 0; i < 200; i++) {
+            keys[i] = i;
+        }
+        Arrays.fill(keys, 200, keys.length, 5000);
+        try (BlockHash hash = new IntBlockHash(0, blockFactory())) {
+            Seen seen = add(hash, keys);
+            assertThat(seen.how, equalTo("runs"));
+            assertThat(seen.runBounds.size(), equalTo(201));
+        }
+    }
+
+    /** A sparse start longer than the probe decides: the page is hashed row by row, and nothing but the speedup is lost. */
+    public void testASparseStartLongerThanTheProbeIsHashedRowByRow() {
+        int[] keys = new int[8192];
+        for (int i = 0; i < 300; i++) {
+            keys[i] = i;
+        }
+        Arrays.fill(keys, 300, keys.length, 5000);
+        int[] expected = new int[keys.length];
+        for (int i = 0; i < 300; i++) {
+            expected[i] = i + 1;
+        }
+        Arrays.fill(expected, 300, keys.length, 301);
+        try (BlockHash hash = new IntBlockHash(0, blockFactory())) {
+            Seen seen = add(hash, keys);
+            assertThat(seen.how, equalTo("vector"));
+            assertThat(seen.groupIds, equalTo(expected));
+        }
+    }
+
     /** A page of one row has no repeated key to gain from. */
     public void testAOneRowPageIsHashedRowByRow() {
         try (BlockHash hash = new IntBlockHash(0, blockFactory())) {

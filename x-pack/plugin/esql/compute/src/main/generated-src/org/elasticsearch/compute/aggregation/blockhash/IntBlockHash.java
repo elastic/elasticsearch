@@ -83,10 +83,13 @@ final class IntBlockHash extends PartitionedBlockHash {
     private static final int MIN_AVERAGE_RUN_LENGTH = 4;
 
     /**
-     * How many rows are scanned before the average run length is first checked. A few short runs at the start of a page
-     * must not decide for the whole page, but a page of unique keys should stop being scanned after a few dozen rows.
+     * How many rows are scanned before the average run length is first checked. A sparse start of a page must not decide
+     * for the whole page, but a page of unique keys should stop being scanned after a few hundred rows, about 3% of a
+     * default page. A page whose runs only start after the probe is hashed row by row too, which loses the speedup for
+     * that page and nothing else. The sweep that chose {@link #MIN_AVERAGE_RUN_LENGTH} found no difference between probes
+     * of 16, 64 and 256 rows.
      */
-    private static final int PROBE_ROWS = 64;
+    private static final int PROBE_ROWS = 256;
 
     IntBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
@@ -145,7 +148,7 @@ final class IntBlockHash extends PartitionedBlockHash {
      * <p>
      *     The search stops, and the page is hashed row by row, as soon as the completed runs average fewer than
      *     {@link #MIN_AVERAGE_RUN_LENGTH} rows, after at least {@link #PROBE_ROWS} rows. So a page of unique keys costs a
-     *     few dozen comparisons, not a whole scan. The choice is made for every page on its own.
+     *     few hundred comparisons, not a whole scan. The choice is made for every page on its own.
      * </p>
      */
     private void addRuns(IntVector vector, GroupingAggregatorFunction.AddInput addInput) {

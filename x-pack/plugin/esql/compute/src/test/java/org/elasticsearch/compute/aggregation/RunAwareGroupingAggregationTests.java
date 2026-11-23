@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 /**
  * {@code SUM(int)}, {@code COUNT(field)}, {@code COUNT(*)} and {@code MAX(int)} over an int key whose group ids reach the
@@ -49,7 +50,7 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
             for (int row = 0; row < pageKeys.length; row++) {
                 if (left == 0) {
                     key += between(1, 5);
-                    left = between(1, 4_000);
+                    left = between(100, 4_000);
                 }
                 left--;
                 pageKeys[row] = key;
@@ -58,22 +59,31 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
             keys.add(pageKeys);
             values.add(pageValues);
         }
-        assertAllWays(new Input(keys, values));
+        assertAllWays(new Input(keys, values), true);
     }
 
-    /** A group that appears in several runs of one page is added by each of them. */
+    /**
+     * A group that appears in several runs of one page is added by each of them. The runs are five rows long, so the page
+     * takes the runs path, which needs an average run length of four.
+     */
     public void testGroupInSeveralRuns() {
-        final int[] keys = { 1, 1, 2, 2, 1, 1, 3, 3, 2, 2, 2, 1, 1, 1 };
-        final Integer[] values = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
-        assertAllWays(new Input(List.of(keys), List.<Integer[]>of(values)));
+        final int[] groups = { 1, 2, 1, 3, 2, 1 };
+        final int runLength = 5;
+        final int[] keys = new int[groups.length * runLength];
+        final Integer[] values = new Integer[keys.length];
+        for (int row = 0; row < keys.length; row++) {
+            keys[row] = groups[row / runLength];
+            values[row] = row + 1;
+        }
+        assertAllWays(new Input(List.of(keys), List.<Integer[]>of(values)), true);
     }
 
     public void testOneGroupPage() {
-        final int[] keys = new int[between(1, 300)];
+        final int[] keys = new int[between(4, 300)];
         Arrays.fill(keys, randomInt());
         final Integer[] values = new Integer[keys.length];
         Arrays.setAll(values, i -> randomInt());
-        assertAllWays(new Input(List.of(keys), List.<Integer[]>of(values)));
+        assertAllWays(new Input(List.of(keys), List.<Integer[]>of(values)), true);
     }
 
     public void testPagesOfOneRow() {
@@ -128,7 +138,7 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
         final List<Integer[]> values = new ArrayList<>();
         int key = 0;
         for (int page = 0; page < between(2, 5); page++) {
-            final int[] pageKeys = new int[between(1, 3_000)];
+            final int[] pageKeys = new int[between(1_000, 3_000)];
             final Integer[] pageValues = new Integer[pageKeys.length];
             for (int row = 0; row < pageKeys.length; row++) {
                 if (randomInt(200) == 0) {
@@ -140,11 +150,22 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
             keys.add(pageKeys);
             values.add(pageValues);
         }
-        assertAllWays(new Input(keys, values));
+        assertAllWays(new Input(keys, values), true);
     }
 
     private void assertAllWays(Input input) {
+        assertAllWays(input, false);
+    }
+
+    /**
+     * @param expectRunPath whether some page must take the runs path, so a fixture whose runs are too short for the hash
+     *                      to use them cannot pass by exercising only the row by row path
+     */
+    private void assertAllWays(Input input, boolean expectRunPath) {
         assertThat(read(input), equalTo(expected(input)));
+        if (expectRunPath) {
+            assertThat(hashDescription, matchesPattern(".*runPages=[1-9][0-9]*.*"));
+        }
     }
 
     /**
@@ -177,6 +198,9 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
         return result;
     }
 
+    /** The description of the operator after the last {@link #read}, which includes the counters of its hash. */
+    private String hashDescription;
+
     private Map<Integer, List<Object>> read(Input input) {
         final DriverContext driverContext = driverContext();
         final AggregatorMode mode = AggregatorMode.SINGLE;
@@ -199,6 +223,7 @@ public class RunAwareGroupingAggregationTests extends ComputeTestCase {
             for (int page = 0; page < input.keys().size(); page++) {
                 operator.addInput(page(driverContext, input.keys().get(page), input.values().get(page)));
             }
+            hashDescription = operator.toString();
             operator.finish();
             Page out;
             while ((out = operator.getOutput()) != null) {

@@ -238,3 +238,4 @@ On Linux, {{es}} sets these defaults to limit native memory retention from glibc
 - `-XX:TrimNativeHeapInterval=3600000` (HotSpot, JDK 21.0.1+): set to have the JVM trim the native heap every hour.
 
 Each default applies only if you haven't set that value yourself: an `es.glibc.env.` JVM option or an environment variable of the same name (or the equivalent tunable in `GLIBC_TUNABLES`) takes precedence, and so does an explicitly set `-XX:TrimNativeHeapInterval` JVM option.
+If you set `MALLOC_ARENA_TEST` (or `glibc.malloc.arena_test`), {{es}} does not set `MALLOC_ARENA_MAX`, to respect your choice: glibc ignores the arena test when the arena max is set.

@@ -40,7 +40,7 @@ public class TimeRangeBucketTests extends ESTestCase {
         assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(-1));
         assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(0));
         assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(TimeRangeBucket.FifteenMinutes.millis()));
-        long tolerance = TimeRangeBucket.RESOLVE_TOLERANCE.millis();
+        long tolerance = TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis();
         assertEquals(TimeRangeBucket.OneHour.label(), TimeRangeBucket.resolve(TimeRangeBucket.FifteenMinutes.millis() + tolerance + 1));
         assertEquals(
             TimeRangeBucket.OlderThan14Days.label(),
@@ -51,10 +51,10 @@ public class TimeRangeBucketTests extends ESTestCase {
 
     /**
      * Clients like Kibana send absolute timestamps for presets such as "Last 1 hour", so the age arrives slightly past the
-     * threshold. Up to {@link TimeRangeBucket#RESOLVE_TOLERANCE} past a threshold still counts as within it.
+     * threshold. Up to {@link TimeRangeBucket#TELEMETRY_THRESHOLD_TOLERANCE} past a threshold still counts as within it.
      */
     public void testResolveToleratesAgesJustPastThreshold() {
-        long tolerance = TimeRangeBucket.RESOLVE_TOLERANCE.millis();
+        long tolerance = TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis();
         for (TimeRangeBucket bucket : TimeRangeBucket.values()) {
             if (bucket == TimeRangeBucket.OlderThan14Days) {
                 continue;

@@ -476,7 +476,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
     public void testIntrospectTimeRange() {
         long nowInMillis = System.currentTimeMillis();
         // An age up to the tolerance past a threshold still lands in the bucket named after the threshold.
-        long tolerance = TimeRangeBucket.RESOLVE_TOLERANCE.millis();
+        long tolerance = TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis();
         assertEquals("15_minutes", SearchRequestAttributesExtractor.introspectTimeRange(nowInMillis, nowInMillis));
 
         long fifteenMinutesAgo = nowInMillis - (15 * 60 * 1000);

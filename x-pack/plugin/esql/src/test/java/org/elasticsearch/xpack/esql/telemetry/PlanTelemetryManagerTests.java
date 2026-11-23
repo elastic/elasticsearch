@@ -71,7 +71,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         assertTimeRangeFilterFrom(new TimestampBounds(weekAgo, weekAgo.plusSeconds(60)), "7_days");
         // Ages at a threshold, or up to the tolerance past it, land in the bucket named after it.
         Instant fifteenMinutesAgo = START.minus(Duration.ofMinutes(15));
-        Instant atTolerance = fifteenMinutesAgo.minusMillis(TimeRangeBucket.RESOLVE_TOLERANCE.millis());
+        Instant atTolerance = fifteenMinutesAgo.minusMillis(TimeRangeBucket.TELEMETRY_THRESHOLD_TOLERANCE.millis());
         assertTimeRangeFilterFrom(new TimestampBounds(fifteenMinutesAgo, START), "15_minutes");
         assertTimeRangeFilterFrom(new TimestampBounds(atTolerance, START), "15_minutes");
         assertTimeRangeFilterFrom(new TimestampBounds(atTolerance.minusMillis(1), START), "1_hour");

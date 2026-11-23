@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,6 +34,11 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
+
+    @BeforeClass
+    public static void requireBatchIndexing() {
+        assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+    }
 
     @After
     public void resetBatchIndexing() {

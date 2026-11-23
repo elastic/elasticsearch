@@ -779,6 +779,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     if (startDoc < range.maxDoc() && endDoc > range.minDoc()) {
                         int prefix = leafPartitions.prefixes()[i];
                         assertSame(slice, sliceOfPrefix.computeIfAbsent(prefix, p -> slice));
+                        assertTrue("slice mixes metrics", metric == -1 || metric == prefix >>> shift);
                         metric = prefix >>> shift;
                     }
                 }

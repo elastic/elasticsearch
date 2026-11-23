@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -217,7 +218,12 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
 
     public void testValidStoreValuesAreAccepted() throws IOException {
         for (StreamOptions.Store store : StreamOptions.Store.values()) {
-            assertThat(parseStream("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}").options().store(), equalTo(store));
+            String body = "{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}";
+            if (store == StreamOptions.Store.NONE || EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                assertThat(parseStream(body).options().store(), equalTo(store));
+            } else {
+                expectThrows(XContentParseException.class, () -> parseStream(body));
+            }
         }
     }
 

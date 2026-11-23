@@ -117,7 +117,7 @@ public class GetStreamResultRequest extends UntypedActionRequest {
     public ActionRequestValidationException validate() {
         if (streamId == null || streamId.isEmpty()) {
             ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("id is missing");
+            e.addValidationError("id is required");
             return e;
         }
         return null;

@@ -27,7 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * The id is required and names exactly one stream. There is no route without it, and no pattern or list of ids.
  */
 @ServerlessScope(Scope.PUBLIC)
-public class RestEsqlDeleteStreamAction extends BaseRestHandler {
+public class RestEsqlDeleteStreamResultAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
@@ -36,7 +36,7 @@ public class RestEsqlDeleteStreamAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "esql_delete_stream";
+        return "esql_delete_stream_result";
     }
 
     @Override

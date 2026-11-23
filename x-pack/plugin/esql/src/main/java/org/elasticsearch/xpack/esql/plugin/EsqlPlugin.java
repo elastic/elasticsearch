@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
-import org.elasticsearch.xpack.esql.action.RestEsqlDeleteStreamAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
@@ -910,7 +910,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             // A stream can be read or deleted only where it can be created, and only when its results are stored.
             if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
                 handlers.add(new RestEsqlGetStreamResultAction());
-                handlers.add(new RestEsqlDeleteStreamAction());
+                handlers.add(new RestEsqlDeleteStreamResultAction());
             }
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is

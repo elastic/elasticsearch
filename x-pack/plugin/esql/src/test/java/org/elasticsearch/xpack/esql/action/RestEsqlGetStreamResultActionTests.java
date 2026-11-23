@@ -115,6 +115,11 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
         assertThat(parse(Map.of("max_bytes", "0")).statusOnly(), equalTo(true));
     }
 
+    /** A whole number without a unit is a count of bytes. A size with a unit, such as {@code 1mb}, is covered by {@link #testValues}. */
+    public void testMaxBytesAsABareNumberIsABytesCount() {
+        assertThat(parse(Map.of("max_bytes", "1048576")).maxBytes(), equalTo(1048576L));
+    }
+
     public void testWaitTimeoutAtTheUpperLimitIsAccepted() {
         assertThat(parse(Map.of("wait_timeout", "5m")).waitTimeout(), equalTo(GetStreamResultRequest.MAX_WAIT_TIMEOUT));
     }
@@ -131,15 +136,21 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
 
     // ---- parameters that are rejected ----
 
-    /** A value that cannot be parsed, a negative offset or limit, and a wait_timeout above the upper limit are all a 400. */
+    /**
+     * A value that cannot be parsed, a fractional limit, a negative offset or limit, and a wait_timeout above the upper limit are all
+     * a 400.
+     */
     public void testInvalidValuesAreBadRequests() {
         for (Map<String, String> params : List.of(
             Map.of("offset", "-1"),
             Map.of("offset", "abc"),
+            Map.of("max_rows", "-1"),
             Map.of("max_rows", "-5"),
             Map.of("max_rows", "x"),
+            Map.of("max_rows", "2.5"),
             Map.of("max_bytes", "-1"),
             Map.of("max_bytes", "lots"),
+            Map.of("max_bytes", "2048.5"),
             Map.of("wait_timeout", "soon"),
             Map.of("wait_timeout", "-2s"),
             Map.of("wait_timeout", "6m")

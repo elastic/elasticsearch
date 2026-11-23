@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests the route, the registration and the id of {@code DELETE /_query/stream/{id}}.
  */
-public class RestEsqlDeleteStreamActionTests extends ESTestCase {
+public class RestEsqlDeleteStreamResultActionTests extends ESTestCase {
 
     private static RestRequest request(String id, Map<String, String> queryParams) {
         Map<String, String> all = new HashMap<>(queryParams);
@@ -60,12 +60,12 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
 
     /** The id is required: the only route has it in the path. */
     public void testRoute() {
-        RestEsqlDeleteStreamAction handler = new RestEsqlDeleteStreamAction();
+        RestEsqlDeleteStreamResultAction handler = new RestEsqlDeleteStreamResultAction();
         List<RestHandler.Route> routes = handler.routes();
         assertThat(routes, hasSize(1));
         assertThat(routes.get(0).getMethod(), equalTo(RestRequest.Method.DELETE));
         assertThat(routes.get(0).getPath(), equalTo("/_query/stream/{id}"));
-        assertThat(handler.getName(), equalTo("esql_delete_stream"));
+        assertThat(handler.getName(), equalTo("esql_delete_stream_result"));
     }
 
     /**
@@ -80,7 +80,7 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
                 null,
                 null
             );
-            boolean registered = handlers.stream().anyMatch(h -> h instanceof RestEsqlDeleteStreamAction);
+            boolean registered = handlers.stream().anyMatch(h -> h instanceof RestEsqlDeleteStreamResultAction);
             assertThat(registered, equalTo(RestEsqlStreamQueryAction.ENABLED && EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()));
         }
     }
@@ -89,7 +89,7 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
 
     public void testIdComesFromThePath() {
         String id = StreamIdTests.randomStreamId().encoded();
-        DeleteStreamResultRequest delete = RestEsqlDeleteStreamAction.parseRequest(request(id, Map.of()));
+        DeleteStreamResultRequest delete = RestEsqlDeleteStreamResultAction.parseRequest(request(id, Map.of()));
         assertThat(delete.id(), equalTo(id));
         assertThat(delete.validate(), nullValue());
     }
@@ -97,7 +97,7 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
     /** There is no pattern and no list of ids. Whatever is in the path is one id, and the action answers that it is not found. */
     public void testIdIsPassedThroughUnchanged() {
         for (String id : new String[] { "*", "_all", "a,b", "a*" }) {
-            assertThat(RestEsqlDeleteStreamAction.parseRequest(request(id, Map.of())).id(), equalTo(id));
+            assertThat(RestEsqlDeleteStreamResultAction.parseRequest(request(id, Map.of())).id(), equalTo(id));
         }
     }
 
@@ -111,7 +111,7 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             containsString("unrecognized parameter: [" + parameter + "]"),
-            () -> new RestEsqlDeleteStreamAction().handleRequest(request, new FakeRestChannel(request, true), null)
+            () -> new RestEsqlDeleteStreamResultAction().handleRequest(request, new FakeRestChannel(request, true), null)
         );
     }
 
@@ -141,7 +141,7 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
             String id = StreamIdTests.randomStreamId().encoded();
             RestRequest request = request(id, Map.of());
             FakeRestChannel channel = new FakeRestChannel(request, true);
-            new RestEsqlDeleteStreamAction().handleRequest(request, channel, client);
+            new RestEsqlDeleteStreamResultAction().handleRequest(request, channel, client);
 
             assertThat(executed, hasSize(1));
             assertThat(((DeleteStreamResultRequest) executed.get(0)).id(), equalTo(id));

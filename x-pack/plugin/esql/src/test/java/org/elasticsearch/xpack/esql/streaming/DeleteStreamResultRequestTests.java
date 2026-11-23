@@ -8,32 +8,23 @@
 package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests {@link DeleteStreamResultRequest}: the wire serialization, which the request needs because it can be sent to another node,
- * and the validation of the id.
+ * Tests {@link DeleteStreamResultRequest}: the validation of the id, and that the request is local-only until the delete is forwarded.
  */
-public class DeleteStreamResultRequestTests extends AbstractWireSerializingTestCase<DeleteStreamResultRequest> {
+public class DeleteStreamResultRequestTests extends ESTestCase {
 
-    @Override
-    protected Writeable.Reader<DeleteStreamResultRequest> instanceReader() {
-        return DeleteStreamResultRequest::new;
-    }
-
-    @Override
-    protected DeleteStreamResultRequest createTestInstance() {
+    private static DeleteStreamResultRequest createTestInstance() {
         return new DeleteStreamResultRequest(StreamIdTests.randomStreamId().encoded());
     }
 
-    @Override
-    protected DeleteStreamResultRequest mutateInstance(DeleteStreamResultRequest instance) {
-        return new DeleteStreamResultRequest(randomValueOtherThan(instance.id(), () -> StreamIdTests.randomStreamId().encoded()));
+    public void testIsLocalOnly() {
+        expectThrows(AssertionError.class, () -> createTestInstance().writeTo(null));
     }
 
     public void testIdIsRequired() {

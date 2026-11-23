@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.streaming.DeleteStreamResultRequest;
 import org.elasticsearch.xpack.esql.streaming.GetStreamResultRequest;
@@ -20,8 +21,11 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class EsqlStreamActionsIT extends AbstractEsqlIntegTestCase {
 
-    private static String wellFormedId() {
-        return new StreamId(new TaskId("some-node", randomLongBetween(1, 1_000_000)), randomAlphaOfLength(12)).encoded();
+    private String streamId() {
+        return new StreamId(
+            new TaskId(clusterService().localNode().getId(), randomLongBetween(1, 1_000_000)),
+            UUIDs.randomBase64UUID(random())
+        ).encoded();
     }
 
     private static GetStreamResultRequest get(String id) {
@@ -29,7 +33,7 @@ public class EsqlStreamActionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testGetIsNotFound() {
-        String id = randomBoolean() ? wellFormedId() : randomFrom("*", "_all", "a,b", "not base64 !", randomAlphaOfLength(10));
+        String id = randomBoolean() ? streamId() : randomFrom("*", "_all", "a,b", "not base64 !", randomAlphaOfLength(10));
         expectThrows(
             ResourceNotFoundException.class,
             containsString(id),
@@ -38,7 +42,7 @@ public class EsqlStreamActionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDeleteIsNotFound() {
-        String id = randomBoolean() ? wellFormedId() : randomFrom("*", "_all", "a,b", "not base64 !", randomAlphaOfLength(10));
+        String id = randomBoolean() ? streamId() : randomFrom("*", "_all", "a,b", "not base64 !", randomAlphaOfLength(10));
         expectThrows(
             ResourceNotFoundException.class,
             containsString(id),

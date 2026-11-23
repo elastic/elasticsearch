@@ -31,6 +31,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * <p>
  * {@code max_rows=0} and {@code max_bytes=0} are both accepted and return the status only. This differs from {@code POST /_query/stream},
  * which rejects {@code max_bytes=0} because its response always writes the first row.
+ * <p>
+ * {@code max_bytes} is a whole number of bytes, as a JSON number is for {@code POST /_query/stream}, or a size with a unit such as
+ * {@code 1mb}.
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestEsqlGetStreamResultAction extends BaseRestHandler {
@@ -82,7 +85,7 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
         }
         long maxBytes = GetStreamResultRequest.NO_LIMIT;
         if (request.hasParam("max_bytes")) {
-            maxBytes = request.paramAsSize("max_bytes", null).getBytes();
+            maxBytes = parseMaxBytes(request.param("max_bytes"), request);
             if (maxBytes < 0) {
                 throw new IllegalArgumentException("[max_bytes] must be greater than or equal to 0 but was [" + maxBytes + "]");
             }
@@ -90,4 +93,14 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
         TimeValue waitTimeout = request.hasParam("wait_timeout") ? request.paramAsTime("wait_timeout", TimeValue.MINUS_ONE) : null;
         return new GetStreamResultRequest(streamId, offset, maxRows, maxBytes, waitTimeout);
     }
+
+    private static long parseMaxBytes(String value, RestRequest request) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            // not a bare number of bytes, so it has to be a size with a unit, and a value that is neither is a 400
+            return request.paramAsSize("max_bytes", null).getBytes();
+        }
+    }
+
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -23,17 +23,11 @@ import org.elasticsearch.xpack.esql.streaming.DeleteStreamResultRequest;
  * action against any index, so it must check that the caller started the stream before deleting it. Nothing is stored yet, so no
  * stream exists and every id is not found, which is also what an unknown stream will get once streams are stored.
  */
-public class TransportEsqlStreamDeleteAction extends HandledTransportAction<DeleteStreamResultRequest, AcknowledgedResponse> {
+public class TransportEsqlStreamDeleteAction extends TransportAction<DeleteStreamResultRequest, AcknowledgedResponse> {
 
     @Inject
     public TransportEsqlStreamDeleteAction(TransportService transportService, ActionFilters actionFilters) {
-        super(
-            EsqlStreamDeleteAction.NAME,
-            transportService,
-            actionFilters,
-            DeleteStreamResultRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(EsqlStreamDeleteAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

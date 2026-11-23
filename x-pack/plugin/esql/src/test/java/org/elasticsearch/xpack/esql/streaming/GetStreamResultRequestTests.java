@@ -104,7 +104,7 @@ public class GetStreamResultRequestTests extends ESTestCase {
         for (String missing : new String[] { null, "" }) {
             ActionRequestValidationException e = new GetStreamResultRequest(missing, 0, 1, 1, null).validate();
             assertThat(e, notNullValue());
-            assertThat(e.getMessage(), containsString("id is missing"));
+            assertThat(e.getMessage(), containsString("id is required"));
         }
     }
 

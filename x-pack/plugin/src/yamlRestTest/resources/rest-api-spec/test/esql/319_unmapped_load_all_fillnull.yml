@@ -210,7 +210,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last, optional_fields_load_all_only_keep_and_drop_reach_keys ]
       reason: "LOAD_ALL over views is only available with this capability"
   - do:
       esql.put_view:
@@ -236,9 +236,9 @@ teardown:
   - match: { columns.3.type: keyword }
   - match: { columns.4.name: _unmapped_fields }
   - match: { columns.4.type: _source }
-  - match: { values.0: [ 1, "la_fill_source", "o", "o", { _unmapped_fields: "src" } ] }
+  - match: { values.0: [ 1, "la_fill_source", "o", "o", { _unmapped_fields: "src", other: "o" } ] }
   - match: { values.1: [ 1, "nothing", "nothing", "nothing", null ] }
-  - match: { values.2: [ 2, "la_fill_source", "p", "p", null ] }
+  - match: { values.2: [ 2, "la_fill_source", "p", "p", { other: "p" } ] }
   - match: { values.3: [ 2, "nothing", "nothing", "nothing", null ] }
   - length: { values: 4 }
 

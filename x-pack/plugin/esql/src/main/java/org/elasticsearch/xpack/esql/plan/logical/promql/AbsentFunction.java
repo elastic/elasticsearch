@@ -60,7 +60,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema
 public final class AbsentFunction extends PromqlFunctionCall {
 
     /** Prometheus metadata labels that are never copied onto the {@code absent} result. */
-    private static final Set<String> METADATA_LABELS = Set.of(LabelMatcher.NAME, "__type__", "__unit__");
+    private static final Set<String> METADATA_LABELS = Set.of(LabelMatcher.NAME, LabelMatcher.TYPE, LabelMatcher.UNIT);
 
     private final List<Attribute> labels;
     private final List<String> labelValues;

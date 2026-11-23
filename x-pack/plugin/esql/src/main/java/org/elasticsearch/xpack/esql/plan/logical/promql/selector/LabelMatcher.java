@@ -44,6 +44,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 public class LabelMatcher implements NodeStringRenderable {
 
     public static final String NAME = "__name__";
+    public static final String TYPE = "__type__";
+    public static final String UNIT = "__unit__";
 
     public enum Matcher {
         EQ("=", false),

@@ -2,5 +2,5 @@ area: PromQL
 issues:
  - 164001
 pr: 166051
-summary: "PromQL: add the absent function"
+summary: "PromQL: add support for the `absent` function: https://prometheus.io/docs/prometheus/latest/querying/functions/#absent"
 type: feature

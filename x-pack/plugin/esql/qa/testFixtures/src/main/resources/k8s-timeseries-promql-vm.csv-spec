@@ -1403,12 +1403,13 @@ required_capability: promql_label_functions_anywhere
 PROMQL index=k8s step=10m result=(label_replace(network.eth0.tx / on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}), "dst", "$1", "pod", "(.+)"))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, dst, cluster, region, _timeseries
+| EVAL result = ROUND(result, 6), dst = dst, cluster = cluster, region = region, _timeseries = _timeseries
 | SORT dst;
 
-result:double       | dst:keyword | cluster:keyword | region:keyword | _timeseries:keyword
-0.25535055350553504 | one         | staging         | us             | "{""pod"":""one""}"
-0.33062730627306275 | three       | staging         | us             | "{""pod"":""three""}"
-0.34833948339483395 | two         | staging         | us             | "{""pod"":""two""}"
+result:double | dst:keyword | cluster:keyword | region:keyword | _timeseries:keyword
+0.255351      | one         | staging         | us             | "{""pod"":""one""}"
+0.330627      | three       | staging         | us             | "{""pod"":""three""}"
+0.348339      | two         | staging         | us             | "{""pod"":""two""}"
 ;
 
 // Deep nesting: label_replace over group_left ratio, then sum by the derived label. ROUND guards float sum order.

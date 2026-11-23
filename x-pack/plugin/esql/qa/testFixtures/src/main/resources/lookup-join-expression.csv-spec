@@ -1358,8 +1358,9 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 3         | e              | 3                     | Spanish
 ;
 
-// language_code is not joined on, but is used before the join: left_code keeps the 1, 2 and 3 of the left, and language_code is the 4 of
-// the lookup, for the row of lname == language_name. The key lname is not unmapped either.
+// language_code is not joined on, but is used before the join: left_code keeps the value of the left, which is 4, 3 and 2 for the first
+// three rows by timestamp, and language_code is the 4 of the lookup, for the row of lname == language_name. The key lname is not unmapped
+// either.
 lookupJoinExpressionAfterRenameOfUnmappedFieldWithFieldUsedBeforeTheJoin
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 required_capability: join_lookup_v12

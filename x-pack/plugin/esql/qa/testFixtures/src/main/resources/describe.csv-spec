@@ -3,13 +3,16 @@
 describeRoles
 required_capability: describe_command
 
+// tag::describeRoles[]
 FROM k8s
 | DESCRIBE
 | WHERE name IN ("@timestamp", "cluster", "event", "event_log", "client.ip", "network.bytes_in", "network.total_bytes_in", "network.eth0.rx")
 | KEEP name, type, role, origin, metric_type, unit
 | SORT name
+// end::describeRoles[]
 ;
 
+// tag::describeRoles-result[]
 name:keyword           | type:keyword  | role:keyword | origin:keyword | metric_type:keyword | unit:keyword
 @timestamp             | date          | time         | mapped         | null                | null
 client.ip              | ip            | attribute    | mapped         | null                | null
@@ -19,6 +22,7 @@ event_log              | text          | text         | mapped         | null   
 network.bytes_in       | long          | numeric      | mapped         | null                | null
 network.eth0.rx        | integer       | metric       | mapped         | gauge               | packets
 network.total_bytes_in | counter_long  | metric       | mapped         | counter             | bytes
+// end::describeRoles-result[]
 ;
 
 describeMetricsUnderTs
@@ -42,12 +46,15 @@ network.total_cost      | counter             | usd
 describeRolesSummary
 required_capability: describe_command
 
+// tag::describeRolesSummary[]
 FROM k8s
 | DESCRIBE
 | STATS fields = COUNT(*) BY role
 | SORT role
+// end::describeRolesSummary[]
 ;
 
+// tag::describeRolesSummary-result[]
 fields:long | role:keyword
 7           | attribute
 3           | dimension
@@ -56,28 +63,34 @@ fields:long | role:keyword
 2           | other
 1           | text
 1           | time
+// end::describeRolesSummary-result[]
 ;
 
 describeLineage
 required_capability: describe_command
 
+// tag::describeLineage[]
 FROM employees
 | KEEP emp_no, salary, first_name
 | RENAME salary AS pay
 | EVAL bonus = pay * 2
 | DESCRIBE
 | KEEP name, type, field, origin, role
+// end::describeLineage[]
 ;
 
+// tag::describeLineage-result[]
 name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword
 emp_no       | integer      | emp_no        | mapped         | numeric
 pay          | integer      | salary        | renamed        | numeric
 first_name   | keyword      | first_name    | mapped         | attribute
 bonus        | integer      | null          | computed       | null
+// end::describeLineage-result[]
 ;
 
 describeAfterStats
 required_capability: describe_command
+required_capability: describe_time_columns
 skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
 
 TS k8s
@@ -90,8 +103,221 @@ TS k8s
 name:keyword | type:keyword | origin:keyword | role:keyword | metric_type:keyword
 rate         | double       | computed       | null         | null
 cluster      | keyword      | mapped         | dimension    | null
-bucket       | date         | computed       | null         | null
+bucket       | date         | computed       | time         | null
 kib_rate     | double       | computed       | null         | null
+;
+
+describeTimeBuckets
+required_capability: describe_command
+required_capability: describe_time_columns
+
+FROM k8s
+| EVAL day = DATE_TRUNC(1 day, @timestamp)
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
+| RENAME b AS hour
+| DESCRIBE
+| KEEP name, type, origin, role
+;
+
+name:keyword | type:keyword | origin:keyword | role:keyword
+c            | long         | computed       | null
+hour         | date         | computed       | time
+day          | date         | computed       | time
+;
+
+describeNestedTimeBuckets
+required_capability: describe_command
+required_capability: describe_time_columns
+
+FROM k8s
+| EVAL t = DATE_TRUNC(1 day, DATE_TRUNC(1 hour, @timestamp))
+| KEEP t
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+t            | computed       | time
+;
+
+describeRoundedAndConvertedTime
+required_capability: describe_command
+required_capability: describe_time_columns
+required_capability: round_to
+
+FROM k8s
+| EVAL nanos = TO_DATE_NANOS(@timestamp), millis = TO_DATETIME(nanos), rounded = ROUND_TO(@timestamp, "2024-05-10T00:00:00Z"::DATE, "2024-05-11T00:00:00Z"::DATE), shifted = @timestamp + 1 hour
+| KEEP nanos, millis, rounded, shifted
+| DESCRIBE
+| KEEP name, type, origin, role
+;
+
+name:keyword | type:keyword | origin:keyword | role:keyword
+nanos        | date_nanos   | computed       | time
+millis       | date         | computed       | time
+rounded      | date         | computed       | time
+shifted      | date         | computed       | null
+;
+
+describeBucketsOfOtherDates
+required_capability: describe_command
+required_capability: describe_time_columns
+
+FROM employees
+| STATS c = COUNT(*) BY y = BUCKET(hire_date, 1 year)
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+c            | computed       | null
+y            | computed       | null
+;
+
+describeTimeThroughFork
+required_capability: describe_command
+required_capability: describe_time_columns
+required_capability: fork_v9
+
+FROM k8s
+| FORK (EVAL t = @timestamp) (EVAL t = DATE_TRUNC(1 day, @timestamp))
+| KEEP t
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+t            | computed       | time
+;
+
+describeIntervals
+required_capability: describe_command
+required_capability: describe_interval
+
+// tag::describeIntervals[]
+FROM k8s
+| EVAL day = DATE_TRUNC(1 day, @timestamp)
+| STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), day
+| RENAME b AS hour
+| EVAL month = DATE_TRUNC(1 month, hour), ninety = DATE_TRUNC(90 minutes, hour)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+// end::describeIntervals[]
+;
+
+// tag::describeIntervals-result[]
+name:keyword      | role:keyword | interval:keyword | time_zone:keyword
+c                 | null         | null             | null
+hour              | time         | 1 hour           | UTC
+day               | time         | 1 day            | UTC
+month             | time         | 1 month          | UTC
+ninety            | time         | 90 minutes       | UTC
+// end::describeIntervals-result[]
+;
+
+describeIntervalOfBucketCount
+required_capability: describe_command
+required_capability: describe_interval
+
+FROM k8s
+| EVAL lo = "2024-05-10T00:00:00Z", hi = "2024-05-11T00:00:00Z", start = lo
+| RENAME hi AS end
+| STATS c = COUNT(*) BY by_count = BUCKET(@timestamp, 20, "2024-05-10T00:00:00Z", "2024-05-11T00:00:00Z"), by_aliased_count = BUCKET(@timestamp, 20, lo, end), by_renamed_count = BUCKET(@timestamp, 20, start, end), by_null_bound = BUCKET(@timestamp, 20, null, end)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword     | role:keyword | interval:keyword | time_zone:keyword
+c                | null         | null             | null
+by_count         | time         | 3 hours          | UTC
+by_aliased_count | time         | 3 hours          | UTC
+by_renamed_count | time         | 3 hours          | UTC
+by_null_bound    | time         | null             | null
+;
+
+describeIntervalOfTStep
+required_capability: describe_command
+required_capability: describe_interval
+required_capability: tstep_explicit_bounds
+required_capability: tstep_bucket_count
+
+FROM k8s
+| STATS c = COUNT(*) BY step = TSTEP(1 hour, "2024-05-10T00:15:00Z", "2024-05-11T00:00:00Z"), by_count = TSTEP(2, "2024-05-10T00:00:00Z", "2024-05-10T02:00:00Z")
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+c            | null         | null             | null
+step         | time         | 1 hour           | UTC
+by_count     | time         | 1 hour           | UTC
+;
+
+describeIntervalThroughFork
+required_capability: describe_command
+required_capability: describe_interval
+required_capability: fork_v9
+
+FROM k8s
+| FORK (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(1 day, @timestamp), months = DATE_TRUNC(2 months, @timestamp))
+       (EVAL same = DATE_TRUNC(1 hour, @timestamp), day = DATE_TRUNC(24 hours, @timestamp), months = DATE_TRUNC(6 months, @timestamp))
+| KEEP same, day, months
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+same         | time         | 1 hour           | UTC
+day          | time         | null             | null
+months       | time         | null             | null
+;
+
+describeIntervalOfOtherDates
+required_capability: describe_command
+required_capability: describe_interval
+
+FROM employees
+| STATS c = COUNT(*) BY y = BUCKET(hire_date, 1 year)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+c            | null         | null             | null
+y            | null         | 1 year           | UTC
+;
+
+describeIntervalUnderTs
+required_capability: describe_command
+required_capability: describe_interval
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+TS k8s
+| STATS rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(5 minutes)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+rate         | null         | null             | null
+bucket       | time         | 5 minutes        | UTC
+;
+
+describeIntervalTimeZone
+required_capability: describe_command
+required_capability: describe_interval
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "Europe/Paris"\;
+FROM k8s
+| STATS c = COUNT(*) BY week = BUCKET(@timestamp, 1 week)
+| DESCRIBE
+| KEEP name, role, interval, time_zone
+;
+
+name:keyword | role:keyword | interval:keyword | time_zone:keyword
+c            | null         | null             | null
+week         | time         | 1 week           | Europe/Paris
 ;
 
 describeRolesAfterStats

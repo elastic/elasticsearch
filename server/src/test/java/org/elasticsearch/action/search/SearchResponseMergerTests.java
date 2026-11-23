@@ -22,6 +22,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -298,6 +299,49 @@ public class SearchResponseMergerTests extends ESTestCase {
                     ShardSearchFailure expected = priorityQueue.poll().v2();
                     assertSame(expected, shardFailure);
                 }
+            } finally {
+                mergedResponse.decRef();
+            }
+        }
+    }
+
+    public void testMergePhaseFailures() throws InterruptedException {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                0,
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                searchTimeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
+            )
+        ) {
+            List<String> expectedPhases = new ArrayList<>();
+            for (int i = 0; i < numResponses; i++) {
+                SearchResponseUtils.SearchResponseBuilder builder = SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .clusters(SearchResponse.Clusters.EMPTY);
+                if (randomBoolean()) {
+                    String phase = "phase_" + i;
+                    expectedPhases.add(phase);
+                    builder.phaseFailures(new SearchPhaseFailure(phase, new IllegalStateException("failure " + i)));
+                }
+                SearchResponse searchResponse = builder.build();
+                try {
+                    addResponse(merger, searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                assertThat(
+                    mergedResponse.getPhaseFailures().stream().map(SearchPhaseFailure::phase).toList(),
+                    containsInAnyOrder(expectedPhases.toArray(String[]::new))
+                );
             } finally {
                 mergedResponse.decRef();
             }
@@ -979,6 +1023,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             0,
             List.of(),
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             topHits,
@@ -1581,6 +1626,27 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    /**
+     * A local response holds the charge for its aggregations until it is released, which the merger does when it closes, so the merger does
+     * not charge those aggregations again while it holds the response.
+     */
+    public void testAggregationsWithAChargeAreNotChargedAgain() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        AtomicBoolean aggregationChargeReleased = new AtomicBoolean();
+        SearchResponse local = responseWithHitsAndAggregations("", 3, 100f);
+        long withAggregations = TransportMultiSearchAction.estimateActualBytes(local);
+        long aggregationBytes = DelayableWriteable.getUncompressedSerializedSize(local.getAggregations());
+        assertThat(aggregationBytes, greaterThan(0L));
+        local.adoptAggregationCharge(() -> assertTrue(aggregationChargeReleased.compareAndSet(false, true)));
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            addAndRelease(merger, local);
+            assertThat(breaker.getUsed(), equalTo(withAggregations - aggregationBytes));
+            assertFalse(aggregationChargeReleased.get());
+        }
+        assertTrue(aggregationChargeReleased.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     /** Only the first merged response takes the hits charge, so merging again cannot release it twice. */
     public void testOnlyFirstMergedResponseTakesHitsCharge() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
@@ -1721,7 +1787,7 @@ public class SearchResponseMergerTests extends ESTestCase {
      * Records the label of every charge and release. A test double, because {@link LimitedBreaker} ignores labels, and checking the
      * per-category metric of a real breaker would need a meter registry.
      */
-    private static final class LabelRecordingBreaker extends NoopCircuitBreaker {
+    static final class LabelRecordingBreaker extends NoopCircuitBreaker {
         final List<String> charged = new ArrayList<>();
         final List<String> released = new ArrayList<>();
 
@@ -1783,10 +1849,36 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 List.of(failure),
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
                 null
+            );
+        } finally {
+            hitsOnly.decRef();
+        }
+    }
+
+    /** Like {@link #responseWithHits}, with a {@code max} aggregation. */
+    private static SearchResponse responseWithHitsAndAggregations(String clusterAlias, int numHits, float topScore) {
+        SearchResponse hitsOnly = responseWithHits(clusterAlias, numHits, topScore);
+        try {
+            return new SearchResponse(
+                hitsOnly.getHits(),
+                InternalAggregations.from(List.of(new Max("max", topScore, DocValueFormat.RAW, Map.of()))),
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                List.of(),
+                SearchResponse.Clusters.EMPTY
             );
         } finally {
             hitsOnly.decRef();

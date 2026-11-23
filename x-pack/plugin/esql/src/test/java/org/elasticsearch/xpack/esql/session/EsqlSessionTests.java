@@ -8,15 +8,24 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -52,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -59,24 +69,33 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +106,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -770,6 +790,32 @@ public class EsqlSessionTests extends ESTestCase {
         }
     }
 
+    /**
+     * The subquery of a {@code LEFT OUTER JOIN} is a separate query that the coordinator runs and replaces with its result, so
+     * a {@code LOOKUP JOIN} after the join is scoped to the clusters of the join's left input only.
+     */
+    public void testComputeLookupJoinIndexScopeLeftOuterJoinSubquery() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+
+        {
+            // LOOKUP JOIN after the JOIN: the subquery's cluster remote-2 does not feed it
+            var plan = TEST_PARSER.parseQuery("""
+                FROM remote-1:main
+                | LEFT OUTER JOIN (FROM remote-2:sub) ON x
+                | LOOKUP JOIN lookup ON x""");
+            var resolution = createIndexResolution("remote-1:main", "remote-2:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-1")));
+        }
+        {
+            // LOOKUP JOIN inside the JOIN subquery: scoped to the subquery's own cluster
+            var plan = TEST_PARSER.parseQuery("""
+                FROM remote-1:main
+                | LEFT OUTER JOIN (FROM remote-2:sub | LOOKUP JOIN lookup ON x) ON x""");
+            var resolution = createIndexResolution("remote-1:main", "remote-2:sub");
+            assertThat(EsqlSession.computeLookupJoinIndexScope(plan, "lookup", resolution), equalTo(Set.of("remote-2")));
+        }
+    }
+
     public void testComputeEnrichScope() {
         {
             // enrich on a local index
@@ -972,6 +1018,105 @@ public class EsqlSessionTests extends ESTestCase {
                 """));
             var resolution = createIndexResolution("remote-0:main", "remote-1:a", "remote-2:b");
             assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote-2")));
+        }
+    }
+
+    public void testComputeLookupJoinIndexScopeEqlSource() {
+        assumeTrue("Requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        for (String eqlPattern : List.of("events", "remote:events")) {
+            String eql = "EQL " + eqlPattern + " \"process where true\"";
+            var resolution = createIndexResolution(eqlPattern, "remote:index");
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(TEST_PARSER.parseQuery(eql + " | LOOKUP JOIN lookup ON key"), "lookup", resolution),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    TEST_PARSER.parseQuery("FROM remote:index, (" + eql + ") | LOOKUP JOIN lookup ON key"),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local, "remote"))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    TEST_PARSER.parseQuery("FROM remote:index, (" + eql + " | LOOKUP JOIN lookup ON key)"),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    InSubqueryResolver.resolve(
+                        TEST_PARSER.parseQuery("FROM remote:index | WHERE key IN (" + eql + " | LOOKUP JOIN lookup ON key | KEEP key)")
+                    ),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeLookupJoinIndexScope(
+                    InSubqueryResolver.resolve(
+                        TEST_PARSER.parseQuery("FROM remote:index | WHERE key IN (" + eql + " | KEEP key) | LOOKUP JOIN lookup ON key")
+                    ),
+                    "lookup",
+                    resolution
+                ),
+                equalTo(Set.of("remote"))
+            );
+        }
+    }
+
+    public void testComputeEnrichScopeEqlSource() {
+        assumeTrue("Requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        for (String eqlPattern : List.of("events", "remote:events")) {
+            String eql = "EQL " + eqlPattern + " \"process where true\"";
+            var resolution = createIndexResolution(eqlPattern, "remote:index");
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery(eql + " | ENRICH _remote:policy ON key"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery("FROM remote:index, (" + eql + ") | ENRICH _remote:policy ON key"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local, "remote"))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(TEST_PARSER.parseQuery("FROM remote:index, (" + eql + " | ENRICH _remote:policy ON key)"), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            String enrichInsideSubquery = "FROM remote:index | WHERE key IN (" + eql + " | ENRICH _remote:policy ON key | KEEP key)";
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(enrichInsideSubquery)), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of(local))
+            );
+            String enrichAfterSubquery = "FROM remote:index | WHERE key IN (" + eql + " | KEEP key) | ENRICH _remote:policy ON key";
+            assertThat(
+                EsqlSession.computeEnrichScope(
+                    enrichNamed(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(enrichAfterSubquery)), "policy"),
+                    resolution
+                ),
+                equalTo(Set.of("remote"))
+            );
         }
     }
 
@@ -1424,6 +1569,150 @@ public class EsqlSessionTests extends ESTestCase {
         assertThat(EsqlSession.suppliedSettingNames(request, statement), equalTo(Set.of("time_zone", "project_routing")));
     }
 
+    public void testNullRequestFilterLeavesEqlSourcesUntouched() {
+        LogicalPlan plan = new Limit(EMPTY, Literal.integer(EMPTY, 10), eqlRelation());
+        assertThat(EsqlSession.applyRequestFilterToEqlSources(plan, null, TransportVersion.current()), sameInstance(plan));
+    }
+
+    public void testRequestFilterReachesEqlSourceBelowAParent() {
+        QueryBuilder filter = QueryBuilders.rangeQuery("@timestamp").gte("now-15m");
+        LogicalPlan plan = analyzed(new Limit(EMPTY, Literal.integer(EMPTY, 10), eqlRelation()));
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(plan, filter, TransportVersion.current());
+        EqlRelation eql = (EqlRelation) ((Limit) stamped).child();
+        assertThat(eql.requestFilter(), sameInstance(filter));
+        assertTrue(stamped.analyzed());
+    }
+
+    public void testEqlSourceInsideViewIsLeftToTheViewOutputFilter() {
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        EqlRelation outsideView = eqlRelation();
+        EqlRelation insideView = eqlRelation();
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
+            analyzed(viewNextToBareBranch(outsideView, insideView)),
+            filter,
+            TransportVersion.current()
+        );
+        BranchPlan branches = (BranchPlan) stamped;
+        assertThat(((EqlRelation) branches.namedSubqueries().get(null)).requestFilter(), sameInstance(filter));
+        assertThat(branches.namedSubqueries().get("eql_view"), sameInstance(insideView));
+        assertTrue(stamped.analyzed());
+    }
+
+    public void testEqlSourceInsideViewIsFilteredWhenTheViewOutputRewriteCannotRun() {
+        TransportVersion tooOld = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_request_filter_on_dataset"));
+        assertFalse(ViewRequestFilterRewriter.supportsRewrite(tooOld));
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
+            analyzed(viewNextToBareBranch(eqlRelation(), eqlRelation())),
+            filter,
+            tooOld
+        );
+        stamped.forEachDown(LogicalPlan.class, p -> assertTrue(p.analyzed()));
+        List<LogicalPlan> eqlSources = stamped.collect(EqlRelation.class::isInstance);
+        assertThat(eqlSources, hasSize(2));
+        for (LogicalPlan eql : eqlSources) {
+            assertThat(((EqlRelation) eql).requestFilter(), sameInstance(filter));
+        }
+    }
+
+    public void testScopeEqlIndexPatternsUnderARequestFilterOrATimeRangeOnTheirPattern() {
+        UnresolvedRelation from = new UnresolvedRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
+        UnresolvedEqlRelation eql = new UnresolvedEqlRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            "process where true",
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            false,
+            List.of()
+        );
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("from", from);
+        children.put("eql", eql);
+        LogicalPlan plan = new BranchPlan(EMPTY, children, Map.of(), List.of());
+
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of()), sameInstance(plan));
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(new IndexPattern(EMPTY, "metrics-*"))), sameInstance(plan));
+
+        assertEqlScopedApartFrom(from, EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"), Set.of()));
+        assertEqlScopedApartFrom(from, EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(from.indexPattern())));
+    }
+
+    private static void assertEqlScopedApartFrom(UnresolvedRelation from, LogicalPlan scoped) {
+        BranchPlan branches = (BranchPlan) scoped;
+        IndexPattern eqlPattern = ((UnresolvedEqlRelation) branches.namedSubqueries().get("eql")).indexPattern();
+        assertTrue(eqlPattern.isEqlSource());
+        assertThat(eqlPattern.indexPattern(), equalTo("logs-*"));
+        assertThat(eqlPattern, not(equalTo(from.indexPattern())));
+        assertThat(branches.namedSubqueries().get("from"), sameInstance(from));
+    }
+
+    public void testEqlPatternConflictsWithATimeSeriesSourceOnItsPatternEvenUnderARequestFilterOrATimeRange() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        LogicalPlan plan = TEST_PARSER.parseQuery(
+            randomFrom("FROM (TS p), (EQL p \"any where true\")", "FROM (EQL p \"any where true\"), (TS p)")
+        );
+        assertTimeSeriesConflict(plan);
+
+        IndexPattern timeSeries = plan.collect(UnresolvedRelation.class).get(0).indexPattern();
+        LogicalPlan underRequestFilter = EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"), Set.of());
+        LogicalPlan underTimeRange = EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(timeSeries));
+        for (LogicalPlan scoped : List.of(underRequestFilter, underTimeRange)) {
+            assertTrue(scoped.collect(UnresolvedEqlRelation.class).get(0).indexPattern().isEqlSource());
+            assertTimeSeriesConflict(scoped);
+        }
+    }
+
+    private static void assertTimeSeriesConflict(LogicalPlan plan) {
+        expectThrows(
+            IllegalStateException.class,
+            containsString("index pattern 'p' found with different index mode"),
+            () -> new PreAnalyzer().preAnalyze(plan)
+        );
+    }
+
+    public void testFieldCapsFilterSkipsEqlAndViewInternalPatterns() {
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        IndexPattern from = new IndexPattern(EMPTY, "logs-*");
+        IndexPattern viewInternal = new IndexPattern(EMPTY, "views-*");
+        assertThat(EsqlSession.fieldCapsFilter(from, Set.of(viewInternal), filter), sameInstance(filter));
+        assertNull(EsqlSession.fieldCapsFilter(from.forEqlSource(), Set.of(viewInternal), filter));
+        assertNull(EsqlSession.fieldCapsFilter(viewInternal, Set.of(viewInternal), filter));
+        assertNull(EsqlSession.fieldCapsFilter(from, Set.of(), null));
+    }
+
+    private static EqlRelation eqlRelation() {
+        return new EqlRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            "process where true",
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            false,
+            List.of(new ReferenceAttribute(EMPTY, "host", DataType.KEYWORD))
+        );
+    }
+
+    private static LogicalPlan analyzed(LogicalPlan plan) {
+        plan.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        return plan;
+    }
+
+    private static BranchPlan viewNextToBareBranch(EqlRelation bare, EqlRelation insideView) {
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put(null, bare);
+        children.put("eql_view", insideView);
+        return new BranchPlan(EMPTY, children, Map.of("eql_view", BranchIdentity.view("eql_view")), bare.output());
+    }
+
     /**
      * What a warm serve would compose for {@code key}: the schema record's own file facts with the
      * measurements committed under that record's read layered over them.
@@ -1444,5 +1733,88 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> composed = new HashMap<>(record.safeMetadata());
         composed.putAll(statistics);
         return composed;
+    }
+
+    // -- maxIndexedValues: how long a terms query the indices an IN subquery reads accept --
+
+    public void testMaxIndexedValuesIsTheSmallestMaxTermsCountOfTheLocalIndices() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 150, "middle", 1_000));
+        EsRelation relation = relationOver(Map.of("", List.of("wide", "narrow", "middle")));
+
+        assertThat(EsqlSession.maxIndexedValues(relation, metadata, true), equalTo(150));
+    }
+
+    public void testMaxIndexedValuesUsesTheDefaultMaxTermsCount() {
+        int defaultMaxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.getDefault(Settings.EMPTY);
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", defaultMaxTermsCount));
+        Settings noSetting = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        metadata = ProjectMetadata.builder(metadata)
+            .put(IndexMetadata.builder("unset").settings(noSetting).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("unset"))), metadata, true), equalTo(defaultMaxTermsCount));
+    }
+
+    /**
+     * A remote cluster's limit is not known here, and one lower than the list makes its shards fail the query, so any remote index
+     * leaves the limit unknown, whatever the local indices say and in whatever order the clusters come.
+     */
+    public void testMaxIndexedValuesIsUnknownWhenAnIndexIsOnARemoteCluster() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("idx"))), metadata, true), equalTo(0));
+
+        Map<String, List<String>> localFirst = new LinkedHashMap<>();
+        localFirst.put("", List.of("idx"));
+        localFirst.put("cluster-a", List.of("idx"));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(localFirst), metadata, true), equalTo(0));
+
+        Map<String, List<String>> remoteFirst = new LinkedHashMap<>();
+        remoteFirst.put("cluster-a", List.of("idx"));
+        remoteFirst.put("", List.of("idx"));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(remoteFirst), metadata, true), equalTo(0));
+    }
+
+    public void testMaxIndexedValuesIsUnknownWhenTheMetadataHasNoSuchIndex() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx", "gone"))), metadata, true), equalTo(0));
+    }
+
+    public void testMaxIndexedValuesIsUnknownWithoutMetadataOrIndices() {
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx"))), null, true), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of()), projectWithMaxTermsCount(Map.of("idx", 5_000)), true), equalTo(0));
+    }
+
+    /**
+     * A field that keeps only doc values cannot be queried by a {@code terms} query when expensive queries are not allowed, and the
+     * planner cannot see which fields those are, so the limit is capped at the default. A lower known limit still applies.
+     */
+    public void testMaxIndexedValuesIsCappedAtTheDefaultWhenExpensiveQueriesAreNotAllowed() {
+        int defaultLimit = AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 50));
+        EsRelation wide = relationOver(Map.of("", List.of("wide")));
+        EsRelation narrow = relationOver(Map.of("", List.of("narrow")));
+
+        assertThat(EsqlSession.maxIndexedValues(wide, metadata, true), equalTo(5_000));
+        assertThat(EsqlSession.maxIndexedValues(wide, metadata, false), equalTo(defaultLimit));
+        assertThat(EsqlSession.maxIndexedValues(narrow, metadata, false), equalTo(50));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("wide"))), metadata, false), equalTo(0));
+    }
+
+    private static ProjectMetadata projectWithMaxTermsCount(Map<String, Integer> maxTermsCountByIndex) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(ProjectId.DEFAULT);
+        maxTermsCountByIndex.forEach((index, maxTermsCount) -> {
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(), maxTermsCount)
+                .build();
+            project.put(IndexMetadata.builder(index).settings(settings).numberOfShards(1).numberOfReplicas(0));
+        });
+        return project.build();
+    }
+
+    private static EsRelation relationOver(Map<String, List<String>> concreteIndices) {
+        return new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), concreteIndices, Map.of(), List.of());
     }
 }

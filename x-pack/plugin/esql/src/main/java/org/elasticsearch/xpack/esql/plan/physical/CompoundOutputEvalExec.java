@@ -49,7 +49,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
      */
     private final List<Attribute> outputFieldAttributes;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public CompoundOutputEvalExec(
         Source source,

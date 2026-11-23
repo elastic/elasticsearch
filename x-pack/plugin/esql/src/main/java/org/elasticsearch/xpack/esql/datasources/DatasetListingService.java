@@ -53,6 +53,7 @@ public final class DatasetListingService {
     private final IntSupplier maxDiscoveredFiles;
     private final IntSupplier maxGlobExpansion;
     private final IntSupplier maxListedObjects;
+    private final IntSupplier maxDirectoryListings;
 
     /**
      * @param cacheService the shared listing cache, or {@code null} to list live every time.
@@ -68,11 +69,27 @@ public final class DatasetListingService {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(settings, cacheService, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, null);
+    }
+
+    /**
+     * @param maxDirectoryListings live {@link ExternalSourceSettings#MAX_DIRECTORY_LISTINGS} cap; {@code null} reads
+     *        the node's own settings, same fallback as the other caps.
+     */
+    public DatasetListingService(
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         Settings effective = settings != null ? settings : Settings.EMPTY;
         this.cacheService = cacheService;
         this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, effective);
         this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, effective);
         this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, effective);
+        this.maxDirectoryListings = capOrSettings(maxDirectoryListings, ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, effective);
     }
 
     private static IntSupplier capOrSettings(@Nullable IntSupplier supplied, Setting<Integer> setting, Settings settings) {
@@ -94,6 +111,10 @@ public final class DatasetListingService {
 
     public int maxListedObjects() {
         return maxListedObjects.getAsInt();
+    }
+
+    public int maxDirectoryListings() {
+        return maxDirectoryListings.getAsInt();
     }
 
     /**
@@ -161,7 +182,8 @@ public final class DatasetListingService {
             extents,
             memory,
             cancelled,
-            folderRange
+            folderRange,
+            maxDirectoryListings.getAsInt()
         );
     }
 
@@ -217,7 +239,8 @@ public final class DatasetListingService {
             cancelled,
             executor,
             listener,
-            folderRange
+            folderRange,
+            maxDirectoryListings.getAsInt()
         );
     }
 

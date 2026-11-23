@@ -45,6 +45,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -61,16 +62,28 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  *       {@code include_execution_metadata: true} (local-only queries included), on cross-cluster queries with
  *       {@code include_ccs_metadata: true}, or when a partial result carries cluster failures), optionally
  *       followed by a {@code "profile"} object when {@code profile: true} was set.</li>
- *   <li>Last line (failure after the first row line): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
+ *   <li>Last line (failure after the first row line): {@code {"status":N,"took":N,"is_partial":<bool>,"warnings":[...],
  *       "complete":false,"next_offset":N,"error":{<standard ES error shape with root_cause, type, reason, caused_by>}}}</li>
  *   <li>Failure before the first row line: the terminal record is the only line, and the response carries
  *       the error HTTP status code.</li>
+ *   <li>Last line (a limit was reached): {@code {"status":200,"took":N,"is_partial":<bool>,"warnings":[...],
+ *       "complete":false,"next_offset":N}}. The query did not finish, so there are no statistics, {@code _clusters}
+ *       or profile. {@code is_partial} reflects the failures recorded up to the point the response ended (for example a
+ *       skipped remote cluster); {@code complete: false} is what signals the truncation. The query is cancelled when the
+ *       response is released.</li>
  * </ul>
  *
  * <p>{@code complete} is true only when the stream ended with a normal completion signal; any error, including
- * one raised after the success footer was published, makes it false. {@code next_offset} is the number of rows
- * written to the response, which is the first row that was not sent. It counts rows written, not rows the
- * client received.</p>
+ * one raised after the success footer was published, makes it false, and so does ending at a limit.
+ * {@code next_offset} is the number of rows written to the response, which is the first row that was not sent.
+ * It counts rows written, not rows the client received.</p>
+ *
+ * <p>{@code max_rows} and {@code max_bytes} (see {@link StreamOptions}) end the response early. Bytes are counted
+ * for the columns line and every row line, not the last line, and the first row is always written. The limits are
+ * checked after each row. A response ends at a limit only when the result is known to have more rows: either the
+ * limit falls inside a page, or the next signal after a page that filled it is another page. If that signal is the
+ * end of the result instead, the response ends normally with {@code complete: true}, so a result that is exactly as
+ * large as the limit is reported as complete.</p>
  *
  * <p>The HTTP response is not sent until the publisher delivers the first page, the success footer or the
  * error. So a {@code 200} response never ends in an error without at least one row line before it.</p>
@@ -105,16 +118,88 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private volatile List<ColumnInfoImpl> columns;
     private volatile boolean[] nullColumns;
     private volatile ZoneId zoneId;
+    /** Whether the query has recorded failures so far; read when this listener builds its own last line. */
+    private volatile BooleanSupplier isPartial = () -> false;
     private final AtomicReference<Page> inFlightPage = new AtomicReference<>();
     private final AtomicLong rowsWritten = new AtomicLong();
+    private final AtomicLong bytesWritten = new AtomicLong();
+    private final StreamOptions options;
     private volatile Supplier<ThreadContext.StoredContext> contextRestorer;
     private boolean responseSent = false;
 
     private volatile PageStreamPublisher.StreamFooter preHeaderFailureFooter;
 
     public EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext) {
+        this(channel, threadContext, StreamOptions.NONE);
+    }
+
+    EsqlStreamResponseListener(RestChannel channel, ThreadContext threadContext, StreamOptions options) {
         this.channel = channel;
         this.threadContext = threadContext;
+        this.options = options;
+    }
+
+    /** Whether the rows and bytes written so far already fill {@code max_rows} or {@code max_bytes}. */
+    private boolean limitReached() {
+        return options.reached(rowsWritten.get(), bytesWritten.get());
+    }
+
+    /**
+     * The last line of a response that ended at {@code max_rows} or {@code max_bytes}. The query did not finish, so there is
+     * no completion info, {@code _clusters} or profile, and {@code complete} is false. The warnings come from the query's
+     * captured context, so the line is the same whichever thread ends the response.
+     */
+    private ChunkedRestResponseBodyPart limitFooterPart() {
+        long elapsedMillis = (System.nanoTime() - startNanos) / 1_000_000L;
+        PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+            RestStatus.OK.getStatus(),
+            elapsedMillis,
+            isPartial.getAsBoolean(),
+            queryWarnings(),
+            null,
+            null,
+            null,
+            null
+        );
+        return new NdjsonFooterBodyPart(footer, false);
+    }
+
+    /**
+     * Ends the response at a limit. The caller has already seen that the result has more rows (a page, or the rest of the
+     * current page), so the response is incomplete. Only one last line is ever written: if the response already ended some
+     * other way, this does nothing. The query is cancelled when the response is released.
+     */
+    private void finishAtLimit() {
+        if (terminalEmitted.compareAndSet(false, true) == false) {
+            return;
+        }
+        ChunkedRestResponseBodyPart footerPart = limitFooterPart();
+        if (responseSent == false) {
+            // Nothing was sent yet (max_rows is 0): the response is the columns line and this last line.
+            responseSent = true;
+            synchronized (continuationMonitor) {
+                pendingTerminalPart = footerPart;
+            }
+            sendDeferred(RestStatus.OK, new NdjsonColumnsBodyPart(columns, nullColumns), null);
+            return;
+        }
+        deliverTerminalPart(footerPart);
+    }
+
+    /** Hands the last part to the response: to the continuation that is waiting for it, or parks it until one asks. */
+    private void deliverTerminalPart(ChunkedRestResponseBodyPart footerPart) {
+        ActionListener<ChunkedRestResponseBodyPart> next;
+        synchronized (continuationMonitor) {
+            next = nextBodyPartListener;
+            if (next != null) {
+                nextBodyPartListener = null;
+            } else {
+                pendingTerminalPart = footerPart;
+            }
+        }
+        if (next != null) {
+            next.onResponse(footerPart);
+        }
     }
 
     void setPreHeaderFailureFooter(PageStreamPublisher.StreamFooter footer) {
@@ -126,13 +211,28 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         return new PageStreamPublisher.StreamFooter(
             ExceptionsHelper.status(e).getStatus(),
             elapsedMillis,
-            false,
-            TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY),
+            isPartial.getAsBoolean(),
+            queryWarnings(),
             null,
             null,
             e,
             null
         );
+    }
+
+    /**
+     * The query's warnings, read from the context captured when the stream started rather than from the calling thread,
+     * which may be a Netty thread whose context holds none of the query's response headers.
+     */
+    private List<String> queryWarnings() {
+        Supplier<ThreadContext.StoredContext> restorer = contextRestorer;
+        if (restorer == null) {
+            // Before the stream started: the caller is still on the query's own thread.
+            return TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
+        }
+        try (ThreadContext.StoredContext ignored = restorer.get()) {
+            return TransportEsqlStreamQueryAction.footerWarnings(threadContext, DriverCompletionInfo.EMPTY);
+        }
     }
 
     /**
@@ -167,6 +267,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.columns = resultStream.columns();
         this.nullColumns = resultStream.nullColumns();
         this.zoneId = resultStream.zoneId();
+        this.isPartial = resultStream.isPartial();
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
         this.contextRestorer = threadContext.newRestorableContext(false);
         resultStream.publisher().subscribe(subscriber);
@@ -291,6 +392,19 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public void onNext(Page page) {
+            if (limitReached()) {
+                // The last page filled the limit exactly and this page shows that the result goes on, so the response
+                // ends here, incomplete. (If the result had ended instead, onComplete would have run.) The Driver drops empty
+                // pages, but one that got here would prove nothing, so it is skipped and the next signal decides.
+                boolean moreRows = page.getPositionCount() > 0;
+                page.releaseBlocks();
+                if (moreRows) {
+                    finishAtLimit();
+                } else {
+                    subscription.request(1);
+                }
+                return;
+            }
             if (responseSent == false) {
                 responseSent = true;
                 Page previous = inFlightPage.getAndSet(page);
@@ -333,18 +447,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     sendDeferred(RestStatus.fromCode(footer.status()), footerPart, footer.error());
                     return;
                 }
-                ActionListener<ChunkedRestResponseBodyPart> next;
-                synchronized (continuationMonitor) {
-                    next = nextBodyPartListener;
-                    if (next != null) {
-                        nextBodyPartListener = null;
-                    } else {
-                        pendingTerminalPart = footerPart;
-                    }
-                }
-                if (next != null) {
-                    next.onResponse(footerPart);
-                }
+                deliverTerminalPart(footerPart);
             }
         }
 
@@ -361,18 +464,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     sendDeferred(RestStatus.OK, new NdjsonColumnsBodyPart(columns, nullColumns), null);
                     return;
                 }
-                ActionListener<ChunkedRestResponseBodyPart> next;
-                synchronized (continuationMonitor) {
-                    next = nextBodyPartListener;
-                    if (next != null) {
-                        nextBodyPartListener = null;
-                    } else {
-                        pendingTerminalPart = footerPart;
-                    }
-                }
-                if (next != null) {
-                    next.onResponse(footerPart);
-                }
+                deliverTerminalPart(footerPart);
             }
         }
     }
@@ -432,6 +524,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 });
                 out.write(NEWLINE);
                 encoded = true;
+                bytesWritten.addAndGet(out.size());
                 return out.moveToBytesReference();
             } catch (Exception e) {
                 logger.error("failure encoding columns chunk", e);
@@ -520,7 +613,14 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 // chunkStream, so size() is accurate to the row just written; without that it would only
                 // advance in ~8 KB steps. Measuring after the row (not before) guarantees at least one row
                 // per call, so a part with a tiny sizeHint still makes forward progress.
+                //
+                // The limits are checked after each row, which is the same as checking before the next one, except that
+                // it never produces an empty chunk. A limit that falls on the last row of the page is not acted on here:
+                // whether the result goes on is only known when the next signal arrives (see onNext and onComplete).
+                final long rowsBefore = rowsWritten.get();
+                final long bytesBefore = bytesWritten.get();
                 int rowsInChunk = 0;
+                boolean limitInsidePage = false;
                 while (nextRow < rowCount) {
                     try (XContentBuilder builder = XContentFactory.jsonBuilder(out)) {
                         builder.startArray();
@@ -534,13 +634,23 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     chunkStream.write(NEWLINE);
                     nextRow++;
                     rowsInChunk++;
+                    if (nextRow < rowCount && options.reached(rowsBefore + rowsInChunk, bytesBefore + chunkStream.size())) {
+                        limitInsidePage = true;
+                        break;
+                    }
                     if (chunkStream.size() >= sizeHint) {
                         break;
                     }
                 }
                 rowsWritten.addAndGet(rowsInChunk);
-                if (nextRow == rowCount) {
+                bytesWritten.addAndGet(chunkStream.size());
+                if (nextRow == rowCount || limitInsidePage) {
                     encoded = true;
+                }
+                if (limitInsidePage) {
+                    // Rows of this page remain unsent, so the result goes on: end the response here. The rows are counted
+                    // first so that next_offset in the last line includes this chunk.
+                    finishAtLimit();
                 }
                 final var result = chunkStream.moveToBytesReference();
                 target = null;
@@ -694,7 +804,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     private ToXContent.Params errorParams(int statusCode) {
         ToXContent.Params params = channel.request();
-        if (statusCode != RestStatus.UNAUTHORIZED.getStatus() && params.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
+        if (statusCode != RestStatus.UNAUTHORIZED.getStatus()
+            && params.paramAsBoolean(RestController.ERROR_TRACE_PARAM, RestController.ERROR_TRACE_DEFAULT)) {
             params = new ToXContent.DelegatingMapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;

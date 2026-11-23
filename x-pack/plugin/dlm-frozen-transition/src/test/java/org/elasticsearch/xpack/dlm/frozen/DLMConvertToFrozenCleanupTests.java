@@ -30,10 +30,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -50,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.xpack.dlm.frozen.DLMConvertToFrozen.CLONE_INDEX_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.is;
@@ -174,12 +177,14 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     }
 
     /**
-     * Tests that when the original index is NOT part of a data stream, cleanup skips the swap step
-     * and just deletes the clone and the original index.
+     * Tests that when neither the original index nor the frozen index is part of a data stream (the original was removed from
+     * its data stream during the transition), cleanup throws an unrecoverable exception and deletes nothing, because the
+     * original index may be the only copy of the data.
      */
-    public void testCleanupWithNoDataStreamSkipsSwapAndDeletesBothIndices() throws InterruptedException {
+    public void testCleanupThrowsUnrecoverableAndDeletesNothingWhenNeitherIndexIsInADataStream() {
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
-        buildAndSetProjectState(null, indexName, cloneIndexName);
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
+        buildAndSetProjectState(null, indexName, cloneIndexName, frozenIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             index,
@@ -189,15 +194,93 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
             () -> licenseState,
             Clock.systemUTC()
         );
-        convert.maybeCleanup(cloneIndexName);
 
-        // Should NOT have issued a modify data streams request
+        DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, () -> convert.maybeCleanup(cloneIndexName));
+        assertThat(exception.getMessage(), containsString("no longer part of a data stream"));
+        assertThat(exception.getMessage(), containsString(indexName));
+
         assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+        assertThat(capturedDeleteRequests.size(), is(0));
+    }
 
-        // Should have issued two delete requests: clone and original
-        assertThat(capturedDeleteRequests.size(), is(2));
-        assertThat(capturedDeleteRequests.get(0).indices(), hasItemInArray(cloneIndexName));
-        assertThat(capturedDeleteRequests.get(1).indices(), hasItemInArray(indexName));
+    /**
+     * Tests that when the original index is NOT part of a data stream because the swap already happened (for example the
+     * master changed before the original was deleted), cleanup skips the swap step and just deletes the clone and the
+     * original index. The mount may be of the original (zero replicas at mount time) even though this attempt chose the clone,
+     * because the replica count can change between attempts.
+     */
+    public void testCleanupAfterSwapSkipsSwapAndDeletesBothIndices() throws InterruptedException {
+        String dataStreamName = "my-data-stream";
+        String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            index,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        for (String mountedSourceIndex : List.of(indexName, cloneIndexName)) {
+            capturedDeleteRequests.clear();
+            buildAndSetProjectState(null, indexName, cloneIndexName);
+            addFrozenIndexToDataStream(dataStreamName, frozenIndexName, mountedSnapshotSettings(mountedSourceIndex));
+
+            convert.maybeCleanup(cloneIndexName);
+
+            // Should NOT have issued a modify data streams request
+            assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+
+            // Should have issued two delete requests: clone and original
+            assertThat(capturedDeleteRequests.size(), is(2));
+            assertThat(capturedDeleteRequests.get(0).indices(), hasItemInArray(cloneIndexName));
+            assertThat(capturedDeleteRequests.get(1).indices(), hasItemInArray(indexName));
+        }
+    }
+
+    /**
+     * Tests that when the original index is not in a data stream and the index with the frozen name in a data stream is not the
+     * DLM-created mount of this transition, cleanup throws an unrecoverable exception and deletes nothing. Each case breaks
+     * exactly one condition of the mount check.
+     */
+    public void testCleanupThrowsUnrecoverableWhenFrozenNamedIndexIsNotTheMount() {
+        String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
+        Settings dlmMount = mountedSnapshotSettings(cloneIndexName);
+        List<Settings> notTheMount = List.of(
+            Settings.EMPTY,
+            Settings.builder()
+                .put(dlmMount)
+                .put(
+                    SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY,
+                    DLMConvertToFrozen.snapshotName(randomAlphaOfLength(12))
+                )
+                .build(),
+            Settings.builder()
+                .put(dlmMount)
+                .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, randomAlphaOfLength(12))
+                .build(),
+            Settings.builder().put(dlmMount).remove(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY).build()
+        );
+
+        for (Settings frozenIndexSettings : notTheMount) {
+            buildAndSetProjectState(null, indexName, cloneIndexName);
+            addFrozenIndexToDataStream("my-data-stream", frozenIndexName, frozenIndexSettings);
+            DLMConvertToFrozen convert = new DLMConvertToFrozen(
+                index,
+                projectId,
+                client,
+                clusterService,
+                () -> licenseState,
+                Clock.systemUTC()
+            );
+
+            DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, () -> convert.maybeCleanup(cloneIndexName));
+            assertThat(exception.getMessage(), containsString("no longer part of a data stream"));
+            assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+            assertThat(capturedDeleteRequests.size(), is(0));
+        }
     }
 
     /**
@@ -281,6 +364,39 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         // No swap or delete should have been attempted
         assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
         assertThat(capturedDeleteRequests.size(), is(0));
+    }
+
+    /**
+     * Returns the searchable snapshot settings that a DLM mount of the snapshot of {@code snapshotIndexName} has.
+     */
+    private static Settings mountedSnapshotSettings(String snapshotIndexName) {
+        return Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(
+                SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY,
+                DLMConvertToFrozen.snapshotName(snapshotIndexName)
+            )
+            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, snapshotIndexName)
+            .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
+            .build();
+    }
+
+    /**
+     * Adds the frozen index, as the only backing index of a new data stream, to the project state that is already set.
+     */
+    private void addFrozenIndexToDataStream(String dataStreamName, String frozenIndexName, Settings frozenIndexSettings) {
+        IndexMetadata frozenMetadata = IndexMetadata.builder(frozenIndexName)
+            .settings(
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(frozenIndexSettings).build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState currentState = clusterService.state();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(currentState.metadata().getProject(projectId))
+            .put(frozenMetadata, false)
+            .put(DataStream.builder(dataStreamName, List.of(frozenMetadata.getIndex())).setGeneration(1).build());
+        setState(clusterService, ClusterState.builder(currentState).putProjectMetadata(projectMetadataBuilder).build());
     }
 
     /**

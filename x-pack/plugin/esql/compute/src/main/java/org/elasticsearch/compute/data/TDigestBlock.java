@@ -9,8 +9,12 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 public sealed interface TDigestBlock extends HistogramBlock permits ConstantNullBlock, TDigestArrayBlock {
+
+    @Override
+    LongBlock getCountBlock();
 
     static boolean equals(TDigestBlock blockA, TDigestBlock blockB) {
         if (blockA == blockB) {
@@ -46,6 +50,16 @@ public sealed interface TDigestBlock extends HistogramBlock permits ConstantNull
     }
 
     TDigestHolder getTDigestHolder(int offset, TDigestHolder scratch);
+
+    /**
+     * Returns a view on the encoded t-digest at the given value index.
+     * <p>
+     * This behaves like {@link BytesRefBlock#getBytesRef(int, BytesRef)}: the view is {@code scratch} itself, reset to the
+     * digest bytes. Those bytes are likely to be a zero-copy view on the underlying data of this block, so they must be
+     * considered read-only. The view is only valid until {@code scratch} is reused or this block is closed.
+     * </p>
+     */
+    EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch);
 
     interface SerializedTDigestOutput {
         void appendDouble(double value);

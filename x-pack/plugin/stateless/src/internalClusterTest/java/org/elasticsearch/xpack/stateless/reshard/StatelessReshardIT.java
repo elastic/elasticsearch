@@ -150,7 +150,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
@@ -578,8 +578,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var refresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).execute();
         final var refreshThread = new Thread(() -> {
             var refreshResponse = refresh.actionGet();
-            assertEquals(Arrays.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getTotalShards());
-            assertEquals(Arrays.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getSuccessfulShards());
+            assertEquals(refreshResponse.getShardFailures().toString(), multiple, refreshResponse.getTotalShards());
+            assertEquals(refreshResponse.getShardFailures().toString(), multiple, refreshResponse.getSuccessfulShards());
             // Note that the coordinator does not need to observe SPLIT since refresh requests are resplit.
             var split = getSplit(indexNode, index);
             assertTrue(
@@ -676,8 +676,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // guarantees that all target shards sent the request to transition to DONE.
         // So this test does not directly exercise search filters, those are covered in other tests.
         var splitRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get(SAFE_AWAIT_TIMEOUT);
-        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
-        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
+        assertEquals(splitRefresh.getShardFailures().toString(), multiple, splitRefresh.getTotalShards());
+        assertEquals(splitRefresh.getShardFailures().toString(), multiple, splitRefresh.getSuccessfulShards());
 
         assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
 
@@ -2777,7 +2777,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         awaitClusterState(state -> getTargetPrimary(state, index).unassigned());
         final var unassignedTargetPrimary = getTargetPrimary(index);
         // The target failed before HANDOFF, so the source still serves its documents and its recovery stays deferrable
-        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET));
 
         MockLog.awaitLogger(
             proceedAfterShardFailure::countDown,
@@ -4116,8 +4116,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .values()
             .stream()
             .map(BlobMetadata::name)
-            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
-            .max(Comparator.comparingLong(BatchedCompoundCommit::parseGenerationFromBlobName))
+            .filter(BccBlob::startsWithBlobPrefix)
+            .max(Comparator.comparingLong(BccBlob::parseGenerationFromBlobName))
             .orElseThrow();
         blobToBlock.set(latestBlob);
 

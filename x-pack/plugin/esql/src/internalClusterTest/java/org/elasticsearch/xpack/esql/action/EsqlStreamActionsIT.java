@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Runs the stream GET and DELETE transport actions on a real node. Nothing is stored yet, so no stream exists and every id is not found.
  */
-public class StreamGetDeleteActionsIT extends AbstractEsqlIntegTestCase {
+public class EsqlStreamActionsIT extends AbstractEsqlIntegTestCase {
 
     private static String wellFormedId() {
         return new StreamId(new TaskId("some-node", randomLongBetween(1, 1_000_000)), randomAlphaOfLength(12)).encoded();
@@ -30,19 +30,19 @@ public class StreamGetDeleteActionsIT extends AbstractEsqlIntegTestCase {
 
     public void testGetIsNotFound() {
         String id = randomBoolean() ? wellFormedId() : randomFrom("*", "_all", "a,b", "not base64 !", randomAlphaOfLength(10));
-        ResourceNotFoundException e = expectThrows(
+        expectThrows(
             ResourceNotFoundException.class,
+            containsString(id),
             () -> client().execute(EsqlStreamGetResultAction.INSTANCE, get(id)).actionGet()
         );
-        assertThat(e.getMessage(), containsString(id));
     }
 
     public void testDeleteIsNotFound() {
         String id = randomBoolean() ? wellFormedId() : randomFrom("*", "_all", "a,b", "not base64 !", randomAlphaOfLength(10));
-        ResourceNotFoundException e = expectThrows(
+        expectThrows(
             ResourceNotFoundException.class,
+            containsString(id),
             () -> client().execute(EsqlStreamDeleteAction.INSTANCE, new DeleteStreamResultRequest(id)).actionGet()
         );
-        assertThat(e.getMessage(), containsString(id));
     }
 }

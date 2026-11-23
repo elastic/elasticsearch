@@ -108,11 +108,11 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
         String parameter = randomFrom("wait_for_completion", "keep_alive", "ids");
         RestRequest request = request("the-id", Map.of(parameter, "x"));
         // the request is refused before anything runs, so the client is not used
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("unrecognized parameter: [" + parameter + "]"),
             () -> new RestEsqlDeleteStreamAction().handleRequest(request, new FakeRestChannel(request, true), null)
         );
-        assertThat(e.getMessage(), containsString("unrecognized parameter: [" + parameter + "]"));
     }
 
     // ---- execution ----

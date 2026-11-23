@@ -60,20 +60,18 @@ public class GetStreamResultRequestTests extends ESTestCase {
     // ---- rejected values ----
 
     public void testNegativeOffsetIsRejected() {
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("[offset]"),
             () -> new GetStreamResultRequest("id", -1, NO_LIMIT, NO_LIMIT, null)
         );
-        assertThat(e.getMessage(), containsString("[offset]"));
     }
 
     /** {@link GetStreamResultRequest#NO_LIMIT} (-1) is the only negative limit allowed, as the marker for "not provided". */
     public void testNegativeLimitsOtherThanNoLimitAreRejected() {
         long negative = randomLongBetween(Long.MIN_VALUE, -2);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request(negative, NO_LIMIT));
-        assertThat(e.getMessage(), containsString("[max_rows]"));
-        e = expectThrows(IllegalArgumentException.class, () -> request(NO_LIMIT, negative));
-        assertThat(e.getMessage(), containsString("[max_bytes]"));
+        expectThrows(IllegalArgumentException.class, containsString("[max_rows]"), () -> request(negative, NO_LIMIT));
+        expectThrows(IllegalArgumentException.class, containsString("[max_bytes]"), () -> request(NO_LIMIT, negative));
     }
 
     public void testWaitTimeoutUpperLimit() {
@@ -81,8 +79,11 @@ public class GetStreamResultRequestTests extends ESTestCase {
         assertThat(atLimit.waitTimeout(), equalTo(MAX_WAIT_TIMEOUT));
 
         TimeValue tooLong = TimeValue.timeValueMillis(MAX_WAIT_TIMEOUT.millis() + 1);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GetStreamResultRequest("id", 0, 1, 1, tooLong));
-        assertThat(e.getMessage(), containsString("[wait_timeout] must be less than or equal to [5m]"));
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("[wait_timeout] must be less than or equal to [5m]"),
+            () -> new GetStreamResultRequest("id", 0, 1, 1, tooLong)
+        );
     }
 
     // ---- derived values ----

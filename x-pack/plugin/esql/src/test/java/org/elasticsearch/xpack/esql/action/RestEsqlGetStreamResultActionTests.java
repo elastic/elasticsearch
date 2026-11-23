@@ -154,11 +154,11 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
         String parameter = randomFrom("keep_alive", "wait_for_completion_timeout", "ids");
         RestRequest request = request(Map.of(parameter, "x"));
         // the request is refused before anything runs, so the client is not used
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("unrecognized parameter: [" + parameter + "]"),
             () -> new RestEsqlGetStreamResultAction().handleRequest(request, new FakeRestChannel(request, true), null)
         );
-        assertThat(e.getMessage(), containsString("unrecognized parameter: [" + parameter + "]"));
     }
 
     // ---- execution ----

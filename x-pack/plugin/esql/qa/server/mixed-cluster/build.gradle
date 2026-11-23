@@ -127,9 +127,12 @@ tasks.named("bcUpgradeTest") {
 }
 
 // Serverless BWC re-enables this unversioned task against an overlay Clusters that does not
-// configure federation. Dedicated v*#javaRestTest tasks remain the coverage path.
+// configure federation. Its cluster is stateless, where FetchPhaseMixedClusterIT's index without
+// replicas has no search shard, and the voting exclusions it moves the master with don't exist.
+// Dedicated v*#javaRestTest tasks and bcUpgradeTest remain the coverage path.
 tasks.named("javaRestTest") {
   filter {
     excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.FetchPhaseMixedClusterIT'
   }
 }

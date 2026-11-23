@@ -26,8 +26,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -112,8 +110,9 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
                 assertThat("page " + page, ids(hash, keys), equalTo(expected));
             }
             assertThat(hash.toString(), containsString("runPages=0, rowByRowPages=20"));
-            // The probe is 256 rows, so no page is scanned for much longer than that, not for its 8192 rows.
-            assertThat(hash.scannedRows(), lessThanOrEqualTo(20L * 257));
+            // Every row of these pages is a new run, so each page is given up on at the first run end after the 256 probe rows,
+            // which is the 257th row looked at, not after its 8192 rows.
+            assertThat(hash.scannedRows(), equalTo(20L * 257));
         }
     }
 
@@ -205,9 +204,9 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
                 assertThat("positions " + positions, seen.how, equalTo("vector"));
                 assertThat("positions " + positions, seen.groupIds, equalTo(expected));
                 assertThat(hash.toString(), containsString("runPages=0, rowByRowPages=1"));
-                // Every key is a new run, so a quarter of the page has already made more runs than the page can afford.
-                assertThat("positions " + positions, hash.scannedRows(), lessThanOrEqualTo(positions / 4L + 1));
-                assertThat("positions " + positions, hash.scannedRows(), lessThan((long) positions));
+                // Every key is a new run, so the scan gives up at the first row where the completed runs plus the open one
+                // make more than positions / 4 runs: after looking at positions / 4 + 1 rows, not all of them.
+                assertThat("positions " + positions, hash.scannedRows(), equalTo(positions / 4L + 1));
             }
         }
     }

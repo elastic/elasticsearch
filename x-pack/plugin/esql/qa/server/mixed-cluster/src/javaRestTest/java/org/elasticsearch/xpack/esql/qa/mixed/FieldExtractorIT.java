@@ -48,10 +48,10 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
 
     @Override
     protected AssertWarnings withoutKeysWarnings() {
-        if (EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(Version.V_9_4_0)) {
+        if (EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(Version.V_9_4_5)) {
             return super.withoutKeysWarnings();
         }
-        // Nodes before 9.4 have no loader for a name under a flattened field, and warn that they read null for it
+        // Nodes before 9.4.5 have no loader for a name under a flattened field, and warn that they read null for it
         return new AssertWarnings.AllowedRegexes(
             List.of(
                 Pattern.compile(Pattern.quote("Field [attrs.bar] cannot be retrieved, it is unsupported or not indexed; returning null"))

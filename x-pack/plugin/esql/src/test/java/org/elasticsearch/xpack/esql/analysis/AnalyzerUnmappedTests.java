@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -1160,27 +1163,47 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     /**
      * A cast that rewrites a node rebuilds the nodes above it, and the cast above must still use the view's mode. Under load,
-     * TO_DEGREES of the partially unmapped [foo] is rejected; the caller's default mode would convert it.
+     * [foo] also has the keyword leg loaded from _source, which TO_DEGREES cannot convert. Where the cast is lenient that leg
+     * becomes null with a warning; on older nodes the cast is rejected. The caller's default mode would not load that leg, so
+     * it would neither warn nor fail.
      */
     public void testUnionTypeCastAboveRewrittenNodeInsideLoadViewUsesTheViewsMode() {
-        partiallyUnmappedFoo().addView("v", """
+        TestAnalyzer analyzer = partiallyUnmappedFoo().addView("v", """
             SET unmapped_fields="load";
             FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo)
-            """).statementError("FROM v", allOf(containsString("line 2:59 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+            """);
+        assertCastOnLoadedKeywordLeg(analyzer, "line 2:59 (in view [v])");
     }
 
     /**
      * The view's load mode reaches the subquery side of an IN inside the view, even when casts on both sides rebuild the join
-     * and the subquery nodes above them.
+     * and the subquery nodes above them. The subquery's cast sees the keyword leg of [foo], as above.
      */
     public void testUnionTypeCastInInSubqueryInsideLoadViewUsesTheViewsMode() {
-        partiallyUnmappedFoo().addView("v", """
+        TestAnalyzer analyzer = partiallyUnmappedFoo().addView("v", """
             SET unmapped_fields="load";
             FROM idx* | EVAL s = TO_STRING(foo) | WHERE k IN (FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo) | KEEP k)
-            """).statementError("FROM v", allOf(containsString("line 2:109 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+            """);
+        assertCastOnLoadedKeywordLeg(analyzer, "line 2:109 (in view [v])");
     }
 
-    private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
+    /**
+     * Querying {@code FROM v} must see the keyword leg of [foo] that the view's load mode adds: a lenient cast turns it into
+     * null with a warning, while on older nodes the cast is rejected as ambiguous.
+     */
+    private void assertCastOnLoadedKeywordLeg(TestAnalyzer analyzer, String errorLocation) {
+        if (minimumVersion.supports(Analyzer.ESQL_LENIENT_UNION_CAST)) {
+            assertThat(analyzer.statement("FROM v").resolved(), is(true));
+            assertWarnings(
+                "Field [foo] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] and will be null in those indices."
+            );
+        } else {
+            analyzer.statementError(
+                "FROM v",
+                allOf(containsString(errorLocation), containsString("Cannot use field [foo] due to ambiguities"))
+            );
+        }
+    }
 
     /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
     private TestAnalyzer partiallyUnmappedFoo() {
@@ -3095,25 +3118,48 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * Reproducer for #150375.
+     * Reproducer for #150375. {@code ::integer} accepts the unmapped keyword leg but not {@code ip}, so the mapped leg
+     * loads as null and the query succeeds.
      */
-    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
+    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeIsLenient() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        analyzer().addIndex(partialIpIndex())
-            .statementError(
-                setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
-                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
-            );
+        var plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(partialIpIndex())
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"));
+        var attr = EsqlTestUtils.singleValue(plan.output());
+        assertThat(attr.dataType(), equalTo(DataType.INTEGER));
+        assertWarnings("Field [partial_ip] of type [ip] cannot be converted to [INTEGER] and will be null in those indices.");
+    }
+
+    /**
+     * Neither the mapped {@code ip} nor the {@code keyword} loaded from {@code _source} converts, so the cast is null everywhere.
+     */
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordIsNull() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(partialIpIndex())
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"));
+        var eval = as(as(as(plan, Limit.class).child(), Project.class).child(), Eval.class);
+        Literal literal = as(eval.fields().get(0).child(), Literal.class);
+        assertNull(literal.value());
+        assertThat(literal.dataType(), equalTo(DataType.DOUBLE));
+        assertWarnings(
+            "Field [partial_ip] of type [ip] cannot be converted to [DOUBLE] and will be null in those indices.",
+            "Field [partial_ip] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] "
+                + "and will be null in those indices."
+        );
     }
 
     /**
      * Reproducer for #150375.
      */
-    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFailsOnOlderNodes() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        analyzer().addIndex(partialIpIndex())
+        analyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .addIndex(partialIpIndex())
             .statementError(
                 setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"),
                 containsString("[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]")

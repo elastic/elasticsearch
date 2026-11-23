@@ -257,6 +257,7 @@ public final class TypeResolutions {
         if (allowUnionTypes
             && e instanceof FieldAttribute fa
             && fa.field() instanceof TypeConflictedField tcf
+            && tcf.hasUnsupportedTypes() == false
             && tcf.types().stream().allMatch(predicate)) {
             return TypeResolution.TYPE_RESOLVED;
         }

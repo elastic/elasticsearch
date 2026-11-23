@@ -4838,6 +4838,20 @@ public class EsqlCapabilities {
         DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
 
         /**
+         * Explicit casts ({@code ::type} and {@code TO_*} functions) are lenient: an input the cast can't convert is {@code null},
+         * with a response warning, instead of failing the query. This covers:
+         * <ul>
+         *     <li>a union-typed field: the index branches whose mapped type can't convert load as {@code null}, and the whole cast is
+         *     {@code null} when no branch can convert;</li>
+         *     <li>a field mapped to a type ES|QL doesn't support, such as {@code rank_feature}, in some or all indices, with a
+         *     warning naming the original type. Without a cast, the field still fails with the unsupported type error;</li>
+         *     <li>a single-typed input the cast doesn't accept, like {@code ip_field::long}, {@code (a + b)::ip} or
+         *     {@code true::ip}.</li>
+         * </ul>
+         */
+        LENIENT_CAST,
+
+        /**
          * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
          * expression always evaluates to NULL, or a NULL in an IN list never matches.
          */

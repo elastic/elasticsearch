@@ -90,6 +90,13 @@ public class EsqlSearchExecutionContext extends SearchExecutionContext {
     }
 
     /**
+     * Whether this shard maps the field {@code name} itself. An unmapped field the plan reads has a field type too, but isn't mapped.
+     */
+    public boolean mapsField(String name) {
+        return super.fieldType(name) != null;
+    }
+
+    /**
      * Whether this shard reads the field {@code name} the plan reads from {@code _source}, as it maps no field and keeps no key of
      * that name.
      */

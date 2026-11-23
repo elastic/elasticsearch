@@ -170,58 +170,6 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
         }
     }
 
-    /// The critical recoveries do not use the slots for the non-critical ones, only the overall limit. With 4 slots, 2 of them for the
-    /// non-critical recoveries, this shard, 1 relocating shard and 1 critical recovery all run at once, so nobody queues and the shard
-    /// keeps the plain timeout.
-    public void testCriticalRecoveriesDoNotUseTheSlotsOfTheNonCriticalRecoveries() {
-        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
-            final var settings = Settings.builder()
-                .put(slotSharingSettings())
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
-                .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
-                    "50%"
-                )
-                .build();
-            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, settings);
-            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
-            final var state = relocationWithOtherNodesShuttingDown(
-                new Index("idx", randomUUID()),
-                List.of(new ShuttingDownNode("shutting-node", 1, threadPool.absoluteTimeInMillis())),
-                0,
-                1
-            );
-            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
-
-            final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
-            assertThat(plan.timeout(), equalTo(PLAIN_TIMEOUT));
-        }
-    }
-
-    /// The critical recoveries use the overall limit of the slots. With 2 slots, 1 critical recovery leaves 1 for this shard and the
-    /// relocating one: the 2 shards get `2 * 1 / 2 = 1` slot between them, so the equal share is `8s / 2 * 1 = 4s`, and not the plain
-    /// timeout of the case where both fit.
-    public void testCriticalRecoveriesUseTheOverallLimitOfTheSlots() {
-        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
-            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
-            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
-            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
-            final var state = relocationWithOtherNodesShuttingDown(
-                new Index("idx", randomUUID()),
-                List.of(new ShuttingDownNode("shutting-node", 1, threadPool.absoluteTimeInMillis())),
-                0,
-                1
-            );
-            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
-
-            final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
-            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
-            assertThat(plan.timeout().millis(), equalTo(4000L));
-        }
-    }
-
     /// The equal share can be longer than the relocation-with-shutdown timeout (60s), when there is a lot of time left. With a 10m grace
     /// period, 5 shards relocating from the shutting-down node and a limit of 2 the equal share is `600s / 6 * 2 = 200s`, and the plan
     /// can be extended when the slots get free.

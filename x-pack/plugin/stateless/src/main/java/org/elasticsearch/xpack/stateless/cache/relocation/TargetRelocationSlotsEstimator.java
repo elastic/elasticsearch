@@ -71,12 +71,11 @@ public class TargetRelocationSlotsEstimator {
                 : Math.min(maxRecoveries, relocationsInFlight);
     }
 
-    /// The slots of a target for the non-critical recoveries, as the relocations, while `criticalRecoveries` run on it: the data node limit
-    /// on the non-critical recoveries, or what the overall limit leaves after the critical recoveries, which use it as well. It is very
-    /// large when the data nodes have no limit.
-    public int slotsForNonCriticalRecoveries(final int criticalRecoveries) {
-        final var limits = incomingRecoveryLimits;
-        return Math.max(0, Math.min(limits.maxConcurrentNonCriticalRecoveries(), limits.maxConcurrentRecoveries() - criticalRecoveries));
+    /// The slots of a target for the non-critical recoveries, as the relocations: the data node limit on the non-critical recoveries. It is
+    /// very large when the data nodes have no limit. The critical recoveries are not taken into account, as they have slots of their own
+    /// above this limit, and only take the non-critical ones when they exceed those, which is rare and short-lived.
+    public int slotsForNonCriticalRecoveries() {
+        return incomingRecoveryLimits.maxConcurrentNonCriticalRecoveries();
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not

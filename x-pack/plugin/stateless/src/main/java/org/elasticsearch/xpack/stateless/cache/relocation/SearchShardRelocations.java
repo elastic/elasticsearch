@@ -39,12 +39,6 @@ final class SearchShardRelocations {
         return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical() == false);
     }
 
-    /// The critical recoveries on `targetNodeId`, which do not use the slots for the non-critical recoveries, but use the overall limit of
-    /// the incoming recoveries.
-    static int countCriticalInitializing(ClusterState state, String targetNodeId) {
-        return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical());
-    }
-
     /// The search shards started on `nodeId`, which have not begun to relocate yet.
     static int countPendingRelocationsOn(ClusterState state, String nodeId) {
         return countWithState(state, nodeId, ShardRoutingState.STARTED);

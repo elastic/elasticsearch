@@ -99,11 +99,9 @@ public class RelocationOtherNodeShutdownTimeouts {
     /// A deadline that has passed leaves nothing: the warming cap does not free a slot, so its shards may still be queued for one.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
         // All the non-critical recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as
-        // the recoveries are not scheduled by the deadline. The critical recoveries take a part of the overall limit first.
+        // the recoveries are not scheduled by the deadline.
         final int recoveriesOnTarget = SearchShardRelocations.countNonCriticalInitializing(state, targetNodeId);
-        final int slots = targetRelocationSlotsEstimator.slotsForNonCriticalRecoveries(
-            SearchShardRelocations.countCriticalInitializing(state, targetNodeId)
-        );
+        final int slots = targetRelocationSlotsEstimator.slotsForNonCriticalRecoveries();
         final long now = threadPool.absoluteTimeInMillis();
         // the shards competing before each deadline rely on the order
         final var shardsOfShuttingDownNodes = shardsOfShuttingDownNodes(state, targetNodeId).sorted(

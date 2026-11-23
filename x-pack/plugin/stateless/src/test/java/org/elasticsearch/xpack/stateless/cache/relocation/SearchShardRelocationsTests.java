@@ -130,7 +130,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(0));
     }
 
-    public void testCountsTheCriticalAndTheNonCriticalRecoveriesSeparately() {
+    public void testNonCriticalRecoveriesDoNotIncludeTheCriticalOnes() {
         final var state = clusterState(
             List.of(
                 new Relocation(SOURCE_A, TARGET),
@@ -151,14 +151,12 @@ public class SearchShardRelocationsTests extends ESTestCase {
             )
         );
 
-        // 4 relocations and 1 other non-critical recovery, and 1 critical recovery
+        // 4 relocations and 1 other non-critical recovery, the critical recovery is not counted
         assertThat(SearchShardRelocations.countNonCriticalInitializing(state, TARGET), equalTo(5));
-        assertThat(SearchShardRelocations.countCriticalInitializing(state, TARGET), equalTo(1));
         // 2 relocations and 2 other non-critical recoveries
         assertThat(SearchShardRelocations.countNonCriticalInitializing(state, OTHER_TARGET), equalTo(4));
-        assertThat(SearchShardRelocations.countCriticalInitializing(state, OTHER_TARGET), equalTo(0));
         assertThat(SearchShardRelocations.countNonCriticalInitializing(state, SOURCE_A), equalTo(0));
-        assertThat(SearchShardRelocations.countCriticalInitializing(state, "no-such-node"), equalTo(0));
+        assertThat(SearchShardRelocations.countNonCriticalInitializing(state, "no-such-node"), equalTo(0));
     }
 
     public void testPendingRelocationsCountsOnlyTheStartedSearchShardsOfTheNode() {

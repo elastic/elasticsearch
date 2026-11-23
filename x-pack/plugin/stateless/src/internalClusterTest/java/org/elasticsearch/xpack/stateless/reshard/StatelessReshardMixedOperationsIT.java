@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.IndexRoutingTestHelper;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -207,7 +208,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             switch (operation) {
                 case REFRESH -> {
                     var refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
-                    assertEquals(Arrays.toString(refreshResult.getShardFailures()), 0, refreshResult.getFailedShards());
+                    assertEquals(refreshResult.getShardFailures().toString(), 0, refreshResult.getFailedShards());
                     indexed.values().forEach(IndexedDocument::refresh);
                 }
                 case SEARCH -> {
@@ -738,7 +739,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             );
             var bulkRequest = client().prepareBulk();
             for (int shardId = 0; shardId < cleanupIndexShards; shardId++) {
-                String id = ReshardingTestHelpers.makeIdThatRoutesToShard(routing, shardId);
+                String id = IndexRoutingTestHelper.makeIdThatRoutesToShard(routing, shardId);
                 var indexRequest = client().prepareIndex(cleanupIndexName).setId(id).setSource(Map.of("random", "stuff"));
                 bulkRequest.add(indexRequest);
             }

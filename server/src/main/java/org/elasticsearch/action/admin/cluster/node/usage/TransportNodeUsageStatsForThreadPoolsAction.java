@@ -24,7 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -50,7 +50,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final ConsumingLongGaugeMetric maxQueueLatencyMillisGauge;
+    private final LongGauge maxQueueLatencyMillisGauge;
 
     @Inject
     public TransportNodeUsageStatsForThreadPoolsAction(

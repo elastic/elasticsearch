@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,7 +71,7 @@ public class Aggregate extends UnaryPlan
     protected final List<Expression> groupings;
     protected final List<? extends NamedExpression> aggregates;
 
-    protected List<Attribute> lazyOutput;
+    protected volatile List<Attribute> lazyOutput;
 
     public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
@@ -305,7 +305,7 @@ public class Aggregate extends UnaryPlan
 
     /**
      * Returns {@code true} if {@code plan} (or any non-{@link UnionAll} descendant, excluding the right-hand side
-     * of an {@link AbstractSubqueryJoin}) holds an {@link EsRelation} in time-series index mode.
+     * of an {@link IndependentSubqueryJoin}) holds an {@link EsRelation} in time-series index mode.
      * <p>
      * Traversal stops at {@link UnionAll} boundaries so that a {@code TS} source nested inside a {@code FROM}
      * subquery (e.g. {@code FROM (TS k8s), (FROM sample_data)}) does not allow time-series aggregate functions
@@ -319,10 +319,7 @@ public class Aggregate extends UnaryPlan
         if (plan instanceof UnionAll) {
             return false;
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
-            return hasTimeSeriesSource(join.left());
-        }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             if (hasTimeSeriesSource(child)) {
                 return true;
             }
@@ -331,11 +328,10 @@ public class Aggregate extends UnaryPlan
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
-        Holder<Boolean> hasScoringAggs = new Holder<>();
         forEachExpression(FilteredExpression.class, fe -> {
             if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
-                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
-                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                for (Expression field : aggregateFunction.fields()) {
+                    if (MetadataAttribute.isScoreAttribute(field)) {
                         if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
                             failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
                         }
@@ -471,8 +467,17 @@ public class Aggregate extends UnaryPlan
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });
-            checkNested.accept(af.field());
+            af.fields().forEach(checkNested);
             af.parameters().forEach(checkNested);
+            // Unlike the fields, which the optimizer extracts into an EVAL computed before the aggregation, the parameters are never
+            // evaluated per input row, so a grouping function used there (e.g. COUNT(histogram, BUCKET(histogram, 20))) is not supported
+            af.parameters()
+                .forEach(
+                    param -> param.forEachDown(
+                        GroupingFunction.class,
+                        gf -> failures.add(fail(gf, "can only use grouping function [{}] as part of the BY clause", gf.sourceText()))
+                    )
+                );
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here

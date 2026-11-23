@@ -168,6 +168,15 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         this(source, field, lower, upper, null);
     }
 
+    /** The half-open range {@code [lower, upper)}: inclusive lower bound, exclusive upper bound. */
+    public static MvInRange halfOpen(Source source, Expression field, Expression lower, Expression upper) {
+        Expression options = new MapExpression(
+            source,
+            List.of(Literal.keyword(source, INCLUDE_UPPER), new Literal(source, false, DataType.BOOLEAN))
+        );
+        return new MvInRange(source, field, lower, upper, options);
+    }
+
     private MvInRange(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
@@ -422,6 +431,20 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
             case BYTES_REF -> new MvInRangeBytesRefEvaluator.Factory(source(), f, lo, hi, il, iu);
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
+    }
+
+    /**
+     * Whether {@code lower} itself is in range, resolved from {@code include_lower} (inclusive when absent). Public so a
+     * caller evaluating this function by other means reads the same answer the evaluator does rather than re-parsing the
+     * options.
+     */
+    public boolean includeLower() {
+        return (boolean) optionsMap().getOrDefault(INCLUDE_LOWER, Boolean.TRUE);
+    }
+
+    /** The {@code include_upper} counterpart of {@link #includeLower}. */
+    public boolean includeUpper() {
+        return (boolean) optionsMap().getOrDefault(INCLUDE_UPPER, Boolean.TRUE);
     }
 
     /**

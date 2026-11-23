@@ -170,6 +170,55 @@ public class SourceRowToXContentTests extends ESTestCase {
         }
     }
 
+    /**
+     * Objects in arrays that contain arrays of objects, several levels deep, with a sibling element whose
+     * {@code id} is a scalar and another whose {@code id} is an array. Each array element must keep owning its own
+     * values: flattening would collapse this to a single {@code path.to.some.id = [10, 1, 3, 2]}.
+     */
+    public void testArrayOfObjectsContainingArraysOfObjects() throws IOException {
+        assertRoundTrips("""
+            {"path": [{"to": [{"some": [{"id": 10}, {"id": [1, 3, 2]}]}]}]}""");
+    }
+
+    public void testArrayOfObjectsContainingArraysOfObjectsWithSiblingElements() throws IOException {
+        assertRoundTrips("""
+            {"path": [
+              {"to": [{"some": [{"id": 1}, {"id": [2, 3]}]}, {"some": [{"id": 4}]}], "tag": "first"},
+              {"to": [{"some": []}], "tag": "second"},
+              {"other": {"nested": [{"k": [[1], [2, 3]]}]}}
+            ], "after": "x"}""");
+    }
+
+    /**
+     * A scalar double is written back with the client's spelling when the column kept one, so a reader of the
+     * rebuilt source, a translog replay for instance, sees the same token the batch indexed. Only JSON can carry a raw
+     * token; the binary formats write the number and get the same double back.
+     */
+    public void testDoubleSpellingIsKeptInJsonOnly() throws IOException {
+        BytesReference source = new BytesArray("{\"d\":-1.90,\"c\":3.14,\"e\":1e3}");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            assertEquals("{\"d\":-1.90,\"c\":3.14,\"e\":1e3}", writeRowToJson(batch, 0).utf8ToString());
+            for (XContentType binary : new XContentType[] { XContentType.CBOR, XContentType.SMILE }) {
+                BytesReference rebuilt;
+                try (XContentBuilder xcb = XContentBuilder.builder(binary.xContent())) {
+                    SourceRowToXContent.writeRow(batch.row(0), batch.schema(), xcb);
+                    rebuilt = BytesReference.bytes(xcb);
+                }
+                Map<String, Object> values = XContentHelper.convertToMap(rebuilt, false, binary).v2();
+                assertEquals(binary.toString(), Map.of("d", -1.9, "c", 3.14, "e", 1000.0), values);
+            }
+        }
+    }
+
+    /** Encodes {@code json} with the production encoder, decodes it with {@code writeRow}, and expects the original back. */
+    private static void assertRoundTrips(String json) throws IOException {
+        BytesReference source = new BytesArray(json);
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            Map<String, Object> expected = XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+            assertEquals(expected, rowAsMap(batch, 0));
+        }
+    }
+
     public void testNullValueInArray() throws IOException {
         BytesReference source = new BytesArray("""
             {"vals": [1, null, 3]}""");

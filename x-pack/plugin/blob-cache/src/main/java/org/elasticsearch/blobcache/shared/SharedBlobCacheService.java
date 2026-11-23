@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -692,7 +693,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return;
             }
             final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
-            entry.populate(regionRange, writer, fetchExecutor, listener);
+            entry.populate(regionRange, writer, fetchExecutor, false, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -714,6 +715,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param writer           a writer that handles writing of newly downloaded data to the shared cache
      * @param fetchExecutor    an executor to use for reading from the blob store
      * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param awaitPendingFill when {@code true} and the range is pending fetching via another thread, the listener is not completed until
+     *                         that other thread is done. See {@link CacheFileRegion#populate} for the effect on the listener contract.
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
      *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
      *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
@@ -727,9 +730,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final RangeMissingHandler writer,
         final Executor fetchExecutor,
         final long timestampMillis,
+        final boolean awaitPendingFill,
         final ActionListener<Boolean> listener
     ) {
-        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, timestampMillis, listener);
+        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, timestampMillis, awaitPendingFill, listener);
     }
 
     /**
@@ -753,6 +757,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param force            flag indicating whether the cache should free an occupied region to accommodate the requested
      *                         range when none are free.
      * @param timestampMillis  representative data timestamp to stamp on the cache region
+     * @param awaitPendingFill when {@code true} and the range is pending fetching via another thread, the listener is not completed until
+     *                         that other thread is done. See {@link CacheFileRegion#populate} for the effect on the listener contract.
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
      *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
      *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
@@ -767,6 +773,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final Executor fetchExecutor,
         final boolean force,
         final long timestampMillis,
+        final boolean awaitPendingFill,
         final ActionListener<Boolean> listener
     ) {
         if (force == false && freeRegions.isEmpty()) {
@@ -794,6 +801,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
                 fetchExecutor,
+                awaitPendingFill,
                 listener
             );
         } catch (Exception e) {
@@ -1160,6 +1168,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // if it's unknown (temporarily or inexistent). Written at construction and then possibly backfilled away from
         // BACKFILL_IN_PROGRESS_TIMESTAMP to a real (non-sentinel) value via #backfillTimestampFromBackfillInProgress.
         private volatile long timestampMillis;
+        // Highest LFU frequency this region has been promoted to during its lifetime. Starts at 1
+        // (the insertion frequency). Decay and demote lower current freq but must not lower this peak.
+        // Written and read under the SharedBlobCacheService monitor (promote / tryEvict / tryEvictNoDecRef);
+        // no extra volatility needed.
+        private int maxReachedFreq = 1;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
         // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
@@ -1220,7 +1233,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordLfuPressureEviction();
                 decRef();
                 return true;
             }
@@ -1232,7 +1245,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
-                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+                recordLfuPressureEviction();
                 return true;
             }
 
@@ -1249,6 +1262,24 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return true;
             }
             return false;
+        }
+
+        private void recordLfuPressureEviction() {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when reading peak freq";
+            blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
+            blobCacheService.blobCacheMetrics.recordEvictedRegionMaxFreq(maxReachedFreq);
+        }
+
+        void maybeUpdateMaxReachedFreq(int freq) {
+            assert Thread.holdsLock(blobCacheService) : "must hold lock when updating peak freq";
+            if (freq > maxReachedFreq) {
+                maxReachedFreq = freq;
+            }
+        }
+
+        // visible for tests
+        int maxReachedFreq() {
+            return maxReachedFreq;
         }
 
         @Override
@@ -1292,6 +1323,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public long timestampMillis() {
             return timestampMillis;
+        }
+
+        @Override
+        public long startOffset() {
+            return blobCacheService.getRegionStart(regionKey.region());
         }
 
         /**
@@ -1386,16 +1422,23 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
          * @param executor the executor used to download and to write new data
-         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
-         *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
-         *                 if the range to write is already available in cache or if another thread will download and write the range. The
-         *                 listener may be invoked on the current thread, and executor thread or another executor thread used by another
-         *                 caller.
+         * @param awaitPendingFill when {@code true}, the listener is not completed until every byte of the range is resident in cache,
+         *                         including bytes that another caller is downloading and writing. Use this when the caller must not report
+         *                         success for bytes that are not resident in cache yet.
+         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of (part
+         *                 of) the range, and with {@code false} if the range is already available in cache or another caller is downloading
+         *                 and writing all of it. Without {@code awaitPendingFill}, {@code true} only covers the gaps this caller wrote,
+         *                 {@code false} says nothing about whether the range is resident, and a failure by another caller is not reported.
+         *                 With {@code awaitPendingFill}, either value is delivered only once the whole range is resident, and the listener
+         *                 is completed with the exception if a download or write anywhere in the range fails, including one by another
+         *                 caller. The listener may be invoked on the current thread, an executor thread or another executor thread used by
+         *                 another caller.
          */
         void populate(
             final ByteRange rangeToWrite,
             final RangeMissingHandler writer,
             final Executor executor,
+            final boolean awaitPendingFill,
             final ActionListener<Boolean> listener
         ) {
             if (rangeToWrite.isEmpty()) {
@@ -1405,15 +1448,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                    ActionListener<Void> wholeRangeAvailableListener;
+                    final ActionListener<Boolean> anythingFetchedListener;
+                    if (awaitPendingFill) {
+                        final var wholeRangeAvailable = new SubscribableListener<Void>();
+                        wholeRangeAvailableListener = wholeRangeAvailable;
+                        anythingFetchedListener = delayResponseUntil(wholeRangeAvailable, listener);
+                    } else {
+                        wholeRangeAvailableListener = ActionListener.noop();
+                        anythingFetchedListener = listener;
+                    }
+                    if (Assertions.ENABLED) {
+                        wholeRangeAvailableListener = ActionListener.runBefore(wholeRangeAvailableListener, () -> {
+                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
+                        });
+                    }
                     final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                        ActionListener.releaseAfter(wholeRangeAvailableListener, refs.acquire())
                     );
                     if (gapsOpt.isEmpty()) {
-                        listener.onResponse(false);
+                        anythingFetchedListener.onResponse(false);
                         return;
                     }
                     executor.execute(new AbstractRunnable() {
@@ -1423,7 +1479,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         protected void doRun() {
                             final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
                             if (gaps.isEmpty()) {
-                                listener.onResponse(false);
+                                anythingFetchedListener.onResponse(false);
                                 return;
                             }
                             final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
@@ -1435,8 +1491,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                 )
                             );
                             final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                : listener.map(unused -> true);
+                                ? ActionListener.releaseBefore(streamFactory, anythingFetchedListener.map(unused -> true))
+                                : anythingFetchedListener.map(unused -> true);
                             try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
                                 // Use current thread to fill the gaps in order
                                 for (SparseFileTracker.Gap gap : gaps) {
@@ -1452,7 +1508,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            anythingFetchedListener.onFailure(e);
                         }
 
                         @Override
@@ -1466,6 +1522,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
         }
 
+        private static <T> ActionListener<T> delayResponseUntil(SubscribableListener<Void> condition, ActionListener<T> listener) {
+            return listener.delegateFailureAndWrap((l, response) -> condition.addListener(l.map(ignored -> response)));
+        }
+
         void populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
@@ -1474,10 +1534,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final Executor executor,
             final ActionListener<Integer> listener
         ) {
+            populateAndRead(rangeToWrite, rangeToRead, reader, writer, executor, null, listener);
+        }
+
+        void populateAndRead(
+            final ByteRange rangeToWrite,
+            final ByteRange rangeToRead,
+            final RangeAvailableHandler reader,
+            final RangeMissingHandler writer,
+            final Executor executor,
+            @Nullable final Executor claimExecutor,
+            final ActionListener<Integer> listener
+        ) {
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                    final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,
                         rangeToRead,
                         ActionListener.releaseAfter(listener, refs.acquire()).delegateFailureAndWrap((l, success) -> {
@@ -1493,41 +1565,66 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.blobCacheMetrics.recordRead();
+                            blobCacheService.blobCacheMetrics.recordRead(this.timestampMillis());
                             l.onResponse(read);
                         })
-                    ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
+                    );
+                    if (gapsOpt.isEmpty()) {
+                        return;
+                    }
 
-                    if (gaps.isEmpty() == false) {
-                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                        logger.trace(
-                            () -> Strings.format(
-                                "fill gaps %s %s shared input stream factory",
-                                gaps,
-                                streamFactory == null ? "without" : "with"
-                            )
-                        );
-                        if (streamFactory == null) {
-                            for (SparseFileTracker.Gap gap : gaps) {
-                                executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
+                    if (claimExecutor == null) {
+                        fillGaps(gapsOpt.get().claim(), writer, executor, refs);
+                    } else {
+                        claimExecutor.execute(new AbstractRunnable() {
+                            private final Releasable dispatchRef = refs.acquire();
+
+                            @Override
+                            protected void doRun() {
+                                fillGaps(gapsOpt.get().claim(), writer, executor, refs);
                             }
-                        } else {
-                            var gapFillingListener = refs.acquireListener();
-                            try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
-                                final List<Runnable> gapFillingTasks = gaps.stream()
-                                    .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
-                                    .toList();
-                                executor.execute(() -> {
-                                    // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
-                                    // gap will still be executed.
-                                    gapFillingTasks.forEach(Runnable::run);
-                                });
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
                             }
-                        }
+
+                            @Override
+                            public void onAfter() {
+                                dispatchRef.close();
+                            }
+                        });
                     }
                 }
             } catch (Exception e) {
                 listener.onFailure(e);
+            }
+        }
+
+        private void fillGaps(List<SparseFileTracker.Gap> gaps, RangeMissingHandler writer, Executor executor, RefCountingRunnable refs) {
+            if (gaps.isEmpty()) {
+                return;
+            }
+            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+            logger.trace(
+                () -> Strings.format("fill gaps %s %s shared input stream factory", gaps, streamFactory == null ? "without" : "with")
+            );
+            if (streamFactory == null) {
+                for (SparseFileTracker.Gap gap : gaps) {
+                    executor.execute(fillGapRunnable(gap, writer, null, refs.acquireListener()));
+                }
+            } else {
+                var gapFillingListener = refs.acquireListener();
+                try (var gfRefs = new RefCountingRunnable(ActionRunnable.run(gapFillingListener, streamFactory::close))) {
+                    final List<Runnable> gapFillingTasks = gaps.stream()
+                        .map(gap -> fillGapRunnable(gap, writer, streamFactory, gfRefs.acquireListener()))
+                        .toList();
+                    executor.execute(() -> {
+                        // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                        // gap will still be executed.
+                        gapFillingTasks.forEach(Runnable::run);
+                    });
+                }
             }
         }
 
@@ -1603,17 +1700,26 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final long length;
         private final CacheMissHandler cacheMissMetricHandler;
         private final long timestampMillis;
+        @Nullable
+        private final Executor claimExecutor;
         private CacheEntry<CacheFileRegion<KeyType>> lastAccessedRegion;
 
-        private CacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissMetricHandler, long timestampMillis) {
+        private CacheFile(
+            KeyType cacheKey,
+            long length,
+            CacheMissHandler cacheMissMetricHandler,
+            long timestampMillis,
+            @Nullable Executor claimExecutor
+        ) {
             this.cacheKey = cacheKey;
             this.length = length;
             this.cacheMissMetricHandler = cacheMissMetricHandler;
             this.timestampMillis = timestampMillis;
+            this.claimExecutor = claimExecutor;
         }
 
         public CacheFile copy() {
-            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy(), timestampMillis);
+            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy(), timestampMillis, claimExecutor);
         }
 
         public long getLength() {
@@ -1641,7 +1747,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
-                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                if (chunk.tracker.checkAvailable(subRangeToRead.end()) == false) {
                     continue;
                 }
                 if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {
@@ -1682,7 +1788,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
-                blobCacheMetrics.recordRead();
+                blobCacheMetrics.recordRead(region.timestampMillis());
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
@@ -1939,8 +2045,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 mapSubRangeToRegion(rangeToWrite, region),
                 regionRangeToRead,
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
+                metricRecordingWriter(
+                    writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                    fileRegion
+                ),
                 ioExecutor,
+                claimExecutor,
                 listener
             );
             return fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
@@ -1974,9 +2084,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                             metricRecordingWriter(
-                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                                fileRegion
                             ),
                             ioExecutor,
+                            claimExecutor,
                             regionListener
                         );
                     } catch (Exception e) {
@@ -2064,11 +2176,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return adjustedWriter;
         }
 
-        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion) {
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-                    blobCacheMetrics.recordMiss();
+                    blobCacheMetrics.recordMiss(fileRegion.timestampMillis());
                     return super.sharedInputStreamFactory(gaps);
                 }
             };
@@ -2108,7 +2220,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler, long timestampMillis) {
-        return new CacheFile(cacheKey, length, cacheMissHandler, timestampMillis);
+        return getCacheFile(cacheKey, length, cacheMissHandler, timestampMillis, null);
+    }
+
+    /**
+     * @param claimExecutor when non-null, cache misses of the returned file claim their gaps in a task on this executor instead of on
+     *                      the reading thread, so that a concurrent warming of the same range can fill it first
+     */
+    public CacheFile getCacheFile(
+        KeyType cacheKey,
+        long length,
+        CacheMissHandler cacheMissHandler,
+        long timestampMillis,
+        @Nullable Executor claimExecutor
+    ) {
+        return new CacheFile(cacheKey, length, cacheMissHandler, timestampMillis, claimExecutor);
     }
 
     protected Predicate<CacheRegion<KeyType>> createEvictionPredicate(
@@ -2663,6 +2789,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     unlink(entry);
                     // go 2 up per epoch, allowing us to decay 1 every epoch.
                     entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
+                    entry.chunk.maybeUpdateMaxReachedFreq(entry.freq);
                     entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }
@@ -2986,7 +3113,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             public void onRejection(Exception e) {
                 assert false : e;
                 logger.error("unexpected rejection", e);
-                epoch.incrementAndGet();
             }
 
             @Override

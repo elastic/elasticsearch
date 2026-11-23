@@ -18,25 +18,33 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 
 public class DataPointGroupingContext implements AbstractOTLPTransportAction.ProcessingContext {
@@ -48,6 +56,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
     private int totalDataPoints = 0;
     private int ignoredDataPoints = 0;
+    private int firstExemplarDocumentPosition = -1;
+
+    private int duplicateExemplars = 0;
+    private int exemplarsWithoutTarget = 0;
+    private int exemplarsWithoutValue = 0;
+    private int exemplarFailureStoreRedirects = 0;
+    private int exemplarFailures = 0;
+    private String exemplarFailureMessageSample;
 
     public DataPointGroupingContext(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
@@ -99,21 +115,34 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     }
 
     /**
-     * Consumes all data point groups in the context, removing them from the context.
+     * Passes every data point group of the context to {@code consumer}, in resource then scope order, without removing them.
      *
      * @param consumer the consumer to process each {@link DataPointGroup}
      * @param <E>      the type of exception that can be thrown by the consumer
      * @throws E if the consumer throws an exception
      */
-    public <E extends Exception> void consume(CheckedConsumer<DataPointGroup, E> consumer) throws E {
-        for (Iterator<ResourceGroup> iterator = resourceGroups.values().iterator(); iterator.hasNext();) {
-            ResourceGroup resourceGroup = iterator.next();
-            // Remove the resource group from the map can help to significantly reduce GC overhead.
-            // This avoids that the resource groups are promoted to survivor space when the context is kept alive for a while,
-            // for example, when referenced in the bulk response listener.
-            iterator.remove();
+    public <E extends Exception> void forEachGroup(CheckedConsumer<DataPointGroup, E> consumer) throws E {
+        for (ResourceGroup resourceGroup : resourceGroups.values()) {
             resourceGroup.forEach(consumer);
         }
+    }
+
+    /**
+     * Returns a live, unmodifiable view of the resource groups of this context. Use instead of {@link #forEachGroup}
+     * when the caller benefits from knowing which data point groups share a resource and scope.
+     */
+    public Collection<ResourceGroup> resourceGroups() {
+        return Collections.unmodifiableCollection(resourceGroups.values());
+    }
+
+    /**
+     * Removes all resource groups from the context. Callers should do this once they no longer need the groups:
+     * dropping them early can significantly reduce GC overhead, as it avoids that the resource groups are promoted
+     * to survivor space when the context is kept alive for a while, for example, when referenced in the bulk
+     * response listener.
+     */
+    public void clearResourceGroups() {
+        resourceGroups.clear();
     }
 
     @Override
@@ -145,6 +174,74 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         return sb.toString();
     }
 
+    /** Records an exemplar dropped without rejecting its parent data point. */
+    public void recordDuplicateExemplar() {
+        duplicateExemplars++;
+    }
+
+    /** Records exemplars dropped because their parent metric has no corresponding exemplar target. */
+    public void recordExemplarsWithoutTarget(int count) {
+        exemplarsWithoutTarget += count;
+    }
+
+    /** Records an exemplar dropped because it does not have a value. */
+    public void recordExemplarWithoutValue() {
+        exemplarsWithoutValue++;
+    }
+
+    /** Records the first bulk-item position occupied by an exemplar document. */
+    public void recordFirstExemplarDocument(int bulkItemPosition) {
+        assert firstExemplarDocumentPosition == -1;
+        firstExemplarDocumentPosition = bulkItemPosition;
+    }
+
+    @Override
+    public boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
+        return firstExemplarDocumentPosition == -1 || bulkItemPosition < firstExemplarDocumentPosition;
+    }
+
+    @Override
+    public void recordNonPrimaryTelemetryDocFailure(BulkItemResponse bulkItemResponse) {
+        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+        if (bulkItemResponse.getFailureStoreStatus() == IndexDocFailureStoreStatus.USED) {
+            exemplarFailureStoreRedirects++;
+        } else {
+            assert failure != null;
+            exemplarFailures++;
+            if (exemplarFailureMessageSample == null) {
+                exemplarFailureMessageSample = failure.getMessage();
+            }
+        }
+    }
+
+    @Override
+    public String getWarningMessage() {
+        StringBuilder warningMessage = new StringBuilder();
+        if (exemplarFailureStoreRedirects > 0) {
+            warningMessage.append("Redirected ")
+                .append(exemplarFailureStoreRedirects)
+                .append(" exemplar documents to the failure store.\n");
+        }
+        if (exemplarFailures > 0) {
+            warningMessage.append("Failed to index ")
+                .append(exemplarFailures)
+                .append(" exemplar documents. Sample error message: ")
+                .append(exemplarFailureMessageSample)
+                .append("\n");
+        }
+        if (exemplarsWithoutTarget > 0) {
+            warningMessage.append(exemplarsWithoutTarget)
+                .append(" exemplars were dropped because no exemplar data stream can be derived from an explicit index target.\n");
+        }
+        if (exemplarsWithoutValue > 0) {
+            warningMessage.append(exemplarsWithoutValue).append(" exemplars were dropped because they have no value.\n");
+        }
+        if (duplicateExemplars > 0) {
+            warningMessage.append(duplicateExemplars).append(" exemplars were dropped due to duplicate timestamps and series identity");
+        }
+        return warningMessage.toString();
+    }
+
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {
         TsidBuilder resourceTsidBuilder = ResourceTsidFunnel.forResource(byteStringAccessor, resourceMetrics);
         Hash128 resourceHash = resourceTsidBuilder.hash();
@@ -156,7 +253,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         return resourceGroup;
     }
 
-    class ResourceGroup {
+    /** The data point groups of a single resource, split by scope. */
+    public class ResourceGroup {
         private final Resource resource;
         private final ByteString resourceSchemaUrl;
         private final TsidBuilder resourceTsidBuilder;
@@ -181,6 +279,18 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return scopeGroup;
         }
 
+        public Resource resource() {
+            return resource;
+        }
+
+        public ByteString resourceSchemaUrl() {
+            return resourceSchemaUrl;
+        }
+
+        public Collection<ScopeGroup> scopes() {
+            return scopes.values();
+        }
+
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {
             for (ScopeGroup scopeGroup : scopes.values()) {
                 scopeGroup.forEach(consumer);
@@ -188,7 +298,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         }
     }
 
-    class ScopeGroup {
+    /** The data point groups of a single scope within a {@link ResourceGroup}. */
+    public class ScopeGroup {
 
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
@@ -264,6 +375,18 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return dataPointGroup;
         }
 
+        public InstrumentationScope scope() {
+            return scope;
+        }
+
+        public ByteString scopeSchemaUrl() {
+            return scopeSchemaUrl;
+        }
+
+        public Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroups() {
+            return dataPointGroupsByIndexAndTimestamp;
+        }
+
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {
             for (var dataPointGroupsByTime : dataPointGroupsByIndexAndTimestamp.values()) {
                 for (var dataPointGroups : dataPointGroupsByTime.values()) {
@@ -284,7 +407,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
         private final @Nullable AggregationTemporality temporality;
-        private final Set<String> metricNames = new HashSet<>();
+        // sorted so that getMetricNamesHash is independent of the order in which the sender emitted the metrics
+        private final Set<String> metricNames = new TreeSet<>();
         private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
         private String metricNamesHash;
@@ -319,15 +443,34 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return dataPoints.getFirst().getStartTimestampUnixNano();
         }
 
+        /** Hashes the metric name set canonically so sender ordering does not change the time series identity. */
         public String getMetricNamesHash(BufferedMurmur3Hasher hasher) {
             if (metricNamesHash == null) {
                 hasher.reset();
-                for (int i = 0; i < dataPoints.size(); i++) {
-                    hasher.addString(dataPoints.get(i).getMetricName());
+                for (String metricName : metricNames) {
+                    hasher.addString(metricName);
                 }
                 metricNamesHash = Integer.toHexString(hasher.digestHash().hashCode());
             }
             return metricNamesHash;
+        }
+
+        /**
+         * Builds the metric document TSID using the hash of its grouped metric names, in the layout of the target index.
+         */
+        public BytesRef buildMetricTsid(String metricNamesHash, TsidLayout tsidLayout) {
+            TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
+                .addStringDimension(MetricDocumentBuilder.METRIC_NAMES_HASH_FIELD, metricNamesHash);
+            return finalTsidBuilder.buildTsid(tsidLayout);
+        }
+
+        /**
+         * Builds an exemplar document TSID using its metric name, in the layout of the target index.
+         */
+        public BytesRef buildExemplarTsid(String metricName, TsidLayout tsidLayout) {
+            TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
+                .addStringDimension(ExemplarDocumentBuilder.METRIC_NAME_FIELD, metricName);
+            return finalTsidBuilder.buildTsid(tsidLayout);
         }
 
         public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
@@ -357,10 +500,6 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
         public ByteString scopeSchemaUrl() {
             return scopeSchemaUrl;
-        }
-
-        public TsidBuilder tsidBuilder() {
-            return tsidBuilder;
         }
 
         public List<KeyValue> dataPointAttributes() {

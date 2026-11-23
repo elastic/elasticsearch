@@ -13,25 +13,82 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+        assertEquals(
+            ExternalSourceSettings.defaultMaxDiscoveredFiles(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
+            (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings)
+        );
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
             (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings)
         );
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.blobStoreConcurrency(settings));
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(settings));
+    }
+
+    public void testDefaultMaxDiscoveredFilesMatrix() {
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(0L));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(-1L));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(128).getBytes()));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(187).getBytes()));
+        assertEquals(25_059, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(188).getBytes()));
+        assertEquals(68_246, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(512).getBytes()));
+        assertEquals(136_492, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes()));
+        assertEquals(272_985, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(2).getBytes()));
+        assertEquals(545_970, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(4).getBytes()));
+        assertEquals(955_448, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(7).getBytes()));
+        assertEquals(1_091_940, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(8).getBytes()));
+        assertEquals(4_367_763, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(32).getBytes()));
+        assertEquals(10_000_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(128).getBytes()));
+    }
+
+    public void testMaxDiscoveredFilesOverrideBeatsHeapDefault() {
+        Settings pinned = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 42).build();
+        assertEquals(42, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(pinned));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10_000_000).build();
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(atMax));
+    }
+
+    public void testMaxListedObjectsBounds() {
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(Settings.EMPTY));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_000).build();
+        assertEquals(100_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(atMax));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_LISTED_OBJECTS.get(
+                Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_001).build()
+            )
+        );
+    }
+
+    public void testPlanningBytesPerDiscoveredFileMatchesBreakerCharges() {
+        assertEquals(
+            FileList.LISTING_BYTES_PER_ENTRY + ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE + Phase2Reservation.SHELL_BYTES,
+            ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE
+        );
+        int files = ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes());
+        long billed = files * ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE;
+        long request = ByteSizeValue.ofGb(1).getBytes() * 60 / 100;
+        assertThat(billed, lessThan(request));
     }
 
     public void testMaxConcurrentRequestsDefaultTracksFormula() {
@@ -45,17 +102,17 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testDefaultBlobStoreConcurrencyMatrix() {
-        // B = 10 MiB, M = min(heap/4, REQUEST/2), C = min(cpuClamp, max(4, M/B)).
+        // B = just under 8 MiB, M = min(heap/4, REQUEST/2), C = min(cpuClamp, max(4, M/B)).
         // Default REQUEST is 60% of heap, so REQUEST/2 is 30% and heap/4 binds.
         assertEquals(4, concurrency(1, ByteSizeValue.ofMb(256)));
         assertEquals(6, concurrency(2, ByteSizeValue.ofMb(256)));
-        assertEquals(6, concurrency(8, ByteSizeValue.ofMb(256)));
-        assertEquals(6, concurrency(16, ByteSizeValue.ofMb(256)));
+        assertEquals(8, concurrency(8, ByteSizeValue.ofMb(256)));
+        assertEquals(8, concurrency(16, ByteSizeValue.ofMb(256)));
 
         assertEquals(4, concurrency(1, ByteSizeValue.ofMb(512)));
         assertEquals(6, concurrency(2, ByteSizeValue.ofMb(512)));
-        assertEquals(12, concurrency(8, ByteSizeValue.ofMb(512)));
-        assertEquals(12, concurrency(16, ByteSizeValue.ofMb(512)));
+        assertEquals(16, concurrency(8, ByteSizeValue.ofMb(512)));
+        assertEquals(16, concurrency(16, ByteSizeValue.ofMb(512)));
 
         assertEquals(4, concurrency(1, ByteSizeValue.ofGb(4)));
         assertEquals(6, concurrency(2, ByteSizeValue.ofGb(4)));
@@ -73,21 +130,21 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testDefaultBlobStoreConcurrencyParseFloorBeatsTinyMemory() {
-        // 80 MiB heap: M = 20 MiB, floor(M / 10 MiB) = 2, but gzip parse needs C >= 4.
+        // 80 MiB heap: M = 20 MiB, floor(M / B) = 2, but gzip parse needs C >= 4.
         assertEquals(4, concurrency(1, ByteSizeValue.ofMb(80)));
     }
 
     public void testDefaultBlobStoreConcurrencyRequestBreakerBindsFirst() {
         long heapBytes = ByteSizeValue.ofGb(4).getBytes();
         long tightRequest = ByteSizeValue.ofMb(80).getBytes();
-        // M = min(1024 MiB, 40 MiB) = 40 MiB so C = 4, even though 16 CPUs would otherwise allow 48.
-        assertEquals(4, ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest));
+        // M = min(1024 MiB, 40 MiB) = 40 MiB so C = floor(M / B) = 5, even though 16 CPUs would otherwise allow 48.
+        assertEquals(5, ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest));
     }
 
     public void testPositiveOverrideIsClampedByMemoryTerm() {
         // Leftover 16 (the old floor) must not skip M. Default REQUEST is 60% of heap, so heap/4 binds.
-        assertEquals(12, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(512).getBytes(), requestLimit(512)));
-        assertEquals(6, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+        assertEquals(8, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+        assertEquals(5, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(160).getBytes(), requestLimit(160)));
     }
 
     public void testPositiveOverrideCanLowerBelowMemoryCap() {
@@ -98,14 +155,107 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(0, ExternalSourceSettings.blobStoreConcurrency(0, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
     }
 
+    public void testSdkConnectionPoolSizeAddsOneExceptUnlimited() {
+        assertEquals(8, ExternalSourceSettings.sdkConnectionPoolSize(0, 8));
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(1, 8));
+        assertEquals(5, ExternalSourceSettings.sdkConnectionPoolSize(4, 8));
+        Settings unlimited = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
+        assertEquals(
+            ExternalSourceSettings.defaultBlobStoreConcurrency(unlimited),
+            ExternalSourceSettings.sdkConnectionPoolSize(unlimited)
+        );
+        Settings one = Settings.builder().put("esql.external.max_concurrent_requests", 1).build();
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(one));
+    }
+
     public void testPositiveOverrideHonorsParseFloorOnTinyHeap() {
-        // 80 MiB heap: M = 20 MiB, floor(M / 10 MiB) = 2, leftover 16 still gets the gzip parse floor of 4.
+        // 80 MiB heap: M = 20 MiB, floor(M / B) = 2, leftover 16 still gets the gzip parse floor of 4.
         assertEquals(4, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(80).getBytes(), requestLimit(80)));
     }
 
     public void testPositiveOverrideCanRaiseAboveCpuWhenMemoryAllows() {
-        // 1 CPU would default to 4; leftover 16 on 4 GiB is memory-legal (102 slots) so it stays 16.
+        // 1 CPU would default to 4; leftover 16 on 4 GiB is memory-legal (128 slots) so it stays 16.
         assertEquals(16, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofGb(4).getBytes(), requestLimitGb(4)));
+    }
+
+    public void testBlobStoreConcurrencyInfoMemoryBindsUnset() {
+        long heapBytes = ByteSizeValue.ofMb(256).getBytes();
+        long request = requestLimit(256);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(8, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoCpuClampBindsUnset() {
+        long heapBytes = ByteSizeValue.ofGb(4).getBytes();
+        long request = requestLimitGb(4);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(1, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertTrue(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoFloorBindsUnset() {
+        long heapBytes = ByteSizeValue.ofMb(80).getBytes();
+        long request = requestLimit(80);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(1, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertTrue(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoParseFloorDoesNotBindWhenRawSlotsEqualFloor() {
+        // 128 MiB heap: M = 32 MiB, floor(M / B) = 4, exactly the parse floor.
+        long heapBytes = ByteSizeValue.ofMb(128).getBytes();
+        long request = requestLimit(128);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoExplicitMaxIsUnraisableWhenMemoryAllowsMore() {
+        long heapBytes = ByteSizeValue.ofGb(32).getBytes();
+        long request = heapBytes * 6 / 10;
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(500, heapBytes, request);
+        assertEquals(500, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoRequestBreakerBinds() {
+        long heapBytes = ByteSizeValue.ofGb(4).getBytes();
+        long tightRequest = ByteSizeValue.ofMb(80).getBytes();
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(
+            configured,
+            heapBytes,
+            tightRequest
+        );
+        assertEquals(5, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoSettingsOverloadMatchesLiveTerms() {
+        Settings settings = Settings.EMPTY;
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(settings);
+        assertEquals(ExternalSourceSettings.blobStoreConcurrency(settings), info.permits());
+        long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long request = HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes();
+        ExternalSourceSettings.BlobStoreConcurrency expected = ExternalSourceSettings.blobStoreConcurrencyInfo(
+            ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings),
+            heapBytes,
+            request
+        );
+        assertEquals(expected.permits(), info.permits());
+        assertEquals(expected.settingCanRaiseLimit(), info.settingCanRaiseLimit());
+        assertEquals(expected.parseFloorBinds(), info.parseFloorBinds());
     }
 
     public void testDefaultBlobStoreConcurrencySettingsHonorsRequestLimit() {
@@ -219,10 +369,100 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         });
     }
 
+    public void testMaxDecompressionRatioUpperBound() {
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.getKey(), 100_001).build();
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO.get(settings);
+        });
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.getKey(), 100_001).build();
+            ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD.get(settings);
+        });
+    }
+
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(13, ExternalSourceSettings.settings().size());
+        assertEquals(21, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.WORKER_READY_TIMEOUT));
+        assertEquals(TimeValue.timeValueSeconds(10), ExternalSourceSettings.WORKER_READY_TIMEOUT.get(Settings.EMPTY));
+        assertTrue(ExternalSourceSettings.WORKER_READY_TIMEOUT.isDynamic());
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED));
+        assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.get(Settings.EMPTY));
+        assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.isDynamic());
+        // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    public void testAdmissionRescueEnabledFollowsClusterSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED));
+        AtomicBoolean observed = new AtomicBoolean();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED, observed::set);
+        assertTrue(observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.getKey(), false).build());
+        assertFalse(observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.getKey(), true).build());
+        assertTrue(observed.get());
+    }
+
+    /** Entries are matched against {@code host:port}, so one naming no port is refused at startup. */
+    public void testAllowedEndpointHostsRequireAPort() {
+        for (String entry : List.of("minio.corp.example.com", "127.0.0.1", "[::1]", "localhost:", "[::1")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("names no port"));
+        }
+        for (String entry : List.of(":443", ":*")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                entry,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("names no host"));
+        }
+    }
+
+    /** A whole URL is the third natural paste, and it admits nothing: the scheme's colon is not a port. */
+    public void testAllowedEndpointHostsRefuseAUrl() {
+        for (String entry : List.of("http://minio.internal:9000", "https://minio.internal:9000", "https://minio.internal")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                entry,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("is a URL"));
+        }
+    }
+
+    public void testAllowedEndpointHostsAcceptsPortBearingEntries() {
+        Settings settings = Settings.builder()
+            .putList(
+                ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY,
+                "127.0.0.1:*",
+                "[::1]:*",
+                "localhost:9000",
+                "minio.corp.example.com:443"
+            )
+            .build();
+        assertEquals(4, ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings).size());
+    }
+
+    /** The default permits nothing, which is what makes the list the enable rather than a filter. */
+    public void testAllowedEndpointHostsDefaultsToEmpty() {
+        assertTrue(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(Settings.EMPTY).isEmpty());
     }
 
     public void testMaxConcurrentSegmentatorsDefaultDerivesBelowPoolSize() {
@@ -500,5 +740,39 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         Settings settings = Settings.builder().putList("esql.external.local_allowed_paths", "/data/allowed").build();
         LocalFileAccess access = LocalFileAccess.create(settings);
         assertTrue("local disk access must be enabled when allowlist is set", access.enabled());
+    }
+
+    public void testIoFillBytesUnknownKeepsRequestedMax() {
+        int requested = 4 * 1024 * 1024;
+        assertEquals(requested, ExternalSourceSettings.ioFillBytes(requested, StorageObject.READ_TO_END));
+        assertEquals(requested, ExternalSourceSettings.ioFillBytes(requested, Long.MIN_VALUE));
+    }
+
+    public void testIoFillBytesTinyObjectPaysObjectSize() {
+        assertEquals(5 * 1024, ExternalSourceSettings.ioFillBytes(4 * 1024 * 1024, 5 * 1024));
+        assertEquals(1, ExternalSourceSettings.ioFillBytes(4 * 1024 * 1024, 0L));
+        assertEquals(1, ExternalSourceSettings.ioFillBytes(1, 0L));
+        assertEquals(0, ExternalSourceSettings.ioFillBytes(0, 0L));
+    }
+
+    public void testIoFillBytesEqualToRequested() {
+        int size = 4096;
+        assertEquals(size, ExternalSourceSettings.ioFillBytes(size, size));
+    }
+
+    public void testIoFillBytesLargerThanRequestedKeepsRequested() {
+        assertEquals(4096, ExternalSourceSettings.ioFillBytes(4096, 10_000));
+    }
+
+    public void testIoFillBytesCapsRequestedAtIntegerMax() {
+        assertEquals(Integer.MAX_VALUE, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, -1L));
+        assertEquals(Integer.MAX_VALUE, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
+        assertEquals(5, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, 5L));
+        assertEquals(1, ExternalSourceSettings.ioFillBytes(Integer.MAX_VALUE + 1L, 0L));
+    }
+
+    public void testIoFillBytesRejectsNegativeRequestedMax() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExternalSourceSettings.ioFillBytes(-1L, 1024));
+        assertThat(e.getMessage(), containsString("requestedMax"));
     }
 }

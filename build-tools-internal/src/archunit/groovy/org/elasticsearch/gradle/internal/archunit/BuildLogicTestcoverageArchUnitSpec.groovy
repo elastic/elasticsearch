@@ -84,7 +84,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "InternalBwcGitPluginFuncTest",
         "InternalDistributionBwcSetupPluginFuncTest",
         "JdkDownloadPluginFuncTest",
-        "SnykDependencyMonitoringGradlePluginFuncTest",
     ] as Set
 
     private static final Set<String> KNOWN_UNCOVERED = [
@@ -106,12 +105,10 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin",
         "org.elasticsearch.gradle.internal.docker.DockerSupportPlugin",
         "org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin",
-        "org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin",
         "org.elasticsearch.gradle.internal.precommit.DependencyLicensesPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin",
-        "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin",
         "org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin",
         "org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin",
@@ -120,6 +117,7 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin",
+        "org.elasticsearch.gradle.internal.test.InternalHeapPressureTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",

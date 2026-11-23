@@ -10,13 +10,16 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -29,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 
@@ -82,6 +85,13 @@ public class RangeStorageObjectTests extends ESTestCase {
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);
         assertEquals(FILE_BYTES.length, range.lengthForFooterCacheKey());
+    }
+
+    public void testOffsetForFooterCacheAddsViewStart() {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);
+        assertEquals(10L, range.offsetForFooterCache(0));
+        assertEquals(17L, range.offsetForFooterCache(7));
     }
 
     public void testPathDelegates() {
@@ -355,6 +365,26 @@ public class RangeStorageObjectTests extends ESTestCase {
         assertEquals(Integer.valueOf(-1), bytesRead.get());
     }
 
+    public void testBindRowGroupAndAdmissionTimeoutForward() {
+        AtomicReference<RowGroupIo> bound = new AtomicReference<>();
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES) {
+            @Override
+            public void bindRowGroup(RowGroupIo io) {
+                bound.set(io);
+            }
+
+            @Override
+            public long admissionWaitTimeoutMs() {
+                return 50L;
+            }
+        };
+        RangeStorageObject range = new RangeStorageObject(delegate, 0, 10);
+        RowGroupIo lease = new RowGroupIo();
+        range.bindRowGroup(lease);
+        assertSame(lease, bound.get());
+        assertEquals(50L, range.admissionWaitTimeoutMs());
+    }
+
     /**
      * StorageObject that records {@code abortStream} invocations so a wrapper test can
      * confirm the call reached the underlying delegate.
@@ -368,9 +398,24 @@ public class RangeStorageObjectTests extends ESTestCase {
         }
 
         @Override
-        public void abortStream(InputStream stream) {
-            abortCount++;
-            lastAborted = stream;
+        public InputStream newStream() {
+            return track(super.newStream());
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return track(super.newStream(position, length));
+        }
+
+        private InputStream track(InputStream in) {
+            return new FilterInputStream(in) {
+                @Override
+                public void close() throws IOException {
+                    abortCount++;
+                    lastAborted = this;
+                    super.close();
+                }
+            };
         }
     }
 
@@ -393,7 +438,7 @@ public class RangeStorageObjectTests extends ESTestCase {
         }
     }
 
-    private static class InMemoryStorageObject implements StorageObject {
+    private static class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final StoragePath path;
         private final Instant lastModified;

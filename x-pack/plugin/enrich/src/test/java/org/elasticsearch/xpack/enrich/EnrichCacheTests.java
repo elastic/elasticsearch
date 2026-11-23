@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -16,18 +20,24 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -236,6 +246,280 @@ public class EnrichCacheTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that byte arrays in enrich source documents are independently deep-copied on each cache access. Uses SMILE-encoded
+     * source documents so that binary fields survive the SearchHit#getSourceAsMap() round-trip as byte[], exercising the byte[]
+     * branch in EnrichCache#deepCopy through the full computeIfAbsent → toCacheValue pipeline.
+     */
+    public void testByteArraySourceIsolation() throws InterruptedException {
+        EnrichCache enrichCache = new EnrichCache(10);
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        final byte[] originalBytes = { 1, 2, 3, 4, 5 };
+        Map<String, Object> sourceMap = new HashMap<>();
+        sourceMap.put("key1", "value1");
+        sourceMap.put("binary_field", originalBytes);
+
+        List<List<Map<?, ?>>> capturedResults = new ArrayList<>();
+
+        // First call: cache miss — source document is fetched and cached
+        {
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, listener -> {
+                SearchResponse searchResponse = convertToSearchResponseWithSmile(sourceMap);
+                listener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                capturedResults.add(response);
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        // Second call: cache hit — result must be a fresh deep copy, not shared with the first
+        {
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, listener -> {
+                fail("Expected no call to the database because item should have been in the cache");
+            }, assertNoFailureListener(response -> {
+                capturedResults.add(response);
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        assertThat(capturedResults.size(), equalTo(2));
+        byte[] resultBytes1 = (byte[]) capturedResults.get(0).get(0).get("binary_field");
+        byte[] resultBytes2 = (byte[]) capturedResults.get(1).get(0).get("binary_field");
+
+        // Both results must have the correct values
+        assertArrayEquals(originalBytes, resultBytes1);
+        assertArrayEquals(originalBytes, resultBytes2);
+
+        // Each call returns a distinct copy; no result shares an instance with the original or each other
+        assertThat(resultBytes1, not(sameInstance(originalBytes)));
+        assertThat(resultBytes2, not(sameInstance(originalBytes)));
+        assertThat(resultBytes1, not(sameInstance(resultBytes2)));
+
+        // Mutating the first result must not corrupt the second
+        resultBytes1[0] = 99;
+        assertArrayEquals(originalBytes, resultBytes2);
+    }
+
+    public void testSharedResponseIsConvertedOnce() {
+        EnrichCache enrichCache = new EnrichCache(10);
+        ProjectId projectId = randomProjectIdOrDefault();
+        List<Map<String, ?>> hits = List.of(Map.of("key1", "value1", "nested", Map.of("key2", "value2")));
+        int numLookups = randomIntBetween(2, 16);
+        // once the first lookup has converted the shared response, change its source: a lookup converting it again would return that
+        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits, response -> {
+            try {
+                response.getHits().getAt(0).sourceRef(convertMapToJson(Map.of("key1", "converted again")));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (List<Map<?, ?>> result : results) {
+            assertThat("every lookup reuses the first conversion", result, equalTo(hits));
+            assertTrue("every lookup receives its own copy", distinct.add(result) && distinct.add(result.get(0)));
+        }
+        EnrichStatsAction.Response.CacheStats stats = enrichCache.getStats("_id");
+        assertThat(stats.count(), equalTo(1L));
+        assertThat(stats.misses(), equalTo((long) numLookups));
+        assertThat("the look into the cache before converting is not counted", stats.hits(), equalTo(0L));
+
+        // mutating one lookup's result affects neither the others nor the cached value
+        putIntoHit(results.get(0).get(0), "key1", "mutated");
+        for (int i = 1; i < numLookups; i++) {
+            assertThat(results.get(i), equalTo(hits));
+        }
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "1", 1)), equalTo(hits));
+    }
+
+    public void testSharedResponseIsConvertedAgainIfNotRetained() {
+        // a value larger than the cache is not retained, so every lookup converts the shared response
+        EnrichCache enrichCache = new EnrichCache(ByteSizeValue.ofBytes(1));
+        ProjectId projectId = randomProjectIdOrDefault();
+        List<Map<String, ?>> hits = List.of(Map.of("key1", "value1"));
+        int numLookups = randomIntBetween(2, 16);
+        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits, response -> {});
+
+        for (List<Map<?, ?>> result : results) {
+            assertThat(result, equalTo(hits));
+        }
+        assertThat(enrichCache.getStats("_id").count(), equalTo(0L));
+    }
+
+    // Expected sizes assume compressed oops and 8-byte alignment (header 12, array header 16, reference 4): map 80 + table + 32 per
+    // entry with keys free, list 48 + array, Double/Long 24, Integer/Float/Boolean 16, String 24 + align(16 + 2 * length).
+    private static void assumeCompressedOops() {
+        assumeTrue(
+            "expected sizes are hand-computed for compressed oops and 8-byte alignment",
+            RamUsageEstimator.COMPRESSED_REFS_ENABLED && RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT == 8
+        );
+    }
+
+    public void testEstimateHeapSizeOfFlatNumericMap() {
+        assumeCompressedOops();
+        assertThat(EnrichCache.estimateHeapSize(null), equalTo(0L));
+        assertThat(EnrichCache.estimateHeapSize(Map.of()), equalTo(80L));
+        // 3 entries: ceil(3 / 0.75) = 4 -> table align(16 + 16) = 32; nodes 3 * 32 = 96; Double 24 + Long 24 + Integer 16 = 64
+        Map<String, Object> flat = Map.of("d", 1.5d, "l", 7L, "i", 3);
+        assertThat(EnrichCache.estimateHeapSize(flat), equalTo(80L + 32 + 96 + 64));
+        // the estimate is of the deep copy's shape, so it is the same for the copy itself
+        assertThat(EnrichCache.estimateHeapSize(CollectionUtils.deepCopy(flat, UNMODIFIABLE)), equalTo(272L));
+    }
+
+    public void testEstimateHeapSizeOfNestedMaps() {
+        assumeCompressedOops();
+        // outer, 1 entry: ceil(1 / 0.75) = 2 -> table align(16 + 8) = 24; one node 32 -> 80 + 24 + 32 = 136
+        // inner, 2 entries: ceil(2 / 0.75) = 3 -> capacity 4 -> table 32; nodes 64; Integer 16 + Boolean 16 -> 80 + 32 + 64 + 32 = 208
+        Map<String, Object> nested = Map.of("outer", Map.of("x", 1, "y", true));
+        assertThat(EnrichCache.estimateHeapSize(nested), equalTo(136L + 208));
+    }
+
+    public void testEstimateHeapSizeOfLists() {
+        assumeCompressedOops();
+        // single-entry map 136; list of 3 Integers: 48 + array align(16 + 12) = 32 + 3 * 16 = 128
+        assertThat(EnrichCache.estimateHeapSize(Map.of("list", List.of(1, 2, 3))), equalTo(136L + 128));
+        // an empty list shares a static empty array, so only the shells are charged
+        assertThat(EnrichCache.estimateHeapSize(Map.of("empty", List.of())), equalTo(136L + 48));
+        // list of two single-entry maps: 48 + array align(16 + 8) = 24 + 2 * (136 + Long 24)
+        assertThat(EnrichCache.estimateHeapSize(List.of(Map.of("a", 1L), Map.of("b", 2L))), equalTo(48L + 24 + 2 * 160));
+    }
+
+    public void testEstimateHeapSizeOfStrings() {
+        assumeCompressedOops();
+        // 20 characters: 24 + align(16 + 2 * 20) = 24 + 56 = 80, in a single-entry map 136
+        assertThat(EnrichCache.estimateHeapSize(Map.of("s", "0123456789abcdefghij")), equalTo(136L + 80));
+        // 200 characters: 24 + align(16 + 400) = 440
+        assertThat(EnrichCache.estimateHeapSize(Map.of("s", "x".repeat(200))), equalTo(136L + 440));
+        // strings are counted as UTF-16, so text the JVM cannot store as Latin-1 is not undercounted
+        assertThat(EnrichCache.estimateHeapSize("東京都渋谷区"), equalTo(EnrichCache.estimateHeapSize("tokyos")));
+        assertThat(EnrichCache.estimateHeapSize("tokyos"), equalTo(24L + 32));
+        assertThat(EnrichCache.estimateHeapSize("tokyos"), equalTo(RamUsageEstimator.sizeOf("tokyos")));
+    }
+
+    public void testEstimateHeapSizeOfRareLeafTypes() {
+        assumeCompressedOops();
+        // byte[5]: align(16 + 5) = 24, in a single-entry map 136
+        assertThat(EnrichCache.estimateHeapSize(Map.of("b", new byte[] { 1, 2, 3, 4, 5 })), equalTo(136L + 24));
+        assertThat(EnrichCache.estimateHeapSize(new byte[1024]), equalTo(RamUsageEstimator.sizeOf(new byte[1024])));
+        // Float, as parsed from SMILE or CBOR sources: 16, in a single-entry map 136
+        assertThat(EnrichCache.estimateHeapSize(Map.of("f", 1.5f)), equalTo(136L + 16));
+        // anything else is left to Lucene, which charges its default for types it does not know
+        assertThat(EnrichCache.estimateHeapSize(new java.util.Date()), equalTo((long) RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED));
+    }
+
+    /**
+     * Verifies that the weight of a cache value is the cache key constant plus the estimated heap of the parsed hits rather than the
+     * serialized size of the search response.
+     */
+    public void testToCacheValueWeighsEstimatedHeap() {
+        assumeCompressedOops();
+        SearchResponse emptyResponse = convertToSearchResponse(List.of());
+        try {
+            assertThat(EnrichCache.toCacheValue(emptyResponse).sizeInBytes(), equalTo(256L));
+        } finally {
+            emptyResponse.decRef();
+        }
+        // hits list: 48 + array align(16 + 8) = 24 -> 72
+        // {"a": 1.5}: single-entry map 136 + Double 24 = 160
+        // {"b": "xyz"}: single-entry map 136 + string 24 + align(16 + 6) = 48 -> 184
+        SearchResponse response = convertToSearchResponse(List.of(Map.of("a", 1.5d), Map.of("b", "xyz")));
+        try {
+            EnrichCache.CacheValue cacheValue = EnrichCache.toCacheValue(response);
+            assertThat(cacheValue.hits().size(), equalTo(2));
+            assertThat(cacheValue.sizeInBytes(), equalTo(256L + 72 + 160 + 184));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * Verifies that a byte-sized cache evicts based on the estimated heap of its entries and reports it as its size in bytes.
+     */
+    public void testEvictionByEstimatedHeapSize() {
+        assumeCompressedOops();
+        // one entry: key 256 + single-hit list 48 + align(16 + 4) = 24 + {"a": 1.5} 160 -> 488
+        long entrySize = 488L;
+        EnrichCache enrichCache = new EnrichCache(ByteSizeValue.ofBytes(2 * entrySize + 100));
+        ProjectId projectId = randomProjectIdOrDefault();
+        for (int i = 0; i < 3; i++) {
+            SearchResponse response = convertToSearchResponse(List.of(Map.of("a", 1.5d)));
+            try {
+                EnrichCache.CacheValue cacheValue = EnrichCache.toCacheValue(response);
+                assertThat(cacheValue.sizeInBytes(), equalTo(entrySize));
+                enrichCache.put(new EnrichCache.CacheKey(projectId, "policy1-1", String.valueOf(i), 1), cacheValue);
+            } finally {
+                response.decRef();
+            }
+        }
+        EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats("_id");
+        assertThat(cacheStats.count(), equalTo(2L));
+        assertThat(cacheStats.evictions(), equalTo(1L));
+        assertThat(cacheStats.cacheSizeInBytes(), equalTo(2 * entrySize));
+        // the oldest entry was evicted, the two most recent ones are still served
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "0", 1)), nullValue());
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "1", 1)), notNullValue());
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "2", 1)), notNullValue());
+    }
+
+    private List<List<Map<?, ?>>> lookupWithSharedResponse(
+        EnrichCache enrichCache,
+        ProjectId projectId,
+        int numLookups,
+        List<Map<String, ?>> hits,
+        Consumer<SearchResponse> afterFirstResponse
+    ) {
+        List<ActionListener<SearchResponse>> searches = new ArrayList<>();
+        List<List<Map<?, ?>>> results = new ArrayList<>();
+        for (int i = 0; i < numLookups; i++) {
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, searches::add, assertNoFailureListener(results::add));
+        }
+        assertThat(searches.size(), equalTo(numLookups));
+        SearchResponse response = convertToSearchResponse(hits);
+        try {
+            searches.getFirst().onResponse(response);
+            afterFirstResponse.accept(response);
+            for (ActionListener<SearchResponse> search : searches.subList(1, searches.size())) {
+                search.onResponse(response);
+            }
+        } finally {
+            response.decRef();
+        }
+        assertThat(results.size(), equalTo(numLookups));
+        return results;
+    }
+
+    @SuppressWarnings("unchecked") // the hits are maps with string keys, read from a JSON source
+    private static void putIntoHit(Map<?, ?> hit, String key, Object value) {
+        ((Map<String, Object>) hit).put(key, value);
+    }
+
+    private SearchResponse convertToSearchResponseWithSmile(Map<String, Object> sourceMap) {
+        try {
+            SearchHit hit = new SearchHit(0, "id").sourceRef(convertMapToSmile(sourceMap));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+            SearchResponse response = SearchResponseUtils.response(hits).shards(5, 4, 0).build();
+            hits.decRef();
+            return response;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private BytesReference convertMapToSmile(Map<String, ?> simpleMap) throws IOException {
+        try (XContentBuilder builder = SmileXContent.contentBuilder().map(simpleMap)) {
+            return BytesReference.bytes(builder);
+        }
+    }
+
     private SearchResponse convertToSearchResponse(List<Map<String, ?>> searchResponseList) {
         SearchHit[] hitArray = searchResponseList.stream().map(map -> {
             try {
@@ -254,53 +538,6 @@ public class EnrichCacheTests extends ESTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder().map(simpleMap)) {
             return BytesReference.bytes(builder);
         }
-    }
-
-    public void testDeepCopy() {
-        Map<String, Object> original = new HashMap<>();
-        {
-            original.put("foo", "bar");
-            original.put("int", 123);
-            original.put("double", 123.0D);
-            Map<String, Object> innerObject = new HashMap<>();
-            innerObject.put("buzz", "hello world");
-            innerObject.put("foo_null", null);
-            innerObject.put("1", "bar");
-            innerObject.put("long", 123L);
-            List<String> innerInnerList = new ArrayList<>();
-            innerInnerList.add("item1");
-            List<Object> innerList = new ArrayList<>();
-            innerList.add(innerInnerList);
-            innerObject.put("list", innerList);
-            original.put("fizz", innerObject);
-            List<Map<String, Object>> list = new ArrayList<>();
-            Map<String, Object> value = new HashMap<>();
-            value.put("field", "value");
-            list.add(value);
-            list.add(null);
-            original.put("list", list);
-            List<String> list2 = new ArrayList<>();
-            list2.add("foo");
-            list2.add("bar");
-            list2.add("baz");
-            original.put("list2", list2);
-        }
-
-        Map<?, ?> result = EnrichCache.deepCopy(original, false);
-        assertThat(result, equalTo(original));
-        assertThat(result, not(sameInstance(original)));
-
-        result = EnrichCache.deepCopy(original, true);
-        assertThat(result, equalTo(original));
-        assertThat(result, not(sameInstance(original)));
-        Map<?, ?> innerMap = (Map<?, ?>) result.get("fizz");
-        expectThrows(UnsupportedOperationException.class, () -> innerMap.remove("x"));
-        List<?> innerList = (List<?>) result.get("list");
-        expectThrows(UnsupportedOperationException.class, () -> innerList.remove(0));
-
-        original.put("embedded_object", new byte[] { 1, 2, 3 });
-        result = EnrichCache.deepCopy(original, false);
-        assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 
 }

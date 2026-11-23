@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -18,7 +16,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -38,6 +35,7 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -425,25 +423,20 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
         RandomBlocksResult randomBlocksResult = generateRandomSingleValueBlocks(rows, blocksCount, driverContext);
 
-        List<Integer> sortColumns = new ArrayList<>();
-        for (int i = 0; i < sortingByColumns; i++) {
-            sortColumns.add(
-                randomValueOtherThanMany(
-                    c -> randomBlocksResult.validSortKeys[c] == false || sortColumns.contains(c),
-                    () -> randomIntBetween(0, blocksCount - 1)
-                )
-            );
+        // A random page can have fewer valid columns than the sort and group keys need.
+        // Pick from the valid columns directly, otherwise the selection never ends.
+        List<Integer> sortableColumns = IntStream.range(0, blocksCount)
+            .filter(c -> randomBlocksResult.validSortKeys[c])
+            .boxed()
+            .collect(Collectors.toCollection(ArrayList::new));
+        if (sortableColumns.size() < sortingByColumns + groupKeysCount) {
+            // The blocks must be released before skipping, otherwise the leak check after the test fails.
+            Releasables.close(randomBlocksResult.blocks);
+            assumeTrue("not enough valid sort key columns in the random page", false);
         }
-
-        List<Integer> groupKeys = new ArrayList<>();
-        for (int i = 0; i < groupKeysCount; i++) {
-            groupKeys.add(
-                randomValueOtherThanMany(
-                    c -> sortColumns.contains(c) || groupKeys.contains(c) || randomBlocksResult.validSortKeys[c] == false,
-                    () -> randomIntBetween(0, blocksCount - 1)
-                )
-            );
-        }
+        Collections.shuffle(sortableColumns, random());
+        List<Integer> sortColumns = new ArrayList<>(sortableColumns.subList(0, sortingByColumns));
+        List<Integer> groupKeys = new ArrayList<>(sortableColumns.subList(sortingByColumns, sortingByColumns + groupKeysCount));
 
         List<SortOrder> uniqueOrders = sortColumns.stream().map(column -> new SortOrder(column, randomBoolean(), randomBoolean())).toList();
 
@@ -457,16 +450,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     randomBlocksResult.elementTypes,
                     randomBlocksResult.encoders,
                     uniqueOrders,
-                    new GroupKeyEncoder(
-                        groupKeys.stream().mapToInt(Integer::intValue).toArray(),
-                        randomBlocksResult.elementTypes,
-                        new PagedBytesBuilder(
-                            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                            nonBreakingBigArrays().breakerService().getBreaker("request"),
-                            "group-key-encoder",
-                            64
-                        )
-                    ),
+                    groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                     rows,
                     Long.MAX_VALUE,
                     GroupedTopNOperator.OutputOrdering.SORTED
@@ -542,16 +526,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         elementTypes,
                         encoders,
                         sortOrders,
-                        new GroupKeyEncoder(
-                            groupKeys,
-                            elementTypes,
-                            new PagedBytesBuilder(
-                                PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                                nonBreakingBigArrays().breakerService().getBreaker("request"),
-                                "group-key-encoder",
-                                64
-                            )
-                        ),
+                        groupKeys,
                         randomPageSize(),
                         Long.MAX_VALUE,
                         outputOrdering

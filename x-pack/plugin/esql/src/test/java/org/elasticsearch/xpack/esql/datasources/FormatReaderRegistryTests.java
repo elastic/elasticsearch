@@ -7,14 +7,33 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import com.github.luben.zstd.ZstdOutputStream;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -94,6 +113,98 @@ public class FormatReaderRegistryTests extends ESTestCase {
     }
 
     /**
+     * The registry picks the ratio by codec and reads it live, so a dynamic setting update reaches
+     * existing readers. Verified behaviorally: drive {@code metadata()} with a small highly-compressed
+     * object; after tightening the limit the guard fires, after disabling it the read succeeds.
+     * Zstd uses {@code max_decompression_ratio.zstd}, not the generic ratio.
+     */
+    public void testDecompressionRatioFollowsCodecAndLiveUpdates() throws Exception {
+        // Build a ~130 KB gzip that expands ~515:1 (64 MiB of repeated text)
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz2 = new GZIPOutputStream(baos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                gz2.write(line);
+            }
+        }
+        byte[] gzipCompressed = baos.toByteArray();
+
+        ByteArrayOutputStream zstdBaos = new ByteArrayOutputStream();
+        try (ZstdOutputStream zstdOut = new ZstdOutputStream(zstdBaos)) {
+            byte[] line = "{\"val\":1}\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            for (int i = 0; i < 64 * 1024 * 1024 / line.length; i++) {
+                zstdOut.write(line);
+            }
+        }
+        byte[] zstdCompressed = zstdBaos.toByteArray();
+
+        StorageObject highlyCompressibleGzip = mock(StorageObject.class);
+        when(highlyCompressibleGzip.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(gzipCompressed));
+        when(highlyCompressibleGzip.knownLength()).thenReturn((long) gzipCompressed.length);
+        when(highlyCompressibleGzip.path()).thenReturn(StoragePath.of("memory://data.csv.gz"));
+
+        StorageObject highlyCompressibleZstd = mock(StorageObject.class);
+        when(highlyCompressibleZstd.newStream()).thenAnswer(inv -> new java.io.ByteArrayInputStream(zstdCompressed));
+        when(highlyCompressibleZstd.knownLength()).thenReturn((long) zstdCompressed.length);
+        when(highlyCompressibleZstd.path()).thenReturn(StoragePath.of("memory://data.csv.zst"));
+
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        codecs.register(new ZstdDecompressionCodec());
+        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
+        FormatReader csv = reader("csv", ".csv");
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+        // stub metadata() to actually consume the decompressed stream — this drives the ratio guard
+        when(csv.metadata(any())).thenAnswer(inv -> {
+            StorageObject obj = inv.getArgument(0);
+            try (InputStream s = obj.newStream()) {
+                s.transferTo(java.io.OutputStream.nullOutputStream());
+            }
+            return null;
+        });
+
+        FormatReader gz = registry.wrapForObject(csv, "data.csv.gz");
+        FormatReader zst = registry.wrapForObject(csv, "data.csv.zst");
+
+        // ratio=200: input is ~515:1 so the guard must fire
+        registry.setMaxDecompressionRatio(200);
+        expectThrows(ExternalClientException.class, () -> gz.metadata(highlyCompressibleGzip));
+
+        // Disable the guard: same object must pass
+        registry.setMaxDecompressionRatio(0);
+        gz.metadata(highlyCompressibleGzip); // must not throw
+
+        // Zstd ignores the generic ratio: low generic + disabled zstd ratio still passes
+        registry.setMaxDecompressionRatio(200);
+        registry.setMaxDecompressionRatioZstd(0);
+        zst.metadata(highlyCompressibleZstd); // must not throw
+
+        // Tight zstd ratio refuses the same object, even when the generic ratio is disabled
+        registry.setMaxDecompressionRatio(0);
+        registry.setMaxDecompressionRatioZstd(200);
+        expectThrows(ExternalClientException.class, () -> zst.metadata(highlyCompressibleZstd));
+    }
+
+    public void testCloseDoesNotMaterializeUnusedReaders() throws Exception {
+        CountingReader created = new CountingReader("csv", ".csv");
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("csv", (s, bf) -> created, Settings.EMPTY, null);
+        registry.close();
+        assertEquals(0, created.closes.get());
+    }
+
+    public void testCloseClosesMaterializedPrototypes() throws Exception {
+        CountingReader created = new CountingReader("csv", ".csv");
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("csv", (s, bf) -> created, Settings.EMPTY, null);
+        assertSame(created, registry.byName("csv"));
+        registry.close();
+        assertEquals(1, created.closes.get());
+        registry.close();
+        assertEquals(1, created.closes.get());
+    }
+
+    /**
      * Mockito stub deliberately: the registry touches only {@code formatName()} and {@code fileExtensions()};
      * a full {@link FormatReader} implementation ({@code metadata}/{@code read}/{@code withConfigTrackingConsumedKeys})
      * would be far larger for zero added coverage.
@@ -103,5 +214,46 @@ public class FormatReaderRegistryTests extends ESTestCase {
         when(reader.formatName()).thenReturn(format);
         when(reader.fileExtensions()).thenReturn(List.of(extensions));
         return reader;
+    }
+
+    private static final class CountingReader implements NoConfigFormatReader {
+        private final String format;
+        private final List<String> extensions;
+        final AtomicInteger closes = new AtomicInteger();
+
+        CountingReader(String format, String... extensions) {
+            this.format = format;
+            this.extensions = List.of(extensions);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return format;
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return extensions;
+        }
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
     }
 }

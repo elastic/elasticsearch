@@ -68,7 +68,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -773,8 +772,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             if (tooYoungToRelocateAgain) {
                 logger.debug("skipping re-relocation for recently-relocated task [{}]", task.getId());
             } else {
-                final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
-                if (nodeToRelocateTo.isPresent()) {
+                if (worker.hasNodeToRelocateTo()) {
                     final PaginatedHitSource.Response paginatedHitSourceResponse = asyncResponse.response();
                     final WorkerResumeInfo workerResumeInfo;
                     if (paginatedHitSource instanceof PitPaginatedHitSource pit) {

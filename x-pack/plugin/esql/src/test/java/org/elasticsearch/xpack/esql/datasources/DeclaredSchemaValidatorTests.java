@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.not;
 
 public class DeclaredSchemaValidatorTests extends ESTestCase {
 
-    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props, String idPath) {
-        return new DatasetMapping(new Mappings(dynamic, props, idPath));
+    private static DatasetMapping mapping(Dynamic dynamic, Map<String, DatasetFieldMapping> props) {
+        return new DatasetMapping(new Mappings(dynamic, props));
     }
 
     private static Map<String, DatasetFieldMapping> props(Object... pairs) {
@@ -146,22 +146,21 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
                     "ip",
                     "i",
                     "date_nanos"
-                ),
-                null
+                )
             )
         );
     }
 
     public void testTypeAliasesPass() {
         // int/bool/string are accepted aliases (parsed like ::type casts)
-        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "int", "b", "bool", "c", "string"), null));
+        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "int", "b", "bool", "c", "string")));
     }
 
     public void testUnsupportedTypeRejected() {
         for (String bad : new String[] { "geo_point", "binary", "short", "float", "version", "not_a_type", "text" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad), null))
+                () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad)))
             );
             assertTrue(e.getMessage(), e.getMessage().contains("unsupported declared type [" + bad + "]"));
             assertTrue(e.getMessage(), e.getMessage().contains("col"));
@@ -176,7 +175,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     public void testDeclaredTextIsRejectedAndNamesTheReplacement() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("msg", "text"), null))
+            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("msg", "text")))
         );
         assertThat(
             e.getMessage(),
@@ -203,26 +202,6 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         assertThat(DeclaredSchemaValidator.declarableTypes(), not(hasItem(DataType.TEXT)));
     }
 
-    public void testStrictRequiresRoleColumnDeclared() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(mapping(Dynamic.FALSE, props("a", "keyword"), "missing_id"))
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("_id"));
-        assertTrue(e.getMessage(), e.getMessage().contains("not declared"));
-    }
-
-    public void testNonStrictDefersUndeclaredRoleColumn() {
-        // _id.path references a column not in properties — under non-strict it may come from inference, so PUT allows it.
-        DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("a", "keyword"), "inferred_id"));
-    }
-
-    public void testIdPathWithNoPropertiesIsValid() {
-        // _id.path with an otherwise-empty mappings block (no properties) — non-strict, so the id column is deferred to
-        // query-time resolution. (The id-source is a meta-field inside mappings, so it always rides a mappings wrapper.)
-        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id")));
-    }
-
     public void testStrictWithNoPropertiesRejected() {
         // dynamic:false means "the declaration IS the schema" — no properties, no schema; the zero-column relation
         // downstream is not a queryable thing, so PUT rejects the shape outright.
@@ -234,7 +213,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     }
 
     public void testBlankNamesRejected() {
-        // Index-mapping precedent: field names must be non-empty. Blank property key / path / _id.path all reject.
+        // Index-mapping precedent: field names must be non-empty. A blank property key or path rejects.
         Map<String, DatasetFieldMapping> blankKey = new LinkedHashMap<>();
         blankKey.put(" ", new DatasetFieldMapping("keyword", null));
         expectThrows(
@@ -247,11 +226,6 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, blankPath)))
-        );
-
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), " ")))
         );
     }
 }

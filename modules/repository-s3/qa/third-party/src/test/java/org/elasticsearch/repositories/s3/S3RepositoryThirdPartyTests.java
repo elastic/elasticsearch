@@ -86,6 +86,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         assertThat(System.getProperty("test.s3.account"), not(blankOrNullString()));
         assertThat(System.getProperty("test.s3.key"), not(blankOrNullString()));
         assertThat(System.getProperty("test.s3.bucket"), not(blankOrNullString()));
+        assertThat(System.getProperty("test.s3.region"), not(blankOrNullString()));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.access_key", System.getProperty("test.s3.account"));
@@ -110,6 +111,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
             );
         }
+        settings.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("default").getKey(), System.getProperty("test.s3.region"));
         return settings.build();
     }
 

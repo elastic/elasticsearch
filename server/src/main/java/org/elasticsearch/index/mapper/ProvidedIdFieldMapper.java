@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -65,10 +65,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT, false);
-    static final ProvidedIdFieldMapper DOCUMENT_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DOCUMENT, true);
-    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
-    static final ProvidedIdFieldMapper COLUMNAR_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT);
+    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
@@ -76,18 +74,15 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Mode> mode;
-        private final boolean columnarIdByDefault;
 
         Builder(boolean columnarIdByDefault) {
             super(NAME);
             mode = Parameter.enumParam(
                 "mode",
                 false,
-                m -> ((ProvidedIdFieldMapper) m).mode,
                 (Supplier<Mode>) () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
                 Mode.class
             );
-            this.columnarIdByDefault = columnarIdByDefault;
         }
 
         @Override
@@ -100,9 +95,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             var mode = this.mode.getValue();
             switch (mode) {
                 case COLUMNAR:
-                    return columnarIdByDefault ? COLUMNAR_ID_DEFAULT_COLUMNAR : COLUMNAR_ID;
+                    return COLUMNAR_ID;
                 case DOCUMENT:
-                    return columnarIdByDefault ? DOCUMENT_ID_DEFAULT_COLUMNAR : DOCUMENT_ID;
+                    return DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -266,9 +261,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 }
 
                 @Override
-                public SortedBinaryDocValues getBytesValues() {
-                    SortedBinaryDocValues inValues = in.getBytesValues();
-                    return new SortedBinaryDocValues(inValues.docIdIterator()) {
+                public SortableBinaryDocValues getBytesValues() {
+                    SortableBinaryDocValues inValues = in.getBytesValues();
+                    return new SortableBinaryDocValues(inValues.docIdIterator()) {
 
                         @Override
                         public BytesRef nextValue() throws IOException {
@@ -300,6 +295,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                         public ValueMode getValueMode() {
                             return inValues.getValueMode();
                         }
+
+                        @Override
+                        public ValueOrder getValueOrder() {
+                            return inValues.getValueOrder();
+                        }
                     };
                 }
             };
@@ -307,12 +307,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     private final Mode mode;
-    private final boolean columnarIdByDefault;
 
-    public ProvidedIdFieldMapper(Mode mode, boolean columnarIdByDefault) {
+    public ProvidedIdFieldMapper(Mode mode) {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
-        this.columnarIdByDefault = columnarIdByDefault;
     }
 
     @Override
@@ -337,13 +335,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public void postColumnarParse(BatchMappingContext context) throws IOException {
         super.postColumnarParse(context);
         // TODO: Need to implement the id propagation to non-root documents when we support nested fields.
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(columnarIdByDefault);
-        builder.init(this);
-        return builder;
     }
 
     @Override

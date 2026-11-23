@@ -67,6 +67,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
@@ -101,6 +102,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -108,6 +110,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -594,6 +597,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Block.MvOrdering.UNORDERED,
             Block.MvOrdering.UNORDERED
         );
+    }
+
+    /**
+     * Rows that left their node number their origins, not the shard contexts of this node. Reading them here would read
+     * whatever shard has their number.
+     */
+    public void testRejectsDocumentsThatLeftTheirNode() {
+        DriverContext driverContext = driverContext();
+        try (Operator operator = simple().get(driverContext)) {
+            Page page = new Page(RandomBlock.randomDetachedDocBlock(driverContext.blockFactory(), between(1, 10), between(1, 3)).block());
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> operator.addInput(page));
+            assertThat(e.getMessage(), equalTo("[ValuesSourceReaderOperator] can't read a detached DocVector"));
+        }
     }
 
     public void testLoadAllInOnePageShuffled() {
@@ -1742,6 +1758,58 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             true,
             between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2)
         );
+    }
+
+    /** Reuses a source loader when a run spans multiple segments of one shard. */
+    public void testSourceLoaderIsBuiltOncePerRun() throws IOException {
+        initMapping();
+        var runner = new TestDriverRunner().numThreads(1).builder(driverContext());
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(runner.context(), 100, 10, 10));
+        assertThat(input, hasSize(greaterThan(1)));
+
+        AtomicInteger sourceLoadersBuilt = new AtomicInteger();
+        runner.input(input)
+            .run(
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(fieldInfo(mapperService.fieldType("source_text"), ElementType.BYTES_REF)),
+                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, sourcePaths -> {
+                        sourceLoadersBuilt.incrementAndGet();
+                        return SourceLoader.FROM_STORED_SOURCE;
+                    }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS)),
+                    randomBoolean(),
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
+                )
+            );
+        assertThat(sourceLoadersBuilt.get(), equalTo(1));
+    }
+
+    public void testSourceLoaderCacheKeyIgnoresMutationOfInputSet() throws IOException {
+        initMapping();
+        AtomicInteger sourceLoadersBuilt = new AtomicInteger();
+        ValuesSourceReaderOperator operator = (ValuesSourceReaderOperator) new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(fieldInfo(mapperService.fieldType("source_text"), ElementType.BYTES_REF)),
+            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, sourcePaths -> {
+                sourceLoadersBuilt.incrementAndGet();
+                return SourceLoader.FROM_STORED_SOURCE;
+            }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS)),
+            randomBoolean(),
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
+        ).get(driverContext());
+        Set<String> paths = new HashSet<>();
+        paths.add("a");
+        operator.sourceLoader(0, paths);
+        paths.add("mutated");
+        operator.sourceLoader(0, Set.of("a"));
+        assertThat(sourceLoadersBuilt.get(), equalTo(1));
+        operator.close();
     }
 
     public void testSourceLoadProfileCounters() throws IOException {

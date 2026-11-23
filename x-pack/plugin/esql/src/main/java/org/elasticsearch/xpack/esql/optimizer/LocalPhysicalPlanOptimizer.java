@@ -15,14 +15,16 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForExternalId;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForRecordRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LoadNestedFromIndex;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushMinMaxStatsToLocalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSample
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
@@ -68,6 +71,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             throw new VerificationException(failures);
         }
         log.debug("Local Physical plan:\n{}", optimizedPlan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.LOCAL_PHYSICAL, optimizedPlan);
         return optimizedPlan;
     }
 
@@ -84,6 +88,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushFiltersToSource(),
             new PushSampleToSource(),
             new ReplaceSampledStatsByExactStats(),
+            new PushMinMaxStatsToLocalSource(),
             new PushStatsToSource(),
             new PushStatsToExternalSource(),
             new PushTopNIntoExternalSource(),
@@ -108,6 +113,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             "Field extraction",
             Limiter.ONCE,
             new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
+            new LoadNestedFromIndex(),
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
@@ -119,11 +125,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // is also the precondition the planner's {@code tryBuildNumericTopN} checks before
             // swapping in the specialised {@code NumericTopNOperator}.
             new InsertExternalFieldExtraction(),
-            // Sibling injection: when _id is referenced on an external source, add the
-            // synthetic _rowPosition column so the producer pipeline can compose
-            // the opaque (location, mtime, rowPosition) hash id per row. Idempotent and independent of deferred
-            // extraction (no TopN/ColumnExtractorAware preconditions).
-            new InjectRowPositionForExternalId()
+            // Sibling injection: when _file.record_ref is referenced on an external source, add the
+            // synthetic _rowPosition column so the producer pipeline has the per-record position to
+            // render. Idempotent and independent of deferred extraction (no TopN/ColumnExtractorAware
+            // preconditions).
+            new InjectRowPositionForRecordRef()
         );
 
         return List.of(pushdown, substitutionRules, fieldExtraction);

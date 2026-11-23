@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
@@ -31,7 +33,9 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +81,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     // Column names expected in the ES|QL PROMQL response.
     static final String VALUE_COLUMN = "value";
     static final String STEP_PARAM = "step";
+    /** The {@code _timeseries} object holding the labels of a Prometheus series, which are named without its prefix. */
+    private static final String LABELS_NAMESPACE = "labels";
 
     // Fixed column indices produced by the PROMQL command + EVAL step = TO_LONG(step).
     // EVAL appends the new step column at the end, so dimension columns occupy indices 1..N-2.
@@ -128,7 +134,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     private void sendErrorResponse(Exception e) {
-        logger.debug("PromQL {} request failed", mode == QueryMode.RANGE ? "query_range" : "query", e);
         PrometheusErrorResponse.send(channel, e, logger);
     }
 
@@ -295,13 +300,24 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         } else {
             for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
                 Block labelBlock = page.getBlock(i);
-                // Omit null labels (e.g. a null-filled missing BY label) rather than emitting "". PromQL distinguishes
-                // an absent label from one whose value is empty; this mirrors writeMetricFields on the _timeseries path.
+                // Omit null labels (e.g. a null-filled missing BY label) and empty ones (a label function that emptied a
+                // label): Prometheus treats a label with an empty value as absent. This mirrors writeMetricFields on the
+                // _timeseries path.
                 if (labelBlock.isNull(position)) {
                     continue;
                 }
+                DataType type = columns.get(i).type();
+                if (type == DataType.KEYWORD || type == DataType.TEXT) {
+                    BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
+                    if (val.length == 0) {
+                        continue;
+                    }
+                    builder.field(columns.get(i).name());
+                    builder.utf8Value(val.bytes, val.offset, val.length);
+                    continue;
+                }
                 builder.field(columns.get(i).name());
-                writeLabelValue(builder, labelBlock, columns.get(i).type(), position, zoneId, scratch);
+                writeLabelValue(builder, labelBlock, type, position, zoneId, scratch);
             }
         }
         builder.endObject(); // metric
@@ -419,15 +435,31 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      * Converts a timestamp from the ES|QL response into Unix epoch seconds.
      * The step column is cast to {@code LONG} (epoch milliseconds) via {@code TO_LONG(step)} in the ES|QL query.
      */
-    private static double parseTimestamp(long millis) {
+    public static double parseTimestamp(long millis) {
         return millis / 1000.0;
+    }
+
+    /** The response of a string literal instant query: Prometheus renders it as {@code [<unix_time>, "<string>"]}. */
+    static XContentBuilder buildStringResult(Instant time, String value) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field("status", "success");
+        builder.startObject("data");
+        builder.field("resultType", "string");
+        builder.startArray("result");
+        builder.value(parseTimestamp(time.toEpochMilli()));
+        builder.value(value);
+        builder.endArray();
+        builder.endObject(); // data
+        builder.endObject(); // root
+        return builder;
     }
 
     /**
      * Formats a sample value for the Prometheus JSON response.
      * Prometheus represents values as strings, with special handling for NaN and Infinity.
      */
-    static String formatSampleValue(double value) {
+    public static String formatSampleValue(double value) {
         if (Double.isNaN(value)) {
             return "NaN";
         } else if (Double.isInfinite(value)) {
@@ -446,23 +478,62 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      * </ul>
      */
     static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, seriesJson)) {
-            Map<String, Object> root = parser.map();
-            Object labelsObj = root.remove("labels");
-            if (labelsObj instanceof Map<?, ?> labels) {
-                writeMetricFields(builder, "", labels);
+        forEachEntryFlattened(parseLabelsJson(seriesJson, true), (name, value) -> {
+            String labelValue = labelValue(value);
+            if (labelValue != null) {
+                builder.field(name, labelValue);
             }
-            writeMetricFields(builder, "", root);
-        }
+        });
     }
 
-    private static void writeMetricFields(XContentBuilder builder, String prefix, Map<?, ?> map) throws IOException {
+    /**
+     * The Prometheus value of a label with the given value: its string representation, or {@code null} if that is empty, as a label
+     * with an empty value is absent in Prometheus.
+     */
+    @Nullable
+    public static String labelValue(Object value) {
+        String string = value.toString();
+        return string.isEmpty() ? null : string;
+    }
+
+    /**
+     * Parses a JSON object of labels, such as a {@code _timeseries} value. If {@code removeLabelsPrefix} is set, the {@code labels}
+     * namespace is unwrapped: the labels of a Prometheus series are named without its prefix.
+     */
+    public static Map<String, Object> parseLabelsJson(String labelsJson, boolean removeLabelsPrefix) throws IOException {
+        Map<String, Object> root;
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, labelsJson)) {
+            root = parser.map();
+        }
+        if (removeLabelsPrefix == false) {
+            return root;
+        }
+        Map<String, Object> dimensions = new LinkedHashMap<>();
+        if (root.remove(LABELS_NAMESPACE) instanceof Map<?, ?> labels) {
+            for (Map.Entry<?, ?> label : labels.entrySet()) {
+                dimensions.put(label.getKey().toString(), label.getValue());
+            }
+        }
+        dimensions.putAll(root);
+        return dimensions;
+    }
+
+    /**
+     * Calls {@code consumer} with the name and non-null value of each entry of {@code map}, with nested objects flattened into
+     * dot-separated names.
+     */
+    public static void forEachEntryFlattened(Map<?, ?> map, CheckedBiConsumer<String, Object, IOException> consumer) throws IOException {
+        forEachEntryFlattened("", map, consumer);
+    }
+
+    private static void forEachEntryFlattened(String prefix, Map<?, ?> map, CheckedBiConsumer<String, Object, IOException> consumer)
+        throws IOException {
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            String key = prefix + entry.getKey();
+            String name = prefix + entry.getKey();
             if (entry.getValue() instanceof Map<?, ?> nested) {
-                writeMetricFields(builder, key + ".", nested);
+                forEachEntryFlattened(name + ".", nested, consumer);
             } else if (entry.getValue() != null) {
-                builder.field(key, entry.getValue().toString());
+                consumer.accept(name, entry.getValue());
             }
         }
     }

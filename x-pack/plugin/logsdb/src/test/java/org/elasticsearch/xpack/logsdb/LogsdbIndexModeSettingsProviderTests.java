@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -823,6 +824,55 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(4));
     }
 
+    /**
+     * Time series indices with stored source reject an explicit {@code index.batch_indexing: true}, so falling back to stored source
+     * must also turn batch indexing off rather than fail index creation.
+     */
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceDisablesBatchIndexing() {
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        String dataStreamName = DATA_STREAM_NAME;
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
+        );
+        LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
+        logsdbLicenseService.setSyntheticSourceFallback(true);
+        Settings.Builder settings = builder().put(
+            IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
+        boolean explicitBatchIndexing = randomBoolean();
+        if (explicitBatchIndexing) {
+            settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
+        }
+
+        Settings.Builder settingsBuilder = builder();
+        provider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            false,
+            project,
+            Instant.ofEpochMilli(1L),
+            settings.build(),
+            List.of(),
+            IndexVersion.current(),
+            settingsBuilder
+        );
+        Settings result = settingsBuilder.build();
+        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        if (explicitBatchIndexing) {
+            assertThat(result.size(), equalTo(2));
+            assertThat(result.get(IndexSettings.BATCH_INDEXING.getKey()), equalTo("false"));
+        } else {
+            // without an explicit opt-in the setting already defaults to false for stored source, so it isn't added
+            assertThat(result.size(), equalTo(1));
+        }
+    }
+
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceOldNode() {
         logsdbLicenseService.setSyntheticSourceFallback(true);
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(true, Version.V_8_16_0);
@@ -936,6 +986,34 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
     }
 
+    public void testRoutingPathOnSortExpression() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
+    public void testRoutingPathOnSortExpressionWithRepeatedField() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, MV_MIN(message), MV_MAX(message) DESC, @timestamp DESC")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
+    public void testRoutingPathOnSortExpressionMismatch() {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
+        assertThat(e.getMessage(), containsString("[index.routing_path:[host, message, foo]], [index.sort:[host, message]]"));
+    }
+
     public void testRoutingPathOnSortFieldsDisabledInOldNode() throws Exception {
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
@@ -996,7 +1074,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     + DATA_STREAM_NAME
                     + "] in logsdb mode and with [index."
                     + "logsdb.route_on_sort_fields] index setting has mismatching sort "
-                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
+                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.field:[host, message]]"
             )
         );
     }
@@ -1064,6 +1142,30 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(0, newMapperServiceCounter.get());
+    }
+
+    public void testSortAndHostNameWithSortExpression() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "foo, bar DESC")
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
+        assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
+        assertEquals(0, newMapperServiceCounter.get());
+    }
+
+    /**
+     * An empty {@code index.sort} is treated as not set, like in {@code IndexSortConfig}, so the logsdb default sort still applies.
+     */
+    public void testSortAndHostNameWithEmptySortExpression() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "")
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
+        assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
     }
 
     public void testSortAndHostNoHost() throws Exception {

@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.authorization.E
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -91,6 +92,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public static final String RERANK_V1_ENDPOINT_ID = ".jina-reranker-v2";
     public static final String RERANK_V1_MODEL_NAME = "jina-reranker-v2";
     public static final String EIS_RERANK_PATH = "rerank";
+    public static final String EIS_DECIDE_PATH = "decide";
+
+    // document extraction
+    public static final String EIS_DOCUMENT_EXTRACTION_PATH = "document_extraction";
 
     public record EisAuthorizationResponse(
         String responseJson,
@@ -1110,6 +1115,21 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 List.of(),
                 false
             );
+            case DECISION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                id,
+                name,
+                createTaskTypeObject(EIS_DECIDE_PATH, TaskType.DECISION.toString()),
+                status,
+                null,
+                RELEASE_DATE_STRING,
+                null,
+                null,
+                new Display("Decision Connector", "Decision Creator"),
+                null,
+                fingerprintSupplier.get(),
+                List.of(),
+                false
+            );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
     }
@@ -1374,6 +1394,139 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             response.authorizedEndpoints().get(0).modelIdentity(),
             is(new EndpointMetadata.ModelIdentity("elastic", "rainbow-sprinkles", "rainbow_tier", "rainbow_version"))
         );
+    }
+
+    public void testParse_ParsesCapabilities() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["high", "medium", "low", "none"],
+                      "default_effort_level": "medium"
+                    },
+                    "context_window": {
+                      "max_input_tokens": 1050000,
+                      "max_output_tokens": 128000
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        var capabilities = response.authorizedEndpoints().get(0).capabilities();
+
+        assertThat(
+            capabilities.reasoning().supportedEffortLevels(),
+            is(List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW, ReasoningEffort.NONE))
+        );
+        assertThat(capabilities.reasoning().defaultEffortLevel(), is(ReasoningEffort.MEDIUM));
+        assertThat(capabilities.contextWindow().maxInputTokens(), is(1050000));
+        assertThat(capabilities.contextWindow().maxOutputTokens(), is(128000));
+    }
+
+    public void testParse_ParsesTemplatesCapability() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "template-required-model",
+                  "model_name": "template-required-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "templates": { "policy": "required" }
+                  }
+                },
+                {
+                  "id": "future-model",
+                  "model_name": "future-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "templates": { "policy": "optional" }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().size(), is(2));
+
+        var templateRequiredCapabilities = response.authorizedEndpoints().get(0).capabilities();
+        assertThat(
+            templateRequiredCapabilities.templates(),
+            is(new EndpointMetadata.TemplatesCapability(EndpointMetadata.TemplatePolicy.REQUIRED))
+        );
+        assertThat(templateRequiredCapabilities.reasoning(), nullValue());
+
+        // A policy this node does not know about is dropped rather than failing the response
+        assertThat(response.authorizedEndpoints().get(1).capabilities(), is(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
+    }
+
+    public void testParse_CapabilitiesWithUnknownEffortLevel_FiltersUnknownValues() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["max", "high"],
+                      "default_effort_level": "max"
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().size(), is(1));
+
+        var capabilities = response.authorizedEndpoints().get(0).capabilities();
+        assertThat(capabilities.reasoning().supportedEffortLevels(), is(List.of(ReasoningEffort.HIGH)));
+        assertThat(capabilities.reasoning().defaultEffortLevel(), nullValue());
+    }
+
+    public void testParse_EmptyCapabilitiesObject_YieldsEmptyInstance() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {}
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().get(0).capabilities(), is(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
     }
 
     private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {

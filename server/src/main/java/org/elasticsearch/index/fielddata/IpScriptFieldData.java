@@ -21,12 +21,12 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final IpFieldScript.LeafFactory leafFactory;
-        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
 
         public Builder(
             String name,
             IpFieldScript.LeafFactory leafFactory,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
         ) {
             this.name = name;
             this.leafFactory = leafFactory;
@@ -40,12 +40,12 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     }
 
     private final IpFieldScript.LeafFactory leafFactory;
-    private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
 
     private IpScriptFieldData(
         String fieldName,
         IpFieldScript.LeafFactory leafFactory,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
     ) {
         super(fieldName);
         this.leafFactory = leafFactory;
@@ -62,7 +62,7 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
             }
 
             @Override
-            public SortedBinaryDocValues getBytesValues() {
+            public SortableBinaryDocValues getBytesValues() {
                 return new org.elasticsearch.index.fielddata.IpScriptDocValues(script);
             }
         };

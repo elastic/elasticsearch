@@ -44,7 +44,8 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
             Strings.splitStringByCommaToArray(request.param("index"))
-        ).withVectorFormatsInfo(request.paramAsBoolean("vector_formats", false));
+        ).withVectorFormatsInfo(request.paramAsBoolean("vector_formats", false))
+            .withAutoCalibration(request.paramAsBoolean("include_auto_calibration", false));
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()

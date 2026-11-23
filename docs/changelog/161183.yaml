@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 161183
+summary: Keep allocation estimators allocation-free
+type: bug

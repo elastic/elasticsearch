@@ -1,0 +1,19 @@
+ProjectExec[[m{r}#0, pod{r}#1, time_bucket{r}#2]]
+\_LimitExec[10000[INTEGER],null]
+  \_UnpackDimsExec[_$packed_grouping_dims{r}#3,[pod{r}#1]]
+    \_AggregateExec[[time_bucket{r}#2, _$packed_dims{r}#4],[MAX(RATE_$1{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#0, time_bucket{r}#2 AS time_bucket#2, _$packed_dims{r}#4 AS _$packed_grouping_dims#3],SINGLE,[time_bucket{r}#2, _$packed_dims{r}#4, $$m$max{r}#6, $$m$seen{r}#7],null]
+      \_TimeSeriesAggregateExec[[_tsid{m}#8, time_bucket{r}#2],[RATE(network.total_bytes_in{f}#9,@timestamp{f}#10,true[BOOLEAN],PT0S[TIME_DURATION]) AS RATE_$1#5, PACKDIMSAGG(pod{f}#1,true[BOOLEAN],PT0S[TIME_DURATION]) AS _$packed_dims#4, time_bucket{r}#2],FINAL,[_tsid{m}#8, time_bucket{r}#2, $$RATE_$0$timestamps{r}#11, $$RATE_$1$values{r}#12, $$RATE_$2$sampleCounts{r}#13, $$RATE_$3$resets{r}#14, $$_$packed_dims$values{r}#15],null,BUCKET(@timestamp{f}#10,PT5M[TIME_DURATION])]
+        \_ExchangeExec[[_tsid{m}#8, time_bucket{r}#2, $$RATE_$0$timestamps{r}#11, $$RATE_$1$values{r}#12, $$RATE_$2$sampleCounts{r}#13, $$RATE_$3$resets{r}#14, $$_$packed_dims$values{r}#15],true]
+          \_ProjectExec[[_tsid{m}#8, time_bucket{r}#2, $$RATE_$0$timestamps{r}#16, $$RATE_$1$values{r}#17, $$RATE_$2$sampleCounts{r}#18, $$RATE_$3$resets{r}#19, $$_$packed_dims$values{r}#20]]
+            \_PackDimsExec[[pod{f}#1],$$_$packed_dims$values{r}#20]
+              \_ReadDimsExec[pod{f}#1]<tsid=_tsid{m}#8>
+                \_TimeSeriesAggregateExec[[_tsid{m}#8, time_bucket{r}#2],[RATE(network.total_bytes_in{f}#9,@timestamp{f}#10,<temporality>{t}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS RATE_$1#5, time_bucket{r}#2, FIRSTDOCID(_doc{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#23],INITIAL,[_tsid{m}#8, time_bucket{r}#2, $$RATE_$0$timestamps{r}#16, $$RATE_$1$values{r}#17, $$RATE_$2$sampleCounts{r}#18, $$RATE_$3$resets{r}#19, _doc{r}#24],86,BUCKET(@timestamp{f}#10,PT5M[TIME_DURATION])]
+                  \_FieldExtractExec[[_tsid{m}#8, network.total_bytes_in{f}#9, <temporality>{t}#21]<[],[],[]>,_doc{f}#22]
+                    \_EvalExec[[BUCKET(@timestamp{f}#10,PT5M[TIME_DURATION]) AS time_bucket#2]]
+                      \_FieldExtractExec[[@timestamp{f}#10]<[],[],[]>,_doc{f}#22]
+                        \_EsQueryExec[k8s], indexMode[time_series], [_doc{f}#22, _ts_slice_index{f}#25, _ts_future_max_timestamp{f}#26], limit[], sort[] estimatedRowSize[94] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "exists" : {
+    "field" : "network.total_bytes_in",
+    "boost" : 0.0
+  }
+}, tags=[]]]]

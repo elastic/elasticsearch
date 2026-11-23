@@ -195,7 +195,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                     boolean failIfAlreadyExists
                 ) throws IOException {
                     super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-                    if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                    if (BccBlob.startsWithBlobPrefix(blobName)) {
                         if (TrackedCluster.this.targetUploadsCounter.decrementAndGet() == 0) {
                             stopLatch.countDown();
                         }
@@ -333,6 +333,10 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
 
         NamedReleasable acquirePermitsForClusterAndIndexingNode() {
             return acquirePermitsForClusterAndNode(this::nonMasterIndexingNodes);
+        }
+
+        NamedReleasable acquirePermitsForClusterAndSearchNode() {
+            return acquirePermitsForClusterAndNode(this::searchNodes);
         }
 
         NamedReleasable acquirePermitForIndexingNode() {
@@ -532,7 +536,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                                 numDocs,
                                 indexToDocCount.keySet(),
                                 refreshResponse.getFailedShards(),
-                                Arrays.toString(refreshResponse.getShardFailures())
+                                refreshResponse.getShardFailures()
                             );
                         }
                     }
@@ -745,8 +749,8 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                 }
                 final boolean restartIndexingNode = randomBoolean();
                 Supplier<NamedReleasable> permitSupplier = restartIndexingNode
-                    ? this::acquirePermitForIndexingNode
-                    : this::acquirePermitForSearchNode;
+                    ? this::acquirePermitsForClusterAndIndexingNode
+                    : this::acquirePermitsForClusterAndSearchNode;
                 try (var namedReleasable = permitSupplier.get()) {
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;

@@ -45,6 +45,11 @@ final class OrcPushdownFilters {
     /**
      * Check if an expression can be converted to an ORC SearchArgument predicate.
      * <p>
+     * Structural convertibility for an expression that is already column-typed on every
+     * convertible mixed leaf (see
+     * {@link org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion#rewrite}).
+     * Callers that hold a raw plan expression must rewrite first.
+     * <p>
      * For compound expressions (AND/OR/NOT), ALL children must be convertible
      * for OR and NOT (partial pushdown is unsafe). For AND, at least one child
      * must be convertible (partial pushdown is safe under AND since the

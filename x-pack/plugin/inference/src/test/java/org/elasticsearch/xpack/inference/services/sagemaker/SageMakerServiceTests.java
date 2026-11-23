@@ -67,6 +67,7 @@ import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomTextInputOnlyUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomUnifiedCompletionRequest;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomUnifiedCompletionRequestWithTemplate;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
@@ -91,6 +92,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -488,6 +490,21 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         );
         verify(client, only()).invokeStream(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testUnifiedInferWithTemplate_IsRejectedBeforeInvokingSageMaker() {
+        var model = mockModel();
+
+        sageMakerService.unifiedCompletionInfer(
+            model,
+            UnifiedCompletionRequest.streaming(randomUnifiedCompletionRequestWithTemplate()),
+            THIRTY_SECONDS,
+            assertNoSuccessListener(e -> {
+                assertThat(e, isA(UnsupportedOperationException.class));
+                assertThat(e.getMessage(), equalTo("The amazon_sagemaker service does not support unified completion with templates"));
+            })
+        );
+        verifyNoInteractions(client, schemas);
     }
 
     public void testUnifiedInferError() {

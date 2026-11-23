@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
+
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -40,14 +44,24 @@ import java.util.function.ToLongBiFunction;
  * since there is no easy check to see that an enrich index used as cache key no longer is the
  * current enrich index that the enrich alias of a policy refers to. It would require checking
  * all cached entries on each cluster state update)
+ * <p>
+ * Identical lookups of a coordinator batch share one search response: the first miss converts and caches it, the others reuse it.
  */
 public final class EnrichCache {
 
     private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), CacheKey.CACHE_KEY_SIZE);
 
+    // Shapes produced by CollectionUtils#deepCopy with UNMODIFIABLE: a HashMap and an ArrayList, each behind its unmodifiable wrapper.
+    private static final long MAP_SHELL_SIZE = RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimates.UNMODIFIABLE_MAP_SHALLOW_SIZE;
+    private static final long LIST_SHELL_SIZE = RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE
+        + RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE;
+
     private final Cache<CacheKey, CacheValue> cache;
     private final LongAdder sizeInBytes = new LongAdder();
     private final LongSupplier relativeNanoTimeProvider;
+    // own counters, so the second cache lookup on a miss is not counted
+    private final LongAdder hits = new LongAdder();
+    private final LongAdder misses = new LongAdder();
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 
@@ -110,9 +124,13 @@ public final class EnrichCache {
         } else {
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
             searchResponseFetcher.accept(ActionListener.wrap(resp -> {
-                CacheValue cacheValue = toCacheValue(resp);
-                put(cacheKey, cacheValue);
-                List<Map<?, ?>> copy = deepCopy(cacheValue.hits, false);
+                // an identical lookup sharing this response may have cached it already
+                CacheValue cacheValue = cache.get(cacheKey);
+                if (cacheValue == null) {
+                    cacheValue = toCacheValue(resp);
+                    put(cacheKey, cacheValue);
+                }
+                List<Map<?, ?>> copy = CollectionUtils.deepCopy(cacheValue.hits);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
                 missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
@@ -124,8 +142,10 @@ public final class EnrichCache {
     List<Map<?, ?>> get(CacheKey cacheKey) {
         CacheValue response = cache.get(cacheKey);
         if (response != null) {
-            return deepCopy(response.hits, false);
+            hits.increment();
+            return CollectionUtils.deepCopy(response.hits);
         } else {
+            misses.increment();
             return null;
         }
     }
@@ -141,8 +161,8 @@ public final class EnrichCache {
         return new EnrichStatsAction.Response.CacheStats(
             localNodeId,
             cache.count(),
-            cacheStats.getHits(),
-            cacheStats.getMisses(),
+            hits.sum(),
+            misses.sum(),
             cacheStats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.sum()),
             TimeValue.nsecToMSec(missesTimeInNanos.sum()),
@@ -155,43 +175,70 @@ public final class EnrichCache {
             return EMPTY_CACHE_VALUE;
         }
         List<Map<?, ?>> result = new ArrayList<>(response.getHits().getHits().length);
-        // Include the size of the cache key.
-        long size = CacheKey.CACHE_KEY_SIZE;
         for (SearchHit hit : response.getHits()) {
-            // There is a cost of decompressing source here plus caching it.
-            // We do it first so we don't decompress it twice.
-            size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
-            // Do we need deep copy here, we are creating a modifiable map already?
-            result.add(deepCopy(hit.getSourceAsMap(), true));
+            // reminder that 'unmodifiable' only really refers to the collections returned from deepCopy,
+            // not array values within the object tree. so since SMILE (for example) can result in arrays
+            // inside source docs (and arrays don't have a meaningful unmodifiable equivalent), we need
+            // both this copy and the defensive deepCopy calls in the read paths.
+            // not getSourceAsMap, which may be called only once per hit, but the response may be shared and converted again
+            Map<String, Object> source = hit.getSourceRef() == null ? null : Source.fromBytes(hit.getSourceRef()).source();
+            result.add(CollectionUtils.deepCopy(source, UNMODIFIABLE));
         }
-        return new CacheValue(Collections.unmodifiableList(result), size);
+        List<Map<?, ?>> hits = Collections.unmodifiableList(result);
+        // Include the size of the cache key.
+        return new CacheValue(hits, CacheKey.CACHE_KEY_SIZE + estimateHeapSize(hits));
     }
 
-    @SuppressWarnings("unchecked")
-    static <T> T deepCopy(T value, boolean unmodifiable) {
-        return (T) innerDeepCopy(value, unmodifiable);
+    /**
+     * Estimates the heap a cached value retains, which can be significantly larger than the serialized size of the value.
+     */
+    // non-private for unit testing only
+    static long estimateHeapSize(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        return switch (value) {
+            case String s -> RamUsageEstimator.sizeOf(s);
+            case Map<?, ?> map -> estimateHeapSize(map);
+            case List<?> list -> estimateHeapSize(list);
+            case Integer i -> RamUsageEstimates.INTEGER_SHALLOW_SIZE;
+            case Long l -> RamUsageEstimates.LONG_SHALLOW_SIZE;
+            case Double d -> RamUsageEstimates.DOUBLE_SHALLOW_SIZE;
+            case Float f -> RamUsageEstimates.FLOAT_SHALLOW_SIZE;
+            case Boolean b -> RamUsageEstimates.BOOLEAN_SHALLOW_SIZE;
+            default -> RamUsageEstimator.sizeOfObject(value);
+        };
     }
 
-    private static Object innerDeepCopy(Object value, boolean unmodifiable) {
-        if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(entry.getKey(), innerDeepCopy(entry.getValue(), unmodifiable));
+    private static long estimateHeapSize(Map<?, ?> map) {
+        long size = MAP_SHELL_SIZE;
+        int entries = map.size();
+        if (entries > 0) {
+            size += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimates.hashTableSlots(entries)
+                    * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+            size += entries * RamUsageEstimates.HASH_MAP_NODE_SIZE;
+            for (Object entryValue : map.values()) {
+                // Jackson interns field names, making them fairly cheap as they get shared across all entry maps (this was also confirmed
+                // on heap dumps). We can skip them in the estimate.
+                size += estimateHeapSize(entryValue);
             }
-            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
-        } else if (value instanceof List<?> listValue) {
-            List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(innerDeepCopy(itemValue, unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
-        } else if (value instanceof byte[] bytes) {
-            return Arrays.copyOf(bytes, bytes.length);
-        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
-            return value;
-        } else {
-            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }
+        return size;
+    }
+
+    private static long estimateHeapSize(List<?> list) {
+        long size = LIST_SHELL_SIZE;
+        if (list.isEmpty() == false) {
+            size += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) list.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+            for (Object item : list) {
+                size += estimateHeapSize(item);
+            }
+        }
+        return size;
     }
 
     /**

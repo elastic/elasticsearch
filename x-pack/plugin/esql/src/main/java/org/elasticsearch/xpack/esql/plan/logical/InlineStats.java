@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -51,7 +51,8 @@ public class InlineStats extends UnaryPlan
         TelemetryAware,
         SortAgnostic,
         SortPreserving,
-        PostAnalysisPlanVerificationAware {
+        PostAnalysisPlanVerificationAware,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -59,7 +60,7 @@ public class InlineStats extends UnaryPlan
     );
 
     private final Aggregate aggregate;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public InlineStats(Source source, Aggregate aggregate) {
         super(source, aggregate);
@@ -93,6 +94,11 @@ public class InlineStats extends UnaryPlan
 
     public Aggregate aggregate() {
         return aggregate;
+    }
+
+    @Override
+    public LogicalPlan preservingInput() {
+        return aggregate.child();
     }
 
     @Override
@@ -191,7 +197,7 @@ public class InlineStats extends UnaryPlan
 
     /**
      * Post-order (bottom-up) walk collecting the {@link Aggregate}/{@link EsRelation} facts for
-     * {@link #postAnalysisPlanVerification}, skipping the right branch of any {@link AbstractSubqueryJoin}: a STATS or a time-series
+     * {@link #postAnalysisPlanVerification}, skipping the right branch of any {@link IndependentSubqueryJoin}: a STATS or a time-series
      * relation inside an IN subquery belongs to the independently executed subquery, not to the main stream feeding INLINE STATS, and
      * must neither satisfy the "after STATS" requirement nor trigger the TS restriction.
      */
@@ -201,8 +207,7 @@ public class InlineStats extends UnaryPlan
         Holder<Boolean> foundPreviousStats,
         Holder<Boolean> isTimeSeries
     ) {
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
-        for (LogicalPlan child : children) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             visitSkippingSubqueryJoins(child, foundInlineStats, foundPreviousStats, isTimeSeries);
         }
         if (plan instanceof Aggregate) {

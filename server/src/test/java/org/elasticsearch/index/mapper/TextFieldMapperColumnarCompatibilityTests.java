@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
 
@@ -28,10 +27,39 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     private static final String FIELD = "f";
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+    }
+
+    /** Index settings with the codec on, so the field's doc values are written as its payload. */
+    private static Settings columnarCodecSettings() {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+    }
+
+    /**
+     * Under the codec the doc values are a payload carrying their own slot count, which is the one output the
+     * batch path cannot take straight from the source column, so these pin it against the row path.
+     */
+    public void testColumnarCodecSingleValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").endObject()),
+            columnarCodecSettings(),
+            batch("columnar codec single value", 1L, doc("d1", 1L, "{\"f\":\"a sentence of text\"}"), doc("d2", 2L, "{}"))
+        );
+    }
+
+    public void testColumnarCodecArrayOrder() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec array order",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"first sentence\",null,\"second sentence\"]}"),
+                doc("d2", 2L, "{\"f\":\"solo\"}"),
+                doc("d3", 3L, "{\"f\":[null]}"),
+                doc("d4", 4L, "{}")
+            )
+        );
     }
 
     public void testSingleValue() throws IOException {
@@ -169,7 +197,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testSingleValueMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -186,7 +214,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testAbsentAndNullMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -203,7 +231,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testIndexedAndDocValuesMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -220,7 +248,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testScalarCoercionsMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -237,7 +265,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testAllPresentDenseMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -254,7 +282,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -275,7 +303,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testSingleElementArrayMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -394,6 +422,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
 
     public void testDocValuesDisabledFallsBack() throws IOException {
         MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
             columnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "text").field("doc_values", false).endObject())
         );
@@ -405,10 +434,33 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     public void testMultiValueFalseBailsOutOnMultipleValues() throws IOException {
         MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":[\"a\",\"b\"]}"));
+    }
+
+    /**
+     * A nullability=false field whose array holds no non-null value goes in _ignored under on_failure=ignore, as on the row path. One
+     * batch packs as an ARRAY column and the other as a UNION column, the two kinds that hold arrays, so neither may skip the check.
+     * The last two batches have a document without the field, in a STRING column and in a UNION one, which go in _ignored too, as does
+     * a null document.
+     */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String values = "[\"" + randomAlphanumericOfLength(5) + "\",\"" + randomAlphanumericOfLength(5) + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("ARRAY column", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{\"f\":[]}")),
+            batch(
+                "UNION column",
+                1L,
+                doc("d1", 1L, "{\"f\":" + values + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("STRING column", 1L, doc("d1", 1L, "{\"f\":\"" + randomAlphanumericOfLength(5) + "\"}"), doc("d2", 2L, "{}")),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
+        );
     }
 
 }

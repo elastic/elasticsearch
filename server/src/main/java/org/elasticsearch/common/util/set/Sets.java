@@ -191,6 +191,7 @@ public final class Sets {
     public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
         final var res = new HashSet<>(set);
         Collections.addAll(res, elements);
+        // Set.copyOf has an extra HashSet creation (???), so use the array directly here
         return (Set<E>) Set.of(res.toArray());
     }
 }

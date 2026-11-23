@@ -45,7 +45,10 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     private static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = TransportVersion.fromName("esql_profile_async_nanos");
 
-    private volatile SubscribableListener<Void> blockedFuture;
+    /**
+     * Guarded by {@code this}.
+     */
+    private SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
     private final FailureCollector failureCollector = new FailureCollector();
@@ -142,7 +145,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     private void onSeqNoCompleted(long seqNo) {
         checkpoint.markSeqNoAsProcessed(seqNo);
-        if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
+        // a failure wakes the driver even while earlier results are still in flight, so it fails at once
+        if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint() || failureCollector.hasFailure()) {
             notifyIfBlocked();
         }
         if (closed || failureCollector.hasFailure()) {
@@ -151,15 +155,15 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     }
 
     private void notifyIfBlocked() {
-        if (blockedFuture != null) {
-            final SubscribableListener<Void> future;
-            synchronized (this) {
-                future = blockedFuture;
-                this.blockedFuture = null;
-            }
-            if (future != null) {
-                future.onResponse(null);
-            }
+        final SubscribableListener<Void> future;
+        // Under the lock, like isBlocked: either it sees the result, or this sees its future. Read outside the lock, the
+        // future could still be null while isBlocked, which missed the result, was about to create it.
+        synchronized (this) {
+            future = blockedFuture;
+            this.blockedFuture = null;
+        }
+        if (future != null) {
+            future.onResponse(null);
         }
     }
 
@@ -184,7 +188,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final void close() {
-        finish();
+        // not finish(): a subclass reacts there to the end of its input, which a closing operator never saw
+        finished = true;
         closed = true;
         discardResults();
         responseHeadersCollector.finish();
@@ -230,19 +235,18 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    /**
+     * Blocks while requests are in flight and no result is ready, also once the input finished. Otherwise the driver of an
+     * operator whose input finished would call {@link #getOutput} in a loop until the last result arrives.
+     */
     @Override
     public IsBlockedResult isBlocked() {
         // TODO: Add an exchange service between async operation instead?
-        if (finished) {
-            return Operator.NOT_BLOCKED;
-        }
-        long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
-        if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+        if (canMakeProgress()) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (this) {
-            persistedCheckpoint = checkpoint.getPersistedCheckpoint();
-            if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+            if (canMakeProgress()) {
                 return Operator.NOT_BLOCKED;
             }
             if (blockedFuture == null) {
@@ -250,6 +254,17 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             }
             return new IsBlockedResult(blockedFuture, getClass().getSimpleName());
         }
+    }
+
+    /**
+     * Whether the driver has something to do with this operator: no request is in flight, a result is ready, or a
+     * request failed.
+     */
+    private boolean canMakeProgress() {
+        long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
+        return persistedCheckpoint == checkpoint.getMaxSeqNo()
+            || persistedCheckpoint < checkpoint.getProcessedCheckpoint()
+            || failureCollector.hasFailure();
     }
 
     @Override
@@ -267,6 +282,16 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             "async_operator",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
+            builder.startObject();
+            status.innerToXContent(builder);
+            return builder.endObject();
+        })
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .build();
 
         final long receivedPages;
         final long completedPages;
@@ -316,9 +341,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            innerToXContent(builder);
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         protected final XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {

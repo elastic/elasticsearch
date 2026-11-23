@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -39,6 +40,8 @@ import static org.hamcrest.Matchers.is;
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
+
+    private static Boolean esqlEqlCommandAvailable;
 
     private final String index;
     private final String query;
@@ -58,6 +61,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private final Boolean allowPartialSearchResults;
     private final Boolean allowPartialSequenceResults;
     private final Boolean expectShardFailures;
+    private Integer fetchSize;
+    private String resultPosition;
 
     @Before
     public void setup() throws Exception {
@@ -94,6 +99,11 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
                 throw e;
             }
         }
+    }
+
+    @AfterClass
+    public static void resetEsqlEqlCommandCheck() {
+        esqlEqlCommandAvailable = null;
     }
 
     protected static List<Object[]> asArray(List<EqlSpec> specs) {
@@ -171,6 +181,16 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     protected ObjectPath runQuery(String index, String query) throws Exception {
+        return eqlSearch(index, query);
+    }
+
+    protected final ObjectPath runQueryViaEsql(String index, String query) throws Exception {
+        assumeTrue("requires the ES|QL EQL command", esqlEqlCommandAvailable());
+        ObjectPath eql = eqlSearch(index, query);
+        return EqlViaEsql.runAndCompare(client(), index, query, esqlEqlOptions(), idField(), eql);
+    }
+
+    private ObjectPath eqlSearch(String index, String query) throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("query", query);
@@ -180,9 +200,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (tiebreaker != null) {
             builder.field("tiebreaker_field", tiebreaker);
         }
-        builder.field("size", this.size < 0 ? requestSize() : this.size);
-        builder.field("fetch_size", requestFetchSize());
-        builder.field("result_position", requestResultPosition());
+        builder.field("size", size());
+        builder.field("fetch_size", fetchSize());
+        builder.field("result_position", resultPosition());
         if (maxSamplesPerKey > 0) {
             builder.field("max_samples_per_key", maxSamplesPerKey);
         }
@@ -420,6 +440,51 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     protected String requestResultPosition() {
         return randomBoolean() ? "head" : "tail";
+    }
+
+    private int size() {
+        return size < 0 ? requestSize() : size;
+    }
+
+    private int fetchSize() {
+        if (fetchSize == null) {
+            fetchSize = requestFetchSize();
+        }
+        return fetchSize;
+    }
+
+    private String resultPosition() {
+        if (resultPosition == null) {
+            resultPosition = requestResultPosition();
+        }
+        return resultPosition;
+    }
+
+    private Map<String, Object> esqlEqlOptions() {
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("size", size());
+        options.put("fetch_size", fetchSize());
+        options.put("result_position", resultPosition());
+        options.put("timestamp_field", timestamp());
+        options.put("event_category_field", eventCategory());
+        String tiebreaker = tiebreaker();
+        if (tiebreaker != null) {
+            options.put("tiebreaker_field", tiebreaker);
+        }
+        if (maxSamplesPerKey > 0) {
+            options.put("max_samples_per_key", maxSamplesPerKey);
+        }
+        if (allowPartialSequenceResults != null) {
+            options.put("allow_partial_sequence_results", allowPartialSequenceResults);
+        }
+        return options;
+    }
+
+    private static boolean esqlEqlCommandAvailable() throws IOException {
+        if (esqlEqlCommandAvailable == null) {
+            esqlEqlCommandAvailable = clusterHasCapability("POST", "/_query", List.of(), EqlViaEsql.CAPABILITIES).orElse(false);
+        }
+        return esqlEqlCommandAvailable;
     }
 
     // strip any qualification from the received index string

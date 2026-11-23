@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.truncateForError;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
@@ -131,7 +132,7 @@ public class ToDatetimeTests extends AbstractConfigurationFunctionTestCase {
                 "Line 1:1: java.lang.IllegalArgumentException: "
                     + (s.isEmpty()
                         ? "cannot parse empty datetime"
-                        : ("failed to parse date field [" + s + "] with format [strict_date_optional_time]"))
+                        : ("failed to parse date field [" + truncateForError(s) + "] with format [strict_date_optional_time]"))
             )
         );
     }

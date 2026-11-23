@@ -29,7 +29,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,34 +146,39 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         for (int i = 0; i < IndexBalanceMetricsComputer.BUCKET_DEFINITIONS.length; i++) {
             final int bucket = i;
             final var label = IndexBalanceMetricsComputer.BUCKET_DEFINITIONS[i].label();
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 primaryMetricNames[i],
                 "Number of indices with " + label + " primary shard imbalance",
                 "{index}",
-                () -> publishIfNotEmpty(executorNodeTask, true, bucket)
+                measurement -> recordIfNotEmpty(executorNodeTask, true, bucket, measurement)
             );
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 replicaMetricNames[i],
                 "Number of indices with " + label + " replica shard imbalance",
                 "{index}",
-                () -> publishIfNotEmpty(executorNodeTask, false, bucket)
+                measurement -> recordIfNotEmpty(executorNodeTask, false, bucket, measurement)
             );
         }
         final var clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING, this::updateComputationInterval);
     }
 
-    private static List<LongWithAttributes> publishIfNotEmpty(AtomicReference<Task> executorNodeTask, boolean primary, int bucketIndex) {
+    private static void recordIfNotEmpty(
+        AtomicReference<Task> executorNodeTask,
+        boolean primary,
+        int bucketIndex,
+        LongAsyncMeasurement measurement
+    ) {
         final var task = executorNodeTask.get();
         if (task == null) {
-            return List.of();
+            return;
         }
         final var state = task.getLastState();
         if (state == null) {
-            return List.of();
+            return;
         }
         final var histogram = primary ? state.primaryBalanceHistogram() : state.replicaBalanceHistogram();
-        return List.of(new LongWithAttributes(histogram[bucketIndex]));
+        measurement.record(histogram[bucketIndex]);
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
@@ -194,7 +199,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         final var indexBalanceMetricsTask = (Task) task;
         final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
         if (existingTask != null) {
-            assert existingTask.stopped : "We should never start a new task when there's still one running";
+            // The previous allocation of the task can legitimately still be running here: the node service starts the new task before
+            // the asynchronous cancellation of the old one has been processed. Completing the old task stops it. If this sends a
+            // completion request for the old allocation id, the master rejects it, which is harmless.
             existingTask.markAsCompleted();
         }
         indexBalanceMetricsTask.startScheduledComputation();

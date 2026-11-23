@@ -29,20 +29,16 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
     private final int bitsPerDim;
 
     /**
-     * Result of quantization for a single vector.
-     *
-     * @param centeredCode code centered around zero, length nDims
-     * @param codeNorm L2 norm of the code vector
-     */
-    public record SingleQuantizeResult(float[] centeredCode, float codeNorm) {}
-
-    /**
      * Result of batch quantization.
      *
      * @param centeredCodes codes centered around zero, row-major matrix (n x nDims)
      * @param codeNorms L2 norm of each code vector, length n
      */
-    public record QuantizeResult(float[] centeredCodes, float[] codeNorms) {}
+    public record QuantizeResult(float[] centeredCodes, float[] codeNorms) {
+        public QuantizeResult(int n, int nDims) {
+            this(new float[n * nDims], new float[n]);
+        }
+    }
 
     /**
      * Creates a spherical scalar quantizer with the given bit width.
@@ -68,22 +64,14 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * @param n number of vectors
      * @param nDims components per vector
      */
-    public QuantizeResult encode(float[] x, int n, int nDims) {
-        float[] centeredCodes = new float[n * nDims];
-        float[] codeNorms = new float[n];
+    public void encode(float[] x, int n, int nDims, QuantizeResult result) {
+        assert result.centeredCodes.length == n * nDims;
+        assert result.codeNorms.length == n;
 
         for (int i = 0; i < n; i++) {
             int base = i * nDims;
-            codeNorms[i] = quantizeExact(x, base, centeredCodes, base, nDims);
+            result.codeNorms[i] = quantizeExact(x, base, result.centeredCodes, base, nDims);
         }
-        return new QuantizeResult(centeredCodes, codeNorms);
-    }
-
-    public SingleQuantizeResult encodeOne(float[] xLatent) {
-        int nDims = xLatent.length;
-        float[] out = new float[nDims];
-        float norm = quantizeExact(xLatent, 0, out, 0, nDims);
-        return new SingleQuantizeResult(out, norm);
     }
 
     /**

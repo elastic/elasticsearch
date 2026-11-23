@@ -1,0 +1,15 @@
+version: 1
+enabled: true
+review_drafts: false
+skip_labels:
+  - backport
+  - external-contributor
+draft_bypass_labels:
+  - libra-review
+paths:
+  exclude:
+    - "**/generated/**"
+publication:
+  publish_min_severity: P3
+  block_min_severity: P1
+  allow_partial_coverage: false

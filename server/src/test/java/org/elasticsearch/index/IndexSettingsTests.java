@@ -10,7 +10,9 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -26,10 +28,15 @@ import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -331,6 +338,25 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(43, indexValue.get());
     }
 
+    public void testCombineDynamicMappingUpdatesDefaultsToOff() {
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        assertFalse(settings.isCombineDynamicMappingUpdates());
+    }
+
+    public void testCombineDynamicMappingUpdatesDynamicUpdateFallsBackToNodeDefault() {
+        Settings nodeSettings = Settings.builder().put(IndexSettings.COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME, true).build();
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), nodeSettings);
+        assertTrue(settings.isCombineDynamicMappingUpdates());
+
+        String key = MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey();
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, false).build())));
+        assertFalse(settings.isCombineDynamicMappingUpdates());
+
+        // removing the index setting restores the node default
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY)));
+        assertTrue(settings.isCombineDynamicMappingUpdates());
+    }
+
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }
@@ -542,6 +568,20 @@ public class IndexSettingsTests extends ESTestCase {
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
+    }
+
+    public void testPostFilterSelectivityThresholdIsDynamic() {
+        String key = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(key, 0.5f).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(0.5f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, 1.0f).build()));
+        assertEquals(1.0f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, settings.getPostFilterSelectivityThreshold(), 0f);
     }
 
     public void testMaxInnerResultWindow() {
@@ -849,6 +889,65 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 
+    public void testUpdateNonIndexedFieldMaxValueLengthFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "20mb").build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.mapping.non_indexed_field.max_value_length], not updateable"));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthSetting() {
+        assertThat(
+            newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(1024 * 1024)
+        );
+        Settings custom = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        assertThat(
+            newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(2 * 1024 * 1024)
+        );
+
+        Settings belowTermLimit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(belowTermLimit));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthRequiresColumnarMode() {
+        IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        Settings explicit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), nonColumnarMode.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(explicit)
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "The setting [index.mapping.non_indexed_field.max_value_length] is only permitted when [index.mode] is a columnar "
+                    + "index mode. Current mode: ["
+                    + nonColumnarMode.getName()
+                    + "]."
+            )
+        );
+
+        Settings defaulted = Settings.builder().put(IndexSettings.MODE.getKey(), nonColumnarMode.getName()).build();
+        assertThat(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(defaulted), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
         IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
@@ -926,6 +1025,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata idxMetaData = newIndexMeta("test", settings);
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             Settings.EMPTY,
+            null,
             null,
             xContentRegistry(),
             new MapperRegistry(
@@ -1268,7 +1368,8 @@ public class IndexSettingsTests extends ESTestCase {
 
         // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
         IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            // 9_111_0_xx are stateful 9.5 backports that keep the legacy behavior, so start from the first version after them
+            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
             IndexVersion.current()
         );
         for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
@@ -1284,6 +1385,53 @@ public class IndexSettingsTests extends ESTestCase {
         Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
         IndexSettings standardIndexSettings = new IndexSettings(newIndexMeta("standard-index", standardSettings, fromGate), Settings.EMPTY);
         assertThat(standardIndexSettings.sequenceNumbersDisabled(), is(false));
+    }
+
+    /**
+     * Index versions 9_111_0_xx were backported to 9.5 without the columnar sequence number change, so on stateful a columnar index
+     * with such a version must keep the legacy behavior (sequence numbers disabled). Stateless has the change from the original gate.
+     */
+    public void testDisableSequenceNumbersDefaultForBackportedVersionsDependsOnStateless() {
+        Settings statelessNode = Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build();
+        IndexVersion stateless = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG)
+        );
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            for (IndexVersion version : List.of(
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+            )) {
+                IndexMetadata metadata = newIndexMeta(columnarMode.getName() + "-index", settings, version);
+                assertThat(
+                    columnarMode + " " + version + " stateful keeps the legacy default",
+                    new IndexSettings(metadata, Settings.EMPTY).sequenceNumbersDisabled(),
+                    is(true)
+                );
+                assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), Settings.EMPTY), is(true));
+                // the same version on a stateless node is not a stateful 9.5 index, so the node settings must reach the default
+                assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), statelessNode), is(false));
+            }
+            IndexMetadata statelessMetadata = newIndexMeta(columnarMode.getName() + "-index", settings, stateless);
+            assertThat(
+                columnarMode + " " + stateless + " stateless keeps sequence numbers from the original gate",
+                new IndexSettings(statelessMetadata, statelessNode).sequenceNumbersDisabled(),
+                is(false)
+            );
+            // Index metadata settings do not carry the stateless flag, so the node settings must be merged when resolving the default.
+            assertThat(IndexSettings.sequenceNumbersDisabled(statelessMetadata.getSettings(), statelessNode), is(false));
+        }
+    }
+
+    public void testSequenceNumbersDisabledHelperPrefersExplicitSetting() {
+        boolean explicit = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), explicit)
+            .build();
+        IndexMetadata metadata = newIndexMeta("index", settings, IndexVersion.current());
+        assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), Settings.EMPTY), is(explicit));
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {
@@ -1642,5 +1790,170 @@ public class IndexSettingsTests extends ESTestCase {
                     .build()
             )
         );
+    }
+
+    public void testBatchIndexingDefaultsToStrictColumnarAndTimeSeriesMode() {
+        for (IndexMode mode : IndexMode.values()) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
+            if (mode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim");
+            }
+            Settings settings = builder.build();
+            boolean expectedForMode = mode.isStrictColumnar()
+                || (mode == IndexMode.TIME_SERIES && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled());
+            assertThat(
+                "mode " + mode,
+                IndexSettings.BATCH_INDEXING.get(settings),
+                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && expectedForMode)
+            );
+        }
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.EMPTY));
+    }
+
+    /**
+     * Time series indices that route on {@code index.routing_path} build their {@code _tsid} while parsing each document, which the
+     * batch path can't do, so batch indexing is off by default for them. An explicit opt-in is still honored.
+     */
+    public void testBatchIndexingDefaultsToFalseForRoutingPathTimeSeries() {
+        Settings routingPath = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(routingPath));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(routingPath));
+        assertFalse(IndexSettingsModule.newIndexSettings("index", routingPath).isBatchIndexingEnabled());
+
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings explicitOptIn = Settings.builder().put(routingPath).put(IndexSettings.BATCH_INDEXING.getKey(), true).build();
+        assertTrue(IndexSettings.BATCH_INDEXING.get(explicitOptIn));
+        assertTrue(IndexSettingsModule.newIndexSettings("index", explicitOptIn).isBatchIndexingEnabled());
+    }
+
+    public void testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting() {
+        boolean flagsEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled();
+        Settings tsdbOptOut = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbOptOut));
+
+        Settings tsdbOptIn = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .build();
+        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(flagsEnabled));
+        // without the flags the default is false, so the deprecated setting is only read with both of them
+        if (flagsEnabled) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        }
+    }
+
+    public void testDeprecatedTimeSeriesBatchIndexingIgnoredOutsideTimeSeries() {
+        Settings columnarOptOut = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
+            .build();
+        assertThat(IndexSettings.BATCH_INDEXING.get(columnarOptOut), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
+
+        Settings standardOptIn = Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(standardOptIn));
+    }
+
+    public void testBatchIndexingExplicitSettingWinsOverFallback() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), false)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(settings));
+    }
+
+    public void testBatchIndexingRejectedWithoutFeatureFlag() {
+        assumeFalse("only applies when the feature flag is off", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings on = Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.BATCH_INDEXING.get(on));
+        assertThat(e.getMessage(), containsString("batch_indexing feature flag"));
+
+        // defaults resolve to false rather than tripping the validator
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR).build()));
+        assertFalse(
+            IndexSettings.BATCH_INDEXING.get(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .build()
+            )
+        );
+        assertFalse(
+            IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build())
+        );
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build()));
+    }
+
+    public void testBatchIndexingIsAlwaysRegistered() {
+        assertTrue(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(IndexSettings.BATCH_INDEXING));
+    }
+
+    public void testIsBatchIndexingEnabledRequiresFeatureFlag() {
+        assumeTrue("setting is only registered with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        IndexSettings enabled = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true).build()
+        );
+        assertTrue(enabled.isBatchIndexingEnabled());
+        assertFalse(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY).isBatchIndexingEnabled());
+    }
+
+    public void testBatchIndexingDefaultsToFalseForStoredSource() {
+        Settings tsdbStored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbStored));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(tsdbStored));
+        assertFalse(IndexSettingsModule.newIndexSettings("index", tsdbStored).isBatchIndexingEnabled());
+    }
+
+    public void testDeprecatedBatchIndexingIgnoredForStoredSource() {
+        Settings tsdbStored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbStored));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(tsdbStored));
+    }
+
+    public void testExplicitBatchIndexingRejectedForStoredSource() {
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings stored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.BATCH_INDEXING.get(stored));
+        assertThat(
+            e.getMessage(),
+            equalTo("[index.batch_indexing] can't be enabled for [index.mode=time_series] indices with [index.mapping.source.mode=stored]")
+        );
+        expectThrows(IllegalArgumentException.class, () -> IndexSettingsModule.newIndexSettings("index", stored));
+    }
+
+    public void testExplicitBatchIndexingHonoredForStoredSourceOutsideTimeSeries() {
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings stored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB))
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+            .build();
+        assertTrue(IndexSettings.isBatchIndexingEnabled(stored));
+        assertTrue(IndexSettingsModule.newIndexSettings("index", stored).isBatchIndexingEnabled());
     }
 }

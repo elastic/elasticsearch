@@ -89,9 +89,12 @@ public final class UpdateParams {
             filterIds.add(filter.getId());
         }
         if (detectorUpdates != null) {
-            detectorUpdates.forEach(
-                detectorUpdate -> detectorUpdate.getRules().forEach(rule -> filterIds.addAll(rule.extractReferencedFilters()))
-            );
+            for (JobUpdate.DetectorUpdate detectorUpdate : detectorUpdates) {
+                // null rules means the rules are not being updated, which is different from an empty list that clears them
+                if (detectorUpdate.getRules() != null) {
+                    detectorUpdate.getRules().forEach(rule -> filterIds.addAll(rule.extractReferencedFilters()));
+                }
+            }
         }
         return filterIds;
     }

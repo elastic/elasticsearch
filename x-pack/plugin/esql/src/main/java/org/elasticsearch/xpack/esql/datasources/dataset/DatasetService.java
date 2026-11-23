@@ -31,6 +31,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.ConfigChangeTelemetry;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.MaxDatasetsCountException;
+import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -135,16 +136,16 @@ public class DatasetService {
                 throwShadowError(key);
             }
         }
-        // Shape-only validation of the declared mapping (no file I/O): declarable types, rename name collisions,
-        // and the _id.path reference. A `path` column rename is honored by all formats (translation is centralized at
-        // the reader boundary).
+        // Shape-only validation of the declared mapping (no file I/O): declarable types and rename name collisions.
+        // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
+        Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
-            validatedSettings,
+            settings,
             request.mapping()
         );
     }

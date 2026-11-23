@@ -679,4 +679,27 @@ public class BasicStatementTests extends ScriptTestCase {
         );
         assertEquals("The maximum number of statements that can be executed in a loop has been reached.", pe.getMessage());
     }
+
+    // A big script with many variables and branches must still compile.
+    public void testBigScriptWithManyBranches() {
+        int fields = 50;
+        int depth = 3;
+        StringBuilder script = new StringBuilder("def p = params.p; Map m = new HashMap();\n");
+        for (int i = 0; i < fields; i++) {
+            String value = "p";
+            for (int d = 0; d < depth; d++) {
+                value = "(" + value + " instanceof Map ? ((Map)" + value + ").get(\"k" + d + "\") : null)";
+            }
+            script.append("def e").append(i).append(" = ").append(value).append(";\n");
+            script.append("if (e").append(i).append(" != null) {\n");
+            script.append("  if (e").append(i).append(" instanceof Map || e").append(i).append(" instanceof List) {\n");
+            script.append("    m['f").append(i).append("'] = e").append(i).append(";\n");
+            script.append("  } else {\n");
+            script.append("    m['f").append(i).append("'] = e").append(i).append(".toString();\n");
+            script.append("  }\n");
+            script.append("}\n");
+        }
+        script.append("return m.size();");
+        assertEquals(0, exec(script.toString(), Map.of("p", Map.of()), false));
+    }
 }

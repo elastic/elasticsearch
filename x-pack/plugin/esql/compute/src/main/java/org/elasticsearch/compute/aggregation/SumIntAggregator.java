@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.data.IntArrayVector;
 
 @Aggregator({ @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator(supportsPartitioning = true)
@@ -21,6 +22,14 @@ class SumIntAggregator {
 
     public static long combine(long current, int v) {
         return Math.addExact(current, v);
+    }
+
+    /**
+     * Folds a whole {@link IntArrayVector} into {@code current}. The vector's sum cannot overflow a
+     * {@code long}, so there is a single overflow check per vector instead of one per element.
+     */
+    public static long combineBulk(long current, IntArrayVector v) {
+        return Math.addExact(current, v.sum());
     }
 
     public static long combine(long current, long v) {

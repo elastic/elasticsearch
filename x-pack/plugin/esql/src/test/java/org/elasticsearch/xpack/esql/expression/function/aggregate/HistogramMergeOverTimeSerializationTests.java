@@ -22,7 +22,7 @@ public class HistogramMergeOverTimeSerializationTests extends AbstractExpression
         Expression window = randomChild();
         Expression timestamp = randomChild();
         Expression temporality = randomBoolean() ? randomChild() : null;
-        return new HistogramMergeOverTime(source, field, filter, window, timestamp, temporality);
+        return new HistogramMergeOverTime(source, field, timestamp, filter, window, temporality);
     }
 
     @Override
@@ -40,6 +40,6 @@ public class HistogramMergeOverTimeSerializationTests extends AbstractExpression
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
             case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        return new HistogramMergeOverTime(source, field, filter, window, timestamp, temporality);
+        return new HistogramMergeOverTime(source, field, timestamp, filter, window, temporality);
     }
 }

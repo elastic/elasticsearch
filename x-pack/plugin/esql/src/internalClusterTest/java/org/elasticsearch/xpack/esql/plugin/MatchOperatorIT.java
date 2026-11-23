@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -19,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -344,6 +348,24 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRuntimeMatchOperatorAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE summary : "fox"
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox; id 6 does too but is cut.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
     public void testMatchOperatorAfterMvExpand() {
         var query = """
             FROM test
@@ -475,6 +497,108 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
                 "line 3:20: [:] operator cannot operate on [lookup_content], supplied by an index [test_lookup] "
                     + "in non-STANDARD mode [lookup]"
             )
+        );
+    }
+
+    public void testMatchOperatorOnTimeSeriesIndex() {
+        createTimeSeriesIndex();
+        // Exact/keyword semantics on the dimension: "web-a" isn't exactly "a".
+        var query = """
+            TS ts_hosts
+            | WHERE host:"a"
+            | KEEP host, status
+            | SORT host
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(resp.values(), List.of(List.of("a", "ok"), List.of("a", "ok")));
+        }
+    }
+
+    public void testMatchOperatorOnTimeSeriesIndexNotPushedDown() {
+        createTimeSeriesIndex();
+        var query = """
+            TS ts_hosts
+            | WHERE host:"a" OR LENGTH(status) > 5
+            | KEEP host, status
+            | SORT host
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("a", "ok"), List.of("a", "ok"), List.of("b", "degraded"), List.of("b", "degraded"))
+            );
+        }
+    }
+
+    public void testMatchOperatorOnTimeSeriesIndexBeforeTimeSeriesAggregation() {
+        createTimeSeriesIndex();
+        var query = """
+            TS ts_hosts
+            | WHERE message:"disk"
+            | STATS max_rate = MAX(RATE(requests)) BY host
+            | SORT host
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("max_rate", "host"));
+            assertColumnTypes(resp.columns(), List.of("double", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1.0, "a"), List.of(10.0, "web-a")));
+        }
+    }
+
+    /**
+     * Creates {@code ts_hosts} with two samples per host, one minute apart. The counter deltas give exact
+     * per-second rates: 1.0 for {@code a}, 2.0 for {@code b} and 10.0 for {@code web-a}.
+     */
+    private void createTimeSeriesIndex() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ts_hosts")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "status",
+                    "type=keyword",
+                    "message",
+                    "type=text",
+                    "requests",
+                    "type=long,time_series_metric=counter"
+                )
+        );
+        client().prepareBulk()
+            .add(timeSeriesSample("2024-01-01T00:00:00Z", "a", "ok", "disk full", 0))
+            .add(timeSeriesSample("2024-01-01T00:01:00Z", "a", "ok", "disk full", 60))
+            .add(timeSeriesSample("2024-01-01T00:00:00Z", "b", "degraded", "network error", 0))
+            .add(timeSeriesSample("2024-01-01T00:01:00Z", "b", "degraded", "network error", 120))
+            .add(timeSeriesSample("2024-01-01T00:00:00Z", "web-a", "ok", "disk ok", 0))
+            .add(timeSeriesSample("2024-01-01T00:01:00Z", "web-a", "ok", "disk ok", 600))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("ts_hosts");
+    }
+
+    private static IndexRequest timeSeriesSample(String timestamp, String host, String status, String message, long requests) {
+        return new IndexRequest("ts_hosts").source(
+            "@timestamp",
+            timestamp,
+            "host",
+            host,
+            "status",
+            status,
+            "message",
+            message,
+            "requests",
+            requests
         );
     }
 

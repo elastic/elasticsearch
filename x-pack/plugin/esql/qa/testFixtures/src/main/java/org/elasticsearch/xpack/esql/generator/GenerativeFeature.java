@@ -32,6 +32,12 @@ public enum GenerativeFeature {
     UNMAPPED_FIELDS_LOAD,
 
     /**
+     * Always prepend {@code SET unmapped_fields="load_all"}, loading every source field absent from the index mapping as its own
+     * {@code keyword} column without requiring each to be referenced. Snapshot-only; the generator falls back to a plain FROM otherwise.
+     */
+    UNMAPPED_FIELDS_LOAD_ALL,
+
+    /**
      * Start generated pipelines from time-series source commands.
      */
     METRICS,
@@ -40,6 +46,12 @@ public enum GenerativeFeature {
      * Start generated pipelines from {@code PROMQL}.
      */
     PROMQL,
+
+    /**
+     * Start generated pipelines from an {@code EQL} source command over a sampled index. Snapshot-only: the run is skipped without the
+     * EQL command capability, and the generator falls back to a plain {@code FROM} when no sampled index suits an EQL query.
+     */
+    EQL,
 
     /**
      * Generate {@code FROM <dataset>} queries against external parquet datasets registered via

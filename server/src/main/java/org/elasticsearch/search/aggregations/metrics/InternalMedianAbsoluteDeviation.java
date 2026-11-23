@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -22,7 +24,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
+public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue
+    implements
+        MedianAbsoluteDeviation,
+        Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InternalMedianAbsoluteDeviation.class);
 
     public static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
         if (valuesSketch.size() == 0) {
@@ -53,6 +60,15 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         super(in);
         valuesSketch = TDigestState.read(in);
         medianAbsoluteDeviation = in.readDouble();
+    }
+
+    /**
+     * The heap of the digest, whose arrays are sized by the compression and not by the values added. See
+     * {@link org.elasticsearch.search.aggregations.InternalAggregations#estimateHeapBytes()}.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + valuesSketch.ramBytesUsed();
     }
 
     @Override

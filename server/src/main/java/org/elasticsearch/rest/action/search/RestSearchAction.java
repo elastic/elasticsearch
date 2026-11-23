@@ -31,6 +31,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -96,7 +97,9 @@ public class RestSearchAction extends BaseRestHandler {
             new Route(GET, "/_search"),
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search")
+            new Route(POST, "/{index}/_search"),
+            new Route(GET, "/{index}/{_slice}/_search"),
+            new Route(POST, "/{index}/{_slice}/_search")
         );
     }
 
@@ -138,7 +141,8 @@ public class RestSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
-                Optional.of(crossProjectEnabled)
+                Optional.of(crossProjectEnabled),
+                true
             )
         );
 
@@ -222,6 +226,36 @@ public class RestSearchAction extends BaseRestHandler {
         @Nullable SearchUsageHolder searchUsageHolder,
         Optional<Boolean> crossProjectEnabled
     ) throws IOException {
+        parseSearchRequest(
+            searchRequest,
+            request,
+            requestContentParser,
+            clusterSupportsFeature,
+            setSize,
+            searchUsageHolder,
+            crossProjectEnabled,
+            false
+        );
+    }
+
+    /**
+     * As {@link #parseSearchRequest(SearchRequest, RestRequest, XContentParser, Predicate, IntConsumer, SearchUsageHolder, Optional)},
+     * additionally declaring whether the calling endpoint supports slices.
+     *
+     * @param sliceSupported whether the endpoint supports slices, i.e. registers {@code /{index}/{_slice}/...} routes; the slice is
+     *                       then read from the {@code _slice} path segment or parameter. When {@code false} the request is never
+     *                       treated as a slice search and {@code _slice} is left unconsumed.
+     */
+    public static void parseSearchRequest(
+        SearchRequest searchRequest,
+        RestRequest request,
+        @Nullable XContentParser requestContentParser,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        IntConsumer setSize,
+        @Nullable SearchUsageHolder searchUsageHolder,
+        Optional<Boolean> crossProjectEnabled,
+        boolean sliceSupported
+    ) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -273,8 +307,18 @@ public class RestSearchAction extends BaseRestHandler {
         if (scroll != null) {
             searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        SliceIndexing.applySearchRoutingOrSlice(parsedRouting, searchRequest);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, sliceSupported);
+        searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
+        // A point-in-time search targets no index and therefore cannot carry the slice as a {_slice} path segment the way an
+        // index-scoped search does; instead the slice is supplied inside the "pit" object and applied to the search request here.
+        final PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
+        if (pit != null && pit.getSearchSlice() != null) {
+            if (parsedRouting.routing() != null) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
+            }
+            final SliceIndexing.ParsedRouting pitSlice = SliceIndexing.parsePitSearchSlice(pit.getSearchSlice());
+            searchRequest.routing(pitSlice.routing()).setRoutingFromSlice(pitSlice.fromSlice());
+        }
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
         if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
@@ -406,12 +450,11 @@ public class RestSearchAction extends BaseRestHandler {
             String suggestText = request.param("suggest_text", request.param("q"));
             int suggestSize = request.paramAsInt("suggest_size", 5);
             String suggestMode = request.param("suggest_mode");
-            return new SuggestBuilder().addSuggestion(
-                suggestField,
-                termSuggestion(suggestField).text(suggestText)
-                    .size(suggestSize)
-                    .suggestMode(TermSuggestionBuilder.SuggestMode.resolve(suggestMode))
-            );
+            TermSuggestionBuilder termSuggestion = termSuggestion(suggestField).text(suggestText).size(suggestSize);
+            if (suggestMode != null) {
+                termSuggestion.suggestMode(TermSuggestionBuilder.SuggestMode.resolve(suggestMode));
+            }
+            return new SuggestBuilder().addSuggestion(suggestField, termSuggestion);
         } else {
             List<String> unconsumedParams = Arrays.stream(suggestQueryStringParams).filter(key -> request.param(key) != null).toList();
             if (unconsumedParams.isEmpty() == false) {

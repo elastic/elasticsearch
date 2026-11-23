@@ -18,15 +18,20 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -36,17 +41,23 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -54,9 +65,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for analysis of external datasets reached via {@code FROM <dataset>}. All such analyzer tests belong
@@ -65,7 +78,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * The {@code Analyzer} itself never parses {@code FROM <dataset>} — that rewrite happens earlier, in
  * {@code DatasetRewriter}, which turns the {@code UnresolvedRelation} for a registered dataset into the same
  * {@code UnresolvedExternalRelation} the (internal-only, snapshot-gated) {@code EXTERNAL} command produces. These
- * tests drive that same production pipeline: parse the query, run {@code DatasetRewriter.rewriteUnsecured} against a
+ * tests drive that same production pipeline: parse the query, run {@code EsqlTestUtils.rewriteDatasetsUnsecured} against a
  * single-dataset {@code ProjectMetadata}, then analyze — {@code EXTERNAL} itself is no longer part of the surface
  * these tests exercise; it remains only as the internal rewrite target.
  */
@@ -92,7 +105,12 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("name", KEYWORD));
 
-        var testAnalyzer = analyzer().externalSourceResolution("s3://bucket/data/*.parquet", schema, fileList);
+        var testAnalyzer = analyzer().externalSourceResolution(
+            datasetProject("s3://bucket/data/*.parquet"),
+            "s3://bucket/data/*.parquet",
+            schema,
+            fileList
+        );
         var analyzed = analyzeDataset(testAnalyzer, "s3://bucket/data/*.parquet", "FROM " + DATASET_NAME + " | STATS count = COUNT(*)");
 
         var externalRelations = new ArrayList<ExternalRelation>();
@@ -175,6 +193,22 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat(filter.child(), instanceOf(ExternalRelation.class));
     }
 
+    public void testScoreAggregationWithFullTextFilterRejected() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        String from = "FROM " + DATASET_NAME + " METADATA _score ";
+        String message = "cannot use _score aggregations with a WHERE filter in a STATS command";
+        datasetError(external(), S3_PATH, from + "| STATS c = MAX(_score) WHERE MATCH(first_name, \"foo\")", containsString(message));
+        datasetError(
+            external(),
+            S3_PATH,
+            from + "| STATS c = WEIGHTED_AVG(emp_no, _score) WHERE MATCH(first_name, \"foo\")",
+            containsString(message)
+        );
+        // Filtering before the STATS is fine: the aggregation sees the score the match contributed.
+        analyzeDataset(external(), S3_PATH, from + "| WHERE MATCH(first_name, \"foo\") | STATS c = MAX(_score)");
+    }
+
     /**
      * KQL function requires a Lucene index; an external (federated) dataset is rejected with a message naming the
      * dataset and the limitation, and suggesting the MATCH(field, ...) alternative, rather than a generic positional
@@ -216,23 +250,14 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * KNN function requires vector field from index; an external dataset is rejected, and the message names the
-     * federated-source limitation.
+     * KNN function can operate on dense_vector fields in external dataset via runtime search
      */
-    public void testWithKnnFunctionRejected() {
+    public void testWithKnnFunction() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("vector", DENSE_VECTOR));
-        var testAnalyzer = analyzer().externalSourceUnresolved(S3_PATH, schema);
+        var testAnalyzer = analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, schema);
 
-        datasetError(
-            testAnalyzer,
-            S3_PATH,
-            "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])",
-            containsString(
-                "function cannot operate on [vector], which is not a field from an index mapping "
-                    + "(the source is a federated data source, not an index)"
-            )
-        );
+        analyzeDataset(testAnalyzer, S3_PATH, "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])");
     }
 
     /**
@@ -263,8 +288,8 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     /**
      * {@code _file.name} resolves to an {@link ExternalMetadataAttribute} with type KEYWORD when requested via
-     * {@code METADATA} — external metadata columns are request-driven, not auto-attached.
-     * Verified via the {@link ExternalRelation} output (the plan's top-level output strips virtual columns by design).
+     * {@code METADATA}. External metadata columns are request-driven, not auto-attached. Verified via the
+     * {@link ExternalRelation} leaf output.
      */
     public void testFileMetadataResolvesToExternalMetadataAttribute() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -337,24 +362,109 @@ public class AnalyzerExternalTests extends ESTestCase {
         );
     }
 
-    /**
-     * {@code KEEP *} does not include virtual columns ({@code _file.*}), even when they are requested via
-     * {@code METADATA}.
-     */
-    public void testFileMetadataExcludedFromStar() {
+    public void testMatchOnFileMetadata() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
-        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " " + ALL_FILE_METADATA_CLAUSE + " | KEEP *");
-        for (Attribute attr : plan.output()) {
-            assertFalse("Virtual attribute " + attr.name() + " should not appear in KEEP * output", attr instanceof VirtualAttribute);
-        }
-        assertEquals(employeesSchema().size(), plan.output().size());
+        var plan = analyzeDataset(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " METADATA _file.name | WHERE MATCH(`_file.name`, \"foo\")"
+        );
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
+        assertThat(match.field(), instanceOf(ExternalMetadataAttribute.class));
+        assertThat(filter.child(), instanceOf(ExternalRelation.class));
+
+        // a _file.* column not named in METADATA is not in scope, so MATCH reports it like any other unknown column
+        datasetError(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | WHERE MATCH(`_file.name`, \"foo\")",
+            containsString("Unknown column [_file.name]")
+        );
     }
 
-    /**
-     * Explicit {@code KEEP _file.path} surfaces the virtual column in the final plan output —
-     * naming a virtual column by KEEP is the one way it reaches the result.
-     */
+    public void testMetadataBoundColumnsSurviveKeepStar() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id, _file.path | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_id"));
+        assertThat(names, hasItem("_file.path"));
+        assertThat(names, hasItem("emp_no"));
+        Attribute id = plan.output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        Attribute path = plan.output().stream().filter(a -> a.name().equals("_file.path")).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+        assertThat(path, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarDoesNotInventUnboundMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.size | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_file.size"));
+        assertThat(names, hasItem("emp_no"));
+        assertThat(names, not(hasItem("_file.name")));
+        assertThat(names, not(hasItem("_file.path")));
+        Attribute size = plan.output().stream().filter(a -> a.name().equals("_file.size")).findFirst().orElseThrow();
+        assertThat(size, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarWithoutMetadataOmitsFileColumns() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        for (String name : FileMetadataColumns.NAMES) {
+            assertThat(names, not(hasItem(name)));
+        }
+        assertThat(names, hasItem("emp_no"));
+    }
+
+    public void testDatasetOutputOmitsSyntheticAttributes() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.record_ref | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem(FileMetadataColumns.RECORD_REF));
+        assertThat(names, not(hasItem(ColumnExtractor.ROW_POSITION_COLUMN)));
+        assertThat(plan.output().stream().filter(Attribute::synthetic).toList(), hasSize(0));
+    }
+
+    public void testKeepFilePatternMatchesOnlyBoundMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.size | KEEP _file*");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("_file.size"), names);
+        assertThat(plan.output().getFirst(), instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testMetadataIdSurfacesWithoutKeep() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_id"));
+        Attribute id = plan.output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarWithExplicitNameKeepsMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        for (String keep : List.of("KEEP *, emp_no", "KEEP emp_no, *")) {
+            var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id | " + keep);
+            List<String> names = plan.output().stream().map(Attribute::name).toList();
+            assertThat(keep + " columns: " + names, names, hasItem("_id"));
+            assertThat(keep + " columns: " + names, names, hasItem("emp_no"));
+            Attribute id = plan.output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+            assertThat(keep + " _id type", id, instanceOf(ExternalMetadataAttribute.class));
+        }
+    }
+
     public void testKeepFileMetadataByNameSurfaces() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
@@ -381,7 +491,6 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     /**
      * {@code KEEP _file*} pattern resolves every {@code _file.*} column requested via {@code METADATA}.
-     * Verified by piping into STATS (since the final plan output strips virtual columns).
      */
     public void testFileMetadataExplicitPatternMatches() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -396,7 +505,7 @@ public class AnalyzerExternalTests extends ESTestCase {
         plan.forEachDown(Project.class, projects::add);
 
         // ALL_FILE_METADATA_CLAUSE requests every _file.* column EXCEPT _file.record_ref, which is a request-driven
-        // column that must be named explicitly (it drives _id and forces the reader's row-position channel), so
+        // column that must be named explicitly (it forces the reader's row-position channel), so
         // KEEP _file* matches NAMES minus record_ref.
         int expectedMetadataColumns = FileMetadataColumns.NAMES.size() - 1;
         boolean foundFileMetadataProject = false;
@@ -416,7 +525,9 @@ public class AnalyzerExternalTests extends ESTestCase {
     /**
      * Universal-rule binding: every standard metadata name in
      * {@link MetadataAttribute#ATTRIBUTES_MAP} resolves to an {@link ExternalMetadataAttribute} of
-     * the registered type when listed in {@code METADATA} on an external dataset.
+     * the registered type when listed in {@code METADATA} on an external dataset. {@code _id},
+     * {@code _version} and {@code _source} bind like the rest and answer SQL NULL at execution
+     * (pinned in {@code AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned}).
      */
     public void testStandardMetadataBindsOnExternalDataset() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -507,10 +618,209 @@ public class AnalyzerExternalTests extends ESTestCase {
         );
     }
 
+    public void testMetadataIdWinsOverPhysicalColumn() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id"));
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertThat(ids.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, ids.get(0).dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
+    }
+
+    public void testMetadataFilePathWinsOverPhysicalColumn() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.path"));
+
+        List<Attribute> paths = leafOutput.stream().filter(a -> a.name().equals(FileMetadataColumns.PATH)).toList();
+        assertThat(paths, hasSize(1));
+        assertThat(paths.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, paths.get(0).dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of(FileMetadataColumns.PATH)));
+    }
+
+    public void testMetadataIdAndFilePathWinTogether() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(externalCollision(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id, _file.path")
+        );
+
+        Attribute id = leafOutput.stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        Attribute path = leafOutput.stream().filter(a -> a.name().equals(FileMetadataColumns.PATH)).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, id.dataType());
+        assertThat(path, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, path.dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id", FileMetadataColumns.PATH)));
+    }
+
+    public void testMetadataIndexBindsWithoutWarningWhenNoCollision() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _index"));
+
+        Attribute index = leafOutput.stream().filter(a -> a.name().equals("_index")).findFirst().orElseThrow();
+        assertThat(index, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, index.dataType());
+    }
+
+    public void testDuplicateMetadataClauseRejectedByParser() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _index, _index")
+        );
+        assertThat(e.getMessage(), containsString("already declared"));
+    }
+
+    public void testDuplicatePhysicalColumnsDroppedOnBind() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", LONG),
+            referenceAttribute("_id", LONG),
+            referenceAttribute("_id", KEYWORD),
+            referenceAttribute("first_name", KEYWORD)
+        );
+        var leafOutput = externalLeafOutput(
+            analyzeDataset(
+                analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, schema),
+                S3_PATH,
+                "FROM " + DATASET_NAME + " METADATA _id"
+            )
+        );
+
+        List<Attribute> ids = leafOutput.stream().filter(a -> a.name().equals("_id")).toList();
+        assertThat(ids, hasSize(1));
+        assertThat(ids.get(0), instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, ids.get(0).dataType());
+        assertWarnings(Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id")));
+    }
+
+    public void testMetadataOrdinaryColumnIsUnresolvedPattern() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        datasetError(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " METADATA emp_no",
+            containsString("Unresolved metadata pattern [emp_no]")
+        );
+    }
+
+    public void testShadowWarningOmitsMappingAdviceWhenDatasetIsNull() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(null, List.of(FileMetadataColumns.SIZE));
+        assertEquals(
+            "Column [" + FileMetadataColumns.SIZE + "] in this source is shadowed by METADATA; the METADATA value is used",
+            warning
+        );
+    }
+
+    public void testShadowWarningIncludesMappingAdviceForDataset() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id"));
+        assertEquals(
+            "Column [_id] in dataset ["
+                + DATASET_NAME
+                + "] is shadowed by METADATA; the METADATA value is used; rename it in the dataset mapping to read both",
+            warning
+        );
+    }
+
+    public void testShadowWarningPluralisesSeveralColumns() {
+        String warning = Analyzer.shadowedExternalColumnsWarning(DATASET_NAME, List.of("_id", FileMetadataColumns.PATH));
+        assertEquals(
+            "Columns [_id], ["
+                + FileMetadataColumns.PATH
+                + "] in dataset ["
+                + DATASET_NAME
+                + "] are shadowed by METADATA; the METADATA value is used; rename them in the dataset mapping to read both",
+            warning
+        );
+    }
+
+    /**
+     * Two relations on one resource, read under two configurations, each bind to <em>their own</em> resolution.
+     * <p>
+     * This is what the resolution key is for. The resolution holds both reads, under schemas that differ, and the
+     * only thing that can tell {@code ResolveExternalRelations} which belongs to which relation is the relation's
+     * configuration — so a lookup by resource alone binds both relations to whichever read it reaches first, and one
+     * of them then reports a schema nobody asked for. The query that produces this shape in production is
+     * {@code FROM sales_csv, sales_tsv} over two datasets sharing one resource.
+     */
+    public void testEachRelationOnOneResourceBindsToItsOwnResolution() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        Map<String, Object> asCsv = Map.of("format", "csv", ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "sales_csv"));
+        Map<String, Object> asTsv = Map.of("format", "tsv", ExternalSourceResolver.DATASET_CONTEXT_KEY, Map.of("dataset", "sales_tsv"));
+        // One column apiece, named for the read, so each relation's own schema is visible in its output.
+        List<Attribute> csvSchema = List.of(referenceAttribute("from_csv", INTEGER));
+        List<Attribute> tsvSchema = List.of(referenceAttribute("from_tsv", KEYWORD));
+        ExternalSourceResolution resolution = new ExternalSourceResolution(
+            Map.of(
+                new ExternalSourceSpec(S3_PATH, asCsv),
+                resolvedSourceWith(csvSchema),
+                new ExternalSourceSpec(S3_PATH, asTsv),
+                resolvedSourceWith(tsvSchema)
+            )
+        );
+
+        // A parsed FROM supplies the surrounding plan (the implicit LIMIT the verifier wants); its single relation is
+        // replaced by the union of the two external reads DatasetRewriter would have produced.
+        LogicalPlan parsed = TEST_PARSER.parseQuery("FROM sales");
+        LogicalPlan plan = parsed.transformUp(
+            UnresolvedRelation.class,
+            r -> new UnionAll(
+                r.source(),
+                List.of(externalRelation(r.source(), asCsv, "sales_csv"), externalRelation(r.source(), asTsv, "sales_tsv")),
+                List.of()
+            )
+        );
+
+        LogicalPlan analyzed = analyzer().externalSourceResolution(resolution).buildAnalyzer().analyze(plan);
+
+        Map<String, List<String>> columnsByDataset = new HashMap<>();
+        analyzed.forEachDown(
+            ExternalRelation.class,
+            e -> columnsByDataset.put(e.datasetName(), e.output().stream().map(Attribute::name).toList())
+        );
+        assertThat("both relations must resolve", columnsByDataset.keySet(), equalTo(Set.of("sales_csv", "sales_tsv")));
+        assertThat("the csv read must carry the csv schema", columnsByDataset.get("sales_csv"), equalTo(List.of("from_csv")));
+        assertThat("the tsv read must carry the tsv schema", columnsByDataset.get("sales_tsv"), equalTo(List.of("from_tsv")));
+    }
+
+    /** An {@link UnresolvedExternalRelation} on {@link #S3_PATH} under {@code config}, as DatasetRewriter builds one. */
+    private static UnresolvedExternalRelation externalRelation(Source source, Map<String, Object> config, String datasetName) {
+        return new UnresolvedExternalRelation(source, Literal.keyword(source, S3_PATH), config, List.of(), datasetName);
+    }
+
+    /** A resolved source over {@code schema}, with nothing listed: this case is about which schema binds where. */
+    private static ExternalSourceResolution.ResolvedSource resolvedSourceWith(List<Attribute> schema) {
+        return new ExternalSourceResolution.ResolvedSource(new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return S3_PATH;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        }, FileList.UNRESOLVED, Map.of());
+    }
+
     /**
      * Returns the {@link ExternalRelation} leaf's output from an analyzed plan. The leaf's output
      * carries every name bound by {@code ResolveExternalRelations}, which is the binding contract
-     * under test — the plan's top-level output may strip virtual attributes by design.
+     * under test.
      */
     private static List<Attribute> externalLeafOutput(LogicalPlan analyzed) {
         var leaves = new ArrayList<ExternalRelation>();
@@ -525,10 +835,12 @@ public class AnalyzerExternalTests extends ESTestCase {
      * {@code DatasetRewriter} produces in production, and analyzes the result with {@code testAnalyzer}.
      */
     private static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query) {
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         return testAnalyzer.buildAnalyzer().analyze(rewritten);
     }
@@ -545,15 +857,38 @@ public class AnalyzerExternalTests extends ESTestCase {
     /** A single-dataset {@link ProjectMetadata}: {@link #DATASET_NAME} pointing at {@code resource}. */
     private static ProjectMetadata datasetProject(String resource) {
         DataSource dataSource = new DataSource("ds_source", "test", null, Map.of());
-        Dataset dataset = new Dataset(DATASET_NAME, new DataSourceReference("ds_source"), resource, null, Map.of());
+        Dataset dataset = new Dataset(DATASET_NAME, new DataSourceReference("ds_source"), resource, null, Map.of(), null);
         return ProjectMetadata.builder(ProjectId.DEFAULT)
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("ds_source", dataSource)))
             .datasets(Map.of(DATASET_NAME, dataset))
             .build();
     }
 
+    /**
+     * The analyzer for this class's {@code FROM <dataset>} cases: the resolution is keyed for the relations
+     * {@link #datasetProject} rewrites to, which carry the dataset's config. For a relation with no dataset behind it,
+     * whose relation carries no config, use {@link #externalCommand()}.
+     */
     public static TestAnalyzer external() {
+        return analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, employeesSchema());
+    }
+
+    /** As {@link #external()}, keyed for the empty config a relation with no dataset behind it carries. */
+    public static TestAnalyzer externalCommand() {
         return analyzer().externalSourceUnresolved(S3_PATH, employeesSchema());
+    }
+
+    private static TestAnalyzer externalCollision() {
+        return analyzer().externalSourceUnresolved(datasetProject(S3_PATH), S3_PATH, collisionSchema());
+    }
+
+    private static List<Attribute> collisionSchema() {
+        return List.of(
+            referenceAttribute("emp_no", LONG),
+            referenceAttribute("_id", LONG),
+            referenceAttribute(FileMetadataColumns.PATH, KEYWORD),
+            referenceAttribute("first_name", KEYWORD)
+        );
     }
 
     private static List<Attribute> employeesSchema() {

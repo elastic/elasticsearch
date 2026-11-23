@@ -150,6 +150,9 @@ public final class KeyStoreUtil {
      */
     public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm)
         throws GeneralSecurityException {
+        // JDK-8393730: X500Name caches its X500Principal lazily without safe publication. Fill the cache here.
+        // TODO: remove once the bug fix is included in all supported JDK versions.
+        populateX500PrincipalCaches(keyStore);
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
@@ -173,6 +176,8 @@ public final class KeyStoreUtil {
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
             if (trustManager instanceof X509ExtendedTrustManager x509ExtendedTrustManager) {
+                // Cover for the same JDK bug as in createKeyManager.
+                populateX500PrincipalCaches(x509ExtendedTrustManager.getAcceptedIssuers());
                 return x509ExtendedTrustManager;
             }
         }
@@ -194,6 +199,36 @@ public final class KeyStoreUtil {
     public static X509ExtendedTrustManager createTrustManager(Collection<Certificate> certificates) throws GeneralSecurityException {
         KeyStore store = buildTrustStore(certificates);
         return createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+    }
+
+    /**
+     * Force the JDK to cache each certificate's subject and issuer principals on this thread, before the certificates are
+     * shared with handshake threads. See JDK-8393730.
+     */
+    private static void populateX500PrincipalCaches(@Nullable KeyStore keyStore) throws KeyStoreException {
+        if (keyStore == null) {
+            return;
+        }
+        for (String alias : Collections.list(keyStore.aliases())) {
+            populateX500PrincipalCache(keyStore.getCertificate(alias));
+            populateX500PrincipalCaches(keyStore.getCertificateChain(alias));
+        }
+    }
+
+    private static void populateX500PrincipalCaches(@Nullable Certificate[] certificates) {
+        if (certificates == null) {
+            return;
+        }
+        for (Certificate certificate : certificates) {
+            populateX500PrincipalCache(certificate);
+        }
+    }
+
+    private static void populateX500PrincipalCache(@Nullable Certificate certificate) {
+        if (certificate instanceof X509Certificate x509Certificate) {
+            x509Certificate.getSubjectX500Principal();
+            x509Certificate.getIssuerX500Principal();
+        }
     }
 
     public static Stream<KeyStoreEntry> stream(

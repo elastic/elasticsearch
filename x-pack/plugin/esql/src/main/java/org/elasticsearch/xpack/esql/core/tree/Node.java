@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -36,6 +37,54 @@ import static java.util.Collections.emptyList;
  * While it tries as much as possible to use functional Java, due to lack of parallelism,
  * the use of streams and iterators is not really useful and brings too much baggage which
  * might be used incorrectly.
+ *
+ * <h2>Thread safety</h2>
+ * A node is shared by every thread that holds the plan it belongs to: on a data node, the drivers for all shards run the
+ * same physical plan, and some of them call back into its expressions while they run (for example to build a converter for
+ * each shard). Plans are also shared during planning, for example by concurrent lookup join requests, or by a data node's
+ * node-level reduction and its shard batches. Nodes are not otherwise synchronized, so they must be safe to read from
+ * several threads at once:
+ * <ul>
+ *     <li>Every instance field is {@code final}, unless it caches a value that is computed lazily.</li>
+ *     <li>Compute a lazily computed value in a local variable and assign the field once, when the value is complete:
+ *     never assign a partly built collection or array and fill it in afterwards, and never store an intermediate result
+ *     in the field. Two threads may both compute the value; that's fine as long as they compute the same one.</li>
+ *     <li>If the value is immutable through {@code final} fields (an enum, a record, a boxed primitive, a {@code String},
+ *     an {@link org.elasticsearch.xpack.esql.core.expression.AttributeSet}, another node, ...), the field can be plain,
+ *     but read it only once per method, into a local, like {@link String#hashCode()} does. A record only counts if
+ *     everything it holds is fully built before the record is created: its {@code final} fields don't make a list that is
+ *     filled in afterwards safe.
+ *     <pre>{@code
+ *     AttributeSet outputSet = lazyOutputSet;
+ *     if (outputSet == null) {
+ *         outputSet = AttributeSet.of(output());
+ *         lazyOutputSet = outputSet;
+ *     }
+ *     return outputSet;
+ *     }</pre>
+ *     Two plain reads of a field can be reordered, so a second read can return {@code null} after the first one didn't.
+ *     </li>
+ *     <li>Any other lazily computed field, like a {@code List} or an array, is {@code volatile}: otherwise another thread
+ *     can see the reference before the contents.</li>
+ *     <li>A helper object that memoizes something, such as a {@link java.util.function.Supplier}, must be thread-safe
+ *     itself; prefer {@code org.elasticsearch.common.util.CachedSupplier}.</li>
+ *     <li>Never mutate an object reachable from a node after the node is constructed, other than by such a lazy
+ *     assignment.</li>
+ * </ul>
+ * {@code PlanFieldSafePublicationTests} checks the shape of the code for all subclasses of {@link Node} and
+ * {@link org.elasticsearch.xpack.esql.core.type.EsField}, plus the inner and anonymous classes declared in them. It checks
+ * that every instance field is {@code final}, {@code volatile}, or of a type on its list of immutable types, that a method
+ * reads a plain lazy field at most once, and that a method doesn't read a lazily computed field again after assigning it,
+ * except to return it. Passing it doesn't make a node thread-safe; it can't see, for example:
+ * <ul>
+ *     <li>a value that is filled in through a local variable or a helper method after it was assigned to the field;</li>
+ *     <li>what a record holds: it is treated as safe, but it's only safe if its components are complete when it is created;</li>
+ *     <li>reads that happen more than once at runtime but only once in the code: a single read inside a loop, or a field
+ *     read once by each of two methods where a caller uses both. It counts reads in the bytecode of each method, so read
+ *     the field into a local before the loop, and have the caller pass the value on instead of reading it again;</li>
+ *     <li>objects a node holds that are neither nodes nor {@code EsField}s, or static state;</li>
+ *     <li>mutation of an object reachable from a node (the last rule).</li>
+ * </ul>
  *
  * @param <T> node type
  */
@@ -191,6 +240,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return anyMatch(Predicate.not(predicate)) == false;
     }
 
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is false for all nodes
+     */
+    public boolean noneMatch(Predicate<? super T> predicate) {
+        return anyMatch(predicate) == false;
+    }
+
     public List<T> collect(Predicate<? super T> predicate) {
         List<T> l = new ArrayList<>();
         forEachDown(n -> {
@@ -254,6 +314,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public T transformDown(Function<? super T, ? extends T> rule) {
         T root = rule.apply((T) this);
+        if (root != this) {
+            root.adoptIdentityFrom(this);
+        }
         Node<T> node = this.equals(root) ? this : root;
         return node.transformChildren(child -> child.transformDown(rule));
     }
@@ -267,6 +330,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
         T root = rule.apply((T) this, skipBranch);
+        if (root != this) {
+            root.adoptIdentityFrom(this);
+        }
         Node<T> node = this.equals(root) ? this : root;
         if (skipBranch.get()) {
             skipBranch.set(false);
@@ -310,6 +376,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, int depth, ActionListener<T> listener) {
         rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            if (root != this) {
+                root.adoptIdentityFrom(this);
+            }
             Node<T> node = this.equals(root) ? this : root;
             node.transformChildren((child, childListener) -> {
                 if (depth > 0 && depth % ASYNC_TRANSFORM_STACK_DEPTH_LIMIT == 0) {
@@ -354,7 +423,55 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public T transformUp(Function<? super T, ? extends T> rule) {
         T transformed = transformChildren(child -> child.transformUp(rule));
         T node = this.equals(transformed) ? (T) this : transformed;
-        return rule.apply(node);
+        T result = rule.apply(node);
+        if (result != node) {
+            result.adoptIdentityFrom(node);
+        }
+        return result;
+    }
+
+    /**
+     * Bottom-up counterpart of {@link #transformDownSkipBranch}: like {@link #transformUp(Function)}, but the child at index
+     * {@code i} of a node {@code parent} is left untouched — neither it nor any node beneath it is passed to {@code rule} — if
+     * {@code skipChild.test(parent, i)}. Unlike the top-down variant, the decision must be taken before the subtree is visited,
+     * hence a predicate rather than a flag the rule sets. It is asked of the parent rather than the child because what makes a
+     * branch special can be a property of its position in the parent (e.g. a branch's identity in a union) rather than of the
+     * child node itself; and by index, because equal children can sit at positions the parent tells apart.
+     */
+    public T transformUpSkipBranch(BiPredicate<? super T, Integer> skipChild, Function<? super T, ? extends T> rule) {
+        return transformUpSkipBranchWithOriginal(skipChild, (original, node) -> rule.apply(node));
+    }
+
+    /**
+     * Like {@link #transformUpSkipBranch(BiPredicate, Function)}, but {@code rule} also receives the node as it was before its
+     * children were transformed: {@code rule.apply(original, node)}. A node rebuilt because a child changed is a new instance,
+     * so a rule that looks up what it knows about the input tree by node identity has to look up the original.
+     */
+    @SuppressWarnings("unchecked")
+    public T transformUpSkipBranchWithOriginal(
+        BiPredicate<? super T, Integer> skipChild,
+        BiFunction<? super T, ? super T, ? extends T> rule
+    ) {
+        List<T> transformedChildren = null;
+        for (int i = 0, s = children.size(); i < s; i++) {
+            if (skipChild.test((T) this, i)) {
+                continue;
+            }
+            T child = children.get(i);
+            T next = child.transformUpSkipBranchWithOriginal(skipChild, rule);
+            if (child.equals(next) == false) {
+                if (transformedChildren == null) {
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
+            }
+        }
+        T base = transformedChildren == null ? (T) this : replaceChildrenSameSize(transformedChildren);
+        T result = rule.apply((T) this, base);
+        if (result != base) {
+            result.adoptIdentityFrom(base);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")
@@ -401,6 +518,12 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     public abstract T replaceChildren(List<T> newChildren);
+
+    /**
+     * A transform built {@code this} as a replacement for {@code original}. Query plans copy stable identity
+     * here; other nodes ignore it. See {@code QueryPlan#adoptIdentityFrom}.
+     */
+    protected void adoptIdentityFrom(Node<?> original) {}
 
     //
     // transform the node properties and use the tree only for navigation

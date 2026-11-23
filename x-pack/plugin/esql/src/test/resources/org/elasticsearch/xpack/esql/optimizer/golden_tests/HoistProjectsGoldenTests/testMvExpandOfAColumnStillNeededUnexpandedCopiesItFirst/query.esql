@@ -1,0 +1,4 @@
+FROM employees
+| EVAL original = first_name
+| RENAME first_name AS fn
+| MV_EXPAND fn

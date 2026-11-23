@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.truncateForError;
 
 class JavaDateFormatter implements DateFormatter {
     @SuppressWarnings("unchecked")
@@ -214,7 +215,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, roundupParsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 
@@ -227,7 +231,10 @@ class JavaDateFormatter implements DateFormatter {
         try {
             return doParse(input, parsers);
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to parse date field [" + input + "] with format [" + format + "]", e);
+            throw new IllegalArgumentException(
+                "failed to parse date field [" + truncateForError(input) + "] with format [" + format + "]",
+                e
+            );
         }
     }
 
@@ -244,6 +251,21 @@ class JavaDateFormatter implements DateFormatter {
             }
         }
         return null;
+    }
+
+    @Override
+    public long tryParseMillis(byte[] bytes, int offset, int length) {
+        return tryParseEpoch(bytes, offset, length, false);
+    }
+
+    @Override
+    public long tryParseNanos(byte[] bytes, int offset, int length) {
+        return tryParseEpoch(bytes, offset, length, true);
+    }
+
+    private long tryParseEpoch(byte[] bytes, int offset, int length, boolean nanosResolution) {
+        // Try only the first parser. A later parser applies only when the earlier ones fail, and a decline is not a failure.
+        return parsers[0] instanceof FastDateTimeParser fast ? fast.tryParseEpoch(bytes, offset, length, nanosResolution) : DECLINED;
     }
 
     /**

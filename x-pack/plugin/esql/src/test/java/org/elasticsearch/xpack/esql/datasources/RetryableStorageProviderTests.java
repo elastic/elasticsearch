@@ -10,10 +10,17 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -35,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class RetryableStorageProviderTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -119,11 +126,11 @@ public class RetryableStorageProviderTests extends ESTestCase {
                     public boolean hasNext() {
                         if (index == 0 && firstPageFailed == false) {
                             firstPageFailed = true;
-                            throw new ExternalUnavailableException("first page unavailable", (Throwable) null);
+                            throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                         }
                         if (index == 1 && secondPageFailed == false) {
                             secondPageFailed = true;
-                            throw new ExternalUnavailableException("second page unavailable", (Throwable) null);
+                            throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L);
                         }
                         return index < 2;
                     }
@@ -170,6 +177,23 @@ public class RetryableStorageProviderTests extends ESTestCase {
         assertEquals(2, calls.get());
     }
 
+    public void testObjectMetadataRetriesOnTransientFailure() throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        StorageProvider delegate = new StubStorageProvider() {
+            @Override
+            public StorageEntry objectMetadata(StoragePath path) throws IOException {
+                if (calls.incrementAndGet() < 2) {
+                    throw new SocketTimeoutException("timeout");
+                }
+                return new StorageEntry(path, 42L, Instant.EPOCH);
+            }
+        };
+        RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
+
+        assertEquals(42L, provider.objectMetadata(StoragePath.of("s3://bucket/file.csv")).length());
+        assertEquals(2, calls.get());
+    }
+
     public void testSupportedSchemesDelegates() {
         StorageProvider delegate = new StubStorageProvider() {
             @Override
@@ -184,6 +208,19 @@ public class RetryableStorageProviderTests extends ESTestCase {
     public void testReadBytesAsyncRetriesOnTransientFailure() throws Exception {
         AtomicInteger asyncCalls = new AtomicInteger();
         StorageObject inner = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8));
@@ -249,6 +286,99 @@ public class RetryableStorageProviderTests extends ESTestCase {
         }
     }
 
+    public void testEveryNewObjectOverloadCompletesAsyncReadUnderIssuingContext() throws Exception {
+        String identityHeader = "X-Test-Identity";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            // A real object cannot be used: the test must control the completing thread, which a storage SDK callback thread does by
+            // completing the read with an empty ThreadContext.
+            StorageObject inner = new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
+                @Override
+                public InputStream newStream() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long length() {
+                    return 4;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.now();
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return StoragePath.of("s3://bucket/file.csv");
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor executor,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    sdkThread.execute(() -> {
+                        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                            listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                        }
+                    });
+                }
+            };
+            RetryableStorageProvider provider = new RetryableStorageProvider(
+                stubProvider(inner),
+                RetryScheduler.DIRECT,
+                path -> new RetryPolicy(3, 1, 10),
+                threadContext
+            );
+            StoragePath path = StoragePath.of("s3://bucket/file.csv");
+            threadContext.putHeader(identityHeader, "issuing-user");
+            List<StorageObject> objects = List.of(
+                provider.newObject(path),
+                provider.newObject(path, 100),
+                provider.newObject(path, 100, Instant.now()),
+                provider.newObject(path, 100, Instant.now(), "v1")
+            );
+            for (StorageObject obj : objects) {
+                PlainActionFuture<String> observed = new PlainActionFuture<>();
+                obj.startReadBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(buffer -> {
+                    buffer.close();
+                    observed.onResponse(threadContext.getHeader(identityHeader));
+                }, observed::onFailure));
+                assertEquals("issuing-user", observed.get(10, TimeUnit.SECONDS));
+            }
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
     public void testCloseClosesDelegate() throws IOException {
         AtomicInteger closeCalls = new AtomicInteger();
         StorageProvider delegate = new StubStorageProvider() {
@@ -265,6 +395,19 @@ public class RetryableStorageProviderTests extends ESTestCase {
     private static StorageObject stubObject(String location, IOStreamSupplier streamSupplier) {
         StoragePath path = StoragePath.of(location);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return streamSupplier.get();
@@ -322,6 +465,11 @@ public class RetryableStorageProviderTests extends ESTestCase {
     }
 
     private abstract static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to these retry tests
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             throw new UnsupportedOperationException();

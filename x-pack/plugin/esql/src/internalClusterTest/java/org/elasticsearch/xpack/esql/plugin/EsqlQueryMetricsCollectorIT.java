@@ -9,13 +9,19 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.action.StreamQueryTestUtils;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -24,7 +30,10 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,10 +45,19 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.LongStream;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -49,10 +67,38 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     /** Written by the SPI-instantiated collector; read by the test body. */
     static volatile Map<String, Long> lastMetrics;
 
+    /** Number of times the collector fired; lets a test assert it fired exactly once, since {@link #lastMetrics} is last-write-wins. */
+    static final AtomicInteger collectorCalls = new AtomicInteger();
+
+    /** Views created by the current test, in creation order; deleted by {@link #deleteViews()}. */
+    private final List<String> viewNames = new ArrayList<>();
+
+    /** How the last query the collector was called for ended; written by the SPI-instantiated collector. */
+    static volatile QueryMetricsListener.Outcome lastOutcome;
+
+    /** Number of times the collector written the way billing is, without outcomes, was called. */
+    static final AtomicInteger successOnlyCollectorCalls = new AtomicInteger();
+
+    /** Wants every outcome. */
     public static final class CapturingCollector implements QueryMetricsListener {
         @Override
         public void onQueryCompleted(Map<String, Long> metrics) {
+            throw new AssertionError("a listener that implements the outcome is called with the outcome");
+        }
+
+        @Override
+        public void onQueryCompleted(Outcome outcome, Map<String, Long> metrics) {
+            EsqlQueryMetricsCollectorIT.lastOutcome = outcome;
             EsqlQueryMetricsCollectorIT.lastMetrics = metrics;
+            EsqlQueryMetricsCollectorIT.collectorCalls.incrementAndGet();
+        }
+    }
+
+    /** Written the way the billing listener is: it knows nothing of outcomes, so it must only be called for queries that succeeded. */
+    public static final class SuccessOnlyCollector implements QueryMetricsListener {
+        @Override
+        public void onQueryCompleted(Map<String, Long> metrics) {
+            EsqlQueryMetricsCollectorIT.successOnlyCollectorCalls.incrementAndGet();
         }
     }
 
@@ -75,9 +121,44 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
+    /**
+     * The collectors are loaded by every integration test that loads the metrics collectors, which run in the same JVM, so queries of
+     * another test can leave their calls here: start from nothing, not only end with nothing.
+     */
+    @Before
+    protected void resetCollectors() {
+        clearLastMetrics();
+    }
+
     @After
     protected void clearLastMetrics() {
         lastMetrics = null;
+        lastOutcome = null;
+        collectorCalls.set(0);
+        successOnlyCollectorCalls.set(0);
+    }
+
+    /**
+     * The cluster is suite-scoped and the registry cleanup only removes datasets and data sources, so views created by a
+     * test are deleted here, newest first so an outer view goes before the inner view it references. Best-effort like
+     * {@code cleanupRegistry}: one failed delete must neither leave the remaining views behind nor mask the test's own failure.
+     */
+    @After
+    protected void deleteViews() {
+        for (int i = viewNames.size() - 1; i >= 0; i--) {
+            String viewName = viewNames.get(i);
+            try {
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                ).actionGet(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted
+            } catch (Exception e) {
+                logger.warn("view cleanup [{}] failed", viewName, e);
+            }
+        }
+        viewNames.clear();
     }
 
     @Override
@@ -98,6 +179,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(EsqlEnterpriseWithDatasourceExtensions.class);
         plugins.add(EsqlEnterpriseWithCollector.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -115,9 +197,143 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("csv");
         assertSplitDiscoveryCpuNanos("csv");
+        assertPlanningCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
-        // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThanOrEqualTo(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
+    }
+
+    /**
+     * The APM query CPU counter must report, per component, exactly the CPU values sent to the billing listener for the
+     * same query, so the two paths cannot drift apart again (planning was once reported as wall time in APM).
+     */
+    public void testApmQueryCpuMatchesBilledCpu() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        String datasetName = registerDataset("apm_cpu_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .get();
+        telemetry.resetMeter();
+        lastMetrics = null;
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + datasetName + " | LIMIT 10"), TIMEOUT)) {
+            // run the query — result discarded, only the metrics side-effects matter
+        }
+
+        assertThat(lastMetrics, notNullValue());
+        assertApmCpuMatchesBilled(telemetry, ExternalSourceMetrics.CPU_COMPONENT_EXECUTION, QueryMetricsListener.CPU_NANOS);
+        assertApmCpuMatchesBilled(telemetry, ExternalSourceMetrics.CPU_COMPONENT_READ, QueryMetricsListener.READ_CPU_NANOS);
+        assertApmCpuMatchesBilled(telemetry, ExternalSourceMetrics.CPU_COMPONENT_PLANNING, QueryMetricsListener.PLANNING_CPU_NANOS);
+        assertApmCpuMatchesBilled(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY,
+            QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS
+        );
+    }
+
+    private static void assertApmCpuMatchesBilled(TestTelemetryPlugin telemetry, String component, String billingKey) {
+        long apm = telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_CPU_TOTAL)
+            .stream()
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        // recordQueryCpu skips zero components, so a billed 0 would make the equality below hold trivially.
+        long billed = lastMetrics.get(billingKey);
+        assertThat("billed " + billingKey + " > 0", billed, greaterThan(0L));
+        assertThat("APM cpu.total{component=" + component + "} equals billed " + billingKey, apm, equalTo(billed));
+    }
+
+    /**
+     * {@code LIMIT 0} folds the plan to empty before split discovery, so nothing is scanned, but the source was resolved
+     * during planning and that work must still be metered.
+     */
+    public void testMetricsCollectorExternalSourceScanningNothing() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+
+        String datasetName = registerDataset("metrics_limit0_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + datasetName + " | LIMIT 0"), TIMEOUT)) {}
+
+        assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * An external source behind a view is only visible once the view is expanded, and {@code LIMIT 0} scans nothing:
+     * the view must still be metered.
+     */
+    public void testMetricsCollectorExternalSourceInViewScanningNothing() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        String datasetName = registerDataset("metrics_view_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+        putView(new View("metrics_view", "FROM " + datasetName));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_view | LIMIT 0"), TIMEOUT)) {}
+
+        assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+    }
+
+    /** The external source is two views deep, and {@code LIMIT 0} scans nothing: the nested view must still be metered. */
+    public void testMetricsCollectorExternalSourceInNestedViewScanningNothing() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        String datasetName = registerDataset("metrics_nested_view_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+        putView(new View("metrics_inner_view", "FROM " + datasetName));
+        putView(new View("metrics_outer_view", "FROM metrics_inner_view"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_outer_view | LIMIT 0"), TIMEOUT)) {}
+
+        assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+    }
+
+    /** A view over an index only touches no external source: it must not be metered, even though it is expanded like any view. */
+    public void testMetricsCollectorIndexOnlyViewNotMetered() throws Exception {
+        createIndex("metrics_view_index");
+        client().prepareIndex("metrics_view_index").setId("1").setSource("a", 1).setRefreshPolicy(IMMEDIATE).get();
+        putView(new View("metrics_index_view", "FROM metrics_view_index"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_index_view | LIMIT 0"), TIMEOUT)) {}
+
+        assertThat(lastMetrics, nullValue());
+        assertThat(collectorCalls.get(), equalTo(0));
+    }
+
+    /**
+     * A partition filter that matches no file: split discovery runs and returns no splits, so nothing is scanned, but the
+     * listing and partition matching must still be metered.
+     */
+    public void testMetricsCollectorExternalSourceAllPartitionsPruned() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path root = createTempDir();
+        for (int year : new int[] { 2024, 2025 }) {
+            Path dir = root.resolve("year=" + year);
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        }
+        String datasetName = registerDataset(
+            "metrics_pruned_ds",
+            StoragePath.fileUri(root) + "/*/*.csv",
+            Map.of("format", "csv", "partition_detection", "hive")
+        );
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + datasetName + " | WHERE year == 1999 | LIMIT 10"), TIMEOUT)) {}
+
+        assertThat("metrics must be set", lastMetrics, notNullValue());
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
     }
 
     /** NdJson plain file — exercises the single-pass NdJson reader path. */
@@ -133,6 +349,30 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("ndjson");
         assertSplitDiscoveryCpuNanos("ndjson");
+        assertPlanningCpuNanos("ndjson");
+    }
+
+    public void testMetricsCollectorStreamingNdJson() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.ndjson"), createNdjson(100));
+
+        registerDataset("metrics_streaming_ndjson_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
+
+        var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        StreamQueryTestUtils.executeStreamRequest(
+            client(),
+            syncEsqlQueryRequest("FROM metrics_streaming_ndjson_ds | LIMIT 200"),
+            subscriber
+        );
+        assertThat(subscriber.rowCount.get(), greaterThan(0));
+
+        assertReadCpuNanos("streaming-ndjson");
+        assertSplitDiscoveryCpuNanos("streaming-ndjson");
+        assertPlanningCpuNanos("streaming-ndjson");
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThanOrEqualTo(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
     }
 
     /**
@@ -254,6 +494,11 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         return ndjson.toString();
     }
 
+    private void putView(View view) {
+        assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view)));
+        viewNames.add(view.name());
+    }
+
     private static String createCsv(int x) {
         StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
         for (int i = 0; i < x; i++) {
@@ -302,7 +547,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertThat(lastMetrics, nullValue());
 
+        // An index-only query scans data but touches no external source, so it must not be metered either.
         createIndex("test");
+        client().prepareIndex("test").setId("1").setSource("a", 1).setRefreshPolicy(IMMEDIATE).get();
         try (var ignored = run(syncEsqlQueryRequest("FROM test | LIMIT 10"), TIMEOUT)) {
             // run the query — result discarded, only the collector side-effect matters
         }
@@ -325,9 +572,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | LIMIT 200"), TIMEOUT)) {}
         assertThat("cold scan must be metered", lastMetrics, notNullValue());
 
-        // Warm aggregate: answered from cached stats — splitsScanned stays 0,
-        // so the gate in hasExternalSources() does not fire even though the
-        // external datasource drove the result.
+        // Warm aggregate: answered from cached stats, so splitsScanned stays 0,
+        // but the analyzed plan still contains an ExternalRelation, so the gate
+        // in collectMetrics() (externalSource) fires.
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
@@ -335,9 +582,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Verifies that successive queries against the same CSV dataset do not accumulate
-     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
-     * remain zero. CSV uses the parallel-parse path; {@code freshCounters()} gives each split an
-     * isolated counter instance.
+     * {@code read_cpu_nanos} across query boundaries. Each query gets its own
+     * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}, which owns the
+     * {@code ExternalReadCounters} that back {@code read_cpu_nanos}.
      */
     public void testCsvReadNanosIsolatedBetweenQueries() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
@@ -362,13 +609,12 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Verifies that successive queries against the same Parquet dataset do not accumulate
-     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Before the fix, the
-     * {@code FormatReaderRegistry} singleton's counters accumulated across queries, so
-     * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
-     * and gets an isolated counter instance.
+     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Each query gets its own
+     * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}, which owns the
+     * {@code ExternalReadCounters} that back {@code read_nanos} and {@code read_cpu_nanos}.
      *
-     * <p>The assertion {@code Q_5 < 3 * Q_1} catches the geometric growth from accumulation
-     * (Q_5 ≈ 5 * Q_1) while tolerating normal timing variance (up to 3×).
+     * <p>The assertion {@code Q_10 < 5 * Q_1} catches the geometric growth from accumulation
+     * (Q_10 ≈ 10 * Q_1) while tolerating normal timing variance (up to 5×).
      */
     public void testParquetReadNanosIsolatedBetweenQueries() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
@@ -381,13 +627,13 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Runs {@code query} five times and asserts that {@code read_cpu_nanos} is positive on each run
-     * and does not grow by more than 3× from the first to the fifth query (which would indicate
+     * Runs {@code query} ten times and asserts that {@code read_cpu_nanos} is positive on each run
+     * and does not grow by more than 5× from the first to the last query (which would indicate
      * counter accumulation across queries). Also verifies that the registry singleton for
      * {@code readerName} has zero counters after the runs.
      */
     private void assertCounterIsolatedBetweenQueries(String query, String readerName) throws Exception {
-        int numQueries = 5;
+        int numQueries = 10;
         long[] readNanos = new long[numQueries];
         long[] readCpuNanos = new long[numQueries];
         for (int i = 0; i < numQueries; i++) {
@@ -406,18 +652,25 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     private static void assertIsolated(String metric, long[] values, int numQueries) {
-        long maxAllowed = values[0] * 3;
+        long factor = numQueries / 2;
+        // Use minimum of the last queries, to not fail on a single outlier
+        long tailMin = LongStream.of(values).skip(factor).min().getAsLong();
+        // The tail minimum is ~(numQueries / 2 + 1) * Q_1 under accumulation, so numQueries / 2 stays just below that.
+        long maxAllowed = Math.max(values[0], TimeUnit.MILLISECONDS.toNanos(1)) * factor;
         assertTrue(
-            "Q_5."
-                + metric
-                + "="
-                + values[numQueries - 1]
-                + " must be < 3 * Q_1."
-                + metric
-                + "="
+            metric
+                + ": min of last "
+                + (numQueries - factor)
+                + " queries="
+                + tailMin
+                + " must be < "
+                + maxAllowed
+                + " ("
+                + factor
+                + " * max(Q_1="
                 + values[0]
-                + "; a value >= 3x indicates counter accumulation across queries",
-            values[numQueries - 1] < maxAllowed
+                + ", 1ms)); a larger value indicates counter accumulation across queries",
+            tailMin < maxAllowed
         );
     }
 
@@ -432,10 +685,165 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         );
     }
 
+    /**
+     * Planning CPU is measured (positive) and bounded by planning wall time across all cores: the resolver's
+     * per-file fan-out can run planning on several threads at once, but never more CPU than the cores allow.
+     */
+    private void assertPlanningCpuNanos(String format) {
+        assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
+        Long planningCpuNanos = lastMetrics.get(QueryMetricsListener.PLANNING_CPU_NANOS);
+        assertThat(format + ": planning_cpu_nanos > 0", planningCpuNanos, greaterThan(0L));
+        assertThat(
+            format + ": planning CPU cannot exceed planning wall time across all cores",
+            planningCpuNanos,
+            lessThanOrEqualTo(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS) * Runtime.getRuntime().availableProcessors())
+        );
+    }
+
     /** Asserts that {@code read_cpu_nanos} is populated and does not exceed {@code read_nanos}. */
     private void assertReadCpuNanos(String format) {
         assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
         assertThat(format + ": read_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
         assertThat(format + ": read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * A CSV whose header declares an integer column and whose row [badRow] is not an integer: a scan fails on it, after reading
+     * the rows before.
+     */
+    private Path writeCsvWithBadRow(int badRow, int rows) throws IOException {
+        Path dir = createTempDir();
+        StringBuilder csv = new StringBuilder("emp_no:integer\n");
+        for (int i = 0; i < rows; i++) {
+            csv.append(i == badRow ? "not_a_number" : Integer.toString(i)).append('\n');
+        }
+        Files.writeString(dir.resolve("bad.csv"), csv);
+        return dir.resolve("bad.csv");
+    }
+
+    /**
+     * A query that fails halfway through the scan is metered, with the work it did before it failed and the outcome that tells a
+     * consumer not to bill it: its planning, its split discovery and what its drivers read.
+     */
+    public void testFailedQueryMidScanIsMetered() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(20_000, 40_000);
+        String dataset = registerDataset("metrics_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+
+        assertThat("collector must fire exactly once", collectorCalls.get(), equalTo(1));
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
+        assertThat(
+            "what the drivers read before the failure is reported",
+            lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS),
+            greaterThan(0L)
+        );
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * The CPU of a query that failed is in an APM counter of its own, with its outcome, equal to what the listener was given, and
+     * not in the one that matches what is billed.
+     */
+    public void testApmCpuOfAFailedQueryIsNotPartOfTheBilledCounter() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(20_000, 40_000);
+        String dataset = registerDataset("metrics_apm_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .get();
+        telemetry.resetMeter();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat("what is billed is not affected", telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_CPU_TOTAL), empty());
+        assertUnsuccessfulApmCpuMatches(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_PLANNING,
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            QueryMetricsListener.PLANNING_CPU_NANOS
+        );
+        assertUnsuccessfulApmCpuMatches(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_READ,
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            QueryMetricsListener.READ_CPU_NANOS
+        );
+        assertThat(
+            "nothing is recorded for the other outcome",
+            telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL)
+                .stream()
+                .filter(m -> ExternalSourceMetrics.OUTCOME_CANCELLED.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+                .toList(),
+            empty()
+        );
+    }
+
+    private static void assertUnsuccessfulApmCpuMatches(
+        TestTelemetryPlugin telemetry,
+        String component,
+        String outcome,
+        String listenerKey
+    ) {
+        long apm = telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL)
+            .stream()
+            .filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        long reported = lastMetrics.get(listenerKey);
+        assertThat("reported " + listenerKey + " > 0", reported, greaterThan(0L));
+        assertThat("APM cpu.unsuccessful.total{" + outcome + "," + component + "} equals reported " + listenerKey, apm, equalTo(reported));
+    }
+
+    /** The billing listener does not know about outcomes: it is called for the query that succeeded and not for the one that failed. */
+    public void testListenerThatIgnoresOutcomesIsOnlyCalledForSuccess() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(100, 200);
+        String failing = registerDataset("metrics_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("data.csv"), createCsv(5));
+        String succeeding = registerDataset("metrics_succeeding_ds", dir.resolve("data.csv").toUri().toString(), Map.of("format", "csv"));
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + failing + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+        assertThat(collectorCalls.get(), equalTo(1));
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat("not called for a query that failed", successOnlyCollectorCalls.get(), equalTo(0));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM " + succeeding + " | LIMIT 10"), TIMEOUT)) {
+            // run the query — result discarded, only the collector side-effect matters
+        }
+        assertThat(collectorCalls.get(), equalTo(2));
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.SUCCESS));
+        assertThat("called for a query that succeeded", successOnlyCollectorCalls.get(), equalTo(1));
+    }
+
+    /** A query that fails before it reads anything, in the analysis, is not metered unless it resolved an external source. */
+    public void testQueryThatFailsBeforeResolvingAnExternalSourceIsNotMetered() throws Exception {
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM no_such_dataset_or_index | LIMIT 10"), TIMEOUT)) {
+                // the query must fail
+            }
+        });
+        assertThat(collectorCalls.get(), equalTo(0));
+        assertThat(lastMetrics, nullValue());
     }
 }

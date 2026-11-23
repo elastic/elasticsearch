@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160516
+summary: Improve circuit breaker coverage of wildcard queries
+type: enhancement

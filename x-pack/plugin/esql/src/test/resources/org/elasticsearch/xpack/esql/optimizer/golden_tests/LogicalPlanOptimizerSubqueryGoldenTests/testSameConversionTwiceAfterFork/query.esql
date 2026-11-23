@@ -1,0 +1,3 @@
+FROM (FROM sample_data), (FROM sample_data)
+| FORK (WHERE client_ip == "172.21.0.5") (WHERE client_ip != "172.21.0.5")
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "L2"

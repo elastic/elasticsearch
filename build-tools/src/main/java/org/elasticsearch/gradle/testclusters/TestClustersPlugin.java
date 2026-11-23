@@ -23,7 +23,6 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.internal.file.FileOperations;
-import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
@@ -45,6 +44,7 @@ import org.gradle.tooling.events.task.TaskFailureResult;
 import org.gradle.tooling.events.task.TaskFinishEvent;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,7 +106,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
-        project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
+        project.getPluginManager().apply(ReaperPlugin.class);
         Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             ReaperPlugin.REAPER_SERVICE_NAME
@@ -148,7 +148,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             );
 
         project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });
-        project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+        project.getPluginManager().apply(TestClustersHookPlugin.class);
         configureArtifactTransforms(project);
     }
 
@@ -207,6 +207,12 @@ public class TestClustersPlugin implements Plugin<Project> {
         });
     }
 
+    /**
+     * Wires test cluster lifecycle hooks for the {@link TestClustersAware} tasks of the project it is applied to.
+     * <p>
+     * It is applied per project, so it only ever looks at the project's own tasks. Inspecting tasks of other projects
+     * in the task graph is a cross-project access that Isolated Projects forbids.
+     */
     static abstract class TestClustersHookPlugin implements Plugin<Project> {
         @Inject
         public abstract BuildEventsListenerRegistry getEventsListenerRegistry();
@@ -216,9 +222,6 @@ public class TestClustersPlugin implements Plugin<Project> {
         public TestClustersHookPlugin() {}
 
         public void apply(Project project) {
-            if (project != project.getRootProject()) {
-                throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
-            }
             Provider<TestClustersRegistry> registryProvider = GradleUtils.getBuildService(
                 project.getGradle().getSharedServices(),
                 REGISTRY_SERVICE_NAME
@@ -230,56 +233,48 @@ public class TestClustersPlugin implements Plugin<Project> {
                     spec.getParameters().getRegistry().set(registryProvider);
                 });
 
-            TestClustersRegistry registry = registryProvider.get();
-            // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
-            // that are defined in the build script and the ones that will actually be used in this invocation of gradle
-            // we use this information to determine when the last task that required the cluster executed so that we can
-            // terminate the cluster right away and free up resources.
-            configureClaimClustersHook(project.getGradle(), registry);
+            // Every task that ends up in the task graph has been realized, so tracking realized tasks avoids realizing
+            // the ones that are not going to run.
+            List<TestClustersAware> realizedTasks = new ArrayList<>();
+            project.getTasks().withType(TestClustersAware.class).configureEach(realizedTasks::add);
 
-            // Before each task, we determine if a cluster needs to be started for that task.
-            configureStartClustersHook(project.getGradle());
+            TestClustersRegistry registry = registryProvider.get();
+            project.getGradle().getTaskGraph().whenReady(taskExecutionGraph -> {
+                List<TestClustersAware> scheduledTasks = realizedTasks.stream().filter(taskExecutionGraph::hasTask).toList();
+                // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
+                // that are defined in the build script and the ones that will actually be used in this invocation of gradle
+                // we use this information to determine when the last task that required the cluster executed so that we can
+                // terminate the cluster right away and free up resources.
+                claimClusters(scheduledTasks, registry);
+                // Before each task, we determine if a cluster needs to be started for that task.
+                configureStartClusters(scheduledTasks);
+            });
 
             // After each task we determine if there are clusters that are no longer needed.
+            // Registering the same service provider from several projects results in a single subscription.
             getEventsListenerRegistry().onTaskCompletion(testClusterTasksService);
         }
 
-        private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
+        private static void claimClusters(List<TestClustersAware> scheduledTasks, TestClustersRegistry registry) {
             // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
             // claims so we'll know when it's safe to stop them.
-            gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
-                taskExecutionGraph.getAllTasks()
-                    .stream()
-                    .filter(task -> task instanceof TestClustersAware)
-                    .map(task -> (TestClustersAware) task)
-                    .flatMap(task -> task.getClusters().stream())
-                    .forEach(registry::claimCluster);
-            });
+            scheduledTasks.stream().flatMap(task -> task.getClusters().stream()).forEach(registry::claimCluster);
         }
 
-        private void configureStartClustersHook(Gradle gradle) {
-            gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
-                taskExecutionGraph.getAllTasks()
-                    .stream()
-                    .filter(task -> task instanceof TestClustersAware)
-                    .map(task -> (TestClustersAware) task)
-                    .forEach(awareTask -> {
-                        awareTask.doFirst(task -> {
-                            awareTask.beforeStart();
-                            awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
-                        });
-                        awareTask.doLast("Stop clusters and check for resource leaks", task -> {
-                            TestClustersRegistry registry = awareTask.getRegistry().get();
-                            awareTask.getClusters().forEach(cluster -> registry.stopCluster(cluster, false));
-                            List<String> leaks = awareTask.getClusters()
-                                .stream()
-                                .flatMap(cluster -> cluster.getLeakMessages().stream())
-                                .toList();
-                            if (leaks.isEmpty() == false) {
-                                throw new TestClustersException(String.join("\n", leaks));
-                            }
-                        });
-                    });
+        private static void configureStartClusters(List<TestClustersAware> scheduledTasks) {
+            scheduledTasks.forEach(awareTask -> {
+                awareTask.doFirst(task -> {
+                    awareTask.beforeStart();
+                    awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
+                });
+                awareTask.doLast("Stop clusters and check for resource leaks", task -> {
+                    TestClustersRegistry registry = awareTask.getRegistry().get();
+                    awareTask.getClusters().forEach(cluster -> registry.stopCluster(cluster, false));
+                    List<String> leaks = awareTask.getClusters().stream().flatMap(cluster -> cluster.getLeakMessages().stream()).toList();
+                    if (leaks.isEmpty() == false) {
+                        throw new TestClustersException(String.join("\n", leaks));
+                    }
+                });
             });
         }
     }

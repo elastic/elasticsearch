@@ -559,9 +559,9 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             scrollSearchResponse.decRef();
         }
 
-        flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
+        // Re-poll commit usage because search readers may release old commits asynchronously.
         assertBusy(() -> {
-            kickConsistencyService(indexNodeB);
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNodeB, indexName);
             Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
             commitsBeforeForceMerge.forEach(e -> assertThat(afterScrollReleaseCommitBlobs, not(hasItem(e))));
         });

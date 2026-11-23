@@ -73,9 +73,8 @@ public class IntValuesComparatorSource extends LongValuesComparatorSource {
         int bucketSize,
         BucketedSort.ExtraData extra
     ) {
+        final int iMissingValue = (Integer) missingObject(missingValue, sortOrder == SortOrder.DESC);
         return new BucketedSort.ForInts(bigArrays, sortOrder, format, bucketSize, extra) {
-            private final int iMissingValue = (Integer) missingObject(missingValue, sortOrder == SortOrder.DESC);
-
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {

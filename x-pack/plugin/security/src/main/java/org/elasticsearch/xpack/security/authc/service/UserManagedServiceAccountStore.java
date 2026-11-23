@@ -11,19 +11,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -31,17 +29,25 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -52,13 +58,16 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -70,7 +79,8 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 /**
  * Stores the service accounts created through the API as {@code service_account} documents in the security index,
  * alongside the {@code service_account_token} documents that {@link IndexServiceAccountTokenStore} manages. Every
- * field written here is already part of the index's strict mapping.
+ * field written here is part of the index's strict mapping, so a field the mapping does not yet hold is only
+ * written once every node is on a version that declares it.
  * <p>
  * Not supported in multi-project clusters, which replace the service account token store through
  * {@code SecurityExtension#getServiceAccountTokenStore} and so leave an account created here unable to hold a
@@ -92,10 +102,18 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     public static final String CACHE_NAME = "user_managed_service_account";
 
-    static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
+    public static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
+
+    /**
+     * The stored name of an author's username: the name the {@code creator} mapping gives it, which API keys
+     * established and the updater mirrors. Responses and queries call it {@code username}, as the API key APIs do for
+     * their creator.
+     */
+    private static final String AUTHOR_PRINCIPAL_FIELD = "principal";
 
     private static final Logger logger = LogManager.getLogger(UserManagedServiceAccountStore.class);
 
+    private final Clock clock;
     private final Client client;
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
@@ -108,12 +126,14 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     @SuppressWarnings("this-escape")
     public UserManagedServiceAccountStore(
         Settings settings,
+        Clock clock,
         Client client,
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
         FeatureService featureService,
         CacheInvalidatorRegistry cacheInvalidatorRegistry
     ) {
+        this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
@@ -294,12 +314,95 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Creates the account, or replaces it wholesale if it already exists.
+     * Runs a caller-shaped search over the stored accounts and reports one page of it. The caller has already
+     * restricted the query to service-account documents and translated its field names; this only adds the checks
+     * that the index can be searched at all and turns hits into accounts. A hit that does not parse is dropped, as in
+     * {@link #listAccounts}, which can leave fewer items than {@link QueryResult#total()} claims.
+     */
+    void queryAccounts(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryResult> listener) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryResult.EMPTY);
+            return;
+        }
+        if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            return;
+        }
+        final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
+        projectSecurityIndex.checkIndexVersionThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                TransportSearchAction.TYPE,
+                searchRequest,
+                ActionListener.wrap(searchResponse -> {
+                    final long total = searchResponse.getHits().getTotalHits().value();
+                    if (total == 0) {
+                        logger.debug("no service accounts found for query [{}]", searchSourceBuilder.query());
+                        listener.onResponse(QueryResult.EMPTY);
+                        return;
+                    }
+                    final List<QueryResult.Item> items = Arrays.stream(searchResponse.getHits().getHits())
+                        .map(UserManagedServiceAccountStore::toQueryResultItem)
+                        .filter(Objects::nonNull)
+                        .toList();
+                    listener.onResponse(new QueryResult(items, total));
+                }, listener::onFailure)
+            )
+        );
+    }
+
+    @Nullable
+    private static QueryResult.Item toQueryResultItem(SearchHit hit) {
+        final Map<String, Object> source = hit.getSourceAsMap();
+        if (source == null) {
+            logger.warn("service account document [{}] has no source", hit.getId());
+            return null;
+        }
+        if (source.get("username") instanceof String principal) {
+            final UserManagedServiceAccount account = parseAccountDocument(principal, source);
+            return account == null ? null : new QueryResult.Item(account, hit.getSortValues());
+        }
+        logger.warn("service account document [{}] has an invalid [username] field", hit.getId());
+        return null;
+    }
+
+    /**
+     * One page of a query. {@code total} counts every hit of the query, not just the page's, so a caller can tell how
+     * far through the result it is.
+     */
+    public record QueryResult(List<Item> items, long total) {
+
+        public static final QueryResult EMPTY = new QueryResult(List.of(), 0);
+
+        /**
+         * An account and the sort values of the hit it came from, which are what a caller passes back as
+         * {@code search_after}. Empty when the query was not sorted.
+         */
+        public record Item(UserManagedServiceAccount account, Object[] sortValues) {}
+    }
+
+    /**
+     * Creates the account, or replaces it wholesale if it already exists. A {@code null} description leaves the
+     * account without one.
+     * <p>
+     * The write is a single update with an upsert, so that which of the two happened is decided by the index rather
+     * than by a read that a concurrent write could make stale. The upsert is the whole document with the caller as
+     * its creator; the update is every field a write may change, with the caller as its updater, and leaves the
+     * creator alone. An update merges into the stored document field by field, so a field that a write may leave
+     * empty is written as an explicit {@code null} rather than omitted, or the previous value would survive. The
+     * attribution fields are not written to a cluster whose nodes do not all declare them, because until then the
+     * index mapping may not hold them and the write would be rejected.
      */
     void putAccount(
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
+        @Nullable String description,
+        Authentication authentication,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
     ) {
@@ -311,37 +414,47 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             );
             return;
         }
-        final ValidationException validationException = validatePutRequest(accountId, roles);
+        final ValidationException validationException = validatePutRequest(accountId, roles, description);
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        try (XContentBuilder builder = newAccountDocument(accountId, sortedDistinct(roles), enabled)) {
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(docIdForPrincipal(accountId.asPrincipal()))
-                .setSource(builder)
-                .setOpType(DocWriteRequest.OpType.INDEX)
+        final boolean recordAttribution = featureService.clusterHasFeature(
+            clusterService.state(),
+            SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION
+        );
+        final ServiceAccountAuthor author = recordAttribution ? ServiceAccountAuthor.fromAuthentication(authentication) : null;
+        final Instant now = clock.instant();
+        final List<String> distinctRoles = sortedDistinct(roles);
+        try (
+            XContentBuilder upsert = newAccountDocument(accountId, distinctRoles, enabled, description, author, now);
+            XContentBuilder doc = accountChanges(distinctRoles, enabled, description, author, now)
+        ) {
+            final UpdateRequest updateRequest = client.prepareUpdate(SECURITY_MAIN_ALIAS, docIdForPrincipal(accountId.asPrincipal()))
+                .setDoc(doc)
+                .setUpsert(upsert)
                 .setRefreshPolicy(refreshPolicy)
                 .request();
-            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
             securityIndex.forCurrentProject()
                 .prepareIndexIfNeededThenExecute(
                     listener::onFailure,
                     () -> executeAsyncWithOrigin(
                         client,
                         SECURITY_ORIGIN,
-                        TransportBulkAction.TYPE,
-                        bulkRequest,
-                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
+                        TransportUpdateAction.TYPE,
+                        updateRequest,
+                        ActionListener.wrap(response -> {
                             final PutResult result = switch (response.getResult()) {
                                 case CREATED -> PutResult.CREATED;
-                                case UPDATED -> PutResult.UPDATED;
+                                // A no-op needs the same caller to write the same account within the same
+                                // millisecond, so it is not worth distinguishing from an update.
+                                case UPDATED, NOOP -> PutResult.UPDATED;
                                 default -> throw new IllegalStateException(
                                     "unexpected result [" + response.getResult() + "] while writing service account [" + accountId + "]"
                                 );
                             };
                             invalidateAccountCacheClusterWide(accountId.asPrincipal(), listener.map(ignore -> result));
-                        }, listener::onFailure))
+                        }, listener::onFailure)
                     )
                 );
         } catch (IOException e) {
@@ -419,7 +532,11 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     @Nullable
-    private static ValidationException validatePutRequest(ServiceAccountId accountId, @Nullable List<String> roles) {
+    private static ValidationException validatePutRequest(
+        ServiceAccountId accountId,
+        @Nullable List<String> roles,
+        @Nullable String description
+    ) {
         final ValidationException validationException = new ValidationException();
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateNamespace(accountId.namespace()));
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateServiceName(accountId.serviceName()));
@@ -429,6 +546,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
             addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(description));
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }
 
@@ -446,15 +564,85 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         return roles.stream().distinct().sorted().toList();
     }
 
-    private XContentBuilder newAccountDocument(ServiceAccountId accountId, List<String> roles, boolean enabled) throws IOException {
-        return XContentFactory.jsonBuilder()
+    /**
+     * The whole document, for when the account does not exist yet. The description is left out rather than written
+     * as {@code null}, so that an account without one looks the same as one written before the field existed. The
+     * caller is recorded as the creator; there is no updater until the account is replaced.
+     */
+    private static XContentBuilder newAccountDocument(
+        ServiceAccountId accountId,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable ServiceAccountAuthor createdBy,
+        Instant now
+    ) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .field("doc_type", SERVICE_ACCOUNT_DOC_TYPE)
             .field("version", UserManagedServiceAccount.Version.CURRENT.id())
             .field("username", accountId.asPrincipal())
             .field("roles", roles)
+            .field("enabled", enabled);
+        if (description != null) {
+            builder.field("description", description);
+        }
+        if (createdBy != null) {
+            addAuthor(builder, "creator", createdBy);
+            builder.field("creation_time", now.toEpochMilli());
+        }
+        return builder.endObject();
+    }
+
+    /**
+     * The fields a write changes, for when the account already exists. Merged into the stored document, so the
+     * description is written as an explicit {@code null} when there is none: left out, the old one would survive.
+     * The caller is recorded as the updater; the creator is not touched.
+     */
+    private static XContentBuilder accountChanges(
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable ServiceAccountAuthor updatedBy,
+        Instant now
+    ) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("version", UserManagedServiceAccount.Version.CURRENT.id())
+            .field("roles", roles)
             .field("enabled", enabled)
-            .endObject();
+            .field("description", description);
+        if (updatedBy != null) {
+            addAuthor(builder, "updated_by", updatedBy);
+            builder.field("update_time", now.toEpochMilli());
+        }
+        return builder.endObject();
+    }
+
+    /**
+     * Writes every field of the author, the absent ones as explicit {@code null}s. An update merges objects field
+     * by field, so leaving a field out would keep whatever the previous updater had there. The realm domain is written
+     * whole, matching the {@code creator} mapping that API keys established. The user's metadata is deliberately not
+     * recorded.
+     */
+    private static void addAuthor(XContentBuilder builder, String fieldName, ServiceAccountAuthor author) throws IOException {
+        builder.startObject(fieldName)
+            .field(AUTHOR_PRINCIPAL_FIELD, author.username())
+            .field(ServiceAccountAuthor.FULL_NAME_FIELD, author.fullName())
+            .field(ServiceAccountAuthor.EMAIL_FIELD, author.email())
+            .field(ServiceAccountAuthor.REALM_FIELD, author.realm())
+            .field(ServiceAccountAuthor.REALM_TYPE_FIELD, author.realmType())
+            .field(ServiceAccountAuthor.REALM_DOMAIN_FIELD, author.realmDomain());
+        if (author.apiKey() == null) {
+            builder.nullField(ServiceAccountAuthor.API_KEY_FIELD);
+        } else {
+            // Unlike the response, the stored object must clear an absent name from the previous updater's key.
+            builder.startObject(ServiceAccountAuthor.API_KEY_FIELD)
+                .field(ServiceAccountAuthor.ApiKey.ID_FIELD, author.apiKey().id())
+                .field(ServiceAccountAuthor.ApiKey.NAME_FIELD, author.apiKey().name())
+                .endObject();
+        }
+        builder.endObject();
     }
 
     /**
@@ -482,11 +670,118 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         if (roles == null) {
             return null;
         }
+        // Absent in documents written before the field existed, and for accounts written without one since.
+        final Object descriptionValue = source.get("description");
+        if (descriptionValue != null && descriptionValue instanceof String == false) {
+            logger.warn("service account document [{}] has an invalid [description] field", expectedPrincipal);
+            return null;
+        }
         if (source.get("enabled") instanceof Boolean enabled) {
-            return new UserManagedServiceAccount(ServiceAccountId.fromPrincipal(expectedPrincipal), roles, enabled);
+            // Each attribution field is absent in documents written before they were recorded, and the updater and
+            // its timestamp in every document until the account is first replaced.
+            try {
+                return new UserManagedServiceAccount(
+                    ServiceAccountId.fromPrincipal(expectedPrincipal),
+                    roles,
+                    enabled,
+                    (String) descriptionValue,
+                    parseAuthor(source.get("creator"), "creator"),
+                    parseTimestamp(source.get("creation_time"), "creation_time"),
+                    parseAuthor(source.get("updated_by"), "updated_by"),
+                    parseTimestamp(source.get("update_time"), "update_time")
+                );
+            } catch (IllegalArgumentException e) {
+                logger.warn(() -> Strings.format("service account document [%s] %s", expectedPrincipal, e.getMessage()), e);
+                return null;
+            }
         }
         logger.warn("service account document [{}] has an invalid [enabled] field", expectedPrincipal);
         return null;
+    }
+
+    @Nullable
+    private static Instant parseTimestamp(@Nullable Object value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number millis) {
+            return Instant.ofEpochMilli(millis.longValue());
+        }
+        throw new IllegalArgumentException("has an invalid [" + fieldName + "] field");
+    }
+
+    /**
+     * Reads a stored author. Fields the writer had no value for are stored as explicit {@code null}s, so those are
+     * accepted where the author allows them and refused where it does not.
+     */
+    @Nullable
+    private static ServiceAccountAuthor parseAuthor(@Nullable Object value, String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            try {
+                return new ServiceAccountAuthor(
+                    requiredString(map, AUTHOR_PRINCIPAL_FIELD),
+                    optionalString(map, ServiceAccountAuthor.FULL_NAME_FIELD),
+                    optionalString(map, ServiceAccountAuthor.EMAIL_FIELD),
+                    requiredString(map, ServiceAccountAuthor.REALM_FIELD),
+                    requiredString(map, ServiceAccountAuthor.REALM_TYPE_FIELD),
+                    parseRealmDomain(map.get(ServiceAccountAuthor.REALM_DOMAIN_FIELD)),
+                    parseApiKey(map.get(ServiceAccountAuthor.API_KEY_FIELD))
+                );
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("has an invalid [" + fieldName + "] field: " + e.getMessage(), e);
+            }
+        }
+        throw new IllegalArgumentException("has an invalid [" + fieldName + "] field");
+    }
+
+    private static String requiredString(Map<?, ?> map, String key) {
+        if (map.get(key) instanceof String string) {
+            return string;
+        }
+        throw new IllegalArgumentException("[" + key + "] is missing or not a string");
+    }
+
+    @Nullable
+    private static String optionalString(Map<?, ?> map, String key) {
+        final Object value = map.get(key);
+        if (value == null || value instanceof String) {
+            return (String) value;
+        }
+        throw new IllegalArgumentException("[" + key + "] is not a string");
+    }
+
+    @Nullable
+    private static ServiceAccountAuthor.ApiKey parseApiKey(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            return new ServiceAccountAuthor.ApiKey(
+                requiredString(map, ServiceAccountAuthor.ApiKey.ID_FIELD),
+                optionalString(map, ServiceAccountAuthor.ApiKey.NAME_FIELD)
+            );
+        }
+        throw new IllegalArgumentException("[" + ServiceAccountAuthor.API_KEY_FIELD + "] is not an object");
+    }
+
+    @Nullable
+    private static RealmDomain parseRealmDomain(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            @SuppressWarnings("unchecked")
+            final Map<String, ?> domainMap = (Map<String, ?>) map;
+            try (XContentParser parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, domainMap)) {
+                return RealmDomain.fromXContent(parser);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("[" + ServiceAccountAuthor.REALM_DOMAIN_FIELD + "] could not be parsed", e);
+            }
+        }
+        throw new IllegalArgumentException("[" + ServiceAccountAuthor.REALM_DOMAIN_FIELD + "] is not an object");
     }
 
     /**

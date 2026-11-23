@@ -77,7 +77,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500) {
             return handle500Error(outboundRequest, result);
         } else if (statusCode == 503) {
@@ -122,7 +122,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     public static boolean isContentTooLarge(HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
 
         if (statusCode == 413) {
             return true;

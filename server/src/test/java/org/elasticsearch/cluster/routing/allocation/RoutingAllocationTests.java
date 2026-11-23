@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -84,6 +85,49 @@ public class RoutingAllocationTests extends ESTestCase {
             Map.of(new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true)),
             0.0
         );
+    }
+
+    public void testDecisionPopulatesLabelForInterestingDecisionsWhenNotDebugging() {
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            ClusterStateCreationUtils.state(randomIdentifier(), 1, 1)
+        ).build();
+        final var label = randomIdentifier();
+        for (Decision decision : new Decision[] { Decision.NO, Decision.NOT_PREFERRED }) {
+            final var result = (Decision.Single) routingAllocation.decision(decision, label, "reason [%s]", "param");
+            assertThat(result.type(), equalTo(decision.type()));
+            assertThat(result.label(), equalTo(label));
+            assertNull(result.getExplanation());
+            assertSame(result, routingAllocation.decision(decision, label, "reason [%s]", "param"));
+        }
+    }
+
+    public void testDecisionIsNotLabelledWhenPreservationDisabled() {
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            ClusterStateCreationUtils.state(randomIdentifier(), 1, 1)
+        ).preserveDecisionLabels(false).build();
+        for (Decision decision : new Decision[] { Decision.NO, Decision.NOT_PREFERRED }) {
+            assertSame(decision, routingAllocation.decision(decision, randomIdentifier(), "reason"));
+        }
+    }
+
+    public void testDecisionDoesNotLabelUninterestingDecisionsWhenNotDebugging() {
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            ClusterStateCreationUtils.state(randomIdentifier(), 1, 1)
+        ).build();
+        assertSame(Decision.YES, routingAllocation.decision(Decision.YES, randomIdentifier(), "reason"));
+        assertSame(Decision.THROTTLE, routingAllocation.decision(Decision.THROTTLE, randomIdentifier(), "reason"));
+    }
+
+    public void testDecisionBypassesCacheWhenDebugging() {
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            ClusterStateCreationUtils.state(randomIdentifier(), 1, 1)
+        ).build();
+        routingAllocation.debugDecision(true);
+        final var label = randomIdentifier();
+        final var result = (Decision.Single) routingAllocation.decision(Decision.NO, label, "reason [%s]", "param");
+        assertThat(result.label(), equalTo(label));
+        assertThat(result.getExplanation(), equalTo("reason [param]"));
+        assertNotSame(result, routingAllocation.decision(Decision.NO, label, "reason [%s]", "param"));
     }
 
     private void expectMaxShardWriteLoadProportion(ClusterState clusterState, Map<ShardId, Double> clusterInfoWriteLoads, double expected) {

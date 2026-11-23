@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,6 +77,10 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> TIME_SERIES_SINGLE_PASS = Setting.boolSetting("time_series_single_pass", true);
+
+    public static final Setting<Boolean> TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting("time_series_reduce_per_index", false);
+
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
@@ -126,6 +131,70 @@ public final class QueryPragmas implements Writeable {
      * This applies to forks and subqueries.
      */
     public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
+
+    /**
+     * Cap on how many leaf branches an independently executed query may use. The main query and each {@code IN} subquery are checked
+     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many
+     * run at once, this limits how many there are in total.
+     * <p>
+     * Each leaf becomes a data node query (or a coordinator-local source). Nested {@code UnionAll}s are merge segments, not leaves, they
+     * are bounded separately by {@link #MAX_BRANCH_LEVEL}. View compaction also uses this as the flatten budget: nested view unions are
+     * lifted into one merge only when the flat width is within this cap.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
+
+    /**
+     * Cap on how many commands a statement may have, counting the main query and all its subqueries together. The parser enforces it.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_COMMAND_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     * <p>
+     * The main pipeline is also bounded by {@code LogicalPlanBuilder#MAX_QUERY_DEPTH} (500), a fixed recursion guard in the parser, so
+     * values above 500 only apply to subqueries and expanded views.
+     */
+    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 1);
+
+    /**
+     * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
+     * checks use this as the hard ceiling.
+     */
+    public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
+
+    /**
+     * Fixed ceiling on the leaf branches of a parsed plan, so that nested FORKs cannot blow up the plan before analysis. It is well above
+     * the default {@link #MAX_BRANCH_COUNT}, which is enforced after the logical optimizer prunes empty branches. A configured
+     * {@code max_branch_count} above this value has no effect on queries that exceed it at parse time.
+     */
+    public static final int MAX_PARSED_BRANCH_COUNT = 128;
+
+    /**
+     * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
+     * chain.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE} supplies the cap. An explicit value overrides the
+     * cluster setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_COUNT_PER_MERGE = Setting.intSetting(
+        "max_branch_count_per_merge",
+        8,
+        1,
+        MAX_BRANCH_COUNT_PER_MERGE_MAX
+    );
+
+    /**
+     * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
+     * are checked separately because each runs through the compute service independently. Where {@link #MAX_BRANCH_COUNT} limits how many
+     * branches there are in total, this limits how deeply those unions nest: each nested union becomes a coordinator merge segment that is
+     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying
+     * under {@link #MAX_BRANCH_COUNT}.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_BRANCH_LEVEL} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_BRANCH_LEVEL = Setting.intSetting("max_branch_level", 5, 1);
 
     /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
@@ -193,9 +262,10 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
     /**
-     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
+     * Turns the fetch phase on or off for one query. A build without the fetch phase ignores it. Without the pragma the
+     * fetch phase stays off.
      */
-    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
+    public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -217,15 +287,20 @@ public final class QueryPragmas implements Writeable {
         EXTERNAL_DISTRIBUTION,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
+        MAX_BRANCH_COUNT,
+        MAX_COMMAND_COUNT,
+        MAX_BRANCH_COUNT_PER_MERGE,
+        MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        KNN_RUNTIME_FIELD,
-        SINGLE_NODE_OPTIMIZATIONS
-
+        SINGLE_NODE_OPTIMIZATIONS,
+        TIME_SERIES_SINGLE_PASS,
+        TIME_SERIES_REDUCE_PER_INDEX,
+        FETCH_PHASE
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -330,6 +405,20 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Returns true if time-series single pass aggregation can be enabled when possible
+     */
+    public boolean timeSeriesSinglePass() {
+        return TIME_SERIES_SINGLE_PASS.get(settings);
+    }
+
+    /**
+     * Returns the query-level value when explicitly configured, or the cluster-level value otherwise.
+     */
+    public boolean timeSeriesReducePerIndex(boolean clusterDefault) {
+        return settings.hasValue(TIME_SERIES_REDUCE_PER_INDEX.getKey()) ? TIME_SERIES_REDUCE_PER_INDEX.get(settings) : clusterDefault;
+    }
+
+    /**
      * Disable or enable the single node optimizations in case the query executes against a single node
      */
     public boolean singleNodeOptimizations() {
@@ -386,6 +475,70 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Effective leaf-branch cap: an explicit {@link #MAX_BRANCH_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchCount(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey()) ? MAX_BRANCH_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Effective statement size cap: an explicit {@link #MAX_COMMAND_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxCommandCount(int clusterDefault) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxCommandCount(int)}, used in verification messages.
+     */
+    public String maxCommandCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey())
+            ? "[" + MAX_COMMAND_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchCount(int)}, used in verification messages.
+     */
+    public String maxBranchCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_COUNT.getKey())
+            ? "[" + MAX_BRANCH_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Effective per-merge width cap: an explicit {@link #MAX_BRANCH_COUNT_PER_MERGE} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchCountPerMerge(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_COUNT_PER_MERGE.getKey()) ? MAX_BRANCH_COUNT_PER_MERGE.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchCountPerMerge(int)}, used in verification messages.
+     */
+    public String maxBranchCountPerMergeLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_COUNT_PER_MERGE.getKey())
+            ? "[" + MAX_BRANCH_COUNT_PER_MERGE.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
+     * Effective nesting-level cap: an explicit {@link #MAX_BRANCH_LEVEL} pragma overrides {@code clusterDefault}.
+     */
+    public int maxBranchLevel(int clusterDefault) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey()) ? MAX_BRANCH_LEVEL.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxBranchLevel(int)}, used in verification messages.
+     */
+    public String maxBranchLevelLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_BRANCH_LEVEL.getKey())
+            ? "[" + MAX_BRANCH_LEVEL.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
+    }
+
+    /**
      * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
      * {@code true}, returns {@code 0} so that all non-single-segment pages use
      * {@code ValuesFromDocSequence}; otherwise returns {@code clusterDefault}.
@@ -424,6 +577,15 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public ByteSizeValue aggregationPartitioningMemoryThreshold(ByteSizeValue defaultThreshold) {
+        final String key = PlannerSettings.AGG_PARTITIONING_MEMORY_THRESHOLD.getKey();
+        if (settings.hasValue(key)) {
+            // allow smaller value for the threshold in tests than the min setting in the production
+            return ByteSizeValue.parseBytesSizeValue(settings.get(key), key);
+        }
+        return defaultThreshold;
+    }
+
     public int timeSeriesTargetChunkRows(int defaultChunkRows) {
         if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
             return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);
@@ -448,10 +610,11 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
-     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it.
      */
-    public boolean knnRuntimeField() {
-        return KNN_RUNTIME_FIELD.get(settings);
+    @Nullable
+    public Boolean fetchPhase() {
+        return settings.hasValue(FETCH_PHASE.getKey()) ? FETCH_PHASE.get(settings) : null;
     }
 
     public boolean isEmpty() {

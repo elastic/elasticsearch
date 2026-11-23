@@ -11,6 +11,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -43,6 +44,11 @@ public class StorageProviderCacheTests extends ESTestCase {
      * Used to verify that true eviction / invalidate triggers close().
      */
     static class TrackingProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         final AtomicInteger closeCalls = new AtomicInteger();
 
         @Override
@@ -215,7 +221,10 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache cache = new StorageProviderCache();
         StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("access_key", "ak"));
 
-        Configured<StorageProvider> first = cache.getOrCreate(key, () -> new Configured<>(new TrackingProvider(), Set.of("access_key")));
+        Configured<StorageProvider> first = cache.getOrCreate(
+            key,
+            () -> new Configured<>(new TrackingProvider(), Set.of("access_key"), "", "")
+        );
         Configured<StorageProvider> second = cache.getOrCreate(
             key,
             () -> { throw new AssertionError("supplier must not be re-invoked on hit"); }

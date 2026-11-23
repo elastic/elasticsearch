@@ -35,7 +35,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `double_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
 * `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
-* `flattened` {applies_to}`stack: preview 9.5.0`
+* `flattened` {applies_to}`stack: preview 9.5.0, ga 9.6.0`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -156,6 +156,8 @@ Runtime fields are different from unmapped fields. An unmapped field is a field 
 
 ## Full-text search [esql-limitations-full-text-search]
 
+### Position restriction on indexed fields [esql-limitations-full-text-search-position]
+
 One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
 like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
@@ -197,32 +199,82 @@ and the `:` operator. Other search functions, such as
 still not supported after `INLINE STATS`. A `STATS` command before the search function still
 causes the query to fail, even if an `INLINE STATS` comes after it.
 
-{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
-This restriction does not apply when `MATCH` targets an expression rather
-than an indexed field (for example, a column produced by `EVAL` or `STATS`).
-In that case, `MATCH` evaluates by scanning values row by row instead of
-using the index, and can appear anywhere in the query.
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+This restriction only applies to searches on indexed fields. A search on an expression, such as a
+column computed by `EVAL`, is a [runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-position),
+which can appear anywhere in the query.
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
-supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
+### Runtime search [esql-limitations-full-text-search-runtime]
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
-option applies to the query string only: how the expression's values are analyzed is declared where
-the column is created, through
-[`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md)'s
-`analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
-declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
-per-index custom analyzer. On other expression types options are not supported.
+[Runtime search](/reference/query-languages/esql/esql-runtime-search.md) lets these functions search expressions and
+other values that have no index behind them, such as a column computed by `EVAL`:
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
-a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
-(duplicate query terms each contribute separately), rather than BM25, as there are no index
-statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
-to the score.
+* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH` and the `:` operator
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+  [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on `dense_vector` expressions
+
+Runtime search has these limitations:
+
+* It is usually slower than a search on an indexed field, because it analyzes every row that
+  reaches it. Refer to [Performance](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-performance).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Relevance scores are not BM25, because there are no
+  index statistics for an expression. Refer to
+  [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The same query can see a different `_score` depending on
+  whether a search runs at runtime, because a runtime search only adds its score once it runs. For details, refer to
+  [When a runtime search score is visible](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring-visibility)
+  and [this `_score` issue](https://github.com/elastic/elasticsearch/issues/160809).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A runtime search after a
+  [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
+  [subqueries](/reference/query-languages/esql/esql-subquery.md) filters rows, but doesn't contribute to
+  `_score` unless it can be pushed into the branches
+  ([#161746](https://github.com/elastic/elasticsearch/issues/161746)).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The `analyzer` options of `TO_TEXT`, `MATCH` and
+  `MATCH_PHRASE` only accept built-in analyzers and analyzers provided by plugins, not custom analyzers defined in
+  an index's settings. Refer to
+  [Analyzers](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` On expressions that are not `text`, `MATCH` only
+  supports the `lenient` option, and `MATCH_PHRASE` supports no options. Refer to
+  [Options](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-options).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The
+  [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries)
+  setting doesn't apply, so options such as `fuzziness` run even when it is `false`
+  ([#162256](https://github.com/elastic/elasticsearch/issues/162256)).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A mapped `text` field in the output of a `FORK` whose
+  branches contain a command such as `LIMIT` or `STATS`, can't be searched directly. Declare an analyzer for it
+  with `TO_TEXT`, or search it inside the branches. Refer to
+  [Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
+* [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) and
+  [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) don't support
+  runtime search.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+  [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on a `dense_vector`
+  expression needs a later `LIMIT` to set the number of nearest neighbors to find. In 9.6.0, a `LIMIT` after
+  `STATS` doesn't count, so add a `LIMIT` before `STATS`. Refer to
+  [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
+
+:::{warning}
+An indexed `text` field searched at runtime, for example after
+[`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md), is silently analyzed with the `standard`
+analyzer instead of the analyzer in its mapping. Refer to
+[Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
+:::
+
+### `KNN` on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
+
+{applies_to}`stack: preview 9.6+`
+`KNN` on a `dense_vector` expression requires every participating node to run version 9.6 or later.
+During a rolling upgrade, or when a remote cluster in a cross-cluster search (CCS) runs an earlier version,
+the coordinating node rejects the query before it runs with this error:
+
+```text
+KNN over a non-index-mapped field or expression is not supported on every participating node; rolling upgrade in progress, or a remote cluster is on an older version
+```
+
+Upgrade all nodes and remote clusters before you run queries that use `KNN` on an expression.
+
+### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
 
 Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
@@ -299,11 +351,6 @@ Work around this limitation by converting the field to single value with one of 
 [multivalue functions](/reference/query-languages/esql/functions-operators/mv-functions.md).
 
 
-## Timezone support [esql-limitations-timezone]
-
-{{esql}} only supports the UTC timezone.
-
-
 ## INLINE STATS limitations [esql-limitations-inlinestats]
 
 [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
@@ -317,8 +364,8 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 [views](/reference/query-languages/esql/esql-views.md) are closely related,
 since both extend the
 [`FROM`](/reference/query-languages/esql/commands/from.md) command with
-branched query plans. They share the overall branching constraints but each
-has its own additional limitations, described in turn below.
+branched query plans. Their nesting and branching support varies by version,
+and each has additional limitations described in turn below.
 
 ### Subquery limitations [esql-limitations-subquery]
 
@@ -328,21 +375,27 @@ has its own additional limitations, described in turn below.
 ### View limitations [esql-limitations-views]
 
 [Views](/reference/query-languages/esql/esql-views.md) reuse the same
-branching model as subqueries, nested branching is generally not supported, but
-views can work around this limitation via
+branching model as subqueries. The following limitations include the
+version-specific rules for nested branching and
 [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
-Beyond that, views have a few additional restrictions of their own, listed next.
 
 :::{include} _snippets/common/view_limitations.md
 :::
 
+## Data Federation limitations [esql-limitations-data-federation]
+```{applies_to}
+stack: preview 9.6+, experimental =9.5
+serverless: preview
+```
+
+[Datasets](/reference/query-languages/esql/esql-data-federation-datasets.md) created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) don't support every operation that works on an {{es}} index. For example, a dataset can't be the lookup target of `LOOKUP JOIN` or the source of `TS`. For the full list, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#limitations).
 
 ## Kibana limitations [esql-limitations-kibana]
 
-* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/try-esql.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
+* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/esql-variable-controls.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
-* Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
-* CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
+* When a query uses `KEEP`, `STATS`, or `PROMQL` and returns more than 50 columns, Discover shows the first 50 columns by default. To choose which columns appear, refer to [Show specific columns in the results table](docs-content://explore-analyze/discover/esql-results.md#esql-kibana-results-table).
+* CSV export from Discover stops at a row limit that depends on your version and deployment, or at a file size limit, whichever comes first. Queries and aggregations still run on the full data set. To find the limits, refer to [Export Discover session results as CSV](docs-content://explore-analyze/discover/export-discover-session.md#export-discover-session-csv).
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
 
 ## Known issues [esql-known-issues]

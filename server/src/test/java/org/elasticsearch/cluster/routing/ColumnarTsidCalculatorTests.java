@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
@@ -67,7 +68,7 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
 
         // Columnar path
         EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON);
-        BytesRef[] actual = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.creationVersion);
+        BytesRef[] actual = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.tsidLayout);
 
         assertThat("result length", actual.length, equalTo(sources.size()));
         for (int i = 0; i < sources.size(); i++) {
@@ -240,7 +241,7 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             ba = BytesReference.bytes(b);
         }
         EscfBatch batch = EscfEncoder.encode(List.of(ab, ba), XContentType.JSON);
-        BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.creationVersion);
+        BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.tsidLayout);
         assertThat("array order must affect tsid", tsids[0].equals(tsids[1]), equalTo(false));
         // And each individually matches the reference.
         assertThat(tsids[0], equalTo(strategy.buildTsid(XContentType.JSON, ab)));
@@ -302,7 +303,7 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             sources.add(src);
         }
         EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON);
-        BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.creationVersion);
+        BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.tsidLayout);
         BytesRef first = tsids[0];
         for (int i = 1; i < n; i++) {
             assertThat("all identical rows must have equal tsid", tsids[i], equalTo(first));
@@ -316,7 +317,7 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON);
         expectThrows(
             IllegalArgumentException.class,
-            () -> ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.creationVersion)
+            () -> ColumnarTsidCalculator.computeTsids(batch, strategy::matchesField, strategy.tsidLayout)
         );
     }
 
@@ -325,7 +326,8 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         // and single-byte-prefix (post-feature-flag) layouts.
         for (IndexVersion version : List.of(
             IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH)
         )) {
             Settings settings = Settings.builder()
                 .put(SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -391,33 +393,120 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
     }
 
     private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(IndexVersion version, String... dimensionPaths) {
-        Settings settings = Settings.builder()
+        return forIndexDimensions(version, null, dimensionPaths);
+    }
+
+    /**
+     * @param prefixedDimensions the {@link IndexSettings#TIME_SERIES_TSID_PREFIXED_DIMENSIONS} value, or null to leave the default
+     */
+    private static IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions(
+        IndexVersion version,
+        @Nullable List<String> prefixedDimensions,
+        String... dimensionPaths
+    ) {
+        Settings.Builder settings = Settings.builder()
             .put(SETTING_INDEX_VERSION_CREATED.getKey(), version)
             .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensionPaths)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .build();
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+        if (prefixedDimensions != null) {
+            settings.putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), prefixedDimensions);
+        }
         IndexMetadata md = IndexMetadata.builder("test").settings(settings).numberOfShards(8).numberOfReplicas(0).build();
         return (IndexRouting.ExtractFromSource.ForIndexDimensions) IndexRouting.fromIndexMetadata(md);
     }
 
+    /**
+     * Parity under every layout: the legacy multi-byte prefix, the single prefix byte alone, and the single prefix byte with
+     * the prefixed-dimensions hash disabled by the default empty setting, over the OTel pattern, over a custom pattern, and
+     * over exact paths.
+     */
     private static void assertParityForBothLayouts(List<BytesReference> sources, String... dimensionPaths) throws IOException {
-        List<IndexVersion> versions = List.of(
-            IndexVersionUtils.randomVersionBetween(
-                IndexVersions.TSID_CREATED_DURING_ROUTING,
-                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
-            ),
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE)
+        IndexVersion multiBytePrefixVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TSID_CREATED_DURING_ROUTING,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
         );
-        boolean sawSingleByte = false;
-        boolean sawMultiByte = false;
-        for (IndexVersion version : versions) {
-            boolean singleByte = TsidBuilder.useSingleBytePrefixLayout(version);
-            sawSingleByte |= singleByte;
-            sawMultiByte |= singleByte == false;
-            assertColumnarMatchesSourceParser(sources, forIndexDimensions(version, dimensionPaths));
+        IndexVersion singleBytePrefixVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TSID_SINGLE_PREFIX_BYTE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH)
+        );
+        IndexVersion prefixedDimensionsHashVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_PREFIXED_DIMENSIONS_HASH);
+        List<IndexRouting.ExtractFromSource.ForIndexDimensions> strategies = List.of(
+            forIndexDimensions(multiBytePrefixVersion, dimensionPaths),
+            forIndexDimensions(singleBytePrefixVersion, dimensionPaths),
+            forIndexDimensions(prefixedDimensionsHashVersion, dimensionPaths),
+            forIndexDimensions(prefixedDimensionsHashVersion, OTEL_PREFIXED_DIMENSIONS, dimensionPaths),
+            forIndexDimensions(prefixedDimensionsHashVersion, CUSTOM_PREFIXED_DIMENSIONS, dimensionPaths),
+            forIndexDimensions(prefixedDimensionsHashVersion, EXACT_PREFIXED_DIMENSIONS, dimensionPaths)
+        );
+        assertFalse(strategies.get(0).tsidLayout.singleBytePrefix());
+        assertTrue(strategies.get(1).tsidLayout.singleBytePrefix());
+        assertNull(strategies.get(1).tsidLayout.prefixedDimensionMatcher());
+        assertNull(strategies.get(2).tsidLayout.prefixedDimensionMatcher());
+        assertThat(strategies.get(3).tsidLayout.prefixedDimensions(), equalTo(OTEL_PREFIXED_DIMENSIONS));
+        assertThat(strategies.get(4).tsidLayout.prefixedDimensions(), equalTo(CUSTOM_PREFIXED_DIMENSIONS));
+        assertThat(strategies.get(5).tsidLayout.prefixedDimensions(), equalTo(EXACT_PREFIXED_DIMENSIONS));
+        for (IndexRouting.ExtractFromSource.ForIndexDimensions strategy : strategies) {
+            assertColumnarMatchesSourceParser(sources, strategy);
         }
-        assertTrue("expected to cover the single-byte-prefix layout", sawSingleByte);
-        assertTrue("expected to cover the multi-byte-prefix layout", sawMultiByte);
+    }
+
+    /** The value the OTel metrics templates use. */
+    private static final List<String> OTEL_PREFIXED_DIMENSIONS = List.of("resource.attributes.*");
+
+    /** A pattern that matches some of the {@code dim.*} paths these tests use, unlike the OTel one. */
+    private static final List<String> CUSTOM_PREFIXED_DIMENSIONS = List.of("dim.resource.*");
+
+    /** Exact paths, as the Prometheus templates use; they match some of the {@code dim.*} paths these tests use. */
+    private static final List<String> EXACT_PREFIXED_DIMENSIONS = List.of("dim.resource.host", "dim.resource.str", "dim.host");
+
+    /** Dimensions matching the OTel pattern, with and without the OTel metric field claiming the prefix byte. */
+    public void testPrefixedDimensionsParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of("resource.attributes.host.name", "h1", "resource.attributes.service.name", "s1", "dim.host", "n1")),
+            toJson(Map.of(TsidBuilder.OTEL_METRIC_FIELD, "abc", "resource.attributes.host.name", "h2", "dim.host", "n2")),
+            toJson(Map.of("resource", Map.of("attributes", Map.of("host.name", "h3")), "dim.host", "n3"))
+        );
+        assertParityForBothLayouts(sources, "resource.attributes.*", TsidBuilder.OTEL_METRIC_FIELD, "dim.*");
+    }
+
+    /** Dimensions matching the custom and exact patterns only, so the OTel layout leaves the full hash in place. */
+    public void testCustomPrefixedDimensionsParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of("dim.resource.host", "h1", "dim.resource.region", "us", "dim.host", "n1")),
+            toJson(Map.of("dim.resource.host", "h2", "dim.host", "n2")),
+            toJson(Map.of("dim.host", "n3"))
+        );
+        assertParityForBothLayouts(sources, "dim.*");
+    }
+
+    /** Array-valued and non-string prefixed dimensions fold every value, like the full hash. */
+    public void testPrefixedDimensionsValueTypesParity() throws IOException {
+        List<BytesReference> sources = new ArrayList<>();
+        for (int row = 0; row < 3; row++) {
+            try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                b.startObject();
+                b.field("dim.resource.str", "v" + row);
+                b.field("dim.resource.long", 1_000_000_000L + row);
+                b.field("dim.resource.dbl", 0.1 + row);
+                b.field("dim.resource.bool", row % 2 == 0);
+                b.array("dim.resource.arr", "a" + row, "b" + row);
+                b.field("dim.host", "n" + row);
+                b.endObject();
+                sources.add(BytesReference.bytes(b));
+            }
+        }
+        assertParityForBothLayouts(sources, "dim.*");
+    }
+
+    /** A sparse batch where only some rows carry prefixed dimensions, so both prefixed-bytes sources appear in one batch. */
+    public void testPrefixedDimensionsOnSomeRowsParity() throws IOException {
+        List<BytesReference> sources = List.of(
+            toJson(Map.of("dim.resource.host", "h1", "dim.host", "n1")),
+            toJson(Map.of("dim.host", "n2", "dim.region", "us")),
+            toJson(Map.of("dim.resource.host", "h3", "dim.resource.region", "eu", "dim.host", "n3")),
+            toJson(Map.of("dim.host", "n4"))
+        );
+        assertParityForBothLayouts(sources, "dim.*");
     }
 
     /**

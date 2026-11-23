@@ -91,6 +91,11 @@
         "type": "boolean",
         "default": true,
         "description": "Whether to run the overwrite protection check. Defaults to 'true'."
+      },
+      "check_deprecations": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to fail the analysis if the repository uses critically deprecated functionality. Defaults to 'true'."
       }
     }
   }

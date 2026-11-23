@@ -202,3 +202,34 @@
           \n
         )+
         $/
+
+---
+"Test cat recovery includes gate and blocked duration":
+  - requires:
+      cluster_features: ["indices.recovery.cat_recovery_gate"]
+      reason: asserts that response includes recovery gate and blocked duration
+
+  - do:
+      indices.create:
+        index: index5
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: index5
+        wait_for_status: green
+
+  - do:
+      cat.recovery:
+        index: index5
+        h: index,gate,blocked_for_millis
+        format: json
+
+  - length: { $body: 1 }
+  - match: { 0.index: index5 }
+  - match: { 0.gate: "n/a" }
+  - match: { 0.blocked_for_millis: "n/a" }

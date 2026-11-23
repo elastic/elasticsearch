@@ -1,0 +1,4 @@
+FROM (FROM (FROM colors | LIMIT 5),
+           (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | LIMIT 7) METADATA _score),
+     (FROM colors) METADATA _score
+| LIMIT 5

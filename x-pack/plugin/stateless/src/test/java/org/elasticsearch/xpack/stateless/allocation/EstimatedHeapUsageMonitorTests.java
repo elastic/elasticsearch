@@ -37,7 +37,7 @@ import java.util.stream.IntStream;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
+@TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor:TRACE", reason = "trace log for test")
 public class EstimatedHeapUsageMonitorTests extends ESTestCase {
 
     private long totalBytesPerNode;
@@ -62,7 +62,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to global block",
                     EstimatedHeapUsageMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "skipping monitor as the cluster state is not recovered yet"
                 )
             );
@@ -79,7 +79,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "don't reroute due to threshold disabled",
                     EstimatedHeapUsageMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     "skipping monitor as the estimated heap usage threshold is disabled"
                 )
             );
@@ -249,7 +249,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                             return new NodeHeapMetrics(
                                 nodeHeapMetrics.nodeId(),
                                 nodeHeapMetrics.totalBytes(),
-                                validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage) / 100)
+                                validHeapEstimate(nodeHeapMetrics.totalBytes() * between(0, lowWatermarkPercentage - 1) / 100)
                             );
                         } else {
                             return nodeHeapMetrics;
@@ -268,9 +268,9 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             .nodeHeapMetrics(
                 Map.of(
                     "node-a",
-                    new NodeHeapMetrics("node-a", 1_000L, new NodeHeapEstimates(200L, 0L)),
+                    new NodeHeapMetrics("node-a", 1_000L, new NodeHeapEstimates(200L, 0L, randomNonNegativeLong())),
                     "node-b",
-                    new NodeHeapMetrics("node-b", 2_000L, new NodeHeapEstimates(1_000L, 0L))
+                    new NodeHeapMetrics("node-b", 2_000L, new NodeHeapEstimates(1_000L, 0L, randomNonNegativeLong()))
                 )
             )
             .build();
@@ -325,7 +325,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     }
 
     private ClusterInfo createClusterInfo(int lowWatermarkPercentage, int numNodesAboveLowWatermark) {
-        assert lowWatermarkPercentage >= 0 && lowWatermarkPercentage < 100 : lowWatermarkPercentage;
+        assert lowWatermarkPercentage > 0 && lowWatermarkPercentage < 100 : lowWatermarkPercentage;
         final Map<String, NodeHeapMetrics> nodeHeapMetrics = new HashMap<>();
         final var nodeIdsAboveLowWatermark = randNodeIds(numNodesAboveLowWatermark);
         nodeIdsAboveLowWatermark.forEach(nodeId -> {
@@ -346,7 +346,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                     new NodeHeapMetrics(
                         nodeId,
                         totalBytesPerNode,
-                        validHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage) / 100)
+                        validHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage - 1) / 100)
                     )
                 );
             });
@@ -364,6 +364,6 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
     }
 
     private NodeHeapEstimates validHeapEstimate(long totalHeapUsageBytes) {
-        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes));
+        return new NodeHeapEstimates(totalHeapUsageBytes, randomLongBetween(0, totalHeapUsageBytes), randomNonNegativeLong());
     }
 }

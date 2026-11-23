@@ -41,8 +41,20 @@ final class RecordBoundaryProbe {
 
     private RecordBoundaryProbe() {}
 
-    /** Message for the {@link TaskCancelledException} thrown when a probe observes the originating query cancelled. */
+    /**
+     * Cancel reason thrown when a probe observes cancellation during coordinator split discovery.
+     * {@link FileSplitProvider} uses this, and it is the default for the probe helpers that discovery
+     * calls. Read-time segmentation uses {@link #READ_CANCELLED_MESSAGE} instead: the same probe
+     * implementation runs in both phases, so the reason string has to come from the caller.
+     */
     static final String CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
+
+    /**
+     * Cancel reason thrown when a probe observes cancellation while a data node is segmenting a split
+     * it is about to parse. That walk is not split discovery; naming it as such made testers treat the
+     * reason as a phase signal it was not.
+     */
+    static final String READ_CANCELLED_MESSAGE = RecordSplitter.RECORD_WALK_CANCELLED_MESSAGE;
 
     /**
      * With more than this many bytes of a probe's window left to transfer, reconnecting on the next probe is
@@ -200,9 +212,25 @@ final class RecordBoundaryProbe {
         long windowBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
-        if (isCancelled.getAsBoolean()) {
-            throw new TaskCancelledException(CANCELLED_MESSAGE);
-        }
+        return probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, windowBytes, isCancelled, CANCELLED_MESSAGE);
+    }
+
+    /**
+     * As {@link #probeAt(RecordSplitter, StorageObject, long, long, long, int, long, BooleanSupplier)}, throwing
+     * {@code cancelledMessage} so the caller can name the phase that was cancelled.
+     */
+    static Outcome probeAt(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long pos,
+        long fileLength,
+        long minSegment,
+        int maxRecordBytes,
+        long windowBytes,
+        BooleanSupplier isCancelled,
+        String cancelledMessage
+    ) throws IOException {
+        throwIfCancelled(isCancelled, cancelledMessage);
         long window = probeWindow(pos, fileLength, maxRecordBytes, windowBytes);
         long skipped;
         InputStream stream = storageObject.newStream(pos, window);
@@ -210,9 +238,7 @@ final class RecordBoundaryProbe {
             skipped = splitter.findNextRecordBoundary(probe.forSplitter());
             // A query cancelled while this probe was scanning has no follow-up probe to hand the pooled
             // connection to, so there is nothing to buy by draining the rest of the window.
-            if (isCancelled.getAsBoolean()) {
-                throw new TaskCancelledException(CANCELLED_MESSAGE);
-            }
+            throwIfCancelled(isCancelled, cancelledMessage);
             if (probe.remaining() <= MAX_DRAIN_BYTES) {
                 probe.drain();
             }
@@ -300,7 +326,7 @@ final class RecordBoundaryProbe {
             if (drained) {
                 stream.close();
             } else {
-                storageObject.abortStream(stream);
+                stream.close();
             }
         }
     }
@@ -415,6 +441,7 @@ final class RecordBoundaryProbe {
      * cancel at all.
      *
      * @param strideBytes the grid the offsets sit on, i.e., how small a span the caller is asking for
+     * @param cancelledMessage reason string for a cancel observed during this walk; the caller names the phase
      */
     static List<Long> advancingBoundaries(
         RecordSplitter splitter,
@@ -423,7 +450,8 @@ final class RecordBoundaryProbe {
         long strideBytes,
         long minSegment,
         int maxRecordBytes,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        String cancelledMessage
     ) throws IOException {
         assert strideBytes > 0 : "stride must be positive, was " + strideBytes;
         List<Long> boundaries = new ArrayList<>();
@@ -431,7 +459,17 @@ final class RecordBoundaryProbe {
         long pos = strideBytes;
         while (pos < fileLength && fileLength - pos >= minSegment) {
             long window = probeWindow(pos, fileLength, maxRecordBytes, maxRecordBytes);
-            Outcome outcome = probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, maxRecordBytes, isCancelled);
+            Outcome outcome = probeAt(
+                splitter,
+                storageObject,
+                pos,
+                fileLength,
+                minSegment,
+                maxRecordBytes,
+                maxRecordBytes,
+                isCancelled,
+                cancelledMessage
+            );
             switch (outcome.kind()) {
                 case FOUND -> {
                     assert outcome.boundary() > boundaries.get(boundaries.size() - 1) : "record boundary must be strictly increasing";
@@ -471,7 +509,11 @@ final class RecordBoundaryProbe {
      * a list. Only a walk that stopped means the file is cut into fewer pieces than the stride asked for, which
      * is the case worth telling the user about.
      */
-    record ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile) {}
+    record ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile, int getsIssued) {
+        ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile) {
+            this(boundaries, stoppedBeforeEndOfFile, 0);
+        }
+    }
 
     /**
      * Boundaries for a splitter that cannot be probed at a fixed offset (quoted or escaped CSV/TSV) but can prove
@@ -487,13 +529,75 @@ final class RecordBoundaryProbe {
         long minSegment,
         BooleanSupplier isCancelled
     ) throws IOException {
+        return provenBoundaries(splitter, storageObject, fileLength, strideBytes, minSegment, isCancelled, Integer.MAX_VALUE);
+    }
+
+    static ProvenWalk provenBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        String cancelledMessage
+    ) throws IOException {
+        return provenBoundaries(
+            splitter,
+            storageObject,
+            fileLength,
+            strideBytes,
+            minSegment,
+            isCancelled,
+            Integer.MAX_VALUE,
+            cancelledMessage
+        );
+    }
+
+    /**
+     * As {@link #provenBoundaries(RecordSplitter, StorageObject, long, long, long, BooleanSupplier)}, stopping
+     * once {@code maxBoundaries} starts (including the file start at 0) have been collected. A walk that
+     * stops because of this cap is not {@link ProvenWalk#stoppedBeforeEndOfFile()}: the rest of the file is
+     * left on the last split on purpose, not because a record could not be cut.
+     */
+    static ProvenWalk provenBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        int maxBoundaries
+    ) throws IOException {
+        return provenBoundaries(
+            splitter,
+            storageObject,
+            fileLength,
+            strideBytes,
+            minSegment,
+            isCancelled,
+            maxBoundaries,
+            CANCELLED_MESSAGE
+        );
+    }
+
+    static ProvenWalk provenBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        int maxBoundaries,
+        String cancelledMessage
+    ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         // The last proven record start, i.e., the base offset the exact walk streams from when the probe is
         // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
         long exactCursor = 0L;
         long pos = strideBytes;
-        while (pos < fileLength) {
+        int getsIssued = 0;
+        while (pos < fileLength && boundaries.size() < maxBoundaries) {
             long remaining = fileLength - pos;
             if (remaining < minSegment) {
                 break;
@@ -501,7 +605,8 @@ final class RecordBoundaryProbe {
             long boundary;
             long probed;
             InputStream probeStream = storageObject.newStream(pos, remaining);
-            try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+            getsIssued++;
+            try (probeStream) {
                 probed = splitter.findProvenRecordBoundary(probeStream);
             }
             if (probed >= 0) {
@@ -511,14 +616,20 @@ final class RecordBoundaryProbe {
                 // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
                 long walkRemaining = fileLength - exactCursor;
                 InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
+                getsIssued++;
                 long start;
-                try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
-                    start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
+                try (walkStream) {
+                    // The splitter polls this supplier and throws its own reason when it is true. Wrap so a
+                    // cancel observed mid-walk carries the caller's phase message instead of the splitter's.
+                    start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> {
+                        throwIfCancelled(isCancelled, cancelledMessage);
+                        return false;
+                    });
                 }
                 if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
                     // Either a record longer than the splitter will read, or no record start left before
                     // end-of-file. The rest of the file cannot be cut, so it rides on the span open here.
-                    return new ProvenWalk(boundaries, true);
+                    return new ProvenWalk(boundaries, true, getsIssued);
                 }
                 boundary = exactCursor + start;
             } else {
@@ -526,7 +637,7 @@ final class RecordBoundaryProbe {
                 // off, a splitter that breaks that contract leaves the rest of the file uncut, which is the
                 // same shortfall as a record the walk cannot get past and is reported as one.
                 assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
-                return new ProvenWalk(boundaries, true);
+                return new ProvenWalk(boundaries, true, getsIssued);
             }
             if (boundary >= fileLength) {
                 break;
@@ -539,10 +650,14 @@ final class RecordBoundaryProbe {
             // Every emitted boundary is a proven record start, so it becomes the next exact-walk base.
             exactCursor = boundary;
             pos = boundary + strideBytes;
-            if (isCancelled.getAsBoolean()) {
-                throw new TaskCancelledException(CANCELLED_MESSAGE);
-            }
+            throwIfCancelled(isCancelled, cancelledMessage);
         }
-        return new ProvenWalk(boundaries, false);
+        return new ProvenWalk(boundaries, false, getsIssued);
+    }
+
+    private static void throwIfCancelled(BooleanSupplier isCancelled, String cancelledMessage) {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(cancelledMessage);
+        }
     }
 }

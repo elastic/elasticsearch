@@ -116,7 +116,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after LIMIT"));
+        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function cannot be used after LIMIT"));
     }
 
     public void testNotWhereMatchPhrase() {
@@ -326,7 +326,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(errorQuery));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function is only supported in WHERE and STATS commands"));
 
         var query = """
             FROM test
@@ -362,7 +362,44 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
+        assertThat(error.getMessage(), containsString("[MATCH_PHRASE] function is only supported in WHERE and STATS commands"));
+    }
+
+    public void testRuntimeMatchPhraseAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match_phrase(summary, "brown fox")
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3; id 6 also contains the phrase but is cut, so it must not come back.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
+    public void testRuntimeMatchPhraseAfterLimitWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match_phrase(summary, "brown fox")
+            | KEEP id, _score
+            """;
+
+        // The LIMIT is a pipeline breaker, so this filter runs on the coordinator. A matched phrase scores its boost
+        // there too, since runtime scoring needs no shard context.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
+        }
     }
 
     public void testMatchPhraseAfterMvExpand() {
@@ -575,6 +612,37 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToStringOverIndexedTextField() {
+        var query = """
+            FROM test
+            | WHERE match_phrase(to_string(content), "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testWhereRuntimeMatchPhraseOnToStringOverIndexedTextFieldViaEvalAlias() {
+        var query = """
+            FROM test
+            | EVAL c = to_string(content)
+            | WHERE match_phrase(c, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of());
         }
     }
 
@@ -875,7 +943,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(
             error.getMessage(),
             containsString(
-                "line 3:33: [MatchPhrase] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
+                "line 3:33: [MATCH_PHRASE] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
                     + "in non-STANDARD mode [lookup]"
             )
         );

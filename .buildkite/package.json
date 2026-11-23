@@ -1,6 +1,7 @@
 {
   "name": "buildkite-pipelines",
   "type": "module",
+  "packageManager": "pnpm@12.20.0+sha512.6ccc74997ccef4e67999788e18dbfbfa583e2a849668668db4707b6a8306662f47156e650232a985bd3ec24cf9364c1aa154d37e51ed7aac62c1cd1e3afc80c3",
   "scripts": {
     "test": "vitest run"
   },

@@ -9,12 +9,11 @@
  * Shared compression library plugin for ESQL external data sources.
  *
  * <p>Hosted as a named module so it can be the single qualified-export target for
- * {@code org.elasticsearch.nativeaccess}'s public package — keeping the rest of the
- * native-access surface (process limits, mlock, exec sandbox, systemd hooks, raw memory
- * mapping) invisible to ESQL data source plugins.
+ * {@code org.elasticsearch.zstd}'s public package — keeping the Panama FFI binding to
+ * libzstd scoped to this plugin rather than exposed to every module in the system.
  *
  * <p>The {@code requires} clauses on the bundled compression libraries
- * ({@code snappy.java}, {@code aircompressor}) pull those auto-modules into this plugin's
+ * ({@code org.xerial.snappy}, {@code aircompressor}) pull those auto-modules into this plugin's
  * resolved module layer so the per-auto-module {@code load_native_libraries} entitlements
  * declared in {@code entitlement-policy.yaml} can be enabled for them — ES's
  * {@code PluginsLoader.enableNativeAccess} only enables native access on modules it can find
@@ -49,9 +48,9 @@
  */
 module org.elasticsearch.xpack.esql.datasource.compress {
     requires org.elasticsearch.server;
-    requires org.elasticsearch.nativeaccess;
+    requires org.elasticsearch.zstd;
 
-    requires transitive snappy.java;
+    requires transitive org.xerial.snappy;
     requires transitive aircompressor;
 
     exports org.elasticsearch.xpack.esql.datasource.compress;

@@ -176,6 +176,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -341,6 +343,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.INCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.INCLUDE_REQUEST_BODY,
+                LoggingAuditTrail.EMIT_SECURITY_CONFIG_CHANGE_ACTOR,
                 LoggingAuditTrail.MAX_REQUEST_BODY_SIZE,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS,
@@ -738,6 +741,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         grantApiKeyRequest.getGrant().setUsername(randomFrom(randomAlphaOfLength(8), null));
         grantApiKeyRequest.getGrant().setPassword(randomFrom(new SecureString("password not exposed"), null));
         grantApiKeyRequest.getGrant().setAccessToken(randomFrom(new SecureString("access token not exposed"), null));
+        grantApiKeyRequest.getGrant().setServiceAccountToken(randomFrom(new SecureString("service account token not exposed"), null));
         grantApiKeyRequest.getGrant().setRunAsUsername(randomFrom(randomAlphaOfLength(10), null));
         grantApiKeyRequest.setApiKeyRequest(createApiKeyRequest);
         auditTrail.accessGranted(requestId, authentication, GrantApiKeyAction.NAME, grantApiKeyRequest, authorizationInfo);
@@ -771,6 +775,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         if (grantApiKeyRequest.getGrant().getAccessToken() != null) {
             grantKeyAuditEventStringBuilder.append(",\"has_access_token\":").append(true);
+        }
+        if (grantApiKeyRequest.getGrant().getServiceAccountToken() != null) {
+            grantKeyAuditEventStringBuilder.append(",\"has_service_account_token\":").append(true);
         }
         if (grantApiKeyRequest.getGrant().getRunAsUsername() != null) {
             grantKeyAuditEventStringBuilder.append(",\"run_as\":\"").append(grantApiKeyRequest.getGrant().getRunAsUsername()).append("\"");
@@ -1647,6 +1654,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final List<String> accountRoles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
+        final String description = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         final String expectedAccountRolesJson = accountRoles.stream()
             .map(role -> "\"" + role + "\"")
             .collect(Collectors.joining(",", "[", "]"));
@@ -1654,7 +1662,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             namespace,
             serviceName,
             accountRoles,
-            enabled
+            enabled,
+            description
         );
 
         auditTrail.accessGranted(
@@ -1668,13 +1677,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedPutUserManagedServiceAccountAuditEventString = output.get(1);
 
+        // The description is logged only when the request carries one.
+        final String expectedDescriptionJson = description == null ? "" : ",\"description\":\"" + description + "\"";
         final String expectedPutUserManagedServiceAccountAuditEventString = Strings.format(
             """
-                "put":{"user_managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s}}""",
+                "put":{"user_managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s%s}}""",
             namespace,
             serviceName,
             expectedAccountRolesJson,
-            enabled
+            enabled,
+            expectedDescriptionJson
         );
         assertThat(
             generatedPutUserManagedServiceAccountAuditEventString,
@@ -1898,6 +1910,49 @@ public class LoggingAuditTrailTests extends ESTestCase {
         );
         auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
         assertEmptyLog(logger);
+    }
+
+    public void testRestUriWithQueryStringAndFragment() throws Exception {
+        // each entry is: raw request URI, expected url.path, expected url.query (null if absent)
+        final List<Tuple<String, Tuple<String, String>>> cases = List.of(
+            new Tuple<>("_uri", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri?foo=bar", new Tuple<>("_uri", "foo=bar")),
+            new Tuple<>("_uri?foo=bar#frag", new Tuple<>("_uri", "foo=bar")),
+            new Tuple<>("_uri?foo=bar?baz=qux", new Tuple<>("_uri", "foo=bar?baz=qux")),
+            new Tuple<>("_uri?foo=bar#frag?baz=qux", new Tuple<>("_uri", "foo=bar")),
+            new Tuple<>("_uri?#frag", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri#frag", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri#frag?foo=bar", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri#", new Tuple<>("_uri", null)),
+            new Tuple<>("_uri%23frag?foo=bar", new Tuple<>("_uri%23frag", "foo=bar"))
+        );
+        final InetSocketAddress address = new InetSocketAddress(
+            forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
+            randomIntBetween(9200, 9300)
+        );
+        RemoteHostHeader.process(prepareRestContent("_uri", address).v1(), threadContext);
+        for (Tuple<String, Tuple<String, String>> testCase : cases) {
+            CapturingLogger.output(logger.getName(), Level.INFO).clear();
+            final RestRequest request = prepareRestContent(testCase.v1(), address).v2();
+
+            final String requestId = randomAlphaOfLengthBetween(8, 24);
+            auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
+            final Map<String, String> checkedFields = new HashMap<>(commonFields);
+            checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+            checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied");
+            checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE);
+            checkedFields.put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
+            checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
+            checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+            checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, testCase.v2().v1());
+            if (testCase.v2().v2() != null) {
+                checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, testCase.v2().v2());
+            }
+            opaqueId(threadContext, checkedFields);
+            traceId(threadContext, checkedFields);
+            forwardedFor(threadContext, checkedFields);
+            assertMsg(logger, checkedFields);
+        }
     }
 
     public void testAuthenticationFailed() throws Exception {
@@ -2411,7 +2466,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
             ),
             new Tuple<>(
                 PutUserManagedServiceAccountAction.NAME,
-                new PutUserManagedServiceAccountRequest(namespace, serviceName, List.of(randomAlphaOfLengthBetween(3, 8)), randomBoolean())
+                new PutUserManagedServiceAccountRequest(
+                    namespace,
+                    serviceName,
+                    List.of(randomAlphaOfLengthBetween(3, 8)),
+                    randomBoolean(),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+                )
             ),
             new Tuple<>(DeleteUserManagedServiceAccountAction.NAME, new DeleteUserManagedServiceAccountRequest(namespace, serviceName)),
             new Tuple<>(ActivateProfileAction.NAME, new ActivateProfileRequest()),
@@ -2449,6 +2510,92 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(1));
         assertThat(output.get(0), containsString("security_config_change"));
+    }
+
+    public void testSecurityConfigChangeActorAttributionOptIn() throws IOException {
+        final String requestId = randomRequestId();
+        final AuthorizationInfo authorizationInfo = () -> Collections.emptyMap();
+        final Authentication authentication = createAuthentication();
+
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(randomAlphaOfLength(3));
+        putUserRequest.enabled(true);
+        putUserRequest.roles(new String[] { randomAlphaOfLength(4) });
+
+        auditTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        assertThat(output.get(1), containsString("security_config_change"));
+        assertThat(output.get(1), not(containsString("\"user.name\"")));
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        updateLoggerSettings(
+            Settings.builder().put(settings).put(LoggingAuditTrail.EMIT_SECURITY_CONFIG_CHANGE_ACTOR.getKey(), true).build()
+        );
+
+        auditTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        final String securityConfigChangeLogLine = output.get(1);
+        assertThat(securityConfigChangeLogLine, containsString("security_config_change"));
+        assertThat(securityConfigChangeLogLine, containsString("\"user.name\""));
+
+        final String expectedPutUserAuditEventString = Strings.format("""
+            "put":{"user":{"name":"%s","enabled":%s,"roles":["%s"],"has_password":false}}\
+            """, putUserRequest.username(), putUserRequest.enabled(), putUserRequest.roles()[0]);
+        assertThat(securityConfigChangeLogLine, containsString(expectedPutUserAuditEventString));
+        final String reducedLogLine = securityConfigChangeLogLine.replace(", " + expectedPutUserAuditEventString, "");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_user");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        authentication(authentication, checkedFields);
+        assertMsg(reducedLogLine, checkedFields);
+    }
+
+    public void testSecurityConfigChangeIsNotSuppressedAndCarriesContext() {
+        final String requestId = randomRequestId();
+        final String[] roles = new String[] { "superuser" };
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, roles);
+        final Authentication authentication = createAuthentication();
+        final AtomicInteger suppressCalls = new AtomicInteger();
+        final AtomicReference<AuditEventContext> seenContext = new AtomicReference<>();
+        // actor attribution is left at its default (off): the context is attached to the config-change entry regardless
+        final LoggingAuditTrail forcingTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public boolean suppress(AuditEventContext ctx) {
+                    suppressCalls.incrementAndGet();
+                    return true;
+                }
+
+                @Override
+                public Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+                    seenContext.set(ctx);
+                    return entry;
+                }
+            }
+        );
+
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(randomAlphaOfLength(3));
+        putUserRequest.enabled(true);
+        putUserRequest.roles(new String[] { randomAlphaOfLength(4) });
+
+        forcingTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        // access_granted is suppressed; the config-change event is still written and is the only entry
+        assertThat(singleLogLine(logger), containsString("security_config_change"));
+        // suppress applies to access_granted only
+        assertThat(suppressCalls.get(), is(1));
+        assertArrayEquals(roles, seenContext.get().roles());
+        assertThat(seenContext.get().subject().principal(), equalTo(authentication.getEffectiveSubject().getUser().principal()));
     }
 
     public void testSystemAccessGranted() throws Exception {

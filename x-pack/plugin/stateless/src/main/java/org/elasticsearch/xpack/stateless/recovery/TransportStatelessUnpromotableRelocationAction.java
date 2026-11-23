@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -61,7 +62,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -185,6 +186,9 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 indexShard.preRecovery(l);
             }).andThenApply(unused -> {
                 logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
+                // Must stay after preRecovery, which waits on warming: BlobByteRangeWarmer and ShardWarmer stop warming early once a
+                // direct cancellation has been requested, so without this check the shard would go on to start with a partially warmed
+                // cache.
                 indexShard.ensureRecoveryNotCancelled();
                 indexShard.prepareForIndexRecovery();
                 // Skip unnecessary intermediate stages
@@ -319,7 +323,15 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn("Failed to create new readerContext after PIT transfer for shard " + shardId, e);
+                            // Not recreating the reader context after a PIT relocation handoff is not fatal: the recovery still
+                            // succeeds and the PIT is reconstructed lazily on a later search. When the failure is only due to the
+                            // shard being closed/relocated away concurrently (an expected race) log at DEBUG to avoid noise;
+                            // anything else is unexpected and stays at WARN.
+                            if (TransportActions.isShardNotAvailableException(e)) {
+                                logger.debug("Failed to create new readerContext after PIT transfer for shard " + shardId, e);
+                            } else {
+                                logger.warn("Failed to create new readerContext after PIT transfer for shard " + shardId, e);
+                            }
                             // we don't want to fail the whole recovery because of a PIT context relocation issue
                             listener.onResponse(null);
                         }
@@ -328,7 +340,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 return null;
             });
         } catch (Exception e) {
-            logger.warn("Unexpected exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            if (TransportActions.isShardNotAvailableException(e)) {
+                logger.debug("Exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            } else {
+                logger.warn("Unexpected exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            }
             // we don't want to fail the whole recovery because of a PIT context relocation issue
             listener.onResponse(null);
         }
@@ -435,7 +451,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             final var luceneCommitPointMetadata = searchDirectory.getBlobFileRangesForFile(indexCommit.getSegmentsFileName());
             assert luceneCommitPointMetadata != null : "commit point [" + indexCommit + "] not found in search directory";
             final var bccTermAndGen = luceneCommitPointMetadata.getBatchedCompoundCommitTermAndGeneration();
-            final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
+            final var bccBlobName = BccBlob.blobNameFromGeneration(bccTermAndGen.generation());
             final var metadataFromSearchDirectory = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
 
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {

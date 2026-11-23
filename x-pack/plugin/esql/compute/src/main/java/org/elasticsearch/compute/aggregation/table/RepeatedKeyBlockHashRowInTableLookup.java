@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation.table;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -20,8 +19,6 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -31,10 +28,11 @@ import java.util.List;
 /**
  * Keeps all build-side row offsets for each hash group so repeated keys can produce one output row per match.
  * <p>
- * A build row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}. Its key still goes in the hash, so
- * nothing has to be copied to leave it out, but its row goes in no group's rows. A group whose rows all have such keys is
- * a miss. The groups a multivalued key adds are marked, and a probe key that lands on one gets a warning, as a probe key that
- * matches a multivalued document in a {@code LOOKUP JOIN} lookup index does.
+ * A build row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}. A multivalued row never enters
+ * the hash ({@link PackedValuesBlockHash#add(Page, GroupingAggregatorFunction.AddInput, boolean)} skips it), so it costs
+ * no entries, not one per value or per combination of values. A row with a null key keeps the hash's fast path, which packs
+ * a null as a value, so its key gets a group, but the row goes in no group's rows: that group has no rows and is a miss.
+ * Warning about multivalued build keys is up to the caller.
  */
 final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     /** Marks a build row that is in no group's rows, because one of its keys is null or multivalued. */
@@ -44,27 +42,23 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     /** The rows for group {@code g} are in {@code rowIds} from {@code rowOffsets[g]} to {@code rowOffsets[g + 1]} (exclusive). */
     private final IntArray rowOffsets;
     private final IntArray rowIds;
-    /** The groups that a build row with a multivalued key hashed to, or {@code null} if there is no such row. */
-    @Nullable
-    private final BitArray multivaluedGroups;
 
     RepeatedKeyBlockHashRowInTableLookup(BlockFactory blockFactory, Block[] keys) {
         int rowCount = keys[0].getPositionCount();
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
+        boolean mayHaveNulls = false;
         for (int k = 0; k < keys.length; k++) {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
+            mayHaveNulls |= keys[k].mayHaveNulls();
         }
-        boolean checkEachRow = mayHaveNullOrMultivaluedKeys(keys);
+        boolean checkNulls = mayHaveNulls;
 
         // The emit batch size counts ordinals, not bytes, and the hash keeps a buffer of that many ints while the table lives.
         PackedValuesBlockHash builtHash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
         IntArray offsets = null;
         IntArray rows = null;
-        BitArray multivalued = null;
         boolean success = false;
         try {
-            multivalued = new BitArray(1, blockFactory.bigArrays());
-            BitArray marked = multivalued;
             try (IntArray groupsByRow = blockFactory.bigArrays().newIntArray(rowCount, false)) {
                 builtHash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
                     @Override
@@ -85,50 +79,26 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                     }
 
                     /**
-                     * Only a multivalued key gives a row more than one group, one for each value or combination of values.
+                     * A skipped multivalued row has a {@code null} group, and every other row has exactly one.
                      */
                     private void addBlock(int positionOffset, IntBlock groupIds) {
                         for (int p = 0; p < groupIds.getPositionCount(); p++) {
-                            int row = positionOffset + p;
-                            int first = groupIds.getFirstValueIndex(p);
-                            int count = groupIds.getValueCount(p);
-                            if (count == 1) {
-                                addRow(row, groupIds.getInt(first));
-                                continue;
-                            }
-                            groupsByRow.set(row, NO_GROUP);
-                            if (count > 1 && hasNull(keys, row) == false) {
-                                for (int i = first; i < first + count; i++) {
-                                    markMultivalued(groupIds.getInt(i));
-                                }
+                            if (groupIds.isNull(p)) {
+                                groupsByRow.set(positionOffset + p, NO_GROUP);
+                            } else {
+                                assert groupIds.getValueCount(p) == 1 : "expected one group per build row";
+                                addRow(positionOffset + p, groupIds.getInt(groupIds.getFirstValueIndex(p)));
                             }
                         }
                     }
 
-                    /**
-                     * Adds a row the hash gave one group. It may still have a null key, which the hash packs as a value, or a
-                     * multivalued key whose values are all the same.
-                     */
                     private void addRow(int row, int group) {
-                        if (checkEachRow == false) {
-                            groupsByRow.set(row, group);
-                        } else if (hasNull(keys, row)) {
-                            groupsByRow.set(row, NO_GROUP);
-                        } else if (isMultivalued(keys, row)) {
-                            groupsByRow.set(row, NO_GROUP);
-                            markMultivalued(group);
-                        } else {
-                            groupsByRow.set(row, group);
-                        }
-                    }
-
-                    private void markMultivalued(int group) {
-                        marked.set(group);
+                        groupsByRow.set(row, checkNulls && hasNull(keys, row) ? NO_GROUP : group);
                     }
 
                     @Override
                     public void close() {}
-                });
+                }, true);
                 int groupCount = builtHash.numKeys();
                 offsets = blockFactory.bigArrays().newIntArray((long) groupCount + 1, true);
                 for (int row = 0; row < rowCount; row++) {
@@ -152,29 +122,15 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                     }
                 }
             }
-            if (multivalued.cardinality() == 0) {
-                multivalued.close();
-                multivalued = null;
-            }
             this.hash = builtHash;
             this.rowOffsets = offsets;
             this.rowIds = rows;
-            this.multivaluedGroups = multivalued;
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(builtHash, offsets, rows, multivalued);
+                Releasables.closeExpectNoException(builtHash, offsets, rows);
             }
         }
-    }
-
-    private static boolean mayHaveNullOrMultivaluedKeys(Block[] keys) {
-        for (Block key : keys) {
-            if (key.mayHaveNulls() || key.mayHaveMultivaluedFields()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean hasNull(Block[] keys, int row) {
@@ -186,24 +142,10 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
         return false;
     }
 
-    private static boolean isMultivalued(Block[] keys, int row) {
-        for (Block key : keys) {
-            if (key.getValueCount(row) > 1) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize) {
-        return lookup(page, blockFactory, targetBlockSize, Warnings.NOOP_WARNINGS);
-    }
-
-    @Override
-    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize, Warnings warnings) {
         // A multivalued key can't match, so the hash returns a miss for it rather than looking up its values.
-        return new Results(hash.lookup(page, blockFactory, targetBlockSize, true), blockFactory, targetBlockSize.getBytes(), warnings);
+        return new Results(hash.lookup(page, blockFactory, targetBlockSize, true), blockFactory, targetBlockSize.getBytes());
     }
 
     @Override
@@ -213,24 +155,20 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(hash, rowOffsets, rowIds, multivaluedGroups);
+        Releasables.closeExpectNoException(hash, rowOffsets, rowIds);
     }
 
     private final class Results implements ReleasableIterator<IntBlock> {
         private final ReleasableIterator<IntBlock> groups;
         private final BlockFactory blockFactory;
         private final long targetBytes;
-        private final Warnings warnings;
-        /** Whether this lookup warned about a probe key that landed on a multivalued build key. It warns once. */
-        private boolean warned;
         private IntBlock groupIds;
         private int position;
 
-        private Results(ReleasableIterator<IntBlock> groups, BlockFactory blockFactory, long targetBytes, Warnings warnings) {
+        private Results(ReleasableIterator<IntBlock> groups, BlockFactory blockFactory, long targetBytes) {
             this.groups = groups;
             this.blockFactory = blockFactory;
             this.targetBytes = targetBytes;
-            this.warnings = warnings;
         }
 
         @Override
@@ -271,7 +209,7 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 return 1;
             }
             int group = groupIds.getInt(groupIds.getFirstValueIndex(p));
-            // A group whose rows all have a null or multivalued key has no rows, and is a miss.
+            // The group of a key with a null has no rows, and is a miss.
             return Math.max(1, rowOffsets.get(group + 1) - rowOffsets.get(group));
         }
 
@@ -282,10 +220,6 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
             }
             assert groupIds.getValueCount(p) == 1;
             int group = groupIds.getInt(groupIds.getFirstValueIndex(p));
-            if (warned == false && multivaluedGroups != null && multivaluedGroups.get(group)) {
-                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
-                warned = true;
-            }
             int start = rowOffsets.get(group);
             int end = rowOffsets.get(group + 1);
             if (end == start) {

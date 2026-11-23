@@ -27,6 +27,7 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -351,14 +352,14 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * A build row with a multivalued key matches nothing. A probe key equal to one of its values gets a warning, as a probe
-     * key that matches a multivalued document in a {@code LOOKUP JOIN} lookup index does, and other probe keys don't. A
-     * build row with a null key matches nothing without a warning.
+     * A build row with a multivalued key matches nothing, and every operator warns once, even when no probe key equals one
+     * of its values. That is a deliberate difference from {@code LOOKUP JOIN}, which only warns when a probe key matches a
+     * multivalued document. A build row with a null key matches nothing without a warning.
      */
-    public void testRepeatedTableWarnsOnlyWhenProbeKeyHitsMultivaluedBuildKey() {
+    public void testRepeatedTableWarnsOnceForMultivaluedBuildKeys() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext quiet = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        DriverContext warned = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        DriverContext noHit = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        DriverContext hit = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         LongBlock key;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
             builder.appendLong(7);
@@ -374,7 +375,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 true,
                 new TestWarningsSource("join")
             );
-            try (Operator operator = factory.get(quiet)) {
+            try (Operator operator = factory.get(noHit)) {
                 operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 7, 9 }, 2).asBlock()));
                 try (Page output = operator.getOutput()) {
                     IntBlock matches = output.getBlock(1);
@@ -382,7 +383,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                     assertNull(toJavaObject(matches, 1));
                 }
             }
-            try (Operator operator = factory.get(warned)) {
+            try (Operator operator = factory.get(hit)) {
                 operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 20, 30 }, 2).asBlock()));
                 try (Page output = operator.getOutput()) {
                     IntBlock matches = output.getBlock(1);
@@ -391,16 +392,59 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 }
             }
         }
-        quiet.finish();
-        warned.finish();
-        assertTrue(quiet.warnings().isEmpty());
-        assertThat(
-            warned.warnings(),
-            contains(
-                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
-            )
-        );
+        for (DriverContext context : List.of(noHit, hit)) {
+            context.finish();
+            assertThat(
+                context.warnings(),
+                contains(
+                    "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
+                )
+            );
+        }
+    }
+
+    /**
+     * A build row that is multivalued in several key columns adds nothing to the table, rather than one hash entry for each
+     * combination of its values: 30 values in each of 4 columns would be 810,000 entries.
+     */
+    public void testRepeatedTableDoesNotExpandMultivaluedBuildKeys() {
+        int columns = 4;
+        int values = 30;
+        BlockFactory blockFactory = blockFactory();
+        Block[] keys = new Block[columns];
+        try {
+            for (int k = 0; k < columns; k++) {
+                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+                    builder.beginPositionEntry();
+                    for (int v = 0; v < values; v++) {
+                        builder.appendLong(v);
+                    }
+                    builder.endPositionEntry();
+                    builder.appendLong(1);
+                    keys[k] = builder.build();
+                }
+            }
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+            try (RowInTableLookup lookup = RowInTableLookup.build(trackingBlockFactory(breaker), keys, true)) {
+                // Expanding the combinations would reserve tens of megabytes: each key packs four longs.
+                assertThat(breaker.peak(), lessThan(ByteSizeValue.ofMb(1).getBytes()));
+                Block[] probeKeys = new Block[columns];
+                for (int k = 0; k < columns; k++) {
+                    probeKeys[k] = blockFactory.newConstantLongBlockWith(1, 1);
+                }
+                try (
+                    Page probe = new Page(probeKeys);
+                    ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, ByteSizeValue.ofKb(8));
+                    IntBlock matches = blocks.next()
+                ) {
+                    assertThat(toJavaObject(matches, 0), equalTo(1));
+                }
+            }
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            Releasables.close(keys);
+        }
     }
 
     /**

@@ -83,6 +83,12 @@ import java.util.List;
  */
 public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
     /**
+     * The warning for a multivalued key on either side of a repeated-key join, which matches nothing. It names no join
+     * command, because the warning's first line already quotes the join's own text.
+     */
+    private static final String MULTIVALUED_KEY_WARNING = "JOIN encountered multi-value";
+
+    /**
      * A single key column of the lookup table: its field name and the block
      * of values (one value per table row).
      */
@@ -115,6 +121,26 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private final boolean repeatedKeys;
         private final WarningSourceLocation warningSource;
         /**
+         * Whether a repeated-key table has a build key that is multivalued. The table skips such rows, and every operator
+         * warns once, whether or not a probe key would have matched one of their values.
+         * <p>
+         * This deliberately differs from {@code LOOKUP JOIN}, which only warns when a probe key matches a multivalued
+         * document. {@code LOOKUP JOIN} gets that cheaply, because the Lucene index already holds each value of the field.
+         * The build side here is a page with no index, so warning only on a match means building one for rows that can
+         * never join:
+         * <ul>
+         *     <li>Hashing their values the way single values are hashed adds one entry per combination of values, which
+         *     grows exponentially with the number of multivalued key columns: a row with four key columns of 100 values
+         *     each adds 100 million entries.</li>
+         *     <li>Indexing each key column's values on its own avoids the combinations, but still copies every value of
+         *     those rows, so memory grows with them even when only one column is multivalued, and every probe row has to
+         *     intersect the matches of each key column.</li>
+         * </ul>
+         * Both cost the most when most build rows are multivalued, and buy only a warning, since those rows match nothing
+         * either way. Warning once costs one {@link Block#doesHaveMultivaluedFields} check per key column, whatever the data.
+         */
+        private final boolean multivaluedBuildKeys;
+        /**
          * The table shared by the operators this factory created, or {@code null} when no operator holds one.
          * Guarded by {@code this}.
          */
@@ -138,11 +164,15 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
             this.blockMapping = blockMapping;
             this.repeatedKeys = repeatedKeys;
             this.warningSource = warningSource;
+            this.multivaluedBuildKeys = repeatedKeys && Arrays.stream(keys).anyMatch(key -> key.block.doesHaveMultivaluedFields());
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
             Warnings warnings = repeatedKeys ? driverContext.createWarnings(warningSource) : Warnings.NOOP_WARNINGS;
+            if (multivaluedBuildKeys) {
+                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
+            }
             /*
              * Build with the node-wide parent factory, which charges the request breaker, rather than this driver's:
              * the table outlives any single driver and is released from whichever driver closes last, so it must not
@@ -254,10 +284,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         try {
             warnOnMultivaluedKeys(mapped);
             // lookup increments any references we need to keep for the iterator
-            return appendBlocks(
-                page,
-                shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, warnings)
-            );
+            return appendBlocks(page, shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
         } finally {
             mapped.releaseBlocks();
         }
@@ -273,7 +300,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         }
         for (int k = 0; k < keys.getBlockCount(); k++) {
             if (keys.getBlock(k).doesHaveMultivaluedFields()) {
-                warnings.registerException(IllegalArgumentException.class, RowInTableLookup.MULTIVALUED_KEY_WARNING);
+                warnings.registerException(IllegalArgumentException.class, MULTIVALUED_KEY_WARNING);
                 return;
             }
         }

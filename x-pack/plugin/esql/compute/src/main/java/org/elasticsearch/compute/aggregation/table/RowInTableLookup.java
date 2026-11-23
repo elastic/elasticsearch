@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
@@ -24,12 +23,6 @@ import org.elasticsearch.core.ReleasableIterator;
  */
 public abstract sealed class RowInTableLookup implements Releasable permits EmptyRowInTableLookup, AscendingSequenceRowInTableLookup,
     BlockHashRowInTableLookup, RepeatedKeyBlockHashRowInTableLookup {
-    /**
-     * The warning for a multivalued key on either side of a repeated-key join, which matches nothing. It names no join
-     * command, because the warning's first line already quotes the join's own text.
-     */
-    public static final String MULTIVALUED_KEY_WARNING = "JOIN encountered multi-value";
-
     /**
      * Look up the values in the {@link Page} and, for each row, return the offsets of the matching rows
      * in the table that was provided when building the lookup.
@@ -45,15 +38,6 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize);
 
-    /**
-     * Like {@link #lookup(Page, BlockFactory, ByteSizeValue)}, but a repeated-key table also registers
-     * {@link #MULTIVALUED_KEY_WARNING} with {@code warnings} when a probe key equals a value of a build key it skipped for
-     * being multivalued.
-     */
-    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize, Warnings warnings) {
-        return lookup(page, blockFactory, targetBlockSize);
-    }
-
     @Override
     public abstract String toString();
 
@@ -64,9 +48,8 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
     /**
      * Allow repeated build keys for callers that need every match, without relaxing the unique-key contract for other callers.
      * <p>
-     *     In a repeated-key build, a row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}, and
-     *     {@link #lookup(Page, BlockFactory, ByteSizeValue, Warnings)} warns when a probe key lands on a multivalued one.
-     *     Other builds reject multivalued keys.
+     *     In a repeated-key build, a row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}. Warning
+     *     about multivalued build keys is up to the caller. Other builds reject multivalued keys.
      * </p>
      */
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys) {

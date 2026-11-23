@@ -31,25 +31,17 @@ options {
  * Since the tokens/modes are in development, add a predicate like this:
  * DEV_MYCOMMAND : 'mycommand' {this.isDevVersion()}? -> ...
  *
- * IMPORTANT: always put the predicate AFTER the literal, never before it. This applies to
- * any predicate, not only isDevVersion(), for example EsqlCapabilities.Cap.X.isEnabled().
+ * IMPORTANT: put the predicate AFTER the literal, never before it (this goes for any
+ * predicate, e.g. EsqlCapabilities.Cap.X.isEnabled()):
  *
- * - A predicate BEFORE the literal (DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand')
- *   prevents ANTLR from caching the DFA start state of the lexer mode, whatever the first
- *   character is. Every token in that mode is then lexed through ATN simulation, which
- *   slows ALL queries, including those that never use the command.
- * - A predicate AFTER the literal ('mycommand' {this.isDevVersion()}?) only prevents
- *   caching the DFA transition where the predicate is evaluated, i.e. the one that
- *   consumes the last character of the literal. For a keyword, that transition is
- *   reached only by input that spells the keyword, so other queries are not affected.
+ * - Before ({this.isDevVersion()}? 'mycommand'): ANTLR cannot cache the mode's start
+ *   state, so ALL queries are lexed slowly, even those not using the command.
+ * - After ('mycommand' {this.isDevVersion()}?): only the transition on the literal's
+ *   last character is uncached, which keywords rarely hit.
  *
- * Symbol tokens are different because their characters are common in queries. A trailing
- * predicate is evaluated on the last character of the symbol literal, so it uncaches
- * that transition. For '->' that is the '>' transition, not the initial '-'. Every query
- * containing the symbol then pays for it. A predicate on the ARROW token was reported to
- * cause a severe regression (~13x) for ALL queries.
- * For symbol tokens, keep the lexer rule unconditional and guard the parser rule
- * with {this.isDevVersion()}? instead. See the ARROW token as an example.
+ * Symbols are the exception. A trailing predicate on '->' uncaches the '>' transition,
+ * which every query using '->' hits. For symbols, keep the lexer rule unconditional and
+ * guard the parser rule with {this.isDevVersion()}? instead. See the ARROW token.
  *
  * B. To add a new (production-ready) token
  *

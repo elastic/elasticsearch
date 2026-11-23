@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 
 import java.util.Locale;
 import java.util.concurrent.Callable;
 
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor.doProcess;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StringContainsFunctionProcessorTests extends ESTestCase {
 
@@ -37,22 +37,17 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
             }
             final String string = str;
 
-            // The string parameter can be null. Expect exception if any of other parameters is null.
-            if (string != null && substring == null) {
-                EqlIllegalArgumentException e = expectThrows(
-                    EqlIllegalArgumentException.class,
-                    () -> doProcess(string, substring, insensitive)
-                );
-                assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
+            // Either parameter can be null. A null in either argument yields a null result rather than an exception,
+            // matching the lenient null handling of the other EQL string functions (e.g. endsWith, indexOf).
+            if (string == null || substring == null) {
+                assertThat(doProcess(string, substring, insensitive), nullValue());
             } else {
-                assertThat(doProcess(string, substring, insensitive), equalTo(string == null ? null : true));
+                assertThat(doProcess(string, substring, insensitive), equalTo(true));
 
                 // deliberately make the test return "false/true" by lowercasing or uppercasing the substring in a in/sensitive scenario
-                if (substring != null) {
-                    String subsChanged = randomBoolean() ? substring.toLowerCase(Locale.ROOT) : substring.toUpperCase(Locale.ROOT);
-                    if (substring.equals(subsChanged) == false) {
-                        assertThat(doProcess(string, subsChanged, insensitive), equalTo(string == null ? null : insensitive));
-                    }
+                String subsChanged = randomBoolean() ? substring.toLowerCase(Locale.ROOT) : substring.toUpperCase(Locale.ROOT);
+                if (substring.equals(subsChanged) == false) {
+                    assertThat(doProcess(string, subsChanged, insensitive), equalTo(insensitive));
                 }
             }
 

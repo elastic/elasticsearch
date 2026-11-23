@@ -591,6 +591,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
             PlainActionFuture<PartitionPruningWalk.WalkResult> future = new PlainActionFuture<>();
             startWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, cancelled::get, concurrency, executor, future);
             assertTrue("July day peek batch must start", firstPeek.await(30, TimeUnit.SECONDS));
+            assertThat(julyDayPeekCount(provider), greaterThan(0));
             cancelled.set(true);
             int issuedAtCancel = provider.listChildrenRequests();
             releasePeeks.countDown();

@@ -177,7 +177,10 @@ public final class ListingWalkHarness implements StorageProvider {
     final AtomicInteger listChildrenInFlight = new AtomicInteger();
     final AtomicInteger maxListChildrenInFlight = new AtomicInteger();
     volatile LongSupplier listChildrenDelayNanos = () -> 0L;
-    /** When set, {@link #listChildrenDelayNanos} applies only to prefixes containing this fragment. */
+    /**
+     * When set, {@link #listChildrenDelayNanos} is invoked only for prefixes containing this fragment.
+     * Blocking delay suppliers used by cancel tests must not run on unfiltered listings.
+     */
     volatile String delayListChildrenContaining;
     volatile String failListChildrenContaining;
     volatile boolean failListChildrenUnavailable;
@@ -830,9 +833,11 @@ public final class ListingWalkHarness implements StorageProvider {
             if (nullListChildrenAfter >= 0 && listChildrenRequests.get() > nullListChildrenAfter) {
                 return null;
             }
-            long delay = listChildrenDelayNanos.getAsLong();
-            if (delay > 0 && (delayListChildrenContaining == null || p.contains(delayListChildrenContaining))) {
-                LockSupport.parkNanos(delay);
+            if (delayListChildrenContaining == null || p.contains(delayListChildrenContaining)) {
+                long delay = listChildrenDelayNanos.getAsLong();
+                if (delay > 0) {
+                    LockSupport.parkNanos(delay);
+                }
             }
             List<StorageEntry> files = new ArrayList<>();
             Set<String> dirs = new LinkedHashSet<>();

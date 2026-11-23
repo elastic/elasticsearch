@@ -261,7 +261,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 relativeTimeProvider,
                 FailureStoreMetrics.NOOP,
-                TsdbRoutingMetrics.NOOP,
+                TimeSeriesRoutingMetrics.NOOP,
                 DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                 new FeatureService(List.of()) {
                     @Override

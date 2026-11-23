@@ -283,7 +283,7 @@ public class BulkOperationTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-    private final TsdbRoutingMetrics tsdbRoutingMetrics = new TsdbRoutingMetrics(meterRegistry);
+    private final TimeSeriesRoutingMetrics timeSeriesRoutingMetrics = new TimeSeriesRoutingMetrics(meterRegistry);
 
     @Before
     public void setupThreadpool() {
@@ -359,10 +359,10 @@ public class BulkOperationTests extends ESTestCase {
             assertThat(item.getFailureStoreStatus(), equalTo(expectedStatus));
         }
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, TsdbRoutingMetrics.TIMESTAMP_TOO_NEW),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, TimeSeriesRoutingMetrics.TIMESTAMP_TOO_NEW),
             contains(
-                new Measurement(1L, Map.of("timestamp_in_future", false), false),
-                new Measurement(1L, Map.of("timestamp_in_future", true), false)
+                new Measurement(1L, Map.of("es_data_stream_timestamp_in_future", false), false),
+                new Measurement(1L, Map.of("es_data_stream_timestamp_in_future", true), false)
             )
         );
     }
@@ -1990,7 +1990,7 @@ public class BulkOperationTests extends ESTestCase {
             observer,
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
-            tsdbRoutingMetrics,
+            timeSeriesRoutingMetrics,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
             batchIndexingEnabled,

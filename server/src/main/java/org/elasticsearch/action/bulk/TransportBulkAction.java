@@ -110,7 +110,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
-    private final TsdbRoutingMetrics tsdbRoutingMetrics;
+    private final TimeSeriesRoutingMetrics timeSeriesRoutingMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
     private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
@@ -131,7 +131,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         FailureStoreMetrics failureStoreMetrics,
-        TsdbRoutingMetrics tsdbRoutingMetrics,
+        TimeSeriesRoutingMetrics timeSeriesRoutingMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
@@ -151,7 +151,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             projectResolver,
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
-            tsdbRoutingMetrics,
+            timeSeriesRoutingMetrics,
             dataStreamFailureStoreSettings,
             featureService,
             timeSeriesEligibleWriteWindowLocator,
@@ -173,7 +173,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
-        TsdbRoutingMetrics tsdbRoutingMetrics,
+        TimeSeriesRoutingMetrics timeSeriesRoutingMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
@@ -200,7 +200,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
-        this.tsdbRoutingMetrics = tsdbRoutingMetrics;
+        this.timeSeriesRoutingMetrics = timeSeriesRoutingMetrics;
         this.timeSeriesEligibleWriteWindowLocator = timeSeriesEligibleWriteWindowLocator;
         this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.pastTsdbIndexCreationEnabled = PAST_TSDB_INDEX_CREATION_ENABLED_SETTING.get(clusterService.getSettings());
@@ -890,7 +890,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             startTimeNanos,
             listener,
             failureStoreMetrics,
-            tsdbRoutingMetrics,
+            timeSeriesRoutingMetrics,
             dataStreamFailureStoreSettings,
             clusterSupportsFailureStore,
             batchIndexingEnabled,

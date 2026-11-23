@@ -18,19 +18,19 @@ import java.util.Map;
 /**
  * Tracks TSDB timestamp routing failures on the coordinating node, regardless of how the document is handled after the failure.
  */
-public final class TsdbRoutingMetrics {
+public final class TimeSeriesRoutingMetrics {
 
-    public static final TsdbRoutingMetrics NOOP = new TsdbRoutingMetrics(MeterRegistry.NOOP);
+    public static final TimeSeriesRoutingMetrics NOOP = new TimeSeriesRoutingMetrics(MeterRegistry.NOOP);
 
-    static final String TIMESTAMP_TOO_NEW = "es.indexing.routing.tsdb.timestamp_too_new.total";
+    static final String TIMESTAMP_TOO_NEW = "es.data_stream.ingest.documents.time_series.timestamp_too_new.total";
 
-    private static final String TIMESTAMP_IN_FUTURE = "timestamp_in_future";
+    private static final String TIMESTAMP_IN_FUTURE = "es_data_stream_timestamp_in_future";
     private static final Map<String, Object> FUTURE_TIMESTAMP_ATTRIBUTES = Map.of(TIMESTAMP_IN_FUTURE, true);
     private static final Map<String, Object> NON_FUTURE_TIMESTAMP_ATTRIBUTES = Map.of(TIMESTAMP_IN_FUTURE, false);
 
     private final LongCounter timestampTooNew;
 
-    public TsdbRoutingMetrics(MeterRegistry meterRegistry) {
+    public TimeSeriesRoutingMetrics(MeterRegistry meterRegistry) {
         timestampTooNew = meterRegistry.registerLongCounter(
             TIMESTAMP_TOO_NEW,
             "Number of documents whose timestamp was at or after the end of the latest TSDB backing index's time range",

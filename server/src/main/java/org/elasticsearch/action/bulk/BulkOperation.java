@@ -110,7 +110,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
     private final Map<ShardId, Exception> shortCircuitShardFailures = ConcurrentCollections.newConcurrentMap();
     private final FailureStoreMetrics failureStoreMetrics;
-    private final TsdbRoutingMetrics tsdbRoutingMetrics;
+    private final TimeSeriesRoutingMetrics timeSeriesRoutingMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
     @Nullable
@@ -130,7 +130,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         FailureStoreMetrics failureStoreMetrics,
-        TsdbRoutingMetrics tsdbRoutingMetrics,
+        TimeSeriesRoutingMetrics timeSeriesRoutingMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
         BatchIndexingEnabled batchIndexingEnabled,
@@ -152,7 +152,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
-            tsdbRoutingMetrics,
+            timeSeriesRoutingMetrics,
             dataStreamFailureStoreSettings,
             clusterHasFailureStoreFeature,
             batchIndexingEnabled,
@@ -176,7 +176,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterStateObserver observer,
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
-        TsdbRoutingMetrics tsdbRoutingMetrics,
+        TimeSeriesRoutingMetrics timeSeriesRoutingMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
         BatchIndexingEnabled batchIndexingEnabled,
@@ -200,7 +200,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.shortCircuitShardFailures.putAll(bulkRequest.incrementalState().shardLevelFailures());
         this.failureStoreMetrics = failureStoreMetrics;
-        this.tsdbRoutingMetrics = tsdbRoutingMetrics;
+        this.timeSeriesRoutingMetrics = timeSeriesRoutingMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
         this.router = BatchModeRouter.create(
@@ -404,7 +404,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 // and classify the timestamp using the coordinating node's clock.
                 Instant tooNewTimestamp = timestampError.tooNewTimestamp();
                 if (tooNewTimestamp != null) {
-                    tsdbRoutingMetrics.recordTooNewTimestamp(tooNewTimestamp, threadPool.absoluteTimeInMillis());
+                    timeSeriesRoutingMetrics.recordTooNewTimestamp(tooNewTimestamp, threadPool.absoluteTimeInMillis());
                 }
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
                 BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), timestampError);

@@ -1024,11 +1024,12 @@ required_capability: promql_command_v0
 required_capability: promql_time
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - sum(avg_over_time(network.cost[1h])));
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - sum(avg_over_time(network.cost[1h])))
+| EVAL result = ROUND(result, 6), step = step;
 
 // time() at 01:00 = 1715302800; sum(avg_over_time) = 56.3225403... as before.
-result:double          | step:datetime
-1.7153027436774597E9   | 2024-05-10T01:00:00.000Z
+result:double      | step:datetime
+1.71530274367746E9 | 2024-05-10T01:00:00.000Z
 ;
 
 // A range query looks back one step, where Prometheus looks back five minutes (compatibility row 12): at 00:00 no

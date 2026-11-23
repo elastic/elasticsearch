@@ -1,0 +1,6 @@
+pr: 167091
+summary: Group `-0.0` with `0.0` in ES|QL grouping keys
+area: ES|QL
+type: bug
+issues:
+ - 167086

@@ -49,8 +49,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
-    private static final IntoOptions REFRESH = new IntoOptions(true, false);
-    private static final IntoOptions NO_REFRESH = new IntoOptions(false, false);
+    private static final IntoOptions REFRESH = IntoOptions.builder().refresh(true).build();
+    private static final IntoOptions NO_REFRESH = IntoOptions.builder().refresh(false).build();
 
     private static final String CALLER_HEADER = "x-caller";
 
@@ -364,7 +364,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testKeepGoingRefreshesWhenSomeRowsWereCreated() {
-        IntoMergeStatsOperator op = operator(new IntoOptions(true, true), INDEX);
+        IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).keepGoing(true).build(), INDEX);
         op.addInput(new IntoStats(3L, 1L, 2L, List.of("a", "b")).toPage(blockFactory));
         op.finish();
         assertThat(client.refreshes, hasSize(1));
@@ -376,7 +376,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     public void testKeepGoingSkipsRefreshWhenEveryRowWasRefused() {
-        IntoMergeStatsOperator op = operator(new IntoOptions(true, true), INDEX);
+        IntoMergeStatsOperator op = operator(IntoOptions.builder().refresh(true).keepGoing(true).build(), INDEX);
         op.addInput(new IntoStats(2L, 0L, 2L, List.of("a", "b")).toPage(blockFactory));
         op.finish();
         assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED));

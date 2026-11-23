@@ -9,16 +9,3 @@ ROW into_long = [1, 2, 3]
 total:long | created:long | failures:long | failure_details:keyword
 3          | 3            | 0             | null
 ;
-
-// The destination refusing a row under keep_going cannot be provoked from a csv-spec, IntoIT covers it.
-rowIntoIndexWithOptions
-required_capability: into_command
-
-ROW into_long = [1, 2, 3]
-| MV_EXPAND into_long
-| INTO into_destination_keep_going WITH {"keep_going": true}
-;
-
-total:long | created:long | failures:long | failure_details:keyword
-3          | 3            | 0             | null
-;

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -105,7 +106,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new IntoTestUtils.CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(bulks(), client, blockFactory.breaker(), DEST, COLUMNS, INDEX, IntoOptions.DEFAULT);
+        sink = newSink(blockFactory.breaker());
         writer = sink.create(driverContext);
     }
 
@@ -156,15 +157,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        var escfSink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            blockFactory.breaker(),
-            DEST,
-            COLUMNS,
-            INDEX,
-            IntoOptions.DEFAULT
-        );
+        var escfSink = newSink(blockFactory.breaker());
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
@@ -194,7 +187,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
         BlockFactory limited = blockFactory();
         DriverContext escfContext = new DriverContext(mockBigArrays(), limited, null);
-        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX, IntoOptions.DEFAULT);
+        var escfSink = newSink(limited.breaker());
         IntoPageWriter escfWriter = escfSink.create(escfContext);
         escfWriter.consume(page("h1"));
         long charged = escfContext.breaker().getUsed();
@@ -208,7 +201,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         // One row charges more than a page. The trip must release that charge and send nothing.
         long pageSize = driverContext.bigArrays().bytesRefRecycler().pageSize();
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize + 100));
-        var escfSink = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX, IntoOptions.DEFAULT);
+        var escfSink = newSink(limited.breaker());
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> escfWriter.consume(page("h1")));
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -251,7 +244,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(oneRow, greaterThan(0L));
 
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRow));
-        var factory = IntoPageWriter.Factory.createFactory(bulks(), client, limited.breaker(), DEST, COLUMNS, INDEX, IntoOptions.DEFAULT);
+        var factory = newSink(limited.breaker());
         var limitedWriter = factory.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
         assertThat(client.bulks, empty());
@@ -260,15 +253,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {
         BlockFactory crankyFactory = crankyBlockFactory();
-        var crankySink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            crankyFactory.breaker(),
-            DEST,
-            COLUMNS,
-            INDEX,
-            IntoOptions.DEFAULT
-        );
+        var crankySink = newSink(crankyFactory.breaker());
         IntoPageWriter crankyWriter = crankySink.create(new DriverContext(mockBigArrays(), crankyFactory, null));
         int written = 0;
         boolean tripped = false;
@@ -349,15 +334,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCloseAfterFailureReleasesTheAsyncAction() {
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        var exactWriter = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            driverContext.breaker(),
-            DEST,
-            List.of(column),
-            INDEX,
-            IntoOptions.DEFAULT
-        ).create(driverContext);
+        var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(BigInteger.TWO.pow(63).add(BigInteger.ONE)));
@@ -500,32 +477,32 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(writer.stats(), equalTo(noFailures(0, 0)));
     }
 
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker) {
+        return newSink(breaker, COLUMNS, IntoOptions.DEFAULT);
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker, List<Attribute> columns) {
+        return newSink(breaker, columns, IntoOptions.DEFAULT);
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker, IntoOptions options) {
+        return newSink(breaker, COLUMNS, options);
+    }
+
+    private IntoPageWriter.Factory newSink(CircuitBreaker breaker, List<Attribute> columns, IntoOptions options) {
+        return IntoPageWriter.Factory.createFactory(bulks(), client, breaker, DEST, columns, INDEX, options);
+    }
+
     /** Replaces the default {@link #sink} and {@link #writer} with ones that run under {@code keep_going}. */
     private void keepGoingSink() {
-        sink = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            blockFactory.breaker(),
-            DEST,
-            COLUMNS,
-            INDEX,
-            new IntoOptions(IntoOptions.DEFAULT.refresh(), true)
-        );
+        sink = newSink(blockFactory.breaker(), IntoOptions.builder().keepGoing(true).build());
         writer = sink.create(driverContext);
     }
 
     public void testUnsignedLongAboveLongMaxIsRejected() {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.UNSIGNED_LONG);
-        var exactWriter = IntoPageWriter.Factory.createFactory(
-            bulks(),
-            client,
-            driverContext.breaker(),
-            DEST,
-            List.of(column),
-            INDEX,
-            IntoOptions.DEFAULT
-        ).create(driverContext);
+        var exactWriter = newSink(driverContext.breaker(), List.of(column)).create(driverContext);
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
             try (LongBlock.Builder values = blockFactory.newLongBlockBuilder(1)) {
                 values.appendLong(NumericUtils.asLongUnsigned(big));

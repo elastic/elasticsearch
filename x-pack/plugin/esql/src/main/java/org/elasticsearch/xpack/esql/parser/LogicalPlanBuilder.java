@@ -643,7 +643,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 IntoOptions.NAMES
             );
         }
-        return new IntoOptions(refresh, keepGoing);
+        return IntoOptions.builder().refresh(refresh).keepGoing(keepGoing).build();
     }
 
     /** Removes {@code name} from {@code optionExpressionsByName}, so that whatever remains afterwards is an unknown option. */

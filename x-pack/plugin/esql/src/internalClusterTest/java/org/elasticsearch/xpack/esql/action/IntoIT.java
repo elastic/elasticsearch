@@ -48,13 +48,14 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -207,11 +208,8 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             """.formatted(DESTINATION);
         try (EsqlQueryResponse response = run(query)) {
             assertIntoColumns(response);
-            List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            List<Object> summary = values.getFirst();
+            List<Object> summary = singleValue(getValuesList(response));
             assertThat(summary.subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
-            assertThat(summary.get(3), instanceOf(String.class));
             assertThat((String) summary.get(3), startsWith("[400] "));
             assertThat((String) summary.get(3), containsString("unmapped_col"));
         }
@@ -227,8 +225,11 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         ) {
             List<Object> summary = getValuesList(response).getFirst();
             assertThat(summary.subList(0, 3), equalTo(List.of(3L, 0L, 3L)));
-            assertThat(summary.get(3), instanceOf(List.class));
-            assertThat((List<?>) summary.get(3), hasSize(3));
+            List<?> details = (List<?>) summary.get(3);
+            assertThat(details, hasSize(3));
+            for (Object detail : details) {
+                assertThat(detail.toString(), allOf(startsWith("[400] "), containsString("unmapped_col")));
+            }
         }
         assertReadBack(List.of());
     }
@@ -534,20 +535,6 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
         assertIntoTarget("ROW k = [\"a\", \"b\"] | MV_EXPAND k", alias, 2);
         assertThat("the write index was refreshed", countDestinationDocuments(), equalTo(2L));
-    }
-
-    public void testKeepGoingRefreshesTheCreatedRows() {
-        disableDestinationRefresh();
-        String query = """
-            ROW k = ["ok1", "bad", "ok2"]
-            | MV_EXPAND k
-            | EVAL unmapped_col = CASE(k == "bad", "nope", null)
-            | INTO %s WITH {"keep_going": true}
-            """.formatted(DESTINATION);
-        try (EsqlQueryResponse response = run(query)) {
-            assertThat(getValuesList(response).getFirst().subList(0, 3), equalTo(List.of(3L, 2L, 1L)));
-        }
-        assertThat(countDestinationDocuments(), equalTo(2L));
     }
 
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {

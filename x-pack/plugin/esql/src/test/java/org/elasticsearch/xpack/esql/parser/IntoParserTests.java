@@ -139,11 +139,8 @@ public class IntoParserTests extends AbstractStatementParserTests {
     }
 
     public void testKeepGoing() {
-        assertTrue(as(query("ROW a = 1 | INTO dst WITH {\"keep_going\": true}"), Into.class).options().keepGoing());
-    }
-
-    public void testKeepGoingNameIsCaseInsensitive() {
-        assertTrue(as(query("ROW a = 1 | INTO dst WITH {\"KEEP_Going\": true}"), Into.class).options().keepGoing());
+        String query = "ROW a = 1 | INTO dst WITH {\"" + randomCasing("keep_going") + "\": true}";
+        assertTrue(as(query(query), Into.class).options().keepGoing());
     }
 
     public void testCaseFoldedDuplicateRejected() {
@@ -167,16 +164,9 @@ public class IntoParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1 | INTO dst WITH {\"keep_going\": {\"x\": true}}", error);
     }
 
-    public void testDuplicateOptionRejected() {
-        expectError(
-            "ROW a = 1 | INTO dst WITH {\"foo\": 1, \"foo\": 2}",
-            "Duplicated named parameters with the same name [foo] is not supported"
-        );
-    }
-
     public void testRefreshAndKeepGoingTogether() {
         Into into = as(query("ROW a = 1 | INTO dst WITH {\"refresh\": false, \"keep_going\": true}"), Into.class);
-        assertThat(into.options(), equalTo(new IntoOptions(false, true)));
+        assertThat(into.options(), equalTo(IntoOptions.builder().refresh(false).keepGoing(true).build()));
     }
 
     public void testExplainInto() {

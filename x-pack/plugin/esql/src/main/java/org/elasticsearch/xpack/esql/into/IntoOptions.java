@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -42,11 +44,41 @@ public record IntoOptions(boolean refresh, boolean keepGoing) implements Writeab
 
     /** Appends each option that differs from {@link #DEFAULT}, so a plan that sets none keeps its existing rendering. */
     public void appendNonDefault(StringBuilder sb) {
+        List<String> nonDefault = new ArrayList<>();
         if (refresh != DEFAULT.refresh) {
-            sb.append(',').append(REFRESH).append('=').append(refresh);
+            nonDefault.add(REFRESH + "=" + refresh);
         }
         if (keepGoing != DEFAULT.keepGoing) {
-            sb.append(',').append(KEEP_GOING).append('=').append(keepGoing);
+            nonDefault.add(KEEP_GOING + "=" + keepGoing);
+        }
+        if (nonDefault.isEmpty() == false) {
+            sb.append(',').append(Strings.collectionToCommaDelimitedString(nonDefault));
+        }
+    }
+
+    /** Starts from {@link #DEFAULT}, so a caller names only the options it changes instead of passing positional booleans. */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private boolean refresh = DEFAULT.refresh;
+        private boolean keepGoing = DEFAULT.keepGoing;
+
+        private Builder() {}
+
+        public Builder refresh(boolean refresh) {
+            this.refresh = refresh;
+            return this;
+        }
+
+        public Builder keepGoing(boolean keepGoing) {
+            this.keepGoing = keepGoing;
+            return this;
+        }
+
+        public IntoOptions build() {
+            return new IntoOptions(refresh, keepGoing);
         }
     }
 }

@@ -78,7 +78,7 @@ public final class IntoPageWriter {
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
         private final AtomicLong failures = new AtomicLong();
-        // The reasons for the first refusals; guarded by itself because bulks settle concurrently.
+        // The reasons for the first refusals. Every access synchronizes on this list, because bulks are acknowledged on several threads.
         private final List<String> failureDetails = new ArrayList<>(IntoStats.MAX_FAILURE_DETAILS);
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final AtomicInteger openProducers = new AtomicInteger();

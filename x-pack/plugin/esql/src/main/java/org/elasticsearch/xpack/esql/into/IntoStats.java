@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -28,8 +29,6 @@ import java.util.List;
  * Details beyond that limit are dropped, keeping the first ones, so the result stays small however many rows are refused.
  */
 public record IntoStats(long total, long created, long failures, List<String> failureDetails) {
-    // TODO: the stats page grew from two to four columns without a TransportVersion gate; cover it with the minimum-version
-    // gating of Into (see the TODO in Into#postAnalysisVerification) before INTO leaves snapshot.
     public static final int MAX_FAILURE_DETAILS = 20;
 
     public static final IntoStats EMPTY = new IntoStats(0, 0, 0, List.of());
@@ -79,9 +78,7 @@ public record IntoStats(long total, long created, long failures, List<String> fa
 
     /** Adds up the counters and keeps the first {@link #MAX_FAILURE_DETAILS} details, this one's first. */
     IntoStats merge(IntoStats other) {
-        List<String> details = new ArrayList<>(failureDetails.size() + other.failureDetails.size());
-        details.addAll(failureDetails);
-        details.addAll(other.failureDetails);
+        List<String> details = CollectionUtils.concatLists(failureDetails, other.failureDetails);
         return new IntoStats(total + other.total, created + other.created, failures + other.failures, details);
     }
 

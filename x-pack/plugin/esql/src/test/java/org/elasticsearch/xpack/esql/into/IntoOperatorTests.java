@@ -107,7 +107,7 @@ public class IntoOperatorTests extends ComputeTestCase {
             IntoTestUtils.DEST,
             COLUMNS,
             INDEX,
-            new IntoOptions(IntoOptions.DEFAULT.refresh(), true)
+            IntoOptions.builder().keepGoing(true).build()
         );
         Operator op = new IntoOperator.Factory(keepGoing, Function.identity()).get(driverContext);
         op.addInput(page("ok", "bad"));

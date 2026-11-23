@@ -1025,17 +1025,9 @@ public abstract class BlockArrowFormatter {
                     new Field("min", doubleType, null),
                     new Field("max", doubleType, null),
                     new Field("sum", doubleType, null),
-                    listField("centroids", Types.MinorType.FLOAT8),
-                    listField("counts", Types.MinorType.BIGINT)
+                    nonNullableListField("centroids", Types.MinorType.FLOAT8),
+                    nonNullableListField("counts", Types.MinorType.BIGINT)
                 )
-            );
-        }
-
-        private static Field listField(String name, Types.MinorType itemType) {
-            return new Field(
-                name,
-                new FieldType(false, Types.MinorType.LIST.getType(), null),
-                List.of(new Field("$data$", new FieldType(false, itemType.getType(), null), null))
             );
         }
 
@@ -1161,32 +1153,10 @@ public abstract class BlockArrowFormatter {
             CentroidWriter itemWriter
         ) {
             int positions = block.getPositionCount();
-            int centroids = offsets[positions];
-
-            // List validity
-            bufs.add(dummyArrowBuf(0));
-            bufWriters.add(out -> 0);
-
-            // List offsets
-            long offsetsLen = (long) Integer.BYTES * (positions + 1);
-            bufs.add(dummyArrowBuf(offsetsLen));
-            bufWriters.add(out -> {
-                for (int offset : offsets) {
-                    out.writeIntLE(offset);
-                }
-                return offsetsLen;
-            });
-
-            // Values validity
-            bufs.add(dummyArrowBuf(0));
-            bufWriters.add(out -> 0);
-
-            // Values
-            long valuesLen = (long) centroids * itemBytes;
-            bufs.add(dummyArrowBuf(valuesLen));
-            bufWriters.add(out -> {
+            addNonNullableListBuffers(bufs, bufWriters, offsets, itemBytes, out -> {
                 TDigestHolder scratch = new TDigestHolder();
                 EncodedTDigest decoder = new EncodedTDigest();
+                long bytes = 0;
                 for (int position = 0; position < positions; position++) {
                     if (block.isNull(position)) {
                         continue;
@@ -1199,16 +1169,18 @@ public abstract class BlockArrowFormatter {
                     var it = decoder.centroidIterator();
                     while (it.next()) {
                         itemWriter.write(out, it);
+                        bytes += itemBytes;
                     }
                 }
-                return valuesLen;
+                return bytes;
             });
         }
     }
 
     /**
-     * Classic histograms use the encoded centroid format. Preserve their values and counts as two parallel Arrow lists;
-     * an empty histogram remains a valid struct with empty lists, distinct from a null histogram.
+     * Classic histograms store bucket upper-limit values and counts using the {@link EncodedTDigest} binary format.
+     * Preserve their values and counts as two parallel Arrow lists; an empty histogram remains a valid struct with empty
+     * lists, distinct from a null histogram.
      */
     public static class AsHistogram extends BlockArrowFormatter {
         public AsHistogram(DataType esqlType) {
@@ -1250,8 +1222,8 @@ public abstract class BlockArrowFormatter {
                 addListOffsets(bufs, bufWriters, block);
             }
             accumulateVectorValidity(bufs, bufWriters, block, asList);
-            addNonNullableListBuffers(bufs, bufWriters, offsets, Double.BYTES, out -> writeCentroids(block, indexes, out, true));
-            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeCentroids(block, indexes, out, false));
+            addNonNullableListBuffers(bufs, bufWriters, offsets, Double.BYTES, out -> writeBuckets(block, indexes, out, true));
+            addNonNullableListBuffers(bufs, bufWriters, offsets, Long.BYTES, out -> writeBuckets(block, indexes, out, false));
         }
 
         private static int[] offsets(BytesRefBlock block, int[] indexes) {
@@ -1269,7 +1241,7 @@ public abstract class BlockArrowFormatter {
             return offsets;
         }
 
-        private static long writeCentroids(BytesRefBlock block, int[] indexes, RecyclerBytesStreamOutput out, boolean values)
+        private static long writeBuckets(BytesRefBlock block, int[] indexes, RecyclerBytesStreamOutput out, boolean values)
             throws IOException {
             EncodedTDigest decoder = new EncodedTDigest();
             BytesRef scratch = new BytesRef();
@@ -1279,13 +1251,13 @@ public abstract class BlockArrowFormatter {
                     continue;
                 }
                 decoder.reset(block.getBytesRef(index, scratch));
-                var centroids = decoder.centroidIterator();
-                while (centroids.next()) {
+                var it = decoder.centroidIterator();
+                while (it.next()) {
                     if (values) {
-                        out.writeDoubleLE(centroids.currentMean());
+                        out.writeDoubleLE(it.currentMean());
                         bytes += Double.BYTES;
                     } else {
-                        out.writeLongLE(centroids.currentCount());
+                        out.writeLongLE(it.currentCount());
                         bytes += Long.BYTES;
                     }
                 }
@@ -1324,8 +1296,13 @@ public abstract class BlockArrowFormatter {
             return offsetsBytes;
         });
         addEmptyValidity(bufs, bufWriters);
-        bufs.add(dummyArrowBuf((long) offsets[offsets.length - 1] * itemBytes));
-        bufWriters.add(valuesWriter);
+        long valuesBytes = (long) offsets[offsets.length - 1] * itemBytes;
+        bufs.add(dummyArrowBuf(valuesBytes));
+        bufWriters.add(out -> {
+            long written = valuesWriter.write(out);
+            assert written == valuesBytes : "Expected " + valuesBytes + " bytes, wrote " + written;
+            return written;
+        });
     }
 
     /** Maps Arrow struct items to block value indexes, skipping null positions when a column is multivalued. */

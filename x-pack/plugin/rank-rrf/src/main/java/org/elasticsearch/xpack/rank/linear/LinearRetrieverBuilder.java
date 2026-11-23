@@ -24,6 +24,7 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -260,8 +261,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        sourceBuilder.trackScores(true);
+        // With _score in the sort, the coordinator takes hit scores from the sort values (SearchPhaseController#getHits). Tracking scores
+        // would only make the fetch phase re-run the whole query (FetchScorePhase), and fail the shard if that re-run, e.g. an approximate
+        // kNN, no longer matches a hit collected in the query phase.
+        if (sortsByScore(sourceBuilder) == false) {
+            sourceBuilder.trackScores(true);
+        }
         return sourceBuilder;
+    }
+
+    private static boolean sortsByScore(SearchSourceBuilder sourceBuilder) {
+        return sourceBuilder.sorts() != null && sourceBuilder.sorts().stream().anyMatch(sort -> sort instanceof ScoreSortBuilder);
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -36,5 +37,6 @@ public record TransportActionServices(
     IpLocationService ipLocationService,
     BlockFactoryProvider blockFactoryProvider,
     PlannerSettings.Holder plannerSettings,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    BatchIndexingEnabled batchIndexingEnabled
 ) {}

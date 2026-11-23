@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -47,10 +48,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
- * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
+ * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
+ * charges the query breaker and coordinating indexing pressure.
  */
 public final class IntoPageWriter {
-    static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory {
@@ -105,7 +106,7 @@ public final class IntoPageWriter {
             this.columns = columns;
             this.types = types;
             this.writer = indexing == Indexing.INDEX
-                ? bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity)
+                ? bulks.newWriter(client, breaker, destination, bulks.defaultPolicy(), this::onResponse, this::onCapacity)
                 : null;
         }
 
@@ -146,6 +147,24 @@ public final class IntoPageWriter {
             return null;
         }
 
+        private Exception recordWriterFailure(Exception failed) {
+            // A missing destination is wrapped so DataNodeRequestSender does not take it for a missing source shard and retry that
+            boolean destinationUnavailable = TransportActions.isShardNotAvailableException(failed);
+            failure.compareAndSet(
+                null,
+                destinationUnavailable
+                    ? new ElasticsearchStatusException(
+                        "INTO [{}] failed: {}",
+                        ExceptionsHelper.status(failed),
+                        failed,
+                        destination,
+                        failed.getMessage()
+                    )
+                    : failed
+            );
+            return failure.get();
+        }
+
         private void onCapacity() {
             for (IntoPageWriter pageWriter : drivers) {
                 pageWriter.wake();
@@ -160,7 +179,7 @@ public final class IntoPageWriter {
 
         private void settled(Exception failed) {
             if (failed != null) {
-                failure.compareAndSet(null, failed);
+                recordWriterFailure(failed);
             }
             settled = true;
             for (IntoPageWriter pageWriter : drivers) {
@@ -179,8 +198,8 @@ public final class IntoPageWriter {
         }
 
         /**
-         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch.
-         * Checked once on the coordinator.
+         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch. Checked on the coordinator before the
+         * query is dispatched, and again where a node plans the write, since the destination can change in between.
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             // TODO: authorize write access to the destination before reporting destination-specific errors below, which would
@@ -264,8 +283,7 @@ public final class IntoPageWriter {
                 producer.add(new PageRows(page, sink.columns, sink.types, sink.destination), false);
                 Exception failed = sink.writer.failure();
                 if (failed != null) {
-                    sink.failure.compareAndSet(null, failed);
-                    throw ExceptionsHelper.convertToRuntime(failed);
+                    throw ExceptionsHelper.convertToRuntime(sink.recordWriterFailure(failed));
                 }
             }
         } finally {

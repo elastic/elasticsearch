@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -21,11 +23,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -42,7 +46,13 @@ public class Into extends UnaryPlan
         PipelineBreaker,
         PostAnalysisPlanVerificationAware,
         PostAnalysisVerificationAware {
+    public static final String UNSUPPORTED_SOURCE = "INTO currently only supports ROW or local FROM as a source, without FORK";
+    public static final String UNBOUNDED_SORT = "INTO cannot be preceded by an unbounded SORT [{}], since indices are not sorted: "
+        + "add a LIMIT after the SORT, or remove the SORT";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
+
+    private static final Set<String> LOCAL_ONLY = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
     private final String destination;
     private final List<Attribute> output;
@@ -51,15 +61,23 @@ public class Into extends UnaryPlan
         this(source, child, destination, IntoStats.createAttributes(source));
     }
 
-    private Into(Source source, LogicalPlan child, String destination, List<Attribute> output) {
+    public Into(Source source, LogicalPlan child, String destination, List<Attribute> output) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
         this.output = output;
     }
 
+    /**
+     * Reads the output too, rather than minting new {@code [total, created]} attributes: the coordinator plan built around this
+     * node refers to them by id.
+     */
     private Into(StreamInput in) throws IOException {
-        // TODO: once FROM supports INTO, align regenerated output NameIds with ProjectAwayColumns and ComputeService.reductionPlan
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readString());
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readString(),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
     }
 
     @Override
@@ -67,6 +85,7 @@ public class Into extends UnaryPlan
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(destination);
+        out.writeNamedWriteableCollection(output);
     }
 
     @Override
@@ -95,7 +114,7 @@ public class Into extends UnaryPlan
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Into::new, child(), destination);
+        return NodeInfo.create(this, Into::new, child(), destination, output);
     }
 
     @Override
@@ -115,32 +134,49 @@ public class Into extends UnaryPlan
         };
     }
 
-    /**
-     * A {@link LocalRelation} is a ROW producer that analysis already materialized, for example {@code DESCRIBE}.
-     * Pass {@code false} while the original producer is still in the plan.
-     */
-    public static boolean unsupportedSource(LogicalPlan child, boolean allowMaterializedRow) {
-        return child.anyMatch(p -> {
-            if (p instanceof MergePlan) {
-                return true;
-            }
-            if (p instanceof LeafPlan == false || p instanceof Row) {
-                return false;
-            }
-            if (allowMaterializedRow && p instanceof LocalRelation) {
-                return false;
-            }
-            return true;
-        });
+    private static boolean unsupportedSource(LogicalPlan child) {
+        return child.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && isSupportedSource(p) == false));
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // TODO: once FROM is supported, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
-        // RejectUnsupportedIntoSource already saw the original producer. DESCRIBE has since replaced it with a LocalRelation.
-        if (unsupportedSource(child(), true)) {
-            failures.add(fail(this, "INTO currently only supports ROW as a source, without FORK"));
+        // TODO: before INTO leaves snapshot, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
+        if (unsupportedSource(child())) {
+            failures.add(fail(this, UNSUPPORTED_SOURCE));
         }
+        OrderBy sort = unboundedSort(child());
+        if (sort != null) {
+            failures.add(fail(this, UNBOUNDED_SORT, sort.sourceText()));
+        }
+    }
+
+    /**
+     * The SORT that reaches this INTO without a LIMIT after it, which the optimizer could not turn into a TopN. It walks through the
+     * commands that keep the order of the rows like {@code PruneRedundantOrderBy} does, and stops at an aggregation, which makes a SORT
+     * before it redundant. This is checked here, as the generic check for an unbounded SORT runs after optimization, says it is
+     * "not supported yet", and an index will never keep the order it is written in.
+     */
+    @Nullable
+    private static OrderBy unboundedSort(LogicalPlan child) {
+        Deque<LogicalPlan> toCheck = new ArrayDeque<>();
+        toCheck.push(child);
+        while (toCheck.isEmpty() == false) {
+            LogicalPlan plan = toCheck.pop();
+            if (plan instanceof OrderBy sort) {
+                return sort;
+            }
+            if (plan instanceof SortAgnostic && plan instanceof Aggregate == false) {
+                plan.children().forEach(toCheck::push);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isSupportedSource(LogicalPlan leaf) {
+        return leaf instanceof Row
+            || (leaf instanceof EsRelation relation
+                && relation.indexMode().isTsdb() == false
+                && LOCAL_ONLY.containsAll(relation.originalIndices().keySet()));
     }
 
     @Override
@@ -150,11 +186,11 @@ public class Into extends UnaryPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), destination);
+        return Objects.hash(super.hashCode(), destination, output);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && destination.equals(((Into) obj).destination);
+        return super.equals(obj) && destination.equals(((Into) obj).destination) && output.equals(((Into) obj).output);
     }
 }

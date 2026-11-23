@@ -176,8 +176,10 @@ public class AtomicUsageAccumulatorTests extends ESTestCase {
                 thread.join();
             }
         } finally {
-            // Also when the wait is interrupted, so that the drainer never spins on after the test.
+            // Also when the wait is interrupted, so that the drainer never spins on after the test and the writers are not left
+            // waiting for a drain that will not come.
             writersDone.set(true);
+            drainedDuringWrites.countDown();
         }
         drainer.join();
         accumulate(drained, accumulator.drain(NOW));

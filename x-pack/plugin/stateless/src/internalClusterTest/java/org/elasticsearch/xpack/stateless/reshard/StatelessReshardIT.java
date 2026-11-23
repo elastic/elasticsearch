@@ -4239,7 +4239,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         startMasterOnlyNode();
         var indexNodes = startIndexNodes(
             2,
-            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+            Settings.builder()
+                .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+                // The split target's recovery waits on the held copy, so the source's relocation must not queue behind it
+                .put(unthrottledIncomingRecoveryNodeSettings())
+                .build()
         );
         for (String indexNode : indexNodes) {
             setNodeRepositoryStrategy(indexNode, blockingStrategy);

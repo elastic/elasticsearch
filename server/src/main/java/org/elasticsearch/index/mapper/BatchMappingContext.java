@@ -376,7 +376,7 @@ public final class BatchMappingContext implements Releasable {
         addIgnoredFieldColumnar(doc, new BytesRef(field));
     }
 
-    /** As {@link #addIgnoredFieldColumnar(int, String)}, for a caller that reports one field for many documents and encodes it once. */
+    /** As {@link #addIgnoredFieldColumnar(int, String)}, for a caller that encodes the name once; it is kept, so it must not change. */
     void addIgnoredFieldColumnar(int doc, BytesRef field) {
         assert frozen == false;
         if (ignoredFields == null) {
@@ -386,12 +386,8 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
-     * Returns a helper that applies {@code ignore_malformed} to {@code mapper}'s field as its row path does. The mapper must not record
-     * offsets. The caller must {@link BatchMalformedValues#emit} and close it.
-     *
-     * @param storeMalformed whether the mapper's row path stores malformed values so synthetic source can restore them. The mapper
-     *                       decides this itself on the row path (the IP mapper stores whenever its source is synthetic, histogram only
-     *                       when {@code ignore_malformed} is also on), and the batch path has to agree with it.
+     * Returns a helper that applies {@code ignore_malformed} to {@code mapper}'s field as its row path does; the mapper must not record
+     * offsets. {@code storeMalformed} is whether that row path stores malformed values for synthetic source, which the batch must match.
      */
     public BatchMalformedValues malformedValues(FieldMapper mapper, boolean storeMalformed) {
         return new BatchMalformedValues(this, mapper, storeMalformed);

@@ -29,25 +29,13 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Applies {@code ignore_malformed: true} to a columnar batch the way {@link FallbackPostMapper#captureMalformed} does per document on
- * the row path, so that mappers gaining batch support do not each re-implement its encoding and index-version rules.
- *
- * <p>For every malformed value it reports the field in {@code _ignored} (once per document) and, when the row path would store the
- * value, buffers it for the {@code ._ignore_malformed} or {@code ._on_failure} sidecar column. {@link #emit} attaches those columns.
- * Where the batch path cannot handle a malformed value, {@code record} throws {@link UnsupportedOperationException}, which sends the
- * batch back to the row path. That is checked per value, so a batch with no malformed values never falls back because of it; the cost
- * is that a batch which does fall back discards the work already done on it. A mapper that prefers to decide up front can check
- * {@link #handled()}, at the price of also falling back batches that contain no malformed value.
- *
- * <p>Fields that record offsets are not supported: their malformed values go to {@code _ignored_source} on the row path.
- * {@code ignore_malformed: false}, which rejects the document, is not supported either.
- * Obtain an instance from {@link BatchMappingContext#malformedValues}.
+ * Applies {@code ignore_malformed: true} to a batch as the row path does: reports the field in {@code _ignored} and stores the value in
+ * a sidecar column. Where it cannot, {@code record} throws {@link UnsupportedOperationException}, sending the batch to the row path.
  */
 public final class BatchMalformedValues implements Releasable {
     private final BatchMappingContext ctx;
-    /** The field's full path, which names the sidecar columns, as {@link FallbackPostMapper#captureMalformed} does on the row path. */
+    /** Names the sidecar columns, as on the row path. */
     private final String fieldPath;
-    /** The name reported in {@code _ignored}, encoded once. */
     private final BytesRef ignoredName;
     private final boolean ignoreMalformed;
     /** Whether the index layout can hold the values the row path would store. */
@@ -64,43 +52,36 @@ public final class BatchMalformedValues implements Releasable {
     private boolean emitted;
 
     BatchMalformedValues(BatchMappingContext ctx, FieldMapper mapper, boolean storeMalformed) {
-        // Fields with offsets send malformed values to _ignored_source on the row path, which the batch path cannot do.
+        // On the row path, fields with offsets also record malformed values with the offsets, which the batch path does not do.
         assert mapper.getOffsetFieldName() == null : "field [" + mapper.fullPath() + "] records offsets, so it must use the row path";
         this.ctx = ctx;
         this.fieldPath = mapper.fullPath();
-        // The row path reports the field type's name in _ignored but names the sidecar columns after the full path.
+        // The row path reports the field type's name in _ignored, but names the sidecar columns after the full path.
         this.ignoredName = new BytesRef(mapper.fieldType().name());
         this.ignoreMalformed = mapper.ignoreMalformed();
         final IndexSettings indexSettings = ctx.indexSettings();
         this.layoutSupported = layoutSupported(indexSettings.getIndexVersionCreated(), storeMalformed);
         this.onFailureColumn = FallbackPostMapper.malformedUsesOnFailureColumn(indexSettings);
-        // Same gate as the row path.
+        // As on the row path, ._on_failure values are only written when the source is reconstructed from the index.
         this.store = storeMalformed && (onFailureColumn == false || FallbackPostMapper.storesOnFailureValues(ctx.mappingLookup()));
     }
 
     /**
-     * Whether an index created on {@code version} can hold the malformed values the row path would store. Storing needs the
-     * {@code SeparateCount} layout. That is the latest of the version gates involved: the layout of {@code ._ignore_malformed}
-     * ({@code STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES}) is older, and {@code ._on_failure}
-     * ({@code MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}) is newer and only applies where the layout is already available.
+     * Storing needs the {@code SeparateCount} layout; the {@code ._ignore_malformed} version gate is older and the {@code ._on_failure}
+     * one newer, so neither adds a constraint.
      */
     static boolean layoutSupported(IndexVersion version, boolean storeMalformed) {
         return storeMalformed == false || MultiValuedBinaryDocValuesField.useSeparateCount(version);
     }
 
-    /**
-     * Whether {@code record} can handle a malformed value rather than throw: {@code ignore_malformed} is on and the index layout can
-     * hold what the row path would store. A mapper may check this before mapping to fall back early.
-     */
+    /** Whether {@code record} can handle a malformed value rather than throw; a mapper may check it to fall back early. */
     public boolean handled() {
         return ignoreMalformed && layoutSupported;
     }
 
     /**
-     * Records a malformed value, already encoded as {@link XContentDataHelper#encodeToken} encodes it, found in document {@code doc}.
-     * Documents must be recorded in ascending order. The bytes are copied, so the caller may reuse them.
-     *
-     * @throws UnsupportedOperationException if the batch cannot handle malformed values, so it falls back to the row path
+     * Records a malformed value, encoded as {@link XContentDataHelper#encodeToken} does, for {@code doc}. The bytes are copied, and
+     * documents must be recorded in ascending order.
      */
     public void record(int doc, BytesRef encoded) {
         checkHandled(null);
@@ -108,14 +89,11 @@ public final class BatchMalformedValues implements Releasable {
     }
 
     /**
-     * Records the malformed scalar value under {@code cursor}, found in document {@code doc}, encoding it as the row path does.
-     * Documents must be recorded in ascending order.
-     *
-     * @throws UnsupportedOperationException if the batch cannot handle the value, so it falls back to the row path
+     * Records the malformed scalar under {@code cursor} for {@code doc}, encoded as the row path stores it. Documents must be recorded
+     * in ascending order.
      */
     public void record(int doc, EscfColumnTransforms.TypedUtf8Cursor cursor) {
         checkHandled(cursor);
-        // The value is only encoded when it is going to be stored.
         recordEncoded(doc, store ? encode(cursor) : null);
     }
 
@@ -136,7 +114,6 @@ public final class BatchMalformedValues implements Releasable {
         if (doc != pendingDoc) {
             flush();
             pendingDoc = doc;
-            // Report the field in _ignored once per document.
             ctx.addIgnoredFieldColumnar(doc, ignoredName);
         }
         if (store) {
@@ -147,7 +124,7 @@ public final class BatchMalformedValues implements Releasable {
         }
     }
 
-    /** Encodes the value as the row path stores it: numbers and booleans keep the type they were written as. */
+    /** Numbers and booleans keep the type they were written as, as on the row path. */
     private BytesRef encode(EscfColumnTransforms.TypedUtf8Cursor cursor) {
         final byte type = cursor.valueType();
         return switch (type) {
@@ -157,8 +134,7 @@ public final class BatchMalformedValues implements Releasable {
             case SourceValueType.FLOAT, SourceValueType.DOUBLE -> XContentDataHelper.encodeDouble(cursor.doubleValue());
             case SourceValueType.TRUE -> XContentDataHelper.encodeBoolean(true);
             case SourceValueType.FALSE -> XContentDataHelper.encodeBoolean(false);
-            // NULL never gets here: a null is absent, or replaced by null_value, and is never malformed. The other types cannot be
-            // converted to a string.
+            // Callers handle NULL; the other types are not supported, so the batch falls back to the row path.
             case SourceValueType.NULL, SourceValueType.BINARY, SourceValueType.KEY_VALUE, SourceValueType.FIXED_ARRAY,
                 SourceValueType.UNION_ARRAY -> throw new UnsupportedOperationException(
                     "mapColumnBatch: malformed value of unsupported type [" + SourceValueType.name(type) + "] in field [" + fieldPath + "]"
@@ -214,7 +190,7 @@ public final class BatchMalformedValues implements Releasable {
         out.append((byte) v);
     }
 
-    /** Attaches the columns holding the stored malformed values, if any. Call once, after the last {@code record}. */
+    /** Attaches the sidecar columns holding the stored values, if any; call once, after the last {@code record}. */
     public void emit() {
         assert emitted == false : "emit called twice";
         emitted = true;

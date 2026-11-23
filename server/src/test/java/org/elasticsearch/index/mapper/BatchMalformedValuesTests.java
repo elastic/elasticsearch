@@ -36,9 +36,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Tests {@link BatchMalformedValues} against the row path: for the same malformed values, the fields it adds to a batch must equal the
- * ones {@link FallbackPostMapper#captureMalformed} and {@code addIgnoredField} add per document. The mapper under test is an {@code ip}
- * field with {@code ignore_malformed}, used only as a {@link FieldMapper} to hand to the helper.
+ * Checks that {@link BatchMalformedValues} adds the same fields to a batch as the row path does per document. The mapper is an
+ * {@code ip} field, used only to hand a {@link FieldMapper} to the helper.
  */
 public class BatchMalformedValuesTests extends MapperServiceTestCase {
 
@@ -81,7 +80,7 @@ public class BatchMalformedValuesTests extends MapperServiceTestCase {
         return Strings.toString(b.endObject());
     }
 
-    /** The fields that carry malformed-value state: {@code _ignored} and the field's sidecar columns, as comparable text. */
+    /** The fields carrying malformed-value state ({@code _ignored} and the sidecar columns), as comparable text. */
     private static List<String> relevant(List<IndexableField> fields) {
         List<String> described = new ArrayList<>();
         for (IndexableField field : fields) {
@@ -158,14 +157,14 @@ public class BatchMalformedValuesTests extends MapperServiceTestCase {
             }
             docs.add(values);
         }
-        // A batch with nothing malformed adds nothing, which is a different case.
+        // At least one malformed value, so that the sidecar columns exist.
         if (docs.stream().allMatch(List::isEmpty)) {
             docs.get(0).add(randomMalformed());
         }
         return docs;
     }
 
-    /** Sorted into {@code ._ignore_malformed} on a standard index: one value is raw, several are length-prefixed and in sorted order. */
+    /** A standard index stores a document's values sorted, in {@code ._ignore_malformed}. */
     public void testMatchesRowPathInIgnoreMalformedColumn() throws IOException {
         MapperService mapperService = mapperService(standard(), true);
         List<List<Object>> docs = randomDocs();
@@ -179,7 +178,7 @@ public class BatchMalformedValuesTests extends MapperServiceTestCase {
         assertEquals(expectedOnRowPath(mapperService, docs), actualOnBatchPath(mapperService, true, docs));
     }
 
-    /** Without synthetic source nothing is stored, but the field is still reported in {@code _ignored}. */
+    /** With {@code storeMalformed} false nothing is stored, but the field is still reported in {@code _ignored}. */
     public void testNotStoringStillReportsIgnored() throws IOException {
         MapperService mapperService = mapperService(standard(), true);
         List<List<Object>> docs = randomDocs();
@@ -274,10 +273,7 @@ public class BatchMalformedValuesTests extends MapperServiceTestCase {
         );
     }
 
-    /**
-     * {@code layoutSupported} checks only the {@code SeparateCount} layout, which is sufficient because the other version gates that
-     * the row path consults for malformed values are not later than it.
-     */
+    /** {@code layoutSupported} checks only the {@code SeparateCount} layout; the other two version gates are on either side of it. */
     public void testLayoutGate() {
         assertTrue(BatchMalformedValues.layoutSupported(IndexVersionUtils.randomVersion(), false));
         assertTrue(BatchMalformedValues.layoutSupported(IndexVersion.current(), true));

@@ -36,11 +36,31 @@ public class TimeRangeBucketTests extends ESTestCase {
     }
 
     public void testResolveClampsNegativeAndOverflowAges() {
+        assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(Long.MIN_VALUE));
         assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(-1));
         assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(0));
         assertEquals(TimeRangeBucket.FifteenMinutes.label(), TimeRangeBucket.resolve(TimeRangeBucket.FifteenMinutes.millis()));
-        assertEquals(TimeRangeBucket.OneHour.label(), TimeRangeBucket.resolve(TimeRangeBucket.FifteenMinutes.millis() + 1));
-        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(TimeRangeBucket.FourteenDays.millis() + 1));
+        long tolerance = TimeRangeBucket.RESOLVE_TOLERANCE.millis();
+        assertEquals(TimeRangeBucket.OneHour.label(), TimeRangeBucket.resolve(TimeRangeBucket.FifteenMinutes.millis() + tolerance + 1));
+        assertEquals(
+            TimeRangeBucket.OlderThan14Days.label(),
+            TimeRangeBucket.resolve(TimeRangeBucket.FourteenDays.millis() + tolerance + 1)
+        );
         assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(Long.MAX_VALUE));
+    }
+
+    /**
+     * Clients like Kibana send absolute timestamps for presets such as "Last 1 hour", so the age arrives slightly past the
+     * threshold. Up to {@link TimeRangeBucket#RESOLVE_TOLERANCE} past a threshold still counts as within it.
+     */
+    public void testResolveToleratesAgesJustPastThreshold() {
+        long tolerance = TimeRangeBucket.RESOLVE_TOLERANCE.millis();
+        for (TimeRangeBucket bucket : TimeRangeBucket.values()) {
+            if (bucket == TimeRangeBucket.OlderThan14Days) {
+                continue;
+            }
+            assertEquals(bucket.label(), TimeRangeBucket.resolve(bucket.millis() + randomLongBetween(1, tolerance)));
+            assertNotEquals(bucket.label(), TimeRangeBucket.resolve(bucket.millis() + tolerance + 1));
+        }
     }
 }

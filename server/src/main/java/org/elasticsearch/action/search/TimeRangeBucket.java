@@ -24,7 +24,9 @@ import java.util.List;
  * region timestamps are not fully supported, so dashboards should filter to search nodes.
  *
  * <p>{@link #resolve} maps negative ages (future timestamps) to {@link #FifteenMinutes} and
- * everything beyond 14 days to {@link #OlderThan14Days}. The same thresholds converted to hours
+ * everything beyond 14 days (plus {@link #RESOLVE_TOLERANCE}) to {@link #OlderThan14Days}. Unlike the
+ * histogram boundaries, {@link #resolve} counts an age up to {@link #RESOLVE_TOLERANCE} past a threshold
+ * as within it. The same thresholds converted to hours
  * are passed to OpenTelemetry explicit-bucket histograms: values {@code <=} the first bound
  * (including negatives) land in the first bucket, and {@link #OlderThan14Days} uses
  * {@code Double.MAX_VALUE} so every larger finite age lands in the last explicit bucket rather
@@ -39,6 +41,27 @@ public enum TimeRangeBucket {
     SevenDays(TimeValue.timeValueDays(7).getMillis(), "7_days"),
     FourteenDays(TimeValue.timeValueDays(14).getMillis(), "14_days"),
     OlderThan14Days(Long.MAX_VALUE, "older_than_14_days");
+
+    /**
+     * How far past a threshold an age may be and still be counted as within it by {@link #resolve}.
+     *
+     * <p>Clients such as Kibana resolve relative ranges like "Last 1 hour" to absolute timestamps before
+     * sending the request, so by the time the age is computed, the lower bound is the threshold plus the
+     * time it took the request to get here. Without a tolerance, the most common time picker presets would
+     * land one bucket too old. Ranges written as date math such as {@code now-1h} don't need it, because they
+     * resolve against the same now the age is computed against.
+     *
+     * <p>One minute covers network latency, request queueing, dashboard panels that are sent late, and
+     * moderate clock skew between the browser and the cluster, while staying small next to the smallest
+     * bucket (about 7% of 15 minutes). The cost is that a range that really is up to a minute older than
+     * a threshold, such as "last 61 minutes", is counted in the bucket below it, which is acceptable given
+     * how coarse the buckets are.
+     *
+     * <p>Bucketing by the length of the requested range instead would be exact for such presets, but it
+     * would no longer describe how old the oldest requested data is, and would misclassify ranges that
+     * end in the past.
+     */
+    public static final TimeValue RESOLVE_TOLERANCE = TimeValue.ONE_MINUTE;
 
     private static final TimeRangeBucket[] VALUES = values();
     private static final double MILLIS_PER_HOUR = TimeValue.ONE_HOUR.getMillis();
@@ -79,11 +102,15 @@ public enum TimeRangeBucket {
     }
 
     /**
-     * Returns the bucket label for the given age in milliseconds.
+     * Returns the bucket label for the given age in milliseconds, counting an age up to
+     * {@link #RESOLVE_TOLERANCE} past a threshold as within it.
      */
     public static String resolve(long ageMillis) {
+        // Subtract from the age rather than add to the thresholds so OlderThan14Days's Long.MAX_VALUE cannot overflow.
+        long toleranceMillis = RESOLVE_TOLERANCE.millis();
+        long toleratedAgeMillis = Math.max(ageMillis, Long.MIN_VALUE + toleranceMillis) - toleranceMillis;
         for (TimeRangeBucket bucket : VALUES) {
-            if (ageMillis <= bucket.millis) {
+            if (toleratedAgeMillis <= bucket.millis) {
                 return bucket.label;
             }
         }

@@ -293,10 +293,10 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
     }
 
     /**
-     * The coordinator merges the partials with the {@code SumDouble} reducer, not with this class, and that reducer rounds
-     * {@code value + delta} before it adds a partial in, so the correction of a partial can get lost there. That is a limit
-     * of the reducer, not of the partials, and it is the same one that partials of the plain {@code SumDouble} have. What has
-     * to hold is that partials that nearly cancel each other don't lose more than a rounding step of their own size.
+     * The coordinator merges the partials with this class, in the final aggregation of the new mode. Merging is not exact: the
+     * correction of a partial can be rounded away when it is added to another one, an error of the size of an ulp of the
+     * partial, which is the same limit that partials of the plain {@code SumDouble} have. What has to hold is that partials that
+     * nearly cancel each other don't lose more than a rounding step of their own size.
      */
     public void testPartialsThatCancelOutMergeWithinARoundingStepInTheProductionReducer() {
         DriverContext driverContext = driverContext();
@@ -306,7 +306,8 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
         try (
             SumLongAsDoubleAggregatorFunction first = new SumLongAsDoubleAggregatorFunction(List.of(0));
             SumLongAsDoubleAggregatorFunction second = new SumLongAsDoubleAggregatorFunction(List.of(0));
-            SumDoubleAggregatorFunction reducer = new SumDoubleAggregatorFunction(driverContext, List.of(0, 1, 2))
+            // The final aggregation of the new mode is this function too, with intermediate input.
+            SumLongAsDoubleAggregatorFunction reducer = new SumLongAsDoubleAggregatorFunction(List.of(0, 1, 2))
         ) {
             addArray(blockFactory, first, drivers[0], null);
             addArray(blockFactory, second, drivers[1], null);

@@ -203,22 +203,18 @@ public final class SumLongAsDoubleGroupingAggregatorFunction implements Grouping
 
     private void addRawInput(int positionOffset, IntVector groups, LongBlock block) {
         int positions = groups.getPositionCount();
-        if (positions == 0) {
-            return;
-        }
-        state.ensureCapacity(groups.max());
-        DoubleArray values = state.values;
-        DoubleArray deltas = state.deltas;
         for (int p = 0; p < positions; p++) {
             int valuesPosition = positionOffset + p;
             if (block.isNull(valuesPosition)) {
                 continue;
             }
             int groupId = groups.getInt(p);
+            // Grow for the groups that have a value only: a null only group id must not make the arrays grow to it.
+            state.ensureCapacity(groupId);
             int start = block.getFirstValueIndex(valuesPosition);
             int end = start + block.getValueCount(valuesPosition);
             for (int i = start; i < end; i++) {
-                add(values, deltas, groupId, block.getLong(i));
+                add(state.values, state.deltas, groupId, block.getLong(i));
             }
         }
     }

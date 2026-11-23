@@ -34,13 +34,18 @@ import java.util.List;
  *     avoids the conversion, the extra block, and the dependency chain.
  * </p>
  * <p>
- *     The intermediate state is deliberately identical to {@code SumDoubleAggregatorFunction}'s: nodes that don't know about
- *     this function keep working, because they exchange the same {@code (value, delta, seen)} columns and only the way the
- *     {@code value} is produced differs. The exact 128-bit sum is rounded to a {@code double} once, and the part that doesn't
- *     fit into the {@code double} is reported in {@code delta}, which {@link CompensatedSum} adds back when partial results
- *     are merged. The sum is exact within one function. Merging partial results is not: the reducer of the plain sum rounds
- *     {@code value + delta} before it adds a partial in, so it can lose the correction of a partial, which is an error of
- *     the size of an ulp of that partial, and the same one that the partials of {@code SUM} of a {@code double} have.
+ *     The intermediate state is deliberately identical to {@code SumDoubleAggregatorFunction}'s, {@code (value, delta, seen)},
+ *     so the final aggregation and the node level reduction read it the same way. That is not what keeps a mixed version
+ *     cluster safe: a node that doesn't know the {@code long_overflow_double} mode of {@code Sum} can't plan it. The mode is
+ *     only chosen when every node supports the {@code esql_sum_long_as_double} transport version, see
+ *     {@code Avg#surrogate(TransportVersion)}, so older nodes never receive it.
+ * </p>
+ * <p>
+ *     The exact 128-bit sum is rounded to a {@code double} once, and the part that doesn't fit into the {@code double} is
+ *     reported in {@code delta}, which {@link CompensatedSum} adds back when partial results are merged. The sum is exact
+ *     within one function. Merging partial results is not: the correction of a partial can be rounded away when it is added
+ *     to another one, which is an error of the size of an ulp of that partial, and the same one that the partials of
+ *     {@code SUM} of a {@code double} have. The final aggregation of the new mode is this class too, with intermediate input.
  * </p>
  * <p>
  *     This is the non-grouping form, see {@link SumLongAsDoubleGroupingAggregatorFunction} for the grouping one. Intermediate

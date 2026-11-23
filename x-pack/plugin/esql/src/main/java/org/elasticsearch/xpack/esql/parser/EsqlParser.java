@@ -303,7 +303,12 @@ public class EsqlParser {
         for (Token token : tokens) {
             int type = token.getType();
             switch (type) {
-                case EsqlBaseLexer.LP -> {
+                // The source-function name token carries its own '(': the lexer folds the two together because
+                // that is how it tells a call from an index pattern. So nothing emits LP for a call while the
+                // closing ')' still emits RP, and counted only there every call leaves depth one lower for the
+                // rest of the query -- after which an expression nests that much deeper than the limit allows,
+                // and a comma inside it reads as a top-level separator. Counted as the parenthesis it contains.
+                case EsqlBaseLexer.LP, EsqlBaseLexer.DEV_SOURCE_FUNCTION_NAME -> {
                     depth++;
                     leftParentheses++;
                 }

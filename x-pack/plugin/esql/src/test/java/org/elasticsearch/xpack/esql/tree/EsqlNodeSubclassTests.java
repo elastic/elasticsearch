@@ -99,6 +99,8 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionArgument;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionInvocation;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -537,6 +539,23 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
+        } else if (argClass == SourceFunctionArgument.class) {
+            // Sealed, so unmockable; and there is nothing to mock — the two shapes are small records.
+            return randomBoolean()
+                ? new SourceFunctionArgument.Value(Source.EMPTY, DataType.KEYWORD, randomAlphaOfLength(8))
+                : new SourceFunctionArgument.NamedValues(Source.EMPTY, Map.of(randomAlphaOfLength(4), randomAlphaOfLength(6)));
+        } else if (argClass == SourceFunctionInvocation.class) {
+            // Record carrying a folded payload, so final and unmockable. Varied per call, because
+            // testReplaceChildren and testTransform need randomValueOtherThan to find a second distinct instance.
+            return new SourceFunctionInvocation(
+                Source.EMPTY,
+                "a_function",
+                List.of(
+                    new SourceFunctionArgument.Value(Source.EMPTY, DataType.KEYWORD, randomAlphaOfLength(8)),
+                    new SourceFunctionArgument.Value(Source.EMPTY, DataType.KEYWORD, randomAlphaOfLength(12)),
+                    new SourceFunctionArgument.NamedValues(Source.EMPTY, Map.of("settings", Map.of()))
+                )
+            );
         } else if (argClass == DeclaredReadSpec.class) {
             // Typed carrier record; populate every component (renames, dateFormats, declaredTypeColumns) so
             // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.

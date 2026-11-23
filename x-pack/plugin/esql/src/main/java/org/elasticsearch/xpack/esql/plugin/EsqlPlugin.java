@@ -174,6 +174,9 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunction;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionRegistry;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionResolver;
 import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
@@ -559,6 +562,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        // Already-constructed functions, so one that needs a collaborator is handed it here rather than the
+        // registry acquiring one on every function's behalf.
+        SourceFunctionResolver sourceFunctionResolver = new SourceFunctionResolver(
+            new SourceFunctionRegistry(sourceFunctions(), snapshotSourceFunctions()),
+            services.threadPool().executor(ThreadPool.Names.SEARCH)
+        );
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
@@ -682,7 +691,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
                 maxListedObjects::get,
-                maxDirectoryListings::get
+                maxDirectoryListings::get,
+                sourceFunctionResolver
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -1039,6 +1049,34 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected void loadMetricsCollectors(ExtensionLoader loader) {
         metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
+    }
+
+    /**
+     * The source functions this node registers. None by default.
+     * <p>
+     * A seam rather than a constant so that a function can be registered without the facility naming one, and so
+     * that a test can register a set of its own: {@code SourceFunctionFacilityIT} overrides this to drive the
+     * facility through real queries with a function that exists only in that test. An override <b>replaces</b>
+     * this set rather than adding to it, which is why the method is not named for extras. The precedent for a
+     * protected hook on this plugin is {@link #loadMetricsCollectors} and {@code getLicenseState}, both overridden
+     * by test subclasses.
+     * <p>
+     * The registry takes already-constructed functions rather than names, so that the facility itself never
+     * acquires anything a function needs. What this hook can hand one is bounded by its own signature, though:
+     * it takes no arguments, so an overriding plugin supplies only what it can reach itself, and a function
+     * wanting something {@code createComponents} builds gets it by widening this method to take that.
+     */
+    protected List<SourceFunction> sourceFunctions() {
+        return List.of();
+    }
+
+    /**
+     * The source functions only a snapshot build registers, kept apart from the released ones rather than marked
+     * on the function, as {@code EsqlFunctionRegistry} keeps its own two sets apart. A name here is unavailable
+     * on a release build in the way a name nobody registered is unavailable.
+     */
+    protected List<SourceFunction> snapshotSourceFunctions() {
+        return List.of();
     }
 
     @Override

@@ -43,12 +43,28 @@ public final class SelectionMask {
     }
 
     public boolean isEmpty() {
+        return cardinality() == 0;
+    }
+
+    public int cardinality() {
+        int count = 0;
         for (boolean bit : bits) {
             if (bit) {
-                return false;
+                count++;
             }
         }
-        return true;
+        return count;
+    }
+
+    /** Batch positions of the selected bits, in ascending order. Ordinal {@code i} is the position of loaded value {@code i}. */
+    public int[] positions() {
+        int[] positions = new int[cardinality()];
+        for (int position = 0, ordinal = 0; position < bits.length; position++) {
+            if (bits[position]) {
+                positions[ordinal++] = position;
+            }
+        }
+        return positions;
     }
 
     public SelectionMask or(SelectionMask other) {

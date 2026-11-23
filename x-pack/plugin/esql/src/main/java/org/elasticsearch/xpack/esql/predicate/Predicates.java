@@ -33,9 +33,9 @@ public final class Predicates {
     }
 
     private static RowPredicate fieldEquals(PredicateExpr.FieldEquals equals, PredicateSource source) {
-        if (source.analyze(equals).refines()) {
+        if (source.analyze(equals).evaluatesThreeValued()) {
             PredicateRefiner refiner = source.refiner(equals).orElseThrow(() -> new IllegalStateException("missing refiner for " + equals));
-            return (batch, candidates) -> refiner.evaluate(batch.withCandidates(candidates), candidates);
+            return (batch, candidates) -> refiner.evaluate(batch, candidates);
         }
         return new FieldComparison(equals);
     }
@@ -54,13 +54,13 @@ public final class Predicates {
             if (candidates.isEmpty()) {
                 return PredicateResult.none(batch.positionCount());
             }
-            PredicateResult leftResult = left.evaluate(batch.withCandidates(candidates), candidates);
+            PredicateResult leftResult = left.evaluate(batch, candidates);
             // False on the left decides AND. Null still needs the right side, because a false there changes the result.
             SelectionMask rightCandidates = leftResult.trues().or(leftResult.nulls());
             if (rightCandidates.isEmpty()) {
                 return PredicateResult.none(batch.positionCount());
             }
-            PredicateResult rightResult = right.evaluate(batch.withCandidates(rightCandidates), rightCandidates);
+            PredicateResult rightResult = right.evaluate(batch, rightCandidates);
             SelectionMask trues = leftResult.trues().and(rightResult.trues());
             SelectionMask nulls = leftResult.trues()
                 .and(rightResult.nulls())
@@ -84,13 +84,13 @@ public final class Predicates {
             if (candidates.isEmpty()) {
                 return PredicateResult.none(batch.positionCount());
             }
-            PredicateResult leftResult = left.evaluate(batch.withCandidates(candidates), candidates);
+            PredicateResult leftResult = left.evaluate(batch, candidates);
             // True on the left decides OR. Null still needs the right side.
             SelectionMask rightCandidates = candidates.andNot(leftResult.trues());
             if (rightCandidates.isEmpty()) {
                 return leftResult;
             }
-            PredicateResult rightResult = right.evaluate(batch.withCandidates(rightCandidates), rightCandidates);
+            PredicateResult rightResult = right.evaluate(batch, rightCandidates);
             SelectionMask trues = leftResult.trues().or(rightResult.trues());
             SelectionMask nulls = leftResult.nulls().andNot(rightResult.trues()).or(rightResult.nulls().andNot(leftResult.trues()));
             return PredicateResult.of(trues, nulls);
@@ -109,7 +109,7 @@ public final class Predicates {
             if (candidates.isEmpty()) {
                 return PredicateResult.none(batch.positionCount());
             }
-            PredicateResult result = inner.evaluate(batch.withCandidates(candidates), candidates);
+            PredicateResult result = inner.evaluate(batch, candidates);
             SelectionMask trues = candidates.andNot(result.trues()).andNot(result.nulls());
             return PredicateResult.of(trues, result.nulls());
         }
@@ -124,18 +124,18 @@ public final class Predicates {
 
         @Override
         public PredicateResult evaluate(SelectionBatch batch, SelectionMask candidates) {
-            Column column = batch.withCandidates(candidates).load(new FieldRef(equals.field()));
+            int[] positions = candidates.positions();
             boolean[] trues = new boolean[batch.positionCount()];
             boolean[] nulls = new boolean[batch.positionCount()];
-            for (int i = 0; i < trues.length; i++) {
-                if (candidates.get(i) == false) {
-                    continue;
-                }
-                Object value = column.value(i);
-                if (value == null) {
-                    nulls[i] = true;
-                } else if (equals.value().equals(value)) {
-                    trues[i] = true;
+            try (Column column = batch.load(new FieldRef(equals.field()), candidates)) {
+                for (int ordinal = 0; ordinal < positions.length; ordinal++) {
+                    Object value = column.value(ordinal);
+                    int position = positions[ordinal];
+                    if (value == null) {
+                        nulls[position] = true;
+                    } else if (equals.value().equals(value)) {
+                        trues[position] = true;
+                    }
                 }
             }
             return PredicateResult.of(SelectionMask.of(trues), SelectionMask.of(nulls));
@@ -151,21 +151,22 @@ public final class Predicates {
 
         @Override
         public PredicateResult evaluate(SelectionBatch batch, SelectionMask candidates) {
-            SelectionBatch narrowed = batch.withCandidates(candidates);
-            Column left = narrowed.load(new FieldRef(product.left()));
-            Column right = narrowed.load(new FieldRef(product.right()));
+            int[] positions = candidates.positions();
             boolean[] trues = new boolean[batch.positionCount()];
             boolean[] nulls = new boolean[batch.positionCount()];
-            for (int i = 0; i < trues.length; i++) {
-                if (candidates.get(i) == false) {
-                    continue;
-                }
-                Object leftValue = left.value(i);
-                Object rightValue = right.value(i);
-                if (leftValue == null || rightValue == null) {
-                    nulls[i] = true;
-                } else if (((Number) leftValue).longValue() * ((Number) rightValue).longValue() > product.threshold()) {
-                    trues[i] = true;
+            try (
+                Column left = batch.load(new FieldRef(product.left()), candidates);
+                Column right = batch.load(new FieldRef(product.right()), candidates)
+            ) {
+                for (int ordinal = 0; ordinal < positions.length; ordinal++) {
+                    Object leftValue = left.value(ordinal);
+                    Object rightValue = right.value(ordinal);
+                    int position = positions[ordinal];
+                    if (leftValue == null || rightValue == null) {
+                        nulls[position] = true;
+                    } else if (((Number) leftValue).longValue() * ((Number) rightValue).longValue() > product.threshold()) {
+                        trues[position] = true;
+                    }
                 }
             }
             return PredicateResult.of(SelectionMask.of(trues), SelectionMask.of(nulls));

@@ -8,9 +8,9 @@
 /**
  * Source-independent predicate execution.
  * <p>
- * The engine owns three-valued Boolean composition and residual expression evaluation. A source adapter owns physical
- * access: it may produce a stream of candidate rows, refine positions already in a batch, and load columns for the
- * positions that are still candidates. A source may eliminate a row only when it can prove the row cannot satisfy the
- * predicate.
+ * A source adapter owns candidate production, pruning, and column access. The engine owns exact expression evaluation,
+ * three-valued Boolean composition, and collection reduction. A source may drop a row only when it can prove that row
+ * cannot satisfy the whole predicate. A guarantee about one comparison does not become a guarantee about the plan that
+ * contains it.
  */
 package org.elasticsearch.xpack.esql.predicate;

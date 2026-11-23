@@ -7,28 +7,33 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
-import java.util.EnumSet;
 import java.util.Set;
 
-/** What one source guarantees for one predicate, and which operations it offers. */
-public record PredicateCapability(PredicateSupport support, Set<SourceOperation> operations) {
+/**
+ * What one source guarantees for one predicate. Producing candidates and refining a batch are independent: a source may
+ * offer either, both, or neither. {@link #filtering()} applies to production. {@link #evaluation()} applies to in-place
+ * refinement. A true-only producer is enough to drop rows from a {@code WHERE}. It is not enough to evaluate {@code NOT}
+ * or {@code EVAL}.
+ */
+public record PredicateCapability(FilteringGuarantee filtering, BooleanFidelity evaluation, Set<SourceOperation> operations) {
     public PredicateCapability {
         operations = operations.isEmpty() ? Set.of() : Set.copyOf(operations);
     }
 
     public static PredicateCapability unsupported() {
-        return new PredicateCapability(PredicateSupport.UNSUPPORTED, Set.of());
+        return new PredicateCapability(FilteringGuarantee.NONE, BooleanFidelity.NONE, Set.of());
     }
 
-    public static PredicateCapability of(PredicateSupport support, SourceOperation... operations) {
-        return new PredicateCapability(support, EnumSet.copyOf(java.util.Arrays.asList(operations)));
+    public static PredicateCapability of(FilteringGuarantee filtering, BooleanFidelity evaluation, SourceOperation... operations) {
+        return new PredicateCapability(filtering, evaluation, Set.of(operations));
     }
 
-    public boolean produces() {
-        return support != PredicateSupport.UNSUPPORTED && operations.contains(SourceOperation.PRODUCE);
+    public boolean producesCandidates() {
+        return filtering != FilteringGuarantee.NONE && operations.contains(SourceOperation.PRODUCE);
     }
 
-    public boolean refines() {
-        return support == PredicateSupport.EXACT && operations.contains(SourceOperation.REFINE);
+    /** In-place true, false, and null. A true-only result is not accepted here. */
+    public boolean evaluatesThreeValued() {
+        return evaluation == BooleanFidelity.THREE_VALUED && operations.contains(SourceOperation.REFINE);
     }
 }

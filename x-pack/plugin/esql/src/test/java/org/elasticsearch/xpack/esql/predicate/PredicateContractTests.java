@@ -54,6 +54,7 @@ public class PredicateContractTests extends ESTestCase {
         FilterPlan plan = PredicatePlans.filter(MIXED, source);
 
         assertThat(plan.constraint().predicates(), equalTo(List.of(CATEGORY)));
+        assertThat(plan.coverage(), equalTo(CandidateCoverage.SUPERSET));
         assertThat(plan.projection().fields(), equalTo(List.of(new FieldRef("price"), new FieldRef("quantity"))));
         plan.acceptedRows();
         assertThat(source.loads, equalTo(List.of("price:0", "quantity:0")));
@@ -64,6 +65,7 @@ public class PredicateContractTests extends ESTestCase {
         FilterPlan plan = PredicatePlans.filter(MIXED, source);
 
         assertThat(plan.constraint().predicates(), equalTo(List.of(CATEGORY)));
+        assertThat(plan.coverage(), equalTo(CandidateCoverage.SUPERSET));
         assertThat(plan.projection().fields(), equalTo(List.of(new FieldRef("category"), new FieldRef("price"), new FieldRef("quantity"))));
         plan.acceptedRows();
         assertThat(source.loads, equalTo(List.of("category:0", "category:1", "price:0", "quantity:0")));
@@ -75,6 +77,7 @@ public class PredicateContractTests extends ESTestCase {
         FilterPlan plan = PredicatePlans.filter(either, source);
 
         assertThat(plan.constraint(), equalTo(CandidateConstraint.none()));
+        assertThat(plan.coverage(), equalTo(CandidateCoverage.COMPLETE));
         assertThat(plan.acceptedRows(), equalTo(List.of(0, 1)));
         assertThat(
             source.loads,
@@ -158,11 +161,45 @@ public class PredicateContractTests extends ESTestCase {
             Map.of("sku", new Object[] { "a" }, "qty", new Object[] { 10L }, "price", new Object[] { 20L })
         );
         PredicateExpr sameChild = new PredicateExpr.And(new FieldEquals("sku", "a"), new ProductGreaterThan("qty", "price", 100));
-
-        PredicateResult parents = NestedAny.any(2, List.of(first, second), Predicates.compile(sameChild, new FullScanSource(List.of())));
+        AnyReduction reduction = new AnyReduction(2);
+        RowPredicate child = Predicates.compile(sameChild, new FullScanSource(List.of()));
+        reduction.add(first, child);
+        assertThat(reduction.knownTrues(), equalTo(SelectionMask.of(false, false)));
+        reduction.add(second, child);
+        assertThat(reduction.knownTrues(), equalTo(SelectionMask.of(false, true)));
+        PredicateResult parents = reduction.seal();
 
         assertThat(parents.trues(), equalTo(SelectionMask.of(false, true)));
         assertThat(parents.nulls(), equalTo(SelectionMask.none(2)));
+    }
+
+    public void testCategoryAloneIsAnExactTrueSet() {
+        ExactIteratorSource source = new ExactIteratorSource(
+            List.of(new Row("electronics", 1L, 1L), new Row(null, 1L, 1L), new Row("books", 1L, 1L))
+        );
+        FilterPlan plan = PredicatePlans.filter(CATEGORY, source);
+
+        assertThat(plan.coverage(), equalTo(CandidateCoverage.EXACT));
+        assertThat(plan.acceptedRows(), equalTo(List.of(0)));
+    }
+
+    public void testNotIsAnalyzedAsAWholeAndKeepsNull() {
+        List<Row> rows = List.of(new Row("electronics", 1L, 1L), new Row(null, 1L, 1L), new Row("books", 1L, 1L));
+        ExactIteratorSource source = new ExactIteratorSource(rows);
+        FilterPlan plan = PredicatePlans.filter(new PredicateExpr.Not(CATEGORY), source);
+
+        assertThat(source.analyzed.getFirst(), equalTo(new PredicateExpr.Not(CATEGORY)));
+        assertThat(plan.constraint(), equalTo(CandidateConstraint.none()));
+        assertThat(plan.coverage(), equalTo(CandidateCoverage.COMPLETE));
+        assertThat(plan.acceptedRows(), equalTo(List.of(2)));
+    }
+
+    public void testTrueOnlyProducerDoesNotEraseNullOnEval() {
+        MemoryBatch batch = MemoryBatch.of(new int[] { 0, 1 }, Map.of("category", new Object[] { "electronics", null }), new ArrayList<>());
+        PredicateResult result = PredicatePlans.eval(CATEGORY, new TrueOnlySource()).evaluate(batch);
+
+        assertThat(result.trues(), equalTo(SelectionMask.of(true, false)));
+        assertThat(result.nulls(), equalTo(SelectionMask.of(false, true)));
     }
 
     private static List<Row> sampleRows() {
@@ -221,9 +258,14 @@ public class PredicateContractTests extends ESTestCase {
         }
 
         @Override
-        public Column load(FieldRef field) {
+        public Column load(FieldRef field, SelectionMask selection) {
+            if (selection.positionCount() != rowIds.length) {
+                throw new IllegalArgumentException("selection covers [" + selection.positionCount() + "] positions");
+            }
             Object[] column = values.get(field.name());
-            return position -> {
+            int[] positions = selection.positions();
+            return ordinal -> {
+                int position = positions[ordinal];
                 if (mask.get(position) == false) {
                     throw new AssertionError("loaded eliminated position [" + position + "] of [" + field.name() + "]");
                 }
@@ -238,11 +280,6 @@ public class PredicateContractTests extends ESTestCase {
         }
 
         @Override
-        public SelectionBatch withCandidates(SelectionMask candidates) {
-            return new MemoryBatch(rowIds, parents, values, candidates, loads);
-        }
-
-        @Override
         public int parentPosition(int position) {
             return parents[position];
         }
@@ -253,6 +290,7 @@ public class PredicateContractTests extends ESTestCase {
         private final List<Row> rows;
         private final List<Integer> yielded = new ArrayList<>();
         private final List<String> loads = new ArrayList<>();
+        private final List<PredicateExpr> analyzed = new ArrayList<>();
 
         private ExactIteratorSource(List<Row> rows) {
             this.rows = rows;
@@ -260,8 +298,14 @@ public class PredicateContractTests extends ESTestCase {
 
         @Override
         public PredicateCapability analyze(PredicateExpr predicate) {
+            analyzed.add(predicate);
             if (predicate instanceof FieldEquals) {
-                return PredicateCapability.of(PredicateSupport.EXACT, SourceOperation.PRODUCE, SourceOperation.REFINE);
+                return PredicateCapability.of(
+                    FilteringGuarantee.EXACT_TRUE,
+                    BooleanFidelity.THREE_VALUED,
+                    SourceOperation.PRODUCE,
+                    SourceOperation.REFINE
+                );
             }
             return unsupported();
         }
@@ -309,7 +353,7 @@ public class PredicateContractTests extends ESTestCase {
         @Override
         public PredicateCapability analyze(PredicateExpr predicate) {
             if (predicate instanceof FieldEquals) {
-                return PredicateCapability.of(PredicateSupport.SUPERSET, SourceOperation.PRODUCE);
+                return PredicateCapability.of(FilteringGuarantee.SUPERSET, BooleanFidelity.NONE, SourceOperation.PRODUCE);
             }
             return unsupported();
         }
@@ -373,6 +417,27 @@ public class PredicateContractTests extends ESTestCase {
             }
             yielded.addAll(ids);
             return once(MemoryBatch.select(rows, ids, loads));
+        }
+
+        @Override
+        public Optional<PredicateRefiner> refiner(PredicateExpr predicate) {
+            return Optional.empty();
+        }
+    }
+
+    /** Produces the true rows of a comparison and cannot tell false from null. */
+    private static final class TrueOnlySource implements PredicateSource {
+        @Override
+        public PredicateCapability analyze(PredicateExpr predicate) {
+            if (predicate instanceof FieldEquals) {
+                return PredicateCapability.of(FilteringGuarantee.EXACT_TRUE, BooleanFidelity.TRUE_ONLY, SourceOperation.PRODUCE);
+            }
+            return unsupported();
+        }
+
+        @Override
+        public CandidateCursor open(CandidateConstraint constraint, Projection projection) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

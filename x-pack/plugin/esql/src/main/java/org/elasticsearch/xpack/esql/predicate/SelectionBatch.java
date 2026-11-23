@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.esql.predicate;
 
 /**
- * A bounded set of logical rows from any source. Positions are indexes into this batch. {@link #sourceRow(int)} is the
- * source's stable identity for that position, so a later batch can refer to the same row.
+ * A bounded, stable row space from any source. Positions stay valid for the life of the batch. {@link #sourceRow(int)}
+ * is the source's identity for that position, so a later batch can refer to the same row. The batch is the execution
+ * context for column access: loading is scoped to a selection, and the caller owns the returned column.
  */
 public interface SelectionBatch {
     int positionCount();
@@ -18,13 +19,11 @@ public interface SelectionBatch {
     SelectionMask candidates();
 
     /**
-     * Loads {@code field} for the batch's current candidates. Implementations read only those positions.
+     * Loads {@code field} for {@code selection}. The column is compacted into selection order. Only selected positions
+     * are read.
      */
-    Column load(FieldRef field);
+    Column load(FieldRef field, SelectionMask selection);
 
     /** The source's stable id for this position, such as a Lucene doc id, a Parquet row, or a remote result row. */
     int sourceRow(int position);
-
-    /** Same rows, with a tighter candidate mask, so a later predicate does not load eliminated positions. */
-    SelectionBatch withCandidates(SelectionMask candidates);
 }

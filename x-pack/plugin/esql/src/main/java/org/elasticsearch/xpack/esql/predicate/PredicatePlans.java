@@ -13,9 +13,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Splits a predicate into a source candidate constraint and a residual the engine evaluates. A source may drive
- * candidate production only for a conjunct it can prove does not drop a matching row. A superset proof stays in the
- * residual so the engine still verifies each retained row. A disjunction is not split into one of its branches.
+ * Splits a predicate into a source candidate constraint and a residual the engine evaluates. The source is asked about
+ * each top-level conjunct as a whole. An {@code OR} or {@code NOT} is not opened to reuse a guarantee that applies only
+ * to one branch. A superset constraint stays in the residual. An exact true-set may drive a {@code WHERE}, and the
+ * plan's {@link CandidateCoverage} says whether that stream is the final true set or only a superset of it.
  */
 public final class PredicatePlans {
     private PredicatePlans() {}
@@ -25,19 +26,23 @@ public final class PredicatePlans {
         List<PredicateExpr> residual = new ArrayList<>();
         for (PredicateExpr conjunct : flattenAnd(predicate)) {
             PredicateCapability capability = source.analyze(conjunct);
-            if (capability.produces() && capability.support() == PredicateSupport.EXACT) {
+            if (capability.producesCandidates() && capability.filtering() == FilteringGuarantee.EXACT_TRUE) {
                 constraint.add(conjunct);
-            } else if (capability.produces() && capability.support() == PredicateSupport.SUPERSET) {
+            } else if (capability.producesCandidates() && capability.filtering() == FilteringGuarantee.SUPERSET) {
                 constraint.add(conjunct);
                 residual.add(conjunct);
             } else {
                 residual.add(conjunct);
             }
         }
+        CandidateCoverage coverage = constraint.isEmpty() ? CandidateCoverage.COMPLETE
+            : residual.isEmpty() ? CandidateCoverage.EXACT
+            : CandidateCoverage.SUPERSET;
         Projection projection = new Projection(fields(residual));
         RowPredicate evaluator = residual.isEmpty() ? Predicates.alwaysTrue() : compileAll(residual, source);
         return new FilterPlan(
             new CandidateConstraint(constraint),
+            coverage,
             projection,
             source.open(new CandidateConstraint(constraint), projection),
             evaluator

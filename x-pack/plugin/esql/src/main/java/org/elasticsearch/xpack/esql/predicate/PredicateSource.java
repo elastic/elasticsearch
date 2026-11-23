@@ -18,6 +18,9 @@ public interface PredicateSource {
 
     CandidateCursor open(CandidateConstraint constraint, Projection projection);
 
-    /** A per-row refinement, present only when {@link #analyze} reports {@link SourceOperation#REFINE} exactly. */
+    /**
+     * A per-row refinement. Present when {@link #analyze} reports {@link SourceOperation#REFINE}. The engine uses it for a
+     * three-valued result only when the capability's evaluation fidelity is {@link BooleanFidelity#THREE_VALUED}.
+     */
     Optional<PredicateRefiner> refiner(PredicateExpr predicate);
 }

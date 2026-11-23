@@ -16,13 +16,21 @@ import java.util.List;
  */
 public final class FilterPlan {
     private final CandidateConstraint constraint;
+    private final CandidateCoverage coverage;
     private final Projection projection;
     private final CandidateCursor cursor;
     private final RowPredicate residual;
     private List<Integer> accepted;
 
-    FilterPlan(CandidateConstraint constraint, Projection projection, CandidateCursor cursor, RowPredicate residual) {
+    FilterPlan(
+        CandidateConstraint constraint,
+        CandidateCoverage coverage,
+        Projection projection,
+        CandidateCursor cursor,
+        RowPredicate residual
+    ) {
         this.constraint = constraint;
+        this.coverage = coverage;
         this.projection = projection;
         this.cursor = cursor;
         this.residual = residual;
@@ -30,6 +38,11 @@ public final class FilterPlan {
 
     public CandidateConstraint constraint() {
         return constraint;
+    }
+
+    /** How completely the candidate stream covers the whole predicate, not the leaf that produced it. */
+    public CandidateCoverage coverage() {
+        return coverage;
     }
 
     public Projection projection() {

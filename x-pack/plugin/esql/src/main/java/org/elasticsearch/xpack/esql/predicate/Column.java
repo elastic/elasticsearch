@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.esql.predicate;
 
+import org.elasticsearch.core.Releasable;
+
 /**
- * Values of one field for the positions of a batch. A null return is a null value. This stands in for a compute
- * {@code Block} until a source adapter binds the real loader.
+ * Values loaded for one selection, compacted into selection order. {@code value(0)} is the first selected position,
+ * {@code value(1)} the next, and so on. The {@link SelectionMask} passed to {@link SelectionBatch#load} maps those
+ * ordinals back onto the batch. The caller closes the column; a real adapter releases the block there and has already
+ * checked cancellation and the circuit breaker while loading.
  */
-public interface Column {
-    Object value(int position);
+public interface Column extends Releasable {
+    Object value(int selectionOrdinal);
+
+    @Override
+    default void close() {}
 }

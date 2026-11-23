@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -442,11 +441,7 @@ public class PlanExecutor {
         EsqlExecutionInfo executionInfo,
         QueryMetricsListener.Outcome outcome
     ) {
-        TimeValue took = executionInfo.tookOrElapsed();
-        // The age of the requested range is relative to when the query started, not to now: a slow query must not shift into an older
-        // bucket. The start is derived from the took, as nothing else here keeps the wall-clock time the query started at.
-        long queryStartMillis = System.currentTimeMillis() - took.millis();
-        planTelemetryManager.recordQuery(planTelemetry, request.requestedTimeRange(), queryStartMillis, outcome, took);
+        planTelemetryManager.recordQuery(planTelemetry, request.requestedTimeRange(), outcome, executionInfo.tookOrElapsed());
     }
 
     private void onQuerySuccess(

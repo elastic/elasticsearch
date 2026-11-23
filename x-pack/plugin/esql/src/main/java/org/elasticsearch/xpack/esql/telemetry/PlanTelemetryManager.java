@@ -16,10 +16,9 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
-import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -257,24 +256,18 @@ public class PlanTelemetryManager {
     /**
      * Records a query, once per query: counts it by its outcome, and records its duration if it succeeded.
      *
-     * @param requestedTimeRange the {@code @timestamp} range the request filter asks for, or {@code null} if unknown
-     * @param queryStartMillis   when the query started, in milliseconds since the epoch, which the age of the range is relative to
+     * @param requestedTimeRange the {@code @timestamp} range the request filter asks for, with the now its age is relative to, or
+     *                           {@code null} if unknown
      */
     public void recordQuery(
         PlanTelemetry metrics,
-        @Nullable TimestampBounds requestedTimeRange,
-        long queryStartMillis,
+        @Nullable RequestedTimeRange requestedTimeRange,
         QueryMetricsListener.Outcome outcome,
         TimeValue took
     ) {
         Map<String, Object> attributes = requestedTimeRange == null
             ? Map.of(SOURCE_COMMAND, metrics.sourceCommand().name())
-            : Map.of(
-                SOURCE_COMMAND,
-                metrics.sourceCommand().name(),
-                TIME_RANGE_FILTER_FROM,
-                timeRangeFilterFrom(requestedTimeRange, queryStartMillis)
-            );
+            : Map.of(SOURCE_COMMAND, metrics.sourceCommand().name(), TIME_RANGE_FILTER_FROM, timeRangeFilterFrom(requestedTimeRange));
         queryCounter.incrementBy(1, Maps.copyMapWithAddedEntry(attributes, OUTCOME, outcome.name().toLowerCase(Locale.ROOT)));
         if (outcome == QueryMetricsListener.Outcome.SUCCESS) {
             queryDurationHistogram.record(took.millis(), attributes);
@@ -285,8 +278,8 @@ public class PlanTelemetryManager {
      * Buckets how long before the query started the requested range starts, as {@link SearchRequestAttributesExtractor} does for
      * Query DSL searches. A range that starts in the future lands in the first bucket.
      */
-    private static String timeRangeFilterFrom(TimestampBounds requestedTimeRange, long queryStartMillis) {
-        Duration age = Duration.between(requestedTimeRange.start(), Instant.ofEpochMilli(queryStartMillis));
+    private static String timeRangeFilterFrom(RequestedTimeRange requestedTimeRange) {
+        Duration age = Duration.between(requestedTimeRange.bounds().start(), requestedTimeRange.now());
         long ageMillis;
         try {
             ageMillis = age.toMillis();

@@ -12,6 +12,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.RequestedTimeRange;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -40,10 +41,10 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
 
-        manager.recordQuery(telemetry(QuerySourceCommand.TS), lastHours(1), START.toEpochMilli(), SUCCESS, millis(42));
-        manager.recordQuery(telemetry(QuerySourceCommand.OTHER), null, START.toEpochMilli(), SUCCESS, millis(3));
-        manager.recordQuery(telemetry(QuerySourceCommand.FROM), lastHours(48), START.toEpochMilli(), CANCELLED, millis(7));
-        manager.recordQuery(telemetry(QuerySourceCommand.UNKNOWN), null, START.toEpochMilli(), FAILED, millis(1));
+        manager.recordQuery(telemetry(QuerySourceCommand.TS), lastHours(1), SUCCESS, millis(42));
+        manager.recordQuery(telemetry(QuerySourceCommand.OTHER), null, SUCCESS, millis(3));
+        manager.recordQuery(telemetry(QuerySourceCommand.FROM), lastHours(48), CANCELLED, millis(7));
+        manager.recordQuery(telemetry(QuerySourceCommand.UNKNOWN), null, FAILED, millis(1));
 
         // Only successful queries have their duration recorded...
         List<Measurement> durations = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, QUERY_DURATION_HISTOGRAM);
@@ -61,7 +62,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
     }
 
     /**
-     * The attribute is the age of the range's lower bound when the query started, like Query DSL's, not the length of the range.
+     * The attribute is the age of the range's lower bound at the query's now, like Query DSL's, not the length of the range.
      */
     public void testTimeRangeFilterFrom() {
         // A short range a week ago reads old data.
@@ -78,7 +79,12 @@ public class PlanTelemetryManagerTests extends ESTestCase {
 
     private static void assertTimeRangeFilterFrom(TimestampBounds range, String expected) {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        new PlanTelemetryManager(registry).recordQuery(telemetry(QuerySourceCommand.FROM), range, START.toEpochMilli(), SUCCESS, millis(1));
+        new PlanTelemetryManager(registry).recordQuery(
+            telemetry(QuerySourceCommand.FROM),
+            new RequestedTimeRange(range, START),
+            SUCCESS,
+            millis(1)
+        );
         Measurement count = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, QUERY_TOTAL).getFirst();
         assertThat(range.toString(), count.attributes().get(TIME_RANGE_FILTER_FROM), equalTo(expected));
     }
@@ -88,8 +94,8 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         assertThat(measurement.attributes(), equalTo(attributes));
     }
 
-    private static TimestampBounds lastHours(int hours) {
-        return new TimestampBounds(START.minus(Duration.ofHours(hours)), START);
+    private static RequestedTimeRange lastHours(int hours) {
+        return new RequestedTimeRange(new TimestampBounds(START.minus(Duration.ofHours(hours)), START), START);
     }
 
     private static TimeValue millis(long millis) {

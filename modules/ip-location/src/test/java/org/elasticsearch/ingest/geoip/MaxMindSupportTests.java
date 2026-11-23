@@ -51,9 +51,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This test is meant to help us understand if we are falling behind on support for mmdb types and fields that get added over time. It
  * maintains a list for each mmdb file type we support of which fields in that type we support and which we do not.
- *
+ * <p>
  * This test will:
- *
+ * <p>
  * - Fail if MaxMind adds a new field to one of the mmdb file types we currently support (city, country, etc) and we don't update this test
  *   with whether or not we support that field.
  * - Fail if we add support for a new mmdb file type (enterprise for example) but don't update the test with which fields we do and do not

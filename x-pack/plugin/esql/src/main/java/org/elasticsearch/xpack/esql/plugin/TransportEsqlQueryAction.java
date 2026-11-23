@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -161,7 +163,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        EscfBulkService escfBulkService,
+        SearchTransportService searchTransportService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -268,7 +272,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
             client,
-            externalWorkerReadiness
+            externalWorkerReadiness,
+            escfBulkService,
+            searchTransportService
         );
 
         var queryLogger = new QueryLogger<>(

@@ -3,7 +3,7 @@ navigation_title: "Skip folders by filtering files"
 description: "Use partition_spec to skip folders when filtering on columns inside your files, reducing I/O for time-partitioned datasets."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -15,9 +15,6 @@ non-matching folders. Filtering on a partition key such as `WHERE year == 2024` 
 folders, but filtering on a file column like `WHERE ts > "2024-03-15T00:00:00Z"` normally
 opens every file. An ISO-8601 string compared to a datetime column does not need `::datetime`;
 ES|QL casts the keyword literal. `::datetime` is still valid.
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 [`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection) and
 [`partition_path`](esql-data-federation-dataset-settings.md#partition-path) still decide how the folder

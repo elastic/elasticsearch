@@ -134,7 +134,7 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
                     )
                 );
             }
-            if (AbstractSubqueryJoin.isSubqueryJoinUnsupported(rightField.dataType())) {
+            if (AbstractInSubqueryJoin.isSubqueryJoinUnsupported(rightField.dataType())) {
                 failures.add(
                     fail(
                         leftField,
@@ -177,7 +177,7 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
     /**
      * Same as {@code LOOKUP JOIN}: numeric keys of different types match by value, with one exception. An {@code unsigned_long}
      * only matches another {@code unsigned_long}: its common type with a signed integer cannot hold negative values, and a common
-     * floating-point type would round it. For now, though, {@link AbstractSubqueryJoin#isSubqueryJoinUnsupported} rejects every
+     * floating-point type would round it. For now, though, {@link AbstractInSubqueryJoin#isSubqueryJoinUnsupported} rejects every
      * {@code unsigned_long} key.
      */
     static boolean comparableKeyTypes(DataType leftType, DataType rightType) {

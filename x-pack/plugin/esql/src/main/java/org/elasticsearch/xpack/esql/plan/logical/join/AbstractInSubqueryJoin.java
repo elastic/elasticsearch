@@ -73,18 +73,18 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
  * boolean mark attribute with three-valued logic.
  */
-public abstract class AbstractSubqueryJoin extends Join
+public abstract class AbstractInSubqueryJoin extends Join
     implements
         IndependentSubqueryJoin,
         SortPreserving,
         ExecutesOn.Coordinator,
         DocPreserving {
 
-    protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
+    protected AbstractInSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config, ExecuteLocation.ANY);
     }
 
-    protected AbstractSubqueryJoin(
+    protected AbstractInSubqueryJoin(
         Source source,
         LogicalPlan left,
         LogicalPlan right,
@@ -366,7 +366,7 @@ public abstract class AbstractSubqueryJoin extends Join
      *                    releases the correct page. May be {@code null} for callers that do not need this swap (e.g. unit tests).
      */
     public static LogicalPlan inlineData(
-        AbstractSubqueryJoin subqueryJoin,
+        AbstractInSubqueryJoin subqueryJoin,
         LocalRelation data,
         int hashJoinThreshold,
         BlockFactory blockFactory,
@@ -388,7 +388,7 @@ public abstract class AbstractSubqueryJoin extends Join
     }
 
     private static LogicalPlan inlineDataSingleColumn(
-        AbstractSubqueryJoin subqueryJoin,
+        AbstractInSubqueryJoin subqueryJoin,
         LocalRelation data,
         int hashJoinThreshold,
         BlockFactory blockFactory,
@@ -416,7 +416,7 @@ public abstract class AbstractSubqueryJoin extends Join
      * becomes a LEFT hash join. See {@link #inlineData} for the SQL NULL / MV semantics behind each branch.
      */
     private static LogicalPlan routeDedupResult(
-        AbstractSubqueryJoin subqueryJoin,
+        AbstractInSubqueryJoin subqueryJoin,
         DedupResult dedup,
         List<Attribute> schema,
         Source source,
@@ -684,7 +684,7 @@ public abstract class AbstractSubqueryJoin extends Join
      * new page. See {@link #inlineData} for SQL NULL semantics.
      */
     private static LogicalPlan inlineAsHashJoin(
-        AbstractSubqueryJoin subqueryJoin,
+        AbstractInSubqueryJoin subqueryJoin,
         DedupResult dedup,
         List<Attribute> schema,
         Source source,
@@ -762,7 +762,7 @@ public abstract class AbstractSubqueryJoin extends Join
      * represent that distinction, so NULL-containing right tuples force the expression path for those join types.
      */
     private static LogicalPlan inlineDataMultiColumn(
-        AbstractSubqueryJoin subqueryJoin,
+        AbstractInSubqueryJoin subqueryJoin,
         LocalRelation data,
         int hashJoinThreshold,
         BlockFactory blockFactory,
@@ -891,7 +891,7 @@ public abstract class AbstractSubqueryJoin extends Join
      * every right tuple has a definite mismatch. It must not be removed by an early {@code IS NOT NULL} filter: doing so would turn
      * {@code (10002, NULL) NOT IN ((10001, NULL))} into a false result even though the tuple comparison is FALSE and NOT FALSE is TRUE.
      */
-    private static LogicalPlan buildMultiColumnFilterPathPlan(AbstractSubqueryJoin subqueryJoin, Expression condition, Source source) {
+    private static LogicalPlan buildMultiColumnFilterPathPlan(AbstractInSubqueryJoin subqueryJoin, Expression condition, Source source) {
         if (subqueryJoin.filterNullLeftKeysBeforeHashJoin() == false) {
             return subqueryJoin.buildFilterPathPlanFromExpression(condition, source);
         }
@@ -916,7 +916,7 @@ public abstract class AbstractSubqueryJoin extends Join
      * subclass-specific terminal plans. Cases involving right-side NULL tuples are routed through the filter path before this method.
      */
     private static LogicalPlan inlineAsHashJoinMultiColumn(
-        AbstractSubqueryJoin subqueryJoin,
+        AbstractInSubqueryJoin subqueryJoin,
         MultiColumnDedupResult dedup,
         List<Attribute> schema,
         Source source,
@@ -1106,7 +1106,7 @@ public abstract class AbstractSubqueryJoin extends Join
      */
     public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> subPlanHolder = new Holder<>();
-        optimizedPlan.forEachUp(AbstractSubqueryJoin.class, sj -> {
+        optimizedPlan.forEachUp(AbstractInSubqueryJoin.class, sj -> {
             if (subPlanHolder.get() == null) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return;
@@ -1134,7 +1134,7 @@ public abstract class AbstractSubqueryJoin extends Join
         AtomicReference<Page> pageHolder
     ) {
         LogicalPlan newPlan = optimizedPlan.transformUp(
-            AbstractSubqueryJoin.class,
+            AbstractInSubqueryJoin.class,
             sj -> sj.right() == subPlans.originalSubPlan() ? inlineData(sj, resultWrapper, hashJoinThreshold, blockFactory, pageHolder) : sj
         );
         newPlan.setOptimized();

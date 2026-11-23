@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
@@ -830,7 +830,7 @@ public class Verifier {
             || plan instanceof FuseScoreEval
             || plan instanceof Highlight
             || plan instanceof MMR
-            || plan instanceof AbstractSubqueryJoin;
+            || plan instanceof AbstractInSubqueryJoin;
     }
 
     /**

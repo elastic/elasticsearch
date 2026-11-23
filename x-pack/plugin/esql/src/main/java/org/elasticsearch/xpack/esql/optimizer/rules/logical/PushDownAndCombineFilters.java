@@ -223,7 +223,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Join(left, Filter(LocalRelation)) which the mapper does not know how to lower to a
             // HashJoinExec, and a LocalRelation has fixed in-memory data so the pushdown's I/O
             // motivation does not apply. The duplicate filter above the join already enforces the
-            // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
+            // predicate. The only producer today is AbstractInSubqueryJoin.inlineAsHashJoin's sentinel filter
             // (which is a no-op against the constant-TRUE sentinel column anyway).
             // Nor do we push into the subquery of an IndependentSubqueryJoin: the subquery's own rules move the pushed filter below
             // its projections, so the right side would never be recognized as already filtered, and the filter would be pushed again

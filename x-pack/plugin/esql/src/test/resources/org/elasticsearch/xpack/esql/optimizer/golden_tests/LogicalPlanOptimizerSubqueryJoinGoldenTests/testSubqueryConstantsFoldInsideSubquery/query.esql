@@ -1,0 +1,3 @@
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (ROW language_code = 1, a = 1, b = a + 1) ON language_code

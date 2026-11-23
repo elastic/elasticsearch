@@ -219,7 +219,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -1874,7 +1874,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case NestedExpand p -> resolveNestedExpand(p, childrenOutput, context);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
+                case AbstractInSubqueryJoin sj -> resolveInSubqueryJoin(sj);
                 case SubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
@@ -2570,7 +2570,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       output verifier.</li>
          * </ul>
          */
-        private AbstractSubqueryJoin resolveSubqueryJoin(AbstractSubqueryJoin subqueryJoin) {
+        private AbstractInSubqueryJoin resolveInSubqueryJoin(AbstractInSubqueryJoin subqueryJoin) {
             // Resolve left fields. Skip when every leftField is either already resolved or is an
             // UnresolvedAttribute that already carries a custom message: resolveUsingColumns
             // appends a " in left side of join" suffix on every call, and UnresolvedAttribute
@@ -2618,7 +2618,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new SemiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig);
         }
 
-        private static List<Attribute> resolveRightFields(AbstractSubqueryJoin semiJoin) {
+        private static List<Attribute> resolveRightFields(AbstractInSubqueryJoin semiJoin) {
             List<Attribute> rightFields = semiJoin.config().rightFields();
             if (rightFields.isEmpty() == false) {
                 // Bail out if rightFields already carries an analyzer-supplied custom error message
@@ -2671,7 +2671,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
          * unchanged.
          */
-        private static Attribute resolveSingleRightField(AbstractSubqueryJoin semiJoin, Attribute rightAttr) {
+        private static Attribute resolveSingleRightField(AbstractInSubqueryJoin semiJoin, Attribute rightAttr) {
             if (NO_FIELDS_NAME.equals(rightAttr.name())) {
                 return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
             }

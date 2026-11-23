@@ -12,18 +12,12 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.junit.Before;
 
@@ -31,19 +25,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Analysis and verification of {@code LEFT OUTER JOIN} on a subquery. The join cannot run yet, so these tests stop at the analyzed
- * plan; {@link SubqueryJoin#rejectUntilSupported} rejects it before optimization in the session.
+ * plan; {@link SubqueryJoin#rejectUntilSupported} rejects it before optimization in the session. The plans of queries that analyze
+ * are captured in {@code LogicalPlanOptimizerSubqueryJoinGoldenTests}.
  */
 public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
 
@@ -65,104 +56,6 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
     @Override
     protected TestAnalyzer analyzer() {
         return super.analyzer().addEmployees("test").addLanguages();
-    }
-
-    public void testResolvesKeysOnEachSide() {
-        SubqueryJoin join = findJoin(analyzer().query(JOIN_LANGUAGES));
-
-        Attribute leftKey = join.config().leftFields().getFirst();
-        Eval eval = as(join.left(), Eval.class);
-        assertThat(leftKey.id(), equalTo(eval.fields().getFirst().id()));
-        // ES|QL reads a byte field as an integer
-        assertThat(leftKey.dataType(), equalTo(DataType.INTEGER));
-
-        Attribute rightKey = join.config().rightFields().getFirst();
-        assertThat(rightKey.name(), equalTo("language_code"));
-        assertTrue(join.right().outputSet().contains(rightKey));
-        assertThat(rightKey.dataType(), equalTo(DataType.INTEGER));
-    }
-
-    public void testResolvesMultipleKeysPairwise() {
-        SubqueryJoin join = findJoin(analyzer().query("""
-            FROM test
-            | EVAL language_code = languages, language_name = first_name
-            | LEFT OUTER JOIN (FROM languages) ON language_code, language_name
-            """));
-
-        assertThat(join.config().leftFields().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
-        assertThat(join.config().leftFields().stream().map(Attribute::dataType).toList(), contains(DataType.INTEGER, DataType.KEYWORD));
-        assertThat(join.config().rightFields().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
-        assertThat(join.config().rightFields().stream().map(Attribute::dataType).toList(), contains(DataType.INTEGER, DataType.KEYWORD));
-        assertTrue(join.right().outputSet().containsAll(join.config().rightFields()));
-    }
-
-    /**
-     * Without a {@code Project} or an {@code Aggregate} of its own, a data node running the subquery could reduce its fields to
-     * {@code _doc}, so the analyzer pins its output.
-     */
-    public void testPinsSubqueryOutput() {
-        SubqueryJoin join = findJoin(analyzer().query("""
-            FROM test
-            | EVAL language_code = languages
-            | LEFT OUTER JOIN (FROM languages | WHERE language_code > 1) ON language_code
-            """));
-        Project pin = as(join.right(), Project.class);
-        assertThat(pin.output().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
-        assertThat(pin.child().anyMatch(Project.class::isInstance), equalTo(false));
-    }
-
-    /**
-     * {@code INLINE STATS} holds an {@code Aggregate}, but the subquery's columns pass through it, so its output is pinned as well.
-     */
-    public void testPinsInlineStatsSubqueryOutput() {
-        SubqueryJoin join = findJoin(analyzer().query("""
-            FROM test
-            | EVAL language_code = languages
-            | LEFT OUTER JOIN (FROM languages | INLINE STATS c = COUNT(*) BY language_code) ON language_code
-            """));
-        Project pin = as(join.right(), Project.class);
-        as(pin.child(), InlineStats.class);
-        assertThat(pin.output().stream().map(Attribute::name).toList(), hasItems("language_name", "c"));
-    }
-
-    public void testDoesNotPinSubqueryWithItsOwnProjectOrAggregate() {
-        SubqueryJoin keep = findJoin(analyzer().query("""
-            FROM test
-            | EVAL language_code = languages
-            | LEFT OUTER JOIN (FROM languages | KEEP language_code, language_name) ON language_code
-            """));
-        assertThat(keep.right().collect(Project.class::isInstance), hasSize(1));
-
-        SubqueryJoin stats = findJoin(analyzer().query("""
-            FROM test
-            | EVAL language_code = languages
-            | LEFT OUTER JOIN (FROM languages | STATS c = COUNT(*) BY language_code) ON language_code
-            """));
-        assertThat(stats.right(), instanceOf(Aggregate.class));
-    }
-
-    /**
-     * The subquery's columns come from its result, not from an index the main query reads, so they are references. The join key
-     * keeps the left side's attribute, and a subquery column shadows a left column of the same name.
-     */
-    public void testSubqueryColumnsAreReferences() {
-        SubqueryJoin join = findJoin(analyzer().query("""
-            FROM test
-            | EVAL language_code = languages, language_name = first_name
-            | KEEP emp_no, language_code, language_name
-            | LEFT OUTER JOIN (FROM languages) ON language_code
-            """));
-
-        List<Attribute> output = join.output();
-        assertThat(output.stream().map(Attribute::name).toList(), contains("emp_no", "language_code", "language_name"));
-        assertThat(output.get(1).id(), equalTo(join.config().leftFields().getFirst().id()));
-
-        Attribute languageName = output.get(2);
-        assertThat(languageName, instanceOf(ReferenceAttribute.class));
-        Attribute subqueryLanguageName = join.right().output().get(1);
-        assertThat(subqueryLanguageName.name(), equalTo("language_name"));
-        assertThat(languageName.id(), equalTo(subqueryLanguageName.id()));
-        assertThat(join.rightOutputFields(), contains(languageName));
     }
 
     public void testUnknownKeys() {
@@ -335,23 +228,6 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
             | LEFT OUTER JOIN (FROM languages) ON language_code
             """));
         assertTrue(join.resolved());
-    }
-
-    public void testNestedJoinResolves() {
-        LogicalPlan plan = analyzer().query("""
-            FROM test
-            | EVAL language_code = languages
-            | LEFT OUTER JOIN (
-                FROM languages
-                | LEFT OUTER JOIN (FROM languages | EVAL x = 1 | KEEP language_code, x) ON language_code
-              ) ON language_code
-            """);
-        List<LogicalPlan> joins = plan.collect(SubqueryJoin.class::isInstance);
-        assertThat(joins, hasSize(2));
-        for (LogicalPlan join : joins) {
-            assertTrue(join.resolved());
-        }
-        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItems("language_name", "x"));
     }
 
     public void testRejectUntilSupported() {

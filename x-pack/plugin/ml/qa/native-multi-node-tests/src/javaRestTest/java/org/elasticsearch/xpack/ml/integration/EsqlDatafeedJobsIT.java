@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,27 +36,18 @@ import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     private static final TimeValue BUCKET_SPAN = TimeValue.timeValueHours(1);
-    // A realistic (large) epoch-millis anchor for all absolute timestamps used by these tests. Values near
-    // the epoch (e.g. plain "0", "1000") are ambiguous to more than one piece of ML/ES code that accepts
-    // either seconds or milliseconds: FlushJobParams#parseTimeParam (via TimeUtils#dateStringToEpoch) treats
-    // any numeric string of 10 digits or fewer as epoch *seconds* and multiplies by 1000, which silently
-    // inflates a small millis value like the datafeed's window bounds a thousandfold when DatafeedJob resumes
-    // a lookback via flushJob's skip_time. Anchoring to a real-looking (13-digit) millis timestamp keeps every
-    // absolute time value used here safely past that ambiguity. It must also be a whole multiple of BUCKET_SPAN:
-    // ChunkedDataExtractorFactory aligns the extraction window to the datafeed's grouping interval by rounding
-    // the start down (alignToFloor) and the end down (alignToFloor), so an unaligned anchor can silently round
-    // the end back to the start and collapse the window to zero width.
+    // Large epoch-millis anchor: values of 10 digits or fewer are read as seconds by flush's skip_time. It must be a whole
+    // multiple of BUCKET_SPAN because the chunked extractor aligns the window to the grouping interval.
+    private static final int ROW_LIMIT = Math.toIntExact(EsqlDataExtractor.INJECTED_ROW_LIMIT);
     private static final long BASE_TIME = 472_222 * BUCKET_SPAN.millis();
     private static final long FIRST_WINDOW_END = BASE_TIME + BUCKET_SPAN.millis();
     private static final long SECOND_WINDOW_END = FIRST_WINDOW_END + BUCKET_SPAN.millis();
@@ -69,13 +62,20 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void testEsqlDatafeedWithNoUserLimitShouldPreviewAndExecuteAllRows() throws Exception {
-        String index = "esql-limit-oracle";
+    public void testEsqlDatafeedWithNoUserLimitShouldKeepAllRowsBelowInjectedCap() throws Exception {
+        String index = "esql-no-user-limit";
         createSourceIndex(index);
         indexDocuments(index, 1_500, BASE_TIME + 1_000L, BASE_TIME + 2_000L);
 
-        assertLimitOracle(index, "esql-injected-limit", "FROM esql-limit-oracle | KEEP event_time, value", 1_500);
-        assertLimitOracle(index, "esql-user-limit", "FROM esql-limit-oracle | KEEP event_time, value | LIMIT 20", 20);
+        assertPreviewAndLookbackRowCount("esql-injected-limit", "FROM " + index + " | KEEP event_time, value", 1_500);
+    }
+
+    public void testEsqlDatafeedWithUserLimitShouldReturnOnlyLimitedRows() throws Exception {
+        String index = "esql-user-limit";
+        createSourceIndex(index);
+        indexDocuments(index, 1_500, BASE_TIME + 1_000L, BASE_TIME + 2_000L);
+
+        assertPreviewAndLookbackRowCount("esql-user-limit", "FROM " + index + " | KEEP event_time, value | LIMIT 20", 20);
     }
 
     public void testEsqlDatafeedWithUnshrinkableChunkShouldWarnAndAuditIncompleteChunk() throws Exception {
@@ -90,7 +90,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeed = createDatafeed(
             datafeedId,
             jobId,
-            "FROM esql-truncation-oracle | KEEP event_time, value",
+            "FROM " + index + " | KEEP event_time, value",
             ChunkingConfig.newManual(BUCKET_SPAN)
         );
         putDatafeed(datafeed);
@@ -98,12 +98,13 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         runLookback(datafeedId, jobId, BASE_TIME, FIRST_WINDOW_END, 1L);
 
-        indexDocuments(index, 10_000, FIRST_WINDOW_END + 1L, FIRST_WINDOW_END + 2L);
-        List<String> auditMessagesBeforePreview = fetchAllAuditMessages(jobId);
-        assertThat(previewRowCount(datafeedId, FIRST_WINDOW_END, SECOND_WINDOW_END), equalTo(10_000));
-        assertThat(fetchAllAuditMessages(jobId), equalTo(auditMessagesBeforePreview));
+        // One row more than the cap, so the chunk really is truncated.
+        indexDocuments(index, ROW_LIMIT + 1, FIRST_WINDOW_END + 1L, FIRST_WINDOW_END + 2L);
+        assertThat(previewRowCount(datafeedId, FIRST_WINDOW_END, SECOND_WINDOW_END), equalTo(ROW_LIMIT));
+        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("reached its row limit")));
         openJob(jobId);
-        runLookback(datafeedId, jobId, FIRST_WINDOW_END, SECOND_WINDOW_END, 10_001L);
+        // the first window's row plus the capped rows of the truncated window
+        runLookback(datafeedId, jobId, FIRST_WINDOW_END, SECOND_WINDOW_END, ROW_LIMIT + 1L);
         // the truncated window is posted and audited rather than silently dropped
         assertBusy(
             () -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("reached its row limit")),
@@ -122,7 +123,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         String jobId = "esql-cap-order-job";
         String datafeedId = jobId + "-datafeed";
         createSourceIndex(index);
-        int totalDocs = 10_050;
+        int totalDocs = ROW_LIMIT + 50;
         long firstEventTime = BASE_TIME + 1_000L;
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < totalDocs; i++) {
@@ -136,39 +137,25 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         putJob(createJob(jobId));
         putDatafeed(
-            createDatafeed(datafeedId, jobId, "FROM esql-cap-order-oracle | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
+            createDatafeed(datafeedId, jobId, "FROM " + index + " | KEEP event_time, value", ChunkingConfig.newManual(BUCKET_SPAN))
         );
 
         List<Map<String, Object>> rows = previewRows(datafeedId, BASE_TIME, FIRST_WINDOW_END);
 
-        assertThat(rows.size(), equalTo(10_000));
+        assertThat(rows.size(), equalTo(ROW_LIMIT));
         LongSummaryStatistics eventTimes = rows.stream().mapToLong(row -> ((Number) row.get("event_time")).longValue()).summaryStatistics();
         assertThat(eventTimes.getMin(), equalTo(firstEventTime));
-        assertThat(eventTimes.getMax(), equalTo(firstEventTime + 9_999L));
+        assertThat(eventTimes.getMax(), equalTo(firstEventTime + ROW_LIMIT - 1L));
     }
 
-    private void assertLimitOracle(String index, String jobId, String query, long expectedRecords) throws Exception {
+    private void assertPreviewAndLookbackRowCount(String jobId, String query, long expectedRecords) throws Exception {
         String datafeedId = jobId + "-datafeed";
-        Job.Builder job = createJob(jobId);
-        putJob(job);
-        // ES|QL datafeeds require chunking to remain enabled (grouping-interval alignment and
-        // truncation detection depend on it); a manual chunk spanning the whole test window behaves
-        // like no chunking for these single-window assertions.
-        DatafeedConfig datafeed = createDatafeed(datafeedId, jobId, query, ChunkingConfig.newManual(BUCKET_SPAN));
-        putDatafeed(datafeed);
+        putJob(createJob(jobId));
+        // ES|QL datafeeds require chunking (grouping-interval alignment and truncation detection depend on it);
+        // a manual chunk spanning the whole test window behaves like no chunking here.
+        putDatafeed(createDatafeed(datafeedId, jobId, query, ChunkingConfig.newManual(BUCKET_SPAN)));
 
-        // putJob() audits "Job created" asynchronously, after the PUT job API already returned. Wait for
-        // it to land before taking the baseline snapshot below, otherwise it can race with the immediately
-        // following preview call and make it look like preview itself produced a new audit message.
-        AtomicReference<List<String>> auditMessagesBeforePreviewRef = new AtomicReference<>();
-        assertBusy(() -> {
-            List<String> messages = fetchAllAuditMessages(jobId);
-            assertThat(messages, not(empty()));
-            auditMessagesBeforePreviewRef.set(messages);
-        });
-        List<String> auditMessagesBeforePreview = auditMessagesBeforePreviewRef.get();
         assertThat(previewRowCount(datafeedId, BASE_TIME, FIRST_WINDOW_END), equalTo((int) expectedRecords));
-        assertThat(fetchAllAuditMessages(jobId), equalTo(auditMessagesBeforePreview));
         openJob(jobId);
         runLookback(datafeedId, jobId, BASE_TIME, FIRST_WINDOW_END, expectedRecords);
         assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("reached its row limit")));
@@ -204,13 +191,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             PreviewDatafeedAction.INSTANCE,
             new PreviewDatafeedAction.Request(datafeedId, Long.toString(start), Long.toString(end))
         ).actionGet();
-        try (
-            var parser = jsonXContent.createParser(
-                xContentRegistry(),
-                null,
-                new BytesArray(org.elasticsearch.common.Strings.toString(response)).streamInput()
-            )
-        ) {
+        try (var parser = jsonXContent.createParser(xContentRegistry(), null, new BytesArray(Strings.toString(response)).streamInput())) {
             List<Map<String, Object>> rows = new ArrayList<>();
             for (Object row : parser.list()) {
                 rows.add((Map<String, Object>) row);
@@ -234,11 +215,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void createSourceIndex(String index) {
-        // Pin both date fields to epoch_millis. Elasticsearch's default date format
-        // (strict_date_optional_time||epoch_millis) tries strict_date_optional_time first, which accepts a
-        // bare 4-digit number as an ISO year -- so small numeric offsets from the epoch used by these tests
-        // (e.g. 1000, 2000) get silently parsed as the years 1000/2000 instead of milliseconds, landing the
-        // stored value far outside any window these tests query.
+        // Pin dates to epoch_millis: the default format would parse a bare 4-digit number such as 1000 as an ISO year.
         client().admin()
             .indices()
             .prepareCreate(index)

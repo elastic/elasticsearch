@@ -360,24 +360,13 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // An extractor over a window with nothing to extract reports hasNext() == false and next() would throw
             // NoSuchElementException (a 500); an empty window previews as an empty array.
             Optional<InputStream> inputStream = dataExtractor.hasNext() ? dataExtractor.next().data() : Optional.empty();
-            // DataExtractor returns single-line JSON but without newline characters between objects.
-            // Instead, it has a space between objects due to how JSON XContentBuilder works.
-            // In order to return a proper JSON array from preview, we surround with square brackets and
-            // we stick in a comma between objects.
-            // Also, the stream is expected to be a single line but in case it is not, we join lines
-            // using space to ensure the comma insertion works correctly.
+            // Extractors write JSON objects separated only by whitespace: the search and aggregation extractors put several
+            // objects on one line, the ES|QL extractor writes one row per line with a leading space on later rows.
+            // Preview wraps them in square brackets and inserts a comma between objects.
             StringBuilder responseBuilder = new StringBuilder("[");
             if (inputStream.isPresent()) {
                 try (BufferedReader buffer = new BufferedReader(new InputStreamReader(inputStream.get(), StandardCharsets.UTF_8))) {
-                    // The ES|QL extractor writes one object per line and the generator prefixes later lines with a space;
-                    // strip each line so the join yields exactly "} {" and not "} {".
-                    responseBuilder.append(
-                        buffer.lines()
-                            .map(String::strip)
-                            .filter(line -> line.isEmpty() == false)
-                            .collect(Collectors.joining(" "))
-                            .replace("} {", "},{")
-                    );
+                    appendCommaSeparatedObjects(buffer.lines().collect(Collectors.joining("\n")), responseBuilder);
                 }
             }
             responseBuilder.append("]");
@@ -388,6 +377,43 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             listener.onFailure(e);
         } finally {
             dataExtractor.destroy();
+        }
+    }
+
+    /**
+     * Appends the top-level JSON objects of {@code text} separated by commas. A scan that tracks string literals is used,
+     * rather than a text replace, so a string value that contains a closing brace, a space and an opening brace is left unchanged.
+     */
+    private static void appendCommaSeparatedObjects(String text, StringBuilder out) {
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        boolean objectWritten = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (depth == 0 && Character.isWhitespace(c)) {
+                continue;
+            }
+            if (depth == 0 && c == '{' && objectWritten) {
+                out.append(',');
+            }
+            out.append(c);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inString = false;
+                }
+            } else if (c == '"') {
+                inString = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}' && depth > 0) {
+                depth--;
+                objectWritten = depth == 0;
+            }
         }
     }
 }

@@ -402,6 +402,28 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         verify(dataExtractor).destroy();
     }
 
+    public void testObjectsWithBraceSpaceInsideStringShouldBeReturnedUnchanged() throws IOException {
+        previewStream("{\"m\":\"a} {b\"}\n {\"m\":\"say \\\"} {\\\" twice\"}\n");
+
+        assertThat(capturedResponse, equalTo("[{\"m\":\"a} {b\"},{\"m\":\"say \\\"} {\\\" twice\"}]"));
+        assertThat(capturedFailure, is(nullValue()));
+    }
+
+    public void testBlankLinesBetweenRowsShouldBeIgnored() throws IOException {
+        previewStream("{\"a\":1}\n\n   \n {\"b\":2}\n\n");
+
+        assertThat(capturedResponse, equalTo("[{\"a\":1},{\"b\":2}]"));
+        assertThat(capturedFailure, is(nullValue()));
+    }
+
+    private void previewStream(String streamAsString) throws IOException {
+        InputStream stream = new ByteArrayInputStream(streamAsString.getBytes(StandardCharsets.UTF_8));
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(SearchIntervalTests.createRandom(), Optional.of(stream), List.of()));
+
+        TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
+    }
+
     public void testPreviewDatafeed_GivenFailure() throws IOException {
         when(dataExtractor.hasNext()).thenReturn(true);
         doThrow(new RuntimeException("failed")).when(dataExtractor).next();

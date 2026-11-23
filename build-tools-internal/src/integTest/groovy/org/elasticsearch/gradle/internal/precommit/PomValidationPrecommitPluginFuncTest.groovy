@@ -73,9 +73,9 @@ class PomValidationPrecommitPluginFuncTest extends AbstractGradleInternalPluginF
         result.task(":validateMavenPom").outcome == TaskOutcome.FAILED
 
         and: "problems report contains pom-validation group"
-        assertProblemsReportContains("pom-validation")
-        assertProblemsReportContains("elasticsearch-build")
-        assertProblemsReportContains("precommit")
+        assertProblemsReportContains("POM Validation")
+        assertProblemsReportContains("Verification")
+        assertProblemsReportContains("Elasticsearch Precommit")
         assertProblemsReportHasAtLeast(1)
     }
 

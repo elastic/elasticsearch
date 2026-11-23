@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.DocOrigins;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,34 +23,42 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Groups the documents of a cut into one fetch request per shard, and remembers which response row each row of the cut
+ * Groups the documents of a cut into one fetch request per node, and remembers which response row each row of the cut
  * reads.
  * <p>
- * Each shard gets a request of its own, like in the fetch phase of {@code _search}. A node runs each request on a driver
- * of its own, so it loads the documents of its shards in parallel, not one shard after the other. A request asks for the
- * documents of its shard sorted by segment and doc, the order the node loads them fastest and returns their rows in. A
- * document that several rows reference is asked for once. The rows of the cut find their values by position in the
- * responses, read in request order, without a position column on the wire.
+ * A node gets the documents of each of its shards sorted by segment and doc, the order it loads them fastest and
+ * returns their rows in. A document that several rows reference is asked for once. The nodes answer with their rows in
+ * request order, so the rows of the cut find their values by position, without a position column on the wire.
  * <p>
- * Each reader context appears in one request only, so every request asks its node to free its context once it answered.
+ * Each reader context appears in one request only, so every request asks its node to free its contexts once it answered.
  */
 final class FetchBatchPlanner {
     private FetchBatchPlanner() {}
 
     /**
-     * The documents of one shard, which one request fetches from {@code node}.
+     * The documents of one node.
+     *
+     * @param shards the documents of each shard, in the order the shards first appeared in the cut
      */
-    record ShardBatch(FetchNode node, FetchRequest.ShardDocs docs) {}
+    record NodeBatch(String clusterAlias, String nodeId, List<FetchRequest.ShardDocs> shards) {
+        int docCount() {
+            int docs = 0;
+            for (FetchRequest.ShardDocs shard : shards) {
+                docs += shard.docCount();
+            }
+            return docs;
+        }
+    }
 
     /**
      * The requests for the rows of a cut.
      *
-     * @param shards       the documents of each shard, in the order the shards first appeared in the cut
-     * @param responseRows for each row of the cut, the row that holds its values when the responses of {@code shards}
+     * @param nodes        the documents of each node, in the order the nodes first appeared in the cut
+     * @param responseRows for each row of the cut, the row that holds its values when the responses of {@code nodes}
      *                     are read one after the other
      * @param deduplicated whether several rows read the same response row
      */
-    record Batch(List<ShardBatch> shards, int[] responseRows, boolean deduplicated) {}
+    record Batch(List<NodeBatch> nodes, int[] responseRows, boolean deduplicated) {}
 
     /**
      * @param pages      the rows of the cut
@@ -60,7 +69,7 @@ final class FetchBatchPlanner {
         for (Page page : pages) {
             rows += page.getPositionCount();
         }
-        Map<DocOrigin, ShardAccumulator> shards = new LinkedHashMap<>();
+        Map<FetchNode, NodeAccumulator> nodes = new LinkedHashMap<>();
         ShardAccumulator[] shardOfRow = new ShardAccumulator[rows];
         long[] docOfRow = new long[rows];
         int row = 0;
@@ -82,8 +91,12 @@ final class FetchBatchPlanner {
                 int ordinal = originOrdinals.getInt(p);
                 ShardAccumulator shard = shardOfOrigin[ordinal];
                 if (shard == null) {
-                    // an origin names exactly one reader context, of one shard on one node
-                    shard = shards.computeIfAbsent(origins.get(ordinal), ShardAccumulator::new);
+                    DocOrigin origin = origins.get(ordinal);
+                    NodeAccumulator node = nodes.computeIfAbsent(
+                        new FetchNode(origin.clusterAlias(), origin.nodeId()),
+                        NodeAccumulator::new
+                    );
+                    shard = node.shards.computeIfAbsent(origin.contextId(), id -> new ShardAccumulator(origin));
                     shardOfOrigin[ordinal] = shard;
                 }
                 shard.rows++;
@@ -96,14 +109,17 @@ final class FetchBatchPlanner {
             shardOfRow[r].add(docOfRow[r]);
         }
 
-        List<ShardBatch> batches = new ArrayList<>(shards.size());
+        List<NodeBatch> batches = new ArrayList<>(nodes.size());
         boolean deduplicated = false;
         int responseRow = 0;
-        for (ShardAccumulator shard : shards.values()) {
-            FetchNode node = new FetchNode(shard.origin.clusterAlias(), shard.origin.nodeId());
-            batches.add(new ShardBatch(node, shard.sort(responseRow)));
-            responseRow += shard.distinctDocs;
-            deduplicated |= shard.distinctDocs < shard.rows;
+        for (NodeAccumulator node : nodes.values()) {
+            List<FetchRequest.ShardDocs> shards = new ArrayList<>(node.shards.size());
+            for (ShardAccumulator shard : node.shards.values()) {
+                shards.add(shard.sort(responseRow));
+                responseRow += shard.distinctDocs;
+                deduplicated |= shard.distinctDocs < shard.rows;
+            }
+            batches.add(new NodeBatch(node.key.clusterAlias(), node.key.nodeId(), shards));
         }
         int[] responseRows = new int[rows];
         for (int r = 0; r < rows; r++) {
@@ -117,6 +133,16 @@ final class FetchBatchPlanner {
      */
     private static long segmentAndDoc(int segment, int doc) {
         return ((long) segment << 32) | (doc & 0xFFFFFFFFL);
+    }
+
+    private static final class NodeAccumulator {
+        private final FetchNode key;
+        /** By context id, which names exactly one shard on one searcher. */
+        private final Map<ShardSearchContextId, ShardAccumulator> shards = new LinkedHashMap<>();
+
+        NodeAccumulator(FetchNode key) {
+            this.key = key;
+        }
     }
 
     private static final class ShardAccumulator {

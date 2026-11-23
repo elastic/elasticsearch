@@ -135,36 +135,35 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A {@code TopN} cut of one page sends one fetch request to each shard with winners, which frees its context once it
-     * answered. Each node of the winners holds two of their shards, so it gets two requests, which it serves in parallel.
-     * The coordinator frees the contexts of the losers once the cut ended, with one request for each, like {@code _search}.
-     * The node of the losers holds two shards.
+     * A {@code TopN} cut of one page sends one fetch request to each node with winners, which frees its contexts once it
+     * answered. The coordinator frees the contexts of the losers once the cut ended, with one request for each, like
+     * {@code _search}. The node of the losers holds two shards.
      */
     public void testATopNCut() throws Exception {
         List<List<Object>> rows = runQuery(randomCoordinator(), "FROM " + PREFIX + "* | SORT ts DESC | LIMIT 10 | KEEP ts, payload", 0);
 
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
-        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2)));
+        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
         assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
     }
 
     /**
      * The coordinator's {@code TopN} emits its cut in pages of five rows here, and each page holds winners of both nodes.
-     * The fetch holds every page of the cut until its input ends, so it still sends one request to each shard with winners.
+     * The fetch holds every page of the cut until its input ends, so it still sends one request to each node with winners.
      */
     public void testATopNCutOfSeveralPages() throws Exception {
         List<List<Object>> rows = runQuery(randomCoordinator(), "FROM " + PREFIX + "* | SORT ts DESC | LIMIT 10 | KEEP ts, payload", 5);
 
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
-        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2)));
+        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
         assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
     }
 
     /**
-     * Every winner sits on the coordinator, so the fetch requests of its two winner shards stay on the coordinator, and free
-     * their contexts. The node of the losers gets one free for each of its two contexts.
+     * Every winner sits on the coordinator, so the only fetch request stays on the coordinator, and frees its contexts.
+     * The node of the losers gets one free for each of its two contexts.
      */
     public void testATopNCutWhoseWinnersAllSitOnTheCoordinator() throws Exception {
         String query = "FROM " + PREFIX + "winner_*," + PREFIX + "loser_* | SORT ts DESC | LIMIT 10 | KEEP ts, payload";
@@ -178,7 +177,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         }
         assertThat(rows, equalTo(expected));
         assertAllContextsFreed();
-        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 2)));
+        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1)));
         assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
     }
 

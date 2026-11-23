@@ -64,7 +64,6 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +77,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -177,12 +177,11 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Nothing goes out before the input ends. Then each shard that holds documents of the cut gets one request, also two
-     * shards of the same node, so the node loads them in parallel. A request carries the documents of its shard, the index
-     * expressions of the query and the attributes to load. No other request reads its context, so it asks the node to free
-     * it once it answered.
+     * Nothing goes out before the input ends. Then each node that holds documents of the cut gets one request, with all of
+     * its documents, the index expressions of the query and the attributes to load. No other request reads its contexts,
+     * so it asks the node to free them once it answered.
      */
-    public void testSendsOneRequestPerShardOnceTheInputEnded() throws Exception {
+    public void testSendsOneRequestPerNodeOnceTheInputEnded() throws Exception {
         DriverContext driverContext = driverContext();
         Operator operator = factory(client()).get(driverContext);
         try {
@@ -197,32 +196,15 @@ public class FetchOperatorTests extends ComputeTestCase {
             assertFalse(operator.needsInput());
             assertThat(releasedRows(takeOutput(operator, 2)), equalTo(concat(first, second)));
 
-            // n1 holds shards 0 and 1, n2 shard 2, and n3 no document of the cut
-            assertThat(dataNodes.get(0).requests, hasSize(2));
+            assertThat(dataNodes.get(0).requests, hasSize(1));
             assertThat(dataNodes.get(1).requests, hasSize(1));
             assertThat(dataNodes.get(2).requests, empty());
-            Map<ShardId, Set<Ref>> documentsOfEachShard = new HashMap<>();
-            for (FetchRequest request : allRequests()) {
-                assertThat(request.shards(), hasSize(1));
-                assertTrue(request.shards().getFirst().freeAfterFetch());
-                assertThat(request.sessionId(), equalTo("query-session"));
-                assertThat(request.indices(), equalTo(new String[] { "index*" }));
-                assertThat(request.attributes().stream().map(Attribute::name).toList(), equalTo(List.of("id", "value")));
-                documentsOfEachShard.put(request.shards().getFirst().shardId(), documents(request));
-            }
-            assertThat(
-                documentsOfEachShard,
-                equalTo(
-                    Map.of(
-                        origins.get(0).shardId(),
-                        Set.of(first.get(0), second.get(1)),
-                        origins.get(1).shardId(),
-                        Set.of(second.get(0)),
-                        origins.get(2).shardId(),
-                        Set.of(first.get(1))
-                    )
-                )
-            );
+            FetchRequest request = dataNodes.get(0).requests.getFirst();
+            assertThat(documents(request), equalTo(Set.of(first.get(0), second.get(0), second.get(1))));
+            assertThat(request.shards().stream().map(FetchRequest.ShardDocs::freeAfterFetch).toList(), everyItem(equalTo(true)));
+            assertThat(request.sessionId(), equalTo("query-session"));
+            assertThat(request.indices(), equalTo(new String[] { "index*" }));
+            assertThat(request.attributes().stream().map(Attribute::name).toList(), equalTo(List.of("id", "value")));
         } finally {
             operator.close();
             awaitResponses(driverContext);
@@ -242,9 +224,9 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The first page goes out only once every request answered.
+     * The first page goes out only once every node answered.
      */
-    public void testWaitsForEveryRequestBeforeTheFirstPage() throws Exception {
+    public void testWaitsForEveryNodeBeforeTheFirstPage() throws Exception {
         DataNode n2 = dataNodes.get(1);
         n2.hold();
         DriverContext driverContext = driverContext();
@@ -267,8 +249,8 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The end of the input frees the contexts that none of the rows read. Each request frees its context once it answered,
-     * so the tracker frees no others.
+     * The end of the input frees the contexts that none of the rows read. Each node frees the contexts of its request once
+     * it answered, so the tracker frees no others.
      */
     public void testTheEndOfTheInputFreesTheContextsNoRowReads() throws Exception {
         DocOrigin unread = origins.get(3);
@@ -381,8 +363,8 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Any failure of a fetch fails the query: a shard whose context is gone, which fails its request, a request a node
-     * rejected, a node that left, and a request that can't be sent. Each request completes its drivers once.
+     * Any failure of a fetch fails the query: a shard whose context is gone, which fails the request of its node, a request
+     * a node rejected, a node that left, and a request that can't be sent. Each request completes its drivers once.
      */
     public void testAnyFailureFailsTheFetch() {
         List<List<Ref>> input = List.of(List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(2), 0, 2)));
@@ -417,9 +399,9 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * The status shows the cut, the documents the requests asked for, and the fetch of each request with its node.
+     * The status shows the cut, the documents the requests asked for, and the fetch from each node.
      */
-    public void testStatusShowsTheFetchOfEachRequest() throws Exception {
+    public void testStatusShowsTheFetchOfEachNode() throws Exception {
         List<List<Ref>> input = List.of(
             List.of(new Ref(origins.get(0), 0, 1), new Ref(origins.get(1), 0, 2)),
             List.of(new Ref(origins.get(2), 0, 3), new Ref(origins.get(0), 0, 1))
@@ -430,17 +412,16 @@ public class FetchOperatorTests extends ComputeTestCase {
         assertThat(lastStatus.rowsReceived(), equalTo(4L));
         assertThat(lastStatus.documents(), equalTo(3L));
         assertThat(lastStatus.pagesEmitted(), equalTo(2));
-        List<FetchOperator.NodeFetchStats> requests = lastStatus.nodes();
-        // n1 served shards 0 and 1, each with a request of its own
-        assertThat(requests.stream().map(FetchOperator.NodeFetchStats::node).toList(), containsInAnyOrder("n1", "n1", "n2"));
-        for (FetchOperator.NodeFetchStats request : requests) {
-            assertThat(request.shards(), equalTo(1));
-            assertThat(request.documents(), equalTo(1));
-            assertThat(request.requestNanos(), greaterThan(0L));
-            assertThat(request.tookNanos(), equalTo(TOOK_NANOS));
-            assertThat(request.setupNanos(), lessThan(request.tookNanos()));
+        List<FetchOperator.NodeFetchStats> nodes = lastStatus.nodes();
+        assertThat(nodes.stream().map(FetchOperator.NodeFetchStats::node).toList(), containsInAnyOrder("n1", "n2"));
+        for (FetchOperator.NodeFetchStats node : nodes) {
+            assertThat(node.shards(), equalTo(node.node().equals("n1") ? 2 : 1));
+            assertThat(node.documents(), equalTo(node.node().equals("n1") ? 2 : 1));
+            assertThat(node.requestNanos(), greaterThan(0L));
+            assertThat(node.tookNanos(), equalTo(TOOK_NANOS));
+            assertThat(node.setupNanos(), lessThan(node.tookNanos()));
         }
-        assertThat(drivers.completed, hasSize(3));
+        assertThat(drivers.completed, hasSize(2));
     }
 
     /**

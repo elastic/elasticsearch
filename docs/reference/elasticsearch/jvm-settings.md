@@ -232,4 +232,9 @@ Supported variables and their allowed values:
 
 {{es}} fails to start if the name is not supported or the value is not a decimal number in the allowed range. An option without a value (no `=`) is ignored.
 
-Setting either threshold turns off glibc's automatic adjustment of both, so it is advisable to set `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_` together.
+On Linux, {{es}} sets these defaults to limit native memory retention from glibc `malloc` (native-heap allocations):
+- `MALLOC_ARENA_MAX`: set to be equal to the number of allocated cores (see [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors)),
+- `MALLOC_MMAP_THRESHOLD_` and `MALLOC_TRIM_THRESHOLD_`: both set to 1MB (1048576),
+- `-XX:TrimNativeHeapInterval=3600000`: set to have the JVM trim the native heap every hour.
+
+Each default applies only if you haven't set that value yourself: an `es.glibc.env.` JVM option or an environment variable of the same name (or the equivalent tunable in `GLIBC_TUNABLES`) takes precedence, and so does an explicitly set `-XX:TrimNativeHeapInterval` JVM option.

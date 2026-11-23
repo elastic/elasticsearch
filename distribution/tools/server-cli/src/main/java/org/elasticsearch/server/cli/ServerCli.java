@@ -27,6 +27,7 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.server.launcher.common.LaunchDescriptor;
@@ -82,22 +83,19 @@ class ServerCli extends EnvironmentAwareCommand {
      */
     static final String GLIBC_ENV_SYSPROP_PREFIX = "es.glibc.env.";
 
-    private static final String MALLOC_MMAP_THRESHOLD = "MALLOC_MMAP_THRESHOLD_";
-    private static final String MALLOC_TRIM_THRESHOLD = "MALLOC_TRIM_THRESHOLD_";
-
     /**
      * The glibc malloc environment variables that can be set through {@link #GLIBC_ENV_SYSPROP_PREFIX}, with the values glibc
      * accepts for each. glibc silently ignores an unknown variable or a value out of range, which would leave the process with
      * the default behaviour while looking configured, so we reject both instead.
      */
     static final Map<String, GlibcEnvLimits> GLIBC_MALLOC_ENV_VARS = Map.of(
-        "MALLOC_ARENA_MAX",
+        GlibcErgonomics.MALLOC_ARENA_MAX,
         new GlibcEnvLimits(1, Long.MAX_VALUE),
         "MALLOC_ARENA_TEST",
         new GlibcEnvLimits(1, Long.MAX_VALUE),
-        MALLOC_MMAP_THRESHOLD,
+        GlibcErgonomics.MALLOC_MMAP_THRESHOLD,
         new GlibcEnvLimits(0, 32L * 1024 * 1024),
-        MALLOC_TRIM_THRESHOLD,
+        GlibcErgonomics.MALLOC_TRIM_THRESHOLD,
         new GlibcEnvLimits(0, Long.MAX_VALUE),
         "MALLOC_TOP_PAD_",
         new GlibcEnvLimits(0, Long.MAX_VALUE),
@@ -296,6 +294,7 @@ class ServerCli extends EnvironmentAwareCommand {
         List<String> jvmArgs = getJvmArgs(processInfo);
         Map<String, String> environment = getEnvironment(processInfo, tempDir);
         addGlibcEnvironment(terminal, jvmOptions, environment);
+        addGlibcDefaults(terminal, args.nodeSettings(), environment, ServerProcessUtils.isLinux(processInfo.sysprops()));
         byte[] serverArgsBytes = serializeServerArgs(args);
 
         LaunchDescriptor descriptor = new LaunchDescriptor(
@@ -355,7 +354,6 @@ class ServerCli extends EnvironmentAwareCommand {
      *                       the accepted range
      */
     static void addGlibcEnvironment(Terminal terminal, List<String> jvmOptions, Map<String, String> environment) throws UserException {
-        boolean thresholdSet = false;
         for (Map.Entry<String, String> property : JvmErgonomics.extractSystemProperties(jvmOptions).entrySet()) {
             String key = property.getKey();
             if (key.startsWith(GLIBC_ENV_SYSPROP_PREFIX) == false) {
@@ -364,21 +362,19 @@ class ServerCli extends EnvironmentAwareCommand {
             String name = key.substring(GLIBC_ENV_SYSPROP_PREFIX.length());
             String value = parseGlibcEnvironmentValue(key, name, property.getValue());
             environment.put(name, value);
-            thresholdSet |= name.equals(MALLOC_MMAP_THRESHOLD) || name.equals(MALLOC_TRIM_THRESHOLD);
             terminal.println("Setting environment variable [" + name + "=" + value + "] from system property [" + key + "]");
         }
-        // Setting either threshold turns off glibc's dynamic adjustment of both; the one left unset stays at its default.
-        if (thresholdSet && environment.containsKey(MALLOC_MMAP_THRESHOLD) != environment.containsKey(MALLOC_TRIM_THRESHOLD)) {
-            String unset = environment.containsKey(MALLOC_MMAP_THRESHOLD) ? MALLOC_TRIM_THRESHOLD : MALLOC_MMAP_THRESHOLD;
-            terminal.errorPrintln(
-                "Warning: setting only one of ["
-                    + MALLOC_MMAP_THRESHOLD
-                    + "] and ["
-                    + MALLOC_TRIM_THRESHOLD
-                    + "] fixes both, and ["
-                    + unset
-                    + "] stays at its glibc default; set both explicitly"
-            );
+    }
+
+    /**
+     * Adds the glibc malloc defaults chosen by {@link GlibcErgonomics} to {@code environment}, which must already hold the variables
+     * from the launcher's environment and from {@link #addGlibcEnvironment}. Prints each one that it adds.
+     */
+    static void addGlibcDefaults(Terminal terminal, Settings nodeSettings, Map<String, String> environment, boolean isLinux) {
+        Map<String, String> defaults = GlibcErgonomics.chooseEnvironment(environment, nodeSettings, isLinux);
+        for (Map.Entry<String, String> glibcDefault : defaults.entrySet()) {
+            environment.put(glibcDefault.getKey(), glibcDefault.getValue());
+            terminal.println("Setting environment variable [" + glibcDefault.getKey() + "=" + glibcDefault.getValue() + "] by default");
         }
     }
 

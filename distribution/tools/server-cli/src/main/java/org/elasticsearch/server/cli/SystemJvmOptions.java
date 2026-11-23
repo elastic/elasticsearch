@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
@@ -82,6 +83,7 @@ final class SystemJvmOptions {
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
             maybeAddJitCompilerOptions(isHotspot),
+            maybeTrimNativeHeap(ServerProcessUtils.isLinux(sysprops), isHotspot, Runtime.version()),
             attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
@@ -177,6 +179,20 @@ final class SystemJvmOptions {
             "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
             "-XX:CompileCommand=dontinline,java.nio.*::getArray"
         );
+    }
+
+    /*
+     * Trim the native heap hourly: the JVM calls glibc's malloc_trim, which returns the whole free pages in glibc's free lists to the OS.
+     * HotSpot supports this only on Linux, and warns on other platforms. The option
+     * is in JDK 22, and was backported to 21.0.1 (JDK-8314107); an older JDK refuses to start with it.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // The version check can be removed when min JDK version >= 22
+    static Stream<String> maybeTrimNativeHeap(boolean isLinux, boolean isHotspot, Runtime.Version version) {
+        boolean hasOption = version.feature() > 21 || (version.feature() == 21 && version.update() >= 1);
+        if (isLinux && isHotspot && hasOption) {
+            return Stream.of("-XX:TrimNativeHeapInterval=" + TimeUnit.HOURS.toMillis(1));
+        }
+        return Stream.empty();
     }
 
     private static Stream<String> attachEntitlementAgent(Path esHome) {

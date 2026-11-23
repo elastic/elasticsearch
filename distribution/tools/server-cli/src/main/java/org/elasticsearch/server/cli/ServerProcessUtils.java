@@ -20,8 +20,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileAttribute;
+import java.util.Map;
 
 public class ServerProcessUtils {
+
+    /**
+     * @return whether the given system properties are from a JVM running on Linux
+     */
+    static boolean isLinux(Map<String, String> sysprops) {
+        return sysprops.get("os.name").startsWith("Linux");
+    }
 
     /**
      * Returns the java.io.tmpdir Elasticsearch should use, creating it if necessary.

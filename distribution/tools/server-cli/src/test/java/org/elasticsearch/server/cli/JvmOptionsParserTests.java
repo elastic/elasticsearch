@@ -403,6 +403,17 @@ public class JvmOptionsParserTests extends ESTestCase {
         assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(false).toList(), empty());
     }
 
+    public void testTrimNativeHeap() {
+        Runtime.Version withOption = Runtime.Version.parse(randomFrom("21.0.1", "21.0.4", "22", "25.0.1"));
+        assertThat(
+            SystemJvmOptions.maybeTrimNativeHeap(true, true, withOption).toList(),
+            equalTo(List.of("-XX:TrimNativeHeapInterval=3600000"))
+        );
+        assertThat(SystemJvmOptions.maybeTrimNativeHeap(false, true, withOption).toList(), empty());
+        assertThat(SystemJvmOptions.maybeTrimNativeHeap(true, false, withOption).toList(), empty());
+        assertThat(SystemJvmOptions.maybeTrimNativeHeap(true, true, Runtime.Version.parse("21")).toList(), empty());
+    }
+
     public void testCommandLineDistributionType() {
         var sysprops = new HashMap<>(testSysprops);
         sysprops.put("es.distribution.type", "testdistro");

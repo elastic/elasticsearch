@@ -230,10 +230,13 @@ public final class ExternalFailures {
      * renderer rather than through a reader, and the mark cannot answer it: these failures are the provider's, and
      * exempting them wholesale is what {@link #noStoragePathLeakedBesideQuotedInput} refuses to do.
      * <p>
-     * Only the rendered occurrence goes, never the string wherever it appears: the templates all bracket it, so
-     * {@code [name]} is removed and a basename of {@code a} cannot blank every {@code a} in the sentence. Everything
-     * the provider wrote -- its detail code, its remedy, its own diagnostic text -- is still read in full, which is
-     * where an SDK endpoint host or a bare filesystem path would actually appear.
+     * One occurrence goes and no other. The templates bracket the name, so {@code [name]} is what is removed and a
+     * basename of {@code a} cannot blank every {@code a} in the sentence; and the first bracketed occurrence is the
+     * renderer's, because {@link ExternalException.Condition#render} puts the template before the detail code and the
+     * remedy, and {@link ExternalException#getMessage} appends the reader's own detail and the dataset context after
+     * all of it. So everything the provider wrote is still read in full, which is where an SDK endpoint host or a bare
+     * filesystem path would actually appear -- even in the case that prompted this, an endpoint whose text happens to
+     * equal the basename, where blanking every occurrence would have hidden the provider's copy along with ours.
      */
     private static String messageOutsideRenderedBasename(Throwable e) {
         String msg = e.getMessage();
@@ -243,7 +246,11 @@ public final class ExternalFailures {
         if (e instanceof ExternalException external) {
             String objectName = external.objectName();
             if (objectName.isEmpty() == false) {
-                return msg.replace("[" + objectName + "]", "[]");
+                String rendered = "[" + objectName + "]";
+                int at = msg.indexOf(rendered);
+                if (at >= 0) {
+                    return msg.substring(0, at) + "[]" + msg.substring(at + rendered.length());
+                }
             }
         }
         return msg;
@@ -457,17 +464,17 @@ public final class ExternalFailures {
      *     A 500 is logged whether or not it has a cause, which no other status is. A 500 from this package is a bug on
      *     this node and its stack is what an operator has to work from; raised directly, with no cause under it, that
      *     stack exists nowhere else, because only the message crosses the wire. Logging just the cause would make an
-     *     invariant breach the quietest failure the read path has. The rest of the server-side band is left alone
-     *     deliberately: a causeless 503 is the expected shape of an object changing under a read, which every provider
-     *     raises and the read retries, and it is not something an operator has to see once per occurrence.
+     *     invariant breach the quietest failure the read path has. Why the rest of the server-side band is left
+     *     alone is on the condition that selects it, not repeated here.
      */
     private static ExternalException detach(ExternalException e, Level serverFailureLevel) {
         boolean hasCause = e.getCause() != null;
         boolean serverSide = e.status().getStatus() >= 500;
         // Exactly 500, not every server-side status: the record is for an invariant breach raised with nothing under
         // it, and the band above 500 is mostly the opposite of that. An object rewritten under a read is a causeless
-        // 503 that every provider raises and the read retries, so admitting the band would put a WARN and a stack in
-        // the log for ordinary back-pressure, on every query it happens to.
+        // 503 that every storage provider raises and that ends the query for the client to retry, so admitting the
+        // band would put a WARN and a stack in the log for an expected storage condition, on every query it happens
+        // to.
         boolean causelessInvariantBreach = hasCause == false && e.status() == RestStatus.INTERNAL_SERVER_ERROR;
         if (hasCause || causelessInvariantBreach) {
             Level level;

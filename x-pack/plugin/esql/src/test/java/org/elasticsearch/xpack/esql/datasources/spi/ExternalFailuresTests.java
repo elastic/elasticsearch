@@ -613,16 +613,14 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     /**
-     * Why the exemption is a mark the thrower asks for rather than a property of this boundary. Every typed failure
-     * the storage providers raise reaches the same place, and an SDK endpoint host or a bare filesystem path in one of
-     * those is the leak this guard exists to catch. Relaxing the boundary itself would have retired it for precisely
-     * the throw sites it watches.
-     */
-    /**
      * The provider's own failures quote the object's basename because the condition renderer puts it there, not
      * because any reader asked -- so a user who names an object after a storage host used to turn a polite 403 into
-     * a fatal {@link AssertionError}. The mark cannot answer this one: these failures are the provider's, and
-     * trusting them wholesale is exactly what the boundary refuses to do.
+     * a fatal {@link AssertionError}.
+     * <p>
+     * The mark cannot answer this one, which is why the exemption is a mark the thrower asks for rather than a
+     * property of this boundary. Every typed failure the storage providers raise reaches the same place, and an SDK
+     * endpoint host or a bare filesystem path in one of those is the leak this guard exists to catch; relaxing the
+     * boundary itself would have retired it for precisely the throw sites it watches.
      */
     public void testAProviderFailureMayNameAnObjectAfterAStorageHost() {
         for (String objectName : List.of("logs.amazonaws.com.csv", "blob.core.windows.net.csv", "data.googleapis.com.ndjson")) {
@@ -661,6 +659,20 @@ public class ExternalFailuresTests extends ESTestCase {
         var shortName = new ExternalClientException(ExternalException.Condition.ACCESS_DENIED, StoragePath.of("s3://b/a"), "", "");
         shortName.setDetail("endpoint s3.amazonaws.com refused");
         assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(shortName));
+
+        // One occurrence, not every one of them. Here the object is named after the endpoint and the provider brackets
+        // that endpoint too, so blanking the name wherever it appeared would have taken the provider's own mention of
+        // the host with it -- a real host, in text nobody chose to quote back -- and the boundary would have passed.
+        String endpoint = "bucket.s3.us-east-1.amazonaws.com";
+        var namesakeEndpoint = new ExternalClientException(
+            ExternalException.Condition.ACCESS_DENIED,
+            StoragePath.of("s3://bucket/" + endpoint),
+            "HTTP 403",
+            ""
+        );
+        namesakeEndpoint.setDetail("refused by [" + endpoint + "]");
+        assertThat(namesakeEndpoint.getMessage(), containsString("reading [" + endpoint + "]"));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideQuotedInput(namesakeEndpoint));
     }
 
     public void testAnUnmarkedTypedFailureIsStillCheckedInFull() {

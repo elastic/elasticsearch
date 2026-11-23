@@ -609,11 +609,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * {@link #formatName()}, which returns the configuration id {@code ndjson}; this reader serves one format,
      * unlike CSV, which takes its name from a field because one reader there serves both CSV and TSV.
      * <p>
-     * Typed rather than raised through {@link Check#clientError}, whose plain {@link IllegalArgumentException}
-     * the resolver forwards only past {@code ExternalFailures.forwardableDetail}'s storage-path guard — which
-     * matches a bare storage host anywhere in the text, so an object called {@code logs.amazonaws.com.ndjson}
-     * loses the sentence and the remedy with it. {@code CsvFormatReader.sampleLimitError} is the twin of this
-     * and carries the reasoning, including what the type does not buy on the read path.
+     * Typed rather than raised through {@link Check#clientError}, for the reason
+     * {@code CsvFormatReader.sampleLimitError} sets out: it is the twin of this one and carries the whole
+     * argument, including what the type does not buy on the read path.
      */
     private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead, StorageObject object) {
         if (sampleRows > 0 || bytesRead < schemaSampleBytes) {

@@ -100,6 +100,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -8086,6 +8087,35 @@ public class CsvFormatReaderTests extends ESTestCase {
         String reworded = CsvFormatReader.readRecordFailure("csv")
             + ": String length (12) is over the limit (10, from `StreamReadConstraints.getMaxStringLength()`)";
         assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded, "csv"));
+    }
+
+    /**
+     * The reason clause carries the row: {@link MalformedRowException#unclosedQuotedField} quotes the line verbatim
+     * while it fits the excerpt cap, and an unclosed quote is exactly the case where the line spans a newline. Both
+     * sinks the reason reaches -- the {@code Warning} response header and the node log -- read brackets and newlines
+     * structurally, so a row is free to forge a window clause or end the log line unless this escapes.
+     */
+    public void testARowCannotForgeAWindowClauseThroughTheReasonClause() {
+        String forgery = MalformedRowException.unclosedQuotedField("1,\"x] counted from byte [999", 2).getMessage();
+        assertThat("the fixture is the raw row, uncapped", forgery, containsString("] counted from byte [999"));
+
+        String rendered = CsvFormatReader.rowErrorReason(forgery, "csv");
+        assertThat("the row's own brackets are escaped", rendered, not(containsString("] counted from byte [999")));
+        assertThat(rendered, containsString("\\u005D counted from byte \\u005B999"));
+        // The whole reason is escaped, the bracket pair this message's own template writes included, so no bracket
+        // survives anywhere inside it. That is the property worth having: every bracket left in the warning the user
+        // reads is one RowLocation put there, and none of them can have come out of the file.
+        assertThat(rendered, not(containsString("[")));
+        assertThat(rendered, not(containsString("]")));
+        assertThat(rendered, startsWith("Unclosed quoted field in line "));
+    }
+
+    /** A newline inside an unterminated quoted field would otherwise end the node-log line and start a new record. */
+    public void testARowCannotEndTheLogLineThroughTheReasonClause() {
+        String spanning = MalformedRowException.unclosedQuotedField("1,\"x\ninjected", 2).getMessage();
+        String rendered = CsvFormatReader.rowErrorReason(spanning, "csv");
+        assertThat(rendered, not(containsString("\n")));
+        assertThat(rendered, containsString("\\u000A"));
     }
 
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {

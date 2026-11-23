@@ -1399,8 +1399,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         StringBuilder head = new StringBuilder(window);
         // Position, not head.isEmpty(): an empty name is a duplicate like any other -- two leading commas are the
         // common way to get one -- and it appends nothing, so emptiness cannot tell the first name from the second.
-        // Read the other way the separator went missing, the head came up short of the cap, and summarizeEscaped's
-        // own assertion fired on a message that was supposed to be a plain 400.
         for (int i = 0; i < names.length && head.length() < window; i++) {
             if (i > 0) {
                 appendBounded(head, DUPLICATE_NAME_SEPARATOR, window);
@@ -2557,10 +2555,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * The reason clause of a row the reader could not parse: the cause message without the
-     * {@link #readRecordFailure} prefix the record iterator adds, capped by {@link ErrorExcerpts#summarize}.
+     * {@link #readRecordFailure} prefix the record iterator adds, escaped and capped by
+     * {@link ErrorExcerpts#summarizeEscaped}.
      * Jackson's over-{@code max_field_size} message is rendered as {@link #fieldSizeExceededDetail}, so the
      * Jackson arm and the house tokenizer report an over-long field in the same words. Any other message loses its
      * {@link #JACKSON_CONSTRAINT_REFERENCE}.
+     * <p>
+     * Escaped because the message carries the row: {@link MalformedRowException#unclosedQuotedField} and
+     * {@link MalformedRowException#unclosedBracketCell} quote the line itself, verbatim while it fits the excerpt
+     * cap. Both sinks this reason reaches -- the {@code Warning} response header and the node log -- read brackets
+     * and newlines structurally, so an unterminated quote spanning a newline would otherwise end the log line, and a
+     * row holding {@code ] counted from byte [} would otherwise close the clause it sits in and forge a window.
+     * NDJSON's parser text is escaped at its own print site for the same reason.
+     * <p>
+     * The whole reason goes through the escape, the brackets of these messages' own templates included. Keeping
+     * those would leave two kinds of bracket in one clause and no way for a reader to tell them apart, which is the
+     * forgery itself rather than a defence against it. Escaping all of them makes a plainer promise: every bracket
+     * left in the warning is one the location clause wrote.
      */
     static String rowErrorReason(String message, String format) {
         String prefix = readRecordFailure(format) + ": ";
@@ -2572,7 +2583,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             reason = JACKSON_CONSTRAINT_REFERENCE.matcher(reason).replaceAll("");
         }
-        return ErrorExcerpts.summarize(reason);
+        return ErrorExcerpts.summarizeEscaped(reason);
     }
 
     /** The reason for a value that does not fit its column's type. */

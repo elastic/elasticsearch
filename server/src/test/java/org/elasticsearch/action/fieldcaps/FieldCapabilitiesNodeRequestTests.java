@@ -54,7 +54,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             indexFilter,
             nowInMillis,
             runtimeFields,
-            true
+            true,
+            randomBoolean()
         );
     }
 
@@ -108,7 +109,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 1 -> {
@@ -122,7 +124,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 2 -> {
@@ -136,7 +139,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 3 -> {
@@ -150,7 +154,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     indexFilter,
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 4 -> {
@@ -164,7 +169,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     nowInMillis,
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 5 -> {
@@ -180,7 +186,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     runtimeFields,
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 6 -> {
@@ -194,7 +201,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 7 -> {
@@ -208,7 +216,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeTimeSeriesStats()
                 );
             }
             case 8 -> {
@@ -221,7 +230,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false
+                    false,
+                    instance.includeTimeSeriesStats()
                 );
             }
             default -> throw new IllegalStateException("The test should only allow 8 parameters mutated");
@@ -238,7 +248,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             null,
             randomNonNegativeLong(),
             Map.of(),
-            true
+            true,
+            false
         );
         assertThat(
             r1.getDescription(),
@@ -254,6 +265,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             null,
             randomNonNegativeLong(),
             Map.of(),
+            false,
             false
         );
         assertThat(

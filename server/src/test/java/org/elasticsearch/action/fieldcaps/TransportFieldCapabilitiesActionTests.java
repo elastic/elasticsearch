@@ -205,7 +205,8 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             null,
             0L,
             Map.of(),
-            true
+            true,
+            false
         );
 
         final AtomicReference<Exception> channelError = new AtomicReference<>();

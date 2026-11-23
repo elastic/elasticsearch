@@ -855,7 +855,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             1,
             0,
             indexMetadata.getSettingsVersion(),
-            indexMetadata.getMappingVersion()
+            indexMetadata.getMappingVersion(),
+            null
         );
         FieldCapsCache cache = new FieldCapsCache();
         cache.put(
@@ -1136,7 +1137,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         0,
                         0,
                         0,
-                        0
+                        0,
+                        null
                     )
                 );
             }

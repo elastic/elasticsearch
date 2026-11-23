@@ -77,7 +77,8 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 0,
                 0,
                 0,
-                0
+                0,
+                null
             )
         );
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build();
@@ -104,7 +105,8 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 0,
                 0,
                 0,
-                0
+                0,
+                null
             )
         );
 

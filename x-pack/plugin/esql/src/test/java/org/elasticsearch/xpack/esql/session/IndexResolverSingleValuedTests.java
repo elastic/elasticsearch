@@ -108,7 +108,18 @@ public class IndexResolverSingleValuedTests extends ESTestCase {
     private static FieldCapabilitiesIndexResponse index(String name, IndexFieldCapabilities... fields) {
         Map<String, IndexFieldCapabilities> byName = new HashMap<>();
         Arrays.stream(fields).forEach(f -> byName.put(f.name(), f));
-        return new FieldCapabilitiesIndexResponse(name, name, byName, true, IndexMode.STANDARD, 1, IndexVersion.current().id(), 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(
+            name,
+            name,
+            byName,
+            true,
+            IndexMode.STANDARD,
+            1,
+            IndexVersion.current().id(),
+            1L,
+            1L,
+            null
+        );
     }
 
     private static EsIndex resolve(boolean trackUnmappedFieldIndices, FieldCapabilitiesIndexResponse... indices) {

@@ -63,6 +63,17 @@ public class FieldCapsCacheTests extends ESTestCase {
     }
 
     private static FieldCapabilitiesIndexResponse response(long settingsVersion, long mappingVersion) {
-        return new FieldCapabilitiesIndexResponse("index", null, Map.of(), true, IndexMode.STANDARD, 1, 0, settingsVersion, mappingVersion);
+        return new FieldCapabilitiesIndexResponse(
+            "index",
+            null,
+            Map.of(),
+            true,
+            IndexMode.STANDARD,
+            1,
+            0,
+            settingsVersion,
+            mappingVersion,
+            null
+        );
     }
 }

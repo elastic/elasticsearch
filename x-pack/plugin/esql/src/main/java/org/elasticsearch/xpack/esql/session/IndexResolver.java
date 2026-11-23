@@ -169,7 +169,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false, false),
             false, /* lookup indices never read nested fields */
             indexPattern,
             false, /* lookup indices should do not be empty */
@@ -236,7 +236,8 @@ public class IndexResolver {
                 requestFilter,
                 includeAllDimensions,
                 nestedScope,
-                false
+                false,
+                hasTimeSeriesAggregation
             ),
             nestedScope,
             indexPattern,
@@ -277,7 +278,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, false, true),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, false, true, false),
             false, /* exemplar data streams never read nested fields */
             indexPattern,
             true, /* the derived data streams may not exist */
@@ -355,7 +356,8 @@ public class IndexResolver {
                 requestFilter,
                 includeAllDimensions,
                 nestedScope,
-                true
+                true,
+                hasTimeSeriesAggregation
             ),
             nestedScope,
             indexPattern,
@@ -733,7 +735,10 @@ public class IndexResolver {
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
-            indexProperties.put(ir.getIndexName(), new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards(), ir.getCreatedVersion()));
+            indexProperties.put(
+                ir.getIndexName(),
+                new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards(), ir.getCreatedVersion(), ir.getTimeSeriesStats())
+            );
             var split = RemoteClusterAware.splitIndexName(ir.getIndexName());
             concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), k -> new ArrayList<>()).add(split.indexExpression());
         }
@@ -1190,9 +1195,11 @@ public class IndexResolver {
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
         boolean nestedScope,
-        boolean includeResolvedTo
+        boolean includeResolvedTo,
+        boolean includeTimeSeriesStats
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.includeTimeSeriesStats(includeTimeSeriesStats);
         request.indices(Strings.commaDelimitedListToStringArray(index));
         request.fields(fieldNames.toArray(String[]::new));
         request.includeUnmapped(true);

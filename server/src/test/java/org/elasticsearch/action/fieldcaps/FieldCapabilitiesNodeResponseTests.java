@@ -53,7 +53,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     0,
                     0,
                     0,
-                    0
+                    0,
+                    null
                 )
             );
         }
@@ -85,7 +86,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     0,
                     0,
                     0,
-                    0
+                    0,
+                    null
                 )
             );
             case 1 -> {
@@ -105,7 +107,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         0,
                         0,
                         0,
-                        0
+                        0,
+                        null
                     )
                 );
             }
@@ -123,7 +126,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         resp.getNumberOfShards(),
                         resp.getCreatedVersion(),
                         resp.getIndexSettingsVersion(),
-                        resp.getMappingVersion()
+                        resp.getMappingVersion(),
+                        null
                     )
                 );
             }

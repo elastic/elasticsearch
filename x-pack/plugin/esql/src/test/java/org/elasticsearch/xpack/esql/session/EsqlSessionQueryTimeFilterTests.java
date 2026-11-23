@@ -507,7 +507,7 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             indexFilters.add(indexFilter);
             List<FieldCapabilitiesIndexResponse> indices = new ArrayList<>();
             for (String index : matchingIndices.apply(indexFilter)) {
-                indices.add(new FieldCapabilitiesIndexResponse(index, index, mapping(index), true, IndexMode.STANDARD, 0, 0, 0, 0));
+                indices.add(new FieldCapabilitiesIndexResponse(index, index, mapping(index), true, IndexMode.STANDARD, 0, 0, 0, 0, null));
             }
             EsqlResolveFieldsResponse response = new EsqlResolveFieldsResponse(
                 FieldCapabilitiesResponse.builder()

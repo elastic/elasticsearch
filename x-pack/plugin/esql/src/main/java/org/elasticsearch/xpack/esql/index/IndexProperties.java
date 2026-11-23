@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.TimeSeriesStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 
 import java.io.IOException;
@@ -25,7 +27,9 @@ import java.io.IOException;
  * "unknown".
  * </p>
  */
-public record IndexProperties(IndexMode indexMode, int numberOfShards, int createdVersion) implements Writeable {
+public record IndexProperties(IndexMode indexMode, int numberOfShards, int createdVersion, @Nullable TimeSeriesStats timeSeriesStats)
+    implements
+        Writeable {
 
     /**
      * Transport version that introduced per-index shard-count propagation via {@code _field_caps}.
@@ -33,17 +37,19 @@ public record IndexProperties(IndexMode indexMode, int numberOfShards, int creat
      */
     public static final TransportVersion SHARD_COUNTS = TransportVersion.fromName("field_caps_number_of_shards");
     public static final TransportVersion CREATED_VERSION = TransportVersion.fromName("field_caps_index_created_version");
+    public static final TransportVersion TIME_SERIES_STATS = TransportVersion.fromName("field_caps_time_series_stats");
 
     public IndexProperties(StreamInput in) throws IOException {
         this(
             IndexMode.readFrom(in),
             in.getTransportVersion().supports(SHARD_COUNTS) ? in.readVInt() : 0,
-            in.getTransportVersion().supports(CREATED_VERSION) ? in.readVInt() : 0
+            in.getTransportVersion().supports(CREATED_VERSION) ? in.readVInt() : 0,
+            in.getTransportVersion().supports(TIME_SERIES_STATS) ? in.readOptionalWriteable(TimeSeriesStats::new) : null
         );
     }
 
     public IndexProperties(IndexMode indexMode, int numberOfShards) {
-        this(indexMode, numberOfShards, 0);
+        this(indexMode, numberOfShards, 0, null);
     }
 
     @Override
@@ -54,6 +60,9 @@ public record IndexProperties(IndexMode indexMode, int numberOfShards, int creat
         }
         if (out.getTransportVersion().supports(CREATED_VERSION)) {
             out.writeVInt(createdVersion);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_STATS)) {
+            out.writeOptionalWriteable(timeSeriesStats);
         }
     }
 }

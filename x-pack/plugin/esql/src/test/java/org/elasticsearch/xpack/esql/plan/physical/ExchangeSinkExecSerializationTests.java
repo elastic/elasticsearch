@@ -99,8 +99,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1162302b - use the current index version (4-byte VInt per index)
          *  1169302b - added single valued flag to EsField (1 byte per field)
          *  1169303b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
+         *  1169904b - added time-series stats to IndexProperties (1 byte per index for the absent stats)
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1169303L));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1169904L));
     }
 
     /**
@@ -131,8 +132,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2313925b - use the current index version (4-byte VInt per index)
          *  2320925b - added single valued flag to EsField (1 byte per field)
          *  2320926b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
+         *  2321527b - added time-series stats to IndexProperties (1 byte per index for the absent stats)
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2320926L));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2321527L));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -215,6 +217,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * 5199b - added created index version
          * 5499b - use the current index version (4-byte VInt per index)
          * 5500b - added exchange reference to ExchangeSinkExec (1 byte for the absent reference)
+         * 5600b - added time-series stats to IndexProperties (1 byte per index for the absent stats)
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -224,7 +227,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5500));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5600));
     }
 
     /**

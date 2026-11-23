@@ -120,6 +120,6 @@ public class IndexResolverKeysTests extends ESTestCase {
         for (IndexFieldCapabilities field : fields) {
             byName.put(field.name(), field);
         }
-        return new FieldCapabilitiesIndexResponse(index, index, byName, true, IndexMode.STANDARD, 1, 0, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(index, index, byName, true, IndexMode.STANDARD, 1, 0, 1L, 1L, null);
     }
 }

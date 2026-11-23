@@ -36,7 +36,7 @@ public class EsIndexGenerator {
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
         Map<String, IndexProperties> props = new HashMap<>(indexNameWithModes.size());
-        indexNameWithModes.forEach((k, v) -> props.put(k, new IndexProperties(v, 0, IndexVersion.current().id())));
+        indexNameWithModes.forEach((k, v) -> props.put(k, new IndexProperties(v, 0, IndexVersion.current().id(), null)));
         return new EsIndex(name, mapping, props, Map.of(), Map.of());
     }
 

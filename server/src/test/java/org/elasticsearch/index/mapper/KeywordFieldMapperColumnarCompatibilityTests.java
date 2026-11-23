@@ -951,6 +951,32 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         return Settings.builder().put(settings).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build();
     }
 
+    public void testNullsAreNotValuesWithoutNullValueWhenSingleValued() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).endObject()),
+            columnarSettings(),
+            batch("nulls only", 1L, doc("d1", 1L, "{\"f\":\"a\"}"), doc("d2", 2L, "{\"f\":[null,null]}"), doc("d3", 3L, "{\"f\":[null]}"))
+        );
+        // The batch path itself must map this without throwing, ie. it does not rely on the row path fallback.
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).endObject())
+        );
+        mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"a\"}", "{\"f\":[null,null]}");
+    }
+
+    /** With a null_value a null element is a real value, so {@code [null,null]} is two values and a single-valued field rejects it. */
+    public void testNullsAreValuesWithNullValueWhenSingleValued() throws IOException {
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).field("null_value", "NA").endObject())
+        );
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"a\"}", "{\"f\":[null,null]}")
+        );
+    }
+
     /**
      * A nullability=false field whose array holds no non-null value has no value, so under on_failure=ignore the batch path records it in
      * _ignored as the row path does, and still writes the doc values any other array writes, null slots included. Both in-order layouts

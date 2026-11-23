@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.is;
  * tests that extend ESTestCase for the same reason.
  */
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 @RunWith(ESRandomizedRunner.class)
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 

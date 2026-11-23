@@ -193,6 +193,8 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test").buildAndFail()
 
         then:
+        result.task(':test').outcome == TaskOutcome.FAILED
+
         !result.output.contains(
             "The JUnit Vintage engine is deprecated and should only be used temporarily while migrating tests to JUnit Jupiter"
         )

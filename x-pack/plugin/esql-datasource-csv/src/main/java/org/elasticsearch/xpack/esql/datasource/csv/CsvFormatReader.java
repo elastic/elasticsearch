@@ -4840,7 +4840,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && projectionDependentDrop == false
                         && statsColumnScope != StripeColumnScope.NONE) {
                         if (statsStripeSize > 0) {
-                            // This branch drops columnStats, so the inline fold must never be armed under a grid.
                             assert columnStats == null : "the inline column fold must stay disarmed under a stripe grid";
                             // Chunk-parallel read: only per-stripe fragments are cacheable. Emit one
                             // stripe-addressed fragment per stripe this chunk touched (the coordinator
@@ -4851,9 +4850,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 emitPerStripe();
                             }
                         } else {
-                            // Non-chunk whole-file read. Only PROJECTED commits columnStats; COUNT builds none.
-                            // ALL additionally commits allFileColumnStats (every file column) → strict superset
-                            // of PROJECTED's set.
+                            // Non-chunk whole-file read. Only PROJECTED builds columnStats; COUNT and ALL
+                            // build none. ALL commits allFileColumnStats instead (every file column), a strict
+                            // superset of PROJECTED's set.
                             Map<String, ExternalStats.ColumnStats> cols = StripeStatsHarvester.mergeColumnStats(
                                 columnStats,
                                 allFileColumnStats

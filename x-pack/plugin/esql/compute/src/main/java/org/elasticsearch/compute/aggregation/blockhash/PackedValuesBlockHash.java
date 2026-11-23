@@ -278,10 +278,15 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(GroupSpec spec, Page page, int batchSize, boolean wholeMultivalues) {
+        /**
+         * @param direct read each value from the block only when it's hashed, rather than deduplicating and copying a batch
+         *               of positions up front. Whole multivalues need it, and so does skipping multivalued positions, which
+         *               would otherwise copy the values it skips.
+         */
+        Group(GroupSpec spec, Page page, int batchSize, boolean direct) {
             this.spec = spec;
             Block block = page.getBlock(spec.channel());
-            this.encoder = wholeMultivalues ? MultivalueDedupe.directEncoder(block) : MultivalueDedupe.batchEncoder(block, batchSize, true);
+            this.encoder = direct ? MultivalueDedupe.directEncoder(block) : MultivalueDedupe.batchEncoder(block, batchSize, true);
         }
 
         @Override
@@ -304,7 +309,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             boolean success = false;
             try {
                 for (int g = 0; g < groups.length; g++) {
-                    groups[g] = new Group(specs.get(g), page, batchSize, wholeMultivalues);
+                    groups[g] = new Group(specs.get(g), page, batchSize, wholeMultivalues || skippedMultivaluedKeys.length > 0);
                 }
                 success = true;
             } finally {
@@ -463,12 +468,13 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             BreakingBytesRefBuilder bytes,
             boolean multivaluesMiss
         ) {
-            this.groups = specs.stream().map(s -> new Group(s, page, batchSize, false)).toArray(Group[]::new);
+            this.multivaluedKeys = multivaluesMiss ? multivaluedKeys(page) : new Block[0];
+            boolean direct = multivaluedKeys.length > 0;
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize, direct)).toArray(Group[]::new);
             this.resultFactory = resultFactory;
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
             this.bytes = bytes;
-            this.multivaluedKeys = multivaluesMiss ? multivaluedKeys(page) : new Block[0];
             for (Block key : multivaluedKeys) {
                 key.incRef();
             }

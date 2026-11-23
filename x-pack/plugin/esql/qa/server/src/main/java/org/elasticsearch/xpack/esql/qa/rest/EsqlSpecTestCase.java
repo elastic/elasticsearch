@@ -296,6 +296,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             || "approximation".equals(groupName)
             || "unmapped-load".equals(groupName)
             || "unmapped-load-all".equals(groupName)
+            || "fillnull".equals(groupName)
             || "metadata-views-and-subqueries".equals(groupName)
             || "named_subquery".equals(groupName);
     }

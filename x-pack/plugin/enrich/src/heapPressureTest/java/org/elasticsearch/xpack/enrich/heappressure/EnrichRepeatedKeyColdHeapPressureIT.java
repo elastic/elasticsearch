@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.enrich.heappressure;
 
 /**
- * Every document of the bulk carries the same key, with a cold cache: the enrich cache does not coalesce in-flight misses, so all
- * 2,048 lookups go to the enrich index and each response is parsed and copied separately, as on a node that restarted under load.
+ * Every document has the same key and the cache is cold, as on a node that restarted under load. Fixed by charging pipeline growth
+ * to indexing pressure (#163380) and sending identical lookups of a batch as one search (#166459).
  */
 public class EnrichRepeatedKeyColdHeapPressureIT extends EnrichWideDocumentHeapPressureTestCase {
 

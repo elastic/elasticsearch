@@ -71,22 +71,26 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
@@ -160,8 +164,8 @@ public class Verifier {
 
         Failures failures = new Failures();
 
-        // JOIN on a subquery parses but cannot be planned; its unresolved join keys would only add noise to this failure.
-        plan.forEachDown(SubqueryJoin.class, join -> failures.add(fail(join, "JOIN on a subquery is not supported yet")));
+        // Checked first: in these modes, the join keys may resolve in ways the join does not support, and add errors of their own.
+        checkSubqueryJoinUnmappedFields(plan, unmappedResolution, context, failures);
         if (failures.hasFailures()) {
             return failures.failures();
         }
@@ -681,6 +685,34 @@ public class Verifier {
     }
 
     /**
+     * Rejects a {@code JOIN} on a subquery in a scope whose {@code unmapped_fields} is not the default. A view decides the mode of its
+     * own body, as in {@link #checkLoadRestrictions}.
+     */
+    private static void checkSubqueryJoinUnmappedFields(
+        LogicalPlan plan,
+        UnmappedResolution resolution,
+        AnalyzerContext context,
+        Failures failures
+    ) {
+        if (plan instanceof BranchPlan branchPlan) {
+            List<LogicalPlan> children = branchPlan.children();
+            for (int i = 0; i < children.size(); i++) {
+                UnmappedResolution childResolution = branchPlan.isViewBranch(i)
+                    ? ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), context.viewSettings()).unmappedFields()
+                    : resolution;
+                checkSubqueryJoinUnmappedFields(children.get(i), childResolution, context, failures);
+            }
+            return;
+        }
+        if (plan instanceof SubqueryJoin join && resolution != UnmappedResolution.DEFAULT) {
+            failures.add(fail(join, "JOIN on a subquery is not supported with unmapped_fields=\"{}\"", resolution.settingValue()));
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkSubqueryJoinUnmappedFields(child, resolution, context, failures);
+        }
+    }
+
+    /**
      * Applies the loading-mode restrictions to one scope, then to each nested view under that view's own mode.
      * A view branch is not inspected as part of the enclosing scope.
      * <p>
@@ -756,13 +788,13 @@ public class Verifier {
             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
             + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
             + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, COMPLETION, DENSE_VECTOR, RERANK, FUSE, HIGHLIGHT, MMR, "
-            + "FORK and subquery commands; ["
+            + "TS, METRICS_INFO, TS_INFO, FORK and subquery commands; ["
             + command
             + "] is not supported yet";
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
-        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false) || plan instanceof Project
+        return plan instanceof EsRelation || plan instanceof Project
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
             || plan instanceof Keep
             || plan instanceof Drop
@@ -802,7 +834,14 @@ public class Verifier {
             || plan instanceof FuseScoreEval
             || plan instanceof Highlight
             || plan instanceof MMR
-            || plan instanceof AbstractSubqueryJoin;
+            || plan instanceof AbstractInSubqueryJoin
+            // The time-series commands. PackDims and UnpackDims pack and unpack the dimension columns that a time-series aggregation groups
+            // by. METRICS_INFO and TS_INFO replace the columns of their input with their own, so, like STATS, they do not return the
+            // _unmapped_fields column.
+            || plan instanceof PackDims
+            || plan instanceof UnpackDims
+            || plan instanceof MetricsInfo
+            || plan instanceof TsInfo;
     }
 
     /**

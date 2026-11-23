@@ -1,0 +1,4 @@
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages) ON language_code
+| LIMIT 10

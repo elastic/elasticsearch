@@ -17,12 +17,14 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TDigestBlockTests extends ComputeTestCase {
 
@@ -148,6 +150,51 @@ public class TDigestBlockTests extends ComputeTestCase {
         Releasables.close(block);
     }
 
+    public void testNullValuesCount() {
+        TDigestBlock block = randomBlockWithNulls(true);
+        try {
+            int expected = 0;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    expected++;
+                }
+            }
+            assertThat(block.nullValuesCount(), equalTo(expected));
+        } finally {
+            Releasables.close(block);
+        }
+        try (Block nulls = blockFactory().newConstantNullBlock(7)) {
+            assertThat(nulls.nullValuesCount(), equalTo(7));
+        }
+    }
+
+    public void testEncodedTDigest() {
+        TDigestBlock block = randomBlockWithNulls(true);
+        try {
+            EncodedTDigest scratch = new EncodedTDigest();
+            TDigestHolder expectedScratch = new TDigestHolder();
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int first = block.getFirstValueIndex(p);
+                for (int v = 0; v < block.getValueCount(p); v++) {
+                    // The scratch is reused for every value, and the result is consumed before the next call
+                    EncodedTDigest encoded = block.getEncodedTDigest(first + v, scratch);
+                    assertThat(encoded, sameInstance(scratch));
+                    TDigestHolder expected = block.getTDigestHolder(first + v, expectedScratch);
+                    assertThat(encoded.size(), equalTo(expected.size()));
+                    assertThat(encoded.centroidCount(), equalTo(expected.centroidCount()));
+                    // Centroid has no equals(), so compare the decoded values
+                    assertThat(
+                        encoded.centroids().stream().map(c -> List.of(c.mean(), c.count())).toList(),
+                        equalTo(expected.centroids().stream().map(c -> List.of(c.mean(), c.count())).toList())
+                    );
+                    assertThat(encoded.encodedDigest(), equalTo(expected.getEncodedDigest()));
+                }
+            }
+        } finally {
+            Releasables.close(block);
+        }
+    }
+
     public void testEmptyBlockEquality() {
         List<Block> blocks = List.of(
             blockFactory().newConstantNullBlock(0),
@@ -217,6 +264,24 @@ public class TDigestBlockTests extends ComputeTestCase {
         assertThat(tdigestBlock.hashCode(), equalTo(copy.hashCode()));
 
         Releasables.close(tdigestBlock, copy);
+    }
+
+    /** Sub-blocks are indexed by value index, so they can be used on multi-valued blocks with the parent's first value indices. */
+    public void testCountBlockWithMultiValues() {
+        try (TDigestBlock block = randomBlockWithNulls(true)) {
+            LongBlock counts = block.getCountBlock();
+            TDigestHolder scratch = new TDigestHolder();
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int first = block.getFirstValueIndex(p);
+                assertThat(counts.isNull(first), equalTo(block.isNull(p)));
+                for (int v = 0; v < block.getValueCount(p); v++) {
+                    assertThat(
+                        counts.getLong(counts.getFirstValueIndex(first + v)),
+                        equalTo(block.getTDigestHolder(first + v, scratch).size())
+                    );
+                }
+            }
+        }
     }
 
     public void testMultiValueBlock() {

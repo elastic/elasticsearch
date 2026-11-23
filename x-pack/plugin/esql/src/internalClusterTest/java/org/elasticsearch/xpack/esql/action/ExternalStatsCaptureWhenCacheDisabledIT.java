@@ -92,8 +92,12 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         // Overwriting rather than merging, so a later test that sets its own pragmas on the request would
-        // lose them silently. No caller here sets any; this says so rather than leaving it to be discovered.
-        assertTrue("a test setting its own pragmas would lose them here", request.pragmas().isEmpty());
+        // lose them silently. The inherited run(String) builds the request with these same pragmas already
+        // on it, which is the one case overwriting loses nothing.
+        assertTrue(
+            "a test setting its own pragmas would lose them here",
+            request.pragmas().isEmpty() || request.pragmas().equals(getPragmas())
+        );
         request.pragmas(getPragmas());
         request.acceptedPragmaRisks(true);
         try {

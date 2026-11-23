@@ -695,11 +695,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         reason = "the close give-up is a warning, and this asserts its location carries no signature"
     )
     public void testAFailedCloseDoesNotLogAPreSignedUrlsSignature() throws Exception {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 500; i++) {
-            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
-        }
-        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] contentBytes = repeatedLines(500);
         String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
         StorageObject obj = new FailingCloseStorageObject(contentBytes, path);
@@ -758,7 +754,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
         CountDownLatch leaderRelease = new CountDownLatch(1);
-        FailingAbortStorageObject obj = new FailingAbortStorageObject(contentBytes, path, leaderRelease);
+        CountDownLatch leaderOpened = new CountDownLatch(1);
+        FailingAbortStorageObject obj = new FailingAbortStorageObject(contentBytes, path, leaderRelease, leaderOpened);
         FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
 
         // Guard: a single-segment file takes the fallback that hands back the reader's own iterator, and the
@@ -807,6 +804,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 )
             ) {
                 assertTrue("a later segment should produce a page while the leader is parked", it.hasNext());
+                // A page from a later segment says nothing about where the leader got to, and the abort only
+                // has something to fail on once the leader's stream is open. Waiting for that open is what
+                // makes the warning this asserts reachable on every schedule rather than the lucky one.
+                assertTrue("the leading segment never opened its stream", leaderOpened.await(30, TimeUnit.SECONDS));
             }
             mockLog.assertAllExpectationsMatched();
         } finally {
@@ -3466,11 +3467,13 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     private static final class FailingAbortStorageObject extends InMemoryStorageObject {
         private final StoragePath path;
         private final CountDownLatch leaderRelease;
+        private final CountDownLatch leaderOpened;
 
-        FailingAbortStorageObject(byte[] data, String path, CountDownLatch leaderRelease) {
+        FailingAbortStorageObject(byte[] data, String path, CountDownLatch leaderRelease, CountDownLatch leaderOpened) {
             super(data);
             this.path = StoragePath.of(path);
             this.leaderRelease = leaderRelease;
+            this.leaderOpened = leaderOpened;
         }
 
         @Override
@@ -3484,6 +3487,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             if (position != 0) {
                 return in;
             }
+            // The leading segment is registered as a live stream from here on, which is what the abort
+            // reaches. A worker that has not got this far returns before opening anything.
+            leaderOpened.countDown();
             return new FilterInputStream(in) {
                 @Override
                 public void close() throws IOException {

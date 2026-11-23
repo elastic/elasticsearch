@@ -281,7 +281,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         );
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef("{\"a\":[\"1\",\"4\"],\"b\":\"2\",\"c\":\"3\"}"));
     }
 
@@ -310,7 +310,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         String expected = "{\"key\":[\"b\",\"a\",\"c\"]}";
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef(expected));
     }
 
@@ -333,7 +333,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         String expected = "{\"a.b\":[\"cat\",\"dog\"]}";
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef(expected));
     }
 
@@ -350,7 +350,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         String expected = "{\"a.x\":\"10\",\"b.y\":\"20\"}";
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef(expected));
     }
 
@@ -378,7 +378,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         String expected = "{\"env\":\"prod\",\"message\":\"hello\",\"status_code\":\"200\"}";
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef(expected));
     }
 
@@ -402,7 +402,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         String expected = "{\"code\":\"200\",\"status\":\"ok\",\"unmapped_key\":\"some_value\"}";
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef(expected));
     }
 
@@ -423,7 +423,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         String expected = "{\"status\":\"active\"}";
 
         var settings = getSettingsForParams();
-        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.mapperService(createMapperServiceWithParams(settings.build(), mapping));
         runner.run(new BytesRef(expected));
     }
 

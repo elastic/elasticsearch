@@ -1,0 +1,5 @@
+area: ES|QL
+issues: [155414]
+pr: 165778
+summary: Count the last partial 256 KiB of ES|QL external stream reads in bytes_read
+type: bug

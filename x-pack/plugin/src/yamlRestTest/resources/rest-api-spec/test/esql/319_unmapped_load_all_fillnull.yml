@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, warnings, contains ]
+      test_runner_features: [ capabilities, warnings, warnings_regex, contains ]
       capabilities:
         - method: POST
           path: /_query
@@ -210,7 +210,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last, optional_fields_load_all_only_keep_and_drop_reach_keys ]
       reason: "LOAD_ALL over views is only available with this capability"
   - do:
       esql.put_view:
@@ -219,8 +219,9 @@ teardown:
           query: 'FROM la_fill_source'
   - do:
       warnings:
-        - "SET unmapped_fields=\"load_all\" does not affect the contents of view [la_fill_src_view], so field [other] is null in its rows; to load such fields, the view definition must SET unmapped_fields=\"load\" and reference them itself"
         - "Line 1:191: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [id]"
+      warnings_regex:
+        - 'SET unmapped_fields.* does not affect the contents of (?=.*\[other\])(?=.*\[la_fill_src_view\]).*'
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source METADATA _index | FILLNULL DEFAULT ON *) METADATA _index | KEEP * | EVAL x = other | SORT id, _index | LIMIT 10 | FILLNULL "nothing" ON *'
@@ -231,14 +232,14 @@ teardown:
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: other }
   - match: { columns.2.type: keyword }
-  - match: { columns.3.name: _unmapped_fields }
-  - match: { columns.3.type: _source }
-  - match: { columns.4.name: x }
-  - match: { columns.4.type: keyword }
-  - match: { values.0: [ 1, "la_fill_source", "o", { _unmapped_fields: "src" }, "o" ] }
-  - match: { values.1: [ 1, "nothing", "nothing", null, "nothing" ] }
-  - match: { values.2: [ 2, "la_fill_source", "p", null, "p" ] }
-  - match: { values.3: [ 2, "nothing", "nothing", null, "nothing" ] }
+  - match: { columns.3.name: x }
+  - match: { columns.3.type: keyword }
+  - match: { columns.4.name: _unmapped_fields }
+  - match: { columns.4.type: _source }
+  - match: { values.0: [ 1, "la_fill_source", "o", "o", { _unmapped_fields: "src", other: "o" } ] }
+  - match: { values.1: [ 1, "nothing", "nothing", "nothing", null ] }
+  - match: { values.2: [ 2, "la_fill_source", "p", "p", { other: "p" } ] }
+  - match: { values.3: [ 2, "nothing", "nothing", "nothing", null ] }
   - length: { values: 4 }
 
 ---

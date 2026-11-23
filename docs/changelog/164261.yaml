@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 163560
-pr: 164261
-summary: Make FORK/UNION ALL column alignment linear
-type: bug

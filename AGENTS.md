@@ -93,6 +93,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
+- Do not use fully qualified imports where avoidable
 - In `switch` statements, do not use `default` as a branch for valid or expected options. Enumerate those cases explicitly and reserve `default` for throwing an exception for unexpected values, or an assertion error if this code branch is unreachable.
 
 ## Types, Generics, and Suppressions
@@ -158,7 +159,7 @@ To confirm: `grep ClassName muted-tests.yml`. To verify the migration/test actua
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
-- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Your harness may introduce a hook that automatically adds attributions trailers to relevant git commands. Use `bash -lc` or a similar approach in this case to conform to the rule.
+- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Your harness may introduce a hook that automatically adds attributions trailers to relevant git commands. Use `bash -lc` or a similar approach in this case to conform to the rule. On Windows, do not use `bash -lc` for this, unless explicitly asked for.
 
 ## Methods with Required Javadoc Reading
 If you encounter any of the following methods, you must go and read their javadoc before taking any other actions:

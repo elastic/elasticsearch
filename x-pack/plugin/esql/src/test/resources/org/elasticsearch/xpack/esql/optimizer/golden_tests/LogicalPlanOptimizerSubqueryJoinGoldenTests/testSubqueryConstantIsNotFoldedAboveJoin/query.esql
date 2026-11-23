@@ -1,0 +1,4 @@
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (FROM languages | EVAL flag = true) ON language_code
+| WHERE flag IS NULL

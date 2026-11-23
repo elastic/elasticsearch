@@ -1,0 +1,80 @@
+---
+# With esql.query.flattened.enabled off, a flattened field is unsupported and no name under it is a field.
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_keys ]
+      reason: "A name under a flattened field is a field"
+  - do:
+      indices.create:
+        index: flat
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+  - do:
+      indices.create:
+        index: mapped
+        body:
+          mappings:
+            properties:
+              attrs.bar:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "flat", "_id": "f1" } }
+          - { "attrs": { "bar": "a" } }
+          - { "index": { "_index": "mapped", "_id": "m1" } }
+          - { "attrs": { "bar": "c" } }
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.flattened.enabled: false
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.flattened.enabled: null
+
+---
+'a key is not a column':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP attrs.bar | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/(?s).*Unknown.column.\\[attrs.bar\\].*/" }
+
+---
+'a shard reads no key for a name another index maps':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | KEEP _id, attrs.bar | SORT _id | LIMIT 10'
+  - match: { values: [ [ "f1", null ], [ "m1", "c" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat, mapped METADATA _id | WHERE attrs.bar == "a" | KEEP _id | LIMIT 10'
+  - length: { values: 0 }
+
+---
+'the flattened field is unsupported':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM flat | KEEP attrs | LIMIT 10'
+  - match: { columns.0.name: attrs }
+  - match: { columns.0.type: unsupported }

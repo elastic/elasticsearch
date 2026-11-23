@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 import java.io.IOException;
@@ -155,7 +155,21 @@ public class OrderBy extends UnaryPlan
                             )
                         )
                     );
-            } else if (p instanceof AbstractSubqueryJoin subqueryJoin) {
+            } else if (p instanceof NestedExpand nestedExpand) {
+                nestedExpand.child()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                nestedExpand,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "NESTED_EXPAND",
+                                nestedExpand.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof AbstractInSubqueryJoin subqueryJoin) {
                 subqueryJoin.right()
                     .forEachUp(
                         OrderBy.class,

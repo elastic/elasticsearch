@@ -178,6 +178,15 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
         assertTrue(mixed.objectSubfieldsCouldMatch("bar"));
     }
 
+    /** A name that a DROP removes excludes the key of that name, and nothing else. */
+    public void testForDropExactNameExcludesOnlyThatName() {
+        var pattern = UnmappedFieldsPattern.forDrop(List.of(new UnresolvedAttribute(Source.EMPTY, "foo")));
+        assertFalse(pattern.matches("foo"));
+        assertTrue(pattern.matches("foo_bar"));
+        assertTrue(pattern.matches("bar"));
+        assertTrue(pattern.matches("foo.sub"));
+    }
+
     public void testForKeepEscapedStarIsLiteral() {
         UnmappedFieldsPattern pattern = UnmappedFieldsPattern.forKeep(List.of(namePattern("a\\*b*")));
         assertTrue(pattern.matches("a*b"));

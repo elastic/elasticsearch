@@ -43,6 +43,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -244,8 +245,8 @@ public class EsqlDataExtractor implements DataExtractor {
             EsqlResponse esqlResponse = response.response();
             List<? extends ColumnInfo> columns = esqlResponse.columns();
             // Runtime extraction has no datafeed id for column-check messages.
-            Map<String, String> columnTypes = new LinkedHashMap<>();
-            columns.forEach(column -> columnTypes.put(column.name(), column.outputType()));
+            Map<String, String> columnTypes = columns.stream()
+                .collect(Collectors.toMap(ColumnInfo::name, ColumnInfo::outputType, (first, second) -> second, LinkedHashMap::new));
             EsqlDatafeedQueryValidator.checkRequiredColumns(
                 columnTypes,
                 context.emittedTimeField(),

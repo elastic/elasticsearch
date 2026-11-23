@@ -208,10 +208,35 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation());
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE"));
-        assertThat(harness.capturedQuery.endsWith("\n| DESCRIBE"), is(true));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField)\n| LIMIT 1"));
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
-        assertThat(harness.capturedParams, equalTo(List.of()));
+        assertParams(harness, "timeField", "@timestamp");
+    }
+
+    public void testValidationQueryWithSummaryCountShouldFilterBothColumns() {
+        ValidatorHarness harness = harness(row("@timestamp", "date"), row("doc_count", "long"));
+
+        assertValidationSucceeds(harness, validation().summaryCountField(SUMMARY_COUNT_FIELD));
+
+        assertThat(
+            harness.capturedQuery,
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?summaryCountField)\n| LIMIT 2")
+        );
+        assertParams(harness, "timeField", "@timestamp", "summaryCountField", "doc_count");
+    }
+
+    private static void assertParams(ValidatorHarness harness, String... namesAndValues) {
+        List<EsqlQueryRequestBuilder.EsqlQueryParam> expected = new java.util.ArrayList<>();
+        for (int i = 0; i < namesAndValues.length; i += 2) {
+            expected.add(
+                new EsqlQueryRequestBuilder.EsqlQueryParam(
+                    namesAndValues[i],
+                    namesAndValues[i + 1],
+                    EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE
+                )
+            );
+        }
+        assertThat(harness.capturedParams, equalTo(expected));
     }
 
     public void testTrailingLineCommentShouldKeepDescribeOnNewLine() {
@@ -219,7 +244,10 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation().query("FROM logs | KEEP @timestamp // hourly"));
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP @timestamp // hourly\n\n| DESCRIBE"));
+        assertThat(
+            harness.capturedQuery,
+            equalTo("FROM logs | KEEP @timestamp // hourly\n\n| DESCRIBE\n| WHERE name IN (?timeField)\n| LIMIT 1")
+        );
     }
 
     public void testProjectRoutingShouldReachValidationQuery() {

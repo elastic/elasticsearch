@@ -230,7 +230,7 @@ public class JobConfigProviderTests extends ESTestCase {
 
         validateUpdateExpectingSuccess(newProvider(false), current, updated);
 
-        verifyProbe(client, null);
+        verifyProbe(client, null, false);
     }
 
     public void testValidateDatafeedUpdateWhenCredentialIsClearedShouldProbe() {
@@ -241,10 +241,10 @@ public class JobConfigProviderTests extends ESTestCase {
 
         validateUpdateExpectingSuccess(newProvider(false), current, updated);
 
-        verifyProbe(client, null);
+        verifyProbe(client, null, false);
     }
 
-    private void verifyProbe(Client probeClient, String projectRouting) {
+    private void verifyProbe(Client probeClient, String projectRouting, boolean expectedCrossProjectEnabled) {
         verify(queryValidator).validateQuery(
             same(probeClient),
             eq(HEADERS),
@@ -252,7 +252,7 @@ public class JobConfigProviderTests extends ESTestCase {
             eq(projectRouting),
             eq("time"),
             eq("c"),
-            anyBoolean(),
+            eq(expectedCrossProjectEnabled),
             any(),
             eq("df")
         );
@@ -274,6 +274,6 @@ public class JobConfigProviderTests extends ESTestCase {
             newEsqlDatafeed().setProjectRouting("_alias:prod-*").setCloudInternalCredential(credential).build()
         );
 
-        verifyProbe(wrappedClient, "_alias:prod-*");
+        verifyProbe(wrappedClient, "_alias:prod-*", true);
     }
 }

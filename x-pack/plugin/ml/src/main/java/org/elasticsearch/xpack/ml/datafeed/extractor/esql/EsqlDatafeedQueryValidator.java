@@ -20,6 +20,7 @@ import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -34,6 +35,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
@@ -53,6 +56,9 @@ public class EsqlDatafeedQueryValidator {
     }
 
     private static final String LIMIT_ZERO = " | LIMIT 0";
+    // MUST FIX before production: DESCRIBE is snapshot-only (dev grammar) until https://github.com/elastic/elasticsearch/pull/166439
+    // releases it, so a release build that opts into the ES|QL datafeeds flag would fail every PUT. Do not enable the ML flag in
+    // release builds before then.
     private static final String DESCRIBE = "\n| DESCRIBE";
     /** Under cross-project search {@code _origin} names the local project, so it is not a remote. */
     private static final String ORIGIN_PROJECT_ALIAS = "_origin";
@@ -97,8 +103,9 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Runs {@code esqlQuery | DESCRIBE} with {@code _clusters} metadata and checks the facts it reports: no remote clusters
-     * (unless cross-project), that the time column is a date, and the summary count column. Tolerates deferred source existence.
+     * Runs {@code esqlQuery | DESCRIBE} filtered to the required columns, with {@code _clusters} metadata, and checks:
+     * no remote clusters (unless cross-project), that the time column is a date, and the summary count column.
+     * Tolerates deferred source existence.
      */
     public void validateQuery(
         Client client,
@@ -111,7 +118,15 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
-        String describeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, DESCRIBE);
+        // Filter and LIMIT so the default result row cap cannot hide a required column when the query has many columns.
+        boolean needsSummaryCount = summaryCountField != null;
+        String describeSuffix = needsSummaryCount
+            ? DESCRIBE + "\n| WHERE name IN (?timeField, ?summaryCountField)\n| LIMIT 2"
+            : DESCRIBE + "\n| WHERE name IN (?timeField)\n| LIMIT 1";
+        String describeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, describeSuffix);
+        List<EsqlQueryParam> describeParams = needsSummaryCount
+            ? List.of(new EsqlQueryParam("timeField", timeField, VALUE), new EsqlQueryParam("summaryCountField", summaryCountField, VALUE))
+            : List.of(new EsqlQueryParam("timeField", timeField, VALUE));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -147,7 +162,7 @@ public class EsqlDatafeedQueryValidator {
             null,
             headers,
             projectRouting,
-            List.of(),
+            describeParams,
             ExecutionMetadata.CCS_ONLY,
             responseListener
         );

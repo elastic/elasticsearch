@@ -20,6 +20,86 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.4.10 [elasticsearch-9.4.10-release-notes]
+```{applies_to}
+stack: ga 9.4.10
+```
+
+### Highlights [elasticsearch-9.4.10-highlights]
+
+::::{dropdown} Security advisory
+This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+::::
+
+### Features and enhancements [elasticsearch-9.4.10-features-enhancements]
+
+Infra/Core:
+* Bump bundled JDK to 27.0.1.1 [#166388](https://github.com/elastic/elasticsearch/pull/166388)
+* Upgrade ASM to 9.11.1 [#164365](https://github.com/elastic/elasticsearch/pull/164365)
+
+
+### Fixes [elasticsearch-9.4.10-fixes]
+
+Aggregations:
+* Keep the index sort's missing value when rounding composite sources [#165495](https://github.com/elastic/elasticsearch/pull/165495) (issue: [#165493](https://github.com/elastic/elasticsearch/issues/165493))
+
+Authorization:
+* Fix(security): hide doc values skippers of FLS-hidden fields [#163541](https://github.com/elastic/elasticsearch/pull/163541)
+
+CCR:
+* Retry CCR if remote unavailable [#165885](https://github.com/elastic/elasticsearch/pull/165885)
+
+Codec:
+* Use confined arenas for temporary files when writing stored fields [#164482](https://github.com/elastic/elasticsearch/pull/164482)
+
+ES|QL:
+* Emit the top docs of a driver that ends after the status interval [#164595](https://github.com/elastic/elasticsearch/pull/164595)
+* Fail cancelled queries instead of returning partial results [#163047](https://github.com/elastic/elasticsearch/pull/163047) (issue: [#162919](https://github.com/elastic/elasticsearch/issues/162919))
+* Keep implicit @timestamp off STATS groupings [#164602](https://github.com/elastic/elasticsearch/pull/164602) (issue: [#164599](https://github.com/elastic/elasticsearch/issues/164599))
+* Truncate invalid input in ES|QL TO_IP warnings [#163347](https://github.com/elastic/elasticsearch/pull/163347) (issue: [#163299](https://github.com/elastic/elasticsearch/issues/163299))
+
+Geo:
+* Fix handling degenerated polygons in vector tiles [#164949](https://github.com/elastic/elasticsearch/pull/164949) (issue: [#164908](https://github.com/elastic/elasticsearch/issues/164908))
+
+Infra/Core:
+* Fix race when reading reindex data stream status [#164604](https://github.com/elastic/elasticsearch/pull/164604) (issue: [#164473](https://github.com/elastic/elasticsearch/issues/164473))
+
+Infra/Scripting:
+* Turn off ASM compute limits in Painless [#166227](https://github.com/elastic/elasticsearch/pull/166227)
+
+Machine Learning:
+* Fix NPE in transform stats without a node [#165935](https://github.com/elastic/elasticsearch/pull/165935)
+
+Mapping:
+* Keep existing `semantic_text` inference_id on mapping updates that omit it [#165645](https://github.com/elastic/elasticsearch/pull/165645)
+* Load stored fields of flattened mapped sub-fields [#166394](https://github.com/elastic/elasticsearch/pull/166394) (issue: [#165637](https://github.com/elastic/elasticsearch/issues/165637))
+* Reject index sort fields without an `IndexSorter` [#165267](https://github.com/elastic/elasticsearch/pull/165267) (issue: [#165265](https://github.com/elastic/elasticsearch/issues/165265))
+
+SLM:
+* Fix threading in SLM create-snapshot failure handling [#165528](https://github.com/elastic/elasticsearch/pull/165528)
+
+Search:
+* Fix a byte buffer leak on proxy nodes handling batched query responses [#164088](https://github.com/elastic/elasticsearch/pull/164088)
+* Fix hang on truncated compressed input [#165840](https://github.com/elastic/elasticsearch/pull/165840)
+* Fix source filtering for fields containing backslashes [#156238](https://github.com/elastic/elasticsearch/pull/156238) (issue: [#136302](https://github.com/elastic/elasticsearch/issues/136302))
+* Return 400 for `significant_terms` on floating point values [#165610](https://github.com/elastic/elasticsearch/pull/165610)
+
+Searchable Snapshots:
+* Forbid changing searchable snapshot identity on restore [#164229](https://github.com/elastic/elasticsearch/pull/164229)
+
+Snapshot/Restore:
+* Filter `resolveStartedDeletionSnapshots` by repo [#165133](https://github.com/elastic/elasticsearch/pull/165133)
+* Handle exception from `cloneShardSnapshot` [#164933](https://github.com/elastic/elasticsearch/pull/164933)
+
+TSDB:
+* Fix(tsdb): retain legacy `_id` breaker reservations [#163903](https://github.com/elastic/elasticsearch/pull/163903)
+* Make OTLP metric names hash order-independent [#164529](https://github.com/elastic/elasticsearch/pull/164529)
+
+Vector Search:
+* [DiskBBQ] Wait for queue saturation in `DiversifyingNearestChildrenKnnCollector` [#164870](https://github.com/elastic/elasticsearch/pull/164870)
+
+
+
 ## 9.5.6 [elasticsearch-9.5.6-release-notes]
 
 ### Highlights [elasticsearch-9.5.6-highlights]

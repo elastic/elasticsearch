@@ -3,6 +3,17 @@
 
 Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 
+[[known-issues-8.19.25]]
+[float]
+=== Known issues
+
+* Clusters which use the `s3` repository type with storage that is not fully compatible with Amazon S3 may report errors such as `The Content-SHA256 you specified did not match what we received` or `The provided 'x-amz-content-sha256' header does not match what was computed` on upload requests after upgrading to {es} 8.19.25. This may prevent <<manually-create-snapshot,creating a snapshot>> and <<repo-analysis-api,repository analysis>>.
++
+Amazon S3 and third-party storage products that are fully compatible with Amazon S3 are not impacted. Using storage which is not fully compatible with Amazon S3 with the `s3` repository type puts your snapshot data at risk. Review <<repository-s3-compatible-services,S3-compatible services>> for further guidance about third-party S3-compatible services.
++
+If you are using an affected third-party storage product, seek a fix for this incompatibility with Amazon S3 from its supplier. As a temporary workaround, upgrade to at least {es} 8.19.26 and set `s3.client.CLIENT_NAME.unsafely_omit_request_body_checksums` in the <<repository-s3-client,S3 client settings>> to `true` for the affected client. Do not set the `AWS_REQUEST_CHECKSUM_CALCULATION` environment variable or the `-Daws.requestChecksumCalculation` system property as these have no effect from {es} 8.19.26 onwards.
+
+
 [[bug-8.19.25]]
 [float]
 === Bug fixes

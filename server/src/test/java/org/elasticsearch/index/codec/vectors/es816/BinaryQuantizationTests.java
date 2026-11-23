@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.util.Random;
@@ -29,6 +30,12 @@ import java.util.Random;
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 
 public class BinaryQuantizationTests extends LuceneTestCase {
+
+    static {
+        // native access requires logging to be initialized which doesn't happen
+        // automatically as this extends LuceneTestCase not EsTestCase
+        LogConfigurator.configureESLogging();
+    }
 
     public void testQuantizeForIndex() {
         int dimensions = random().nextInt(1, 4097);

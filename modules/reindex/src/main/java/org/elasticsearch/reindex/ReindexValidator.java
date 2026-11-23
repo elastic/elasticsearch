@@ -42,6 +42,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -103,9 +104,10 @@ public class ReindexValidator {
     /**
      * Validates the interaction between the source {@code slice} (which slice of a slice-enabled source to read) and the destination
      * {@code slice} (which slice every reindexed document is written to). A destination {@code slice} may be omitted for a slice-enabled
-     * destination when either the source has slices, because it names one or targets a slice-enabled index (each document preserves the
-     * slice it was read from), or a script is present
-     * (the script may assign {@code ctx._slice} per document). If neither holds, a static destination {@code slice} is required.
+     * destination when either every document of the source has a slice to preserve, because the source names a slice or targets only
+     * slice-enabled indices, or a script is present (the script may assign {@code ctx._slice} per document). If neither holds, a static
+     * destination {@code slice} is required. In particular a source that also targets an index without slices cannot supply one for the
+     * documents of that index.
      */
     private void validateSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
         final IndexRequest destination = request.getDestination();
@@ -114,7 +116,7 @@ public class ReindexValidator {
         final boolean destSliceProvided = destination.isRoutingFromSlice();
         final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
 
-        final boolean anySourceSliceEnabled = validateNoRequiredRoutingMixedWithSlices(
+        final SourceSlices sourceSlices = validateNoRequiredRoutingMixedWithSlices(
             request,
             projectMetadata,
             destination,
@@ -147,20 +149,37 @@ public class ReindexValidator {
                         + "] instead"
                 );
             }
-            // Omitting [_slice] in [dest] works when the source has slices, named or not (each document keeps its source slice) or a
-            // script is present (it may assign [_slice] per document). Documents that are left without a slice are rejected at index
-            // time by the slice-enabled destination, so we only reject up-front when neither mechanism can supply one.
-            final boolean sourceHasSlices = sourceSliceMode || anySourceSliceEnabled;
+            // Omitting [_slice] in [dest] works when every document of the source has a slice (a named source slice, or only slice-enabled
+            // source indices, so each document keeps its source slice) or a script is present (it may assign [_slice] per document).
+            // Documents that are left without a slice are rejected by the slice-enabled destination, and that rejects the whole bulk
+            // they are in, so we reject up-front when neither mechanism can supply one for every document.
+            final boolean sourceHasSlices = sourceSliceMode || sourceSlices.allSliceEnabled();
             final boolean scriptMayProvideSlice = request.getScript() != null;
             if (destSliceProvided == false && sourceHasSlices == false && scriptMayProvideSlice == false) {
+                final String required = "["
+                    + SliceIndexing.FIELD_NAME
+                    + "] is required in [dest] when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for destination ["
+                    + destinationIndex
+                    + "]";
+                if (sourceSlices.anySliceEnabled()) {
+                    throw new IllegalArgumentException(
+                        required
+                            + " because the source also targets indices without slices "
+                            + describeIndices(sourceSlices.indicesWithoutSlices())
+                            + ", whose documents have no slice to keep; set ["
+                            + SliceIndexing.FIELD_NAME
+                            + "] in [dest], read the source with ["
+                            + SliceIndexing.FIELD_NAME
+                            + "] or assign ["
+                            + SliceIndexing.FIELD_NAME
+                            + "] with a script"
+                    );
+                }
                 throw new IllegalArgumentException(
-                    "["
-                        + SliceIndexing.FIELD_NAME
-                        + "] is required in [dest] when ["
-                        + IndexSettings.SLICE_ENABLED.getKey()
-                        + "] is true for destination ["
-                        + destinationIndex
-                        + "] unless the source is read with ["
+                    required
+                        + " unless the source is read with ["
                         + SliceIndexing.FIELD_NAME
                         + "] or a script assigns ["
                         + SliceIndexing.FIELD_NAME
@@ -176,9 +195,9 @@ public class ReindexValidator {
      * an arbitrary user-supplied {@code routing} value. When slices are involved on either side of the reindex, reject any participating
      * non-slice index that requires routing rather than silently producing an unusable destination.
      *
-     * @return whether any local source index is slice-enabled
+     * @return the local source indices by whether they have slices
      */
-    private boolean validateNoRequiredRoutingMixedWithSlices(
+    private SourceSlices validateNoRequiredRoutingMixedWithSlices(
         ReindexRequest request,
         ProjectMetadata projectMetadata,
         IndexRequest destination,
@@ -188,6 +207,7 @@ public class ReindexValidator {
         boolean sourceSliceMode
     ) {
         boolean anySourceSliceEnabled = false;
+        List<String> sourceIndicesWithoutSlices = new ArrayList<>();
         boolean sourceRequiresRouting = false;
         // Remote sources (reindex-from-remote and cross-cluster/cross-project index expressions) cannot be resolved against the local
         // cluster state, and doing so throws "Cross-cluster calls are not supported in this context". Skip remote index names, mirroring
@@ -202,16 +222,20 @@ public class ReindexValidator {
                     }
                     if (IndexSettings.SLICE_ENABLED.get(indexMetadata.getSettings())) {
                         anySourceSliceEnabled = true;
-                    } else if (routingRequired(indexMetadata)) {
-                        sourceRequiresRouting = true;
+                    } else {
+                        sourceIndicesWithoutSlices.add(index.getName());
+                        if (routingRequired(indexMetadata)) {
+                            sourceRequiresRouting = true;
+                        }
                     }
                 }
             }
         }
 
         final boolean slicesInvolved = sourceSliceMode || destSliceProvided || destinationSliceEnabled || anySourceSliceEnabled;
+        final SourceSlices sourceSlices = new SourceSlices(anySourceSliceEnabled, sourceIndicesWithoutSlices);
         if (slicesInvolved == false) {
-            return anySourceSliceEnabled;
+            return sourceSlices;
         }
 
         if (sourceRequiresRouting) {
@@ -232,7 +256,32 @@ public class ReindexValidator {
                 );
             }
         }
-        return anySourceSliceEnabled;
+        return sourceSlices;
+    }
+
+    /**
+     * The local source indices of a reindex by whether their documents have a slice.
+     *
+     * @param anySliceEnabled      whether any of them is slice-enabled
+     * @param indicesWithoutSlices the names of those that are not
+     */
+    private record SourceSlices(boolean anySliceEnabled, List<String> indicesWithoutSlices) {
+        /**
+         * Whether every document of the source has a slice. Without a local source index there is none.
+         */
+        boolean allSliceEnabled() {
+            return anySliceEnabled && indicesWithoutSlices.isEmpty();
+        }
+    }
+
+    /**
+     * Names the first few of the given indices in name order, a source can target a lot of them.
+     */
+    private static String describeIndices(List<String> indices) {
+        final int shown = 3;
+        final List<String> sorted = indices.stream().sorted().toList();
+        final String names = "[" + String.join(", ", sorted.subList(0, Math.min(shown, sorted.size()))) + "]";
+        return sorted.size() > shown ? names + " and " + (sorted.size() - shown) + " more" : names;
     }
 
     private static boolean routingRequired(IndexMetadata indexMetadata) {

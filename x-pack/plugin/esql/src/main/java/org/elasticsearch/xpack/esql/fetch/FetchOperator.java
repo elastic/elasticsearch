@@ -54,14 +54,15 @@ import java.util.Set;
 
 /**
  * The coordinator's operator for a {@link FetchExec}. It holds the rows of the cut until its input ends, then sends one
- * fetch request to each node that holds some of their documents. Once every node answered, it appends the fetched columns
- * to the rows, in the order of the cut, and emits the pages of the cut one by one.
+ * fetch request for each shard that holds some of their documents, like the fetch phase of {@code _search}. A node runs
+ * each request on a driver of its own, so it loads its shards in parallel. Once every request answered, the operator
+ * appends the fetched columns to the rows, in the order of the cut, and emits the pages of the cut one by one.
  * <p>
  * The cut of a {@code TopN} holds no more rows than its limit, and the operator holds all of them.
  * <p>
- * Each reader context appears in one request only, so every request asks its node to free the contexts it reads once it
- * answered, like the fetch phase of {@code _search}. Before the requests go out, the contexts that none of the rows read
- * can go. The contexts left, of a request that failed or never went out, go once the operator closes.
+ * Each reader context appears in one request only, so every request asks its node to free its context once it answered.
+ * Before the requests go out, the contexts that none of the rows read can go. The contexts left, of a request that
+ * failed or never went out, go once the operator closes.
  * <p>
  * A side-car {@link AsyncOperator} sends the requests. It waits for the responses, merges their response headers into the
  * thread context of the driver, and fails on the first request that failed. The responses arrive on other threads, which
@@ -104,21 +105,21 @@ public final class FetchOperator implements Operator {
     }
 
     /**
-     * The response of one node: its rows in request order, and the warnings of its fetch driver, like a value that failed
-     * to load. The warnings come in the completion info of the response, not in its headers.
+     * The response of one request: its rows in request order, and the warnings of its fetch driver, like a value that
+     * failed to load. The warnings come in the completion info of the response, not in its headers.
      */
-    private record NodeResponse(List<Page> pages, Set<String> warnings) {}
+    private record ShardResponse(List<Page> pages, Set<String> warnings) {}
 
     private final DriverContext driverContext;
     private final int docChannel;
     private final List<ElementType> fetchedTypes;
     private final List<Attribute> attributes;
     private final QueryFetchClient client;
-    private final NodeRequests nodeRequests;
+    private final ShardRequests shardRequests;
     /**
-     * What the request of each node that answered did, added by the thread that receives its response.
+     * What each request that answered did, added by the thread that receives its response.
      */
-    private final Queue<NodeFetchStats> nodeStats = ConcurrentCollections.newQueue();
+    private final Queue<NodeFetchStats> requestStats = ConcurrentCollections.newQueue();
 
     // touched by the driver thread only
     private final List<Page> cut = new ArrayList<>();
@@ -134,7 +135,7 @@ public final class FetchOperator implements Operator {
     private final List<Page> fetched = new ArrayList<>();
     private final Set<String> warnings = new LinkedHashSet<>();
     /**
-     * The pages of the cut with their fetched columns, once every node answered.
+     * The pages of the cut with their fetched columns, once every request answered.
      */
     private Deque<Page> output;
     private int pagesReceived;
@@ -156,7 +157,7 @@ public final class FetchOperator implements Operator {
         this.fetchedTypes = fetchedTypes;
         this.attributes = attributes;
         this.client = client;
-        this.nodeRequests = new NodeRequests(driverContext, client.threadContext());
+        this.shardRequests = new ShardRequests(driverContext, client.threadContext());
     }
 
     @Override
@@ -193,8 +194,8 @@ public final class FetchOperator implements Operator {
     }
 
     /**
-     * Once the input ends, the cut is complete. The reader contexts that none of its rows read go, and each node that holds
-     * some of their documents gets its request.
+     * Once the input ends, the cut is complete. The reader contexts that none of its rows read go, and each shard that
+     * holds some of their documents gets its request.
      */
     @Override
     public void finish() {
@@ -206,20 +207,20 @@ public final class FetchOperator implements Operator {
         long planStart = System.nanoTime();
         batch = FetchBatchPlanner.plan(cut, docChannel);
         planNanos = System.nanoTime() - planStart;
-        for (FetchBatchPlanner.NodeBatch node : batch.nodes()) {
-            documents += node.docCount();
+        for (FetchBatchPlanner.ShardBatch shard : batch.shards()) {
+            documents += shard.docs().docCount();
         }
         logger.debug(
-            "fetching [{}] documents for the [{}] rows of [{}] pages from [{}] nodes",
+            "fetching [{}] documents for the [{}] rows of [{}] pages from [{}] shards",
             documents,
             rowsReceived,
             pagesReceived,
-            batch.nodes().size()
+            batch.shards().size()
         );
-        for (int n = 0; n < batch.nodes().size(); n++) {
-            nodeRequests.addInput(new Page(driverContext.blockFactory().newConstantIntBlockWith(n, 1)));
+        for (int s = 0; s < batch.shards().size(); s++) {
+            shardRequests.addInput(new Page(driverContext.blockFactory().newConstantIntBlockWith(s, 1)));
         }
-        nodeRequests.finish();
+        shardRequests.finish();
     }
 
     @Override
@@ -228,12 +229,12 @@ public final class FetchOperator implements Operator {
         if (inputEnded == false || output != null) {
             return NOT_BLOCKED;
         }
-        return nodeRequests.isBlocked();
+        return shardRequests.isBlocked();
     }
 
     /**
-     * Nothing until every node answered. Then the pages of the cut with their fetched columns, one at a time. Runs on the
-     * driver thread, with the block factory of the driver.
+     * Nothing until every request answered. Then the pages of the cut with their fetched columns, one at a time. Runs on
+     * the driver thread, with the block factory of the driver.
      */
     @Override
     public Page getOutput() {
@@ -241,12 +242,12 @@ public final class FetchOperator implements Operator {
             return null;
         }
         if (output == null) {
-            NodeResponse response;
-            while ((response = nodeRequests.fetchFromBuffer()) != null) {
+            ShardResponse response;
+            while ((response = shardRequests.fetchFromBuffer()) != null) {
                 fetched.addAll(response.pages());
                 warnings.addAll(response.warnings());
             }
-            if (nodeRequests.isFinished() == false) {
+            if (shardRequests.isFinished() == false) {
                 return null;
             }
             output = new ArrayDeque<>(gather());
@@ -296,7 +297,7 @@ public final class FetchOperator implements Operator {
         if (output != null) {
             return output.isEmpty() == false;
         }
-        return inputEnded && nodeRequests.canProduceMoreDataWithoutExtraInput();
+        return inputEnded && shardRequests.canProduceMoreDataWithoutExtraInput();
     }
 
     /**
@@ -310,8 +311,8 @@ public final class FetchOperator implements Operator {
                 Releasables.wrap(cut),
                 Releasables.wrap(fetched),
                 output == null ? () -> {} : Releasables.wrap(output),
-                // on the driver thread, which gets the response headers of every node
-                nodeRequests
+                // on the driver thread, which gets the response headers of every request
+                shardRequests
             );
         } finally {
             client.fetchEnded();
@@ -320,7 +321,7 @@ public final class FetchOperator implements Operator {
 
     @Override
     public Status status() {
-        return new Status(pagesReceived, rowsReceived, documents, pagesEmitted, planNanos, gatherNanos, List.copyOf(nodeStats));
+        return new Status(pagesReceived, rowsReceived, documents, pagesEmitted, planNanos, gatherNanos, List.copyOf(requestStats));
     }
 
     @Override
@@ -329,32 +330,32 @@ public final class FetchOperator implements Operator {
     }
 
     /**
-     * Sends the request of each node of the cut and keeps its response until the operator reads it, in the order of the
-     * nodes. Each input page holds one value: the position of its node in the requests of the cut.
+     * Sends the request of each shard of the cut and keeps its response until the operator reads it, in the order of the
+     * shards. Each input page holds one value: the position of its shard in the requests of the cut.
      */
-    private final class NodeRequests extends AsyncOperator<NodeResponse> {
-        NodeRequests(DriverContext driverContext, ThreadContext threadContext) {
-            // every node gets its request at once
+    private final class ShardRequests extends AsyncOperator<ShardResponse> {
+        ShardRequests(DriverContext driverContext, ThreadContext threadContext) {
+            // every shard gets its request at once
             super(driverContext, threadContext, Integer.MAX_VALUE);
         }
 
         @Override
-        protected void performAsync(Page node, ActionListener<NodeResponse> listener) {
-            FetchBatchPlanner.NodeBatch request = batch.nodes().get(node.<IntBlock>getBlock(0).getInt(0));
+        protected void performAsync(Page shard, ActionListener<ShardResponse> listener) {
+            FetchBatchPlanner.ShardBatch request = batch.shards().get(shard.<IntBlock>getBlock(0).getInt(0));
             DiscoveryNode target;
             try {
-                target = client.node(new FetchNode(request.clusterAlias(), request.nodeId()));
+                target = client.node(request.node());
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
             }
             long sentNanos = System.nanoTime();
-            client.fetch(target, request.shards(), attributes, listener.delegateFailureAndWrap((l, response) -> {
-                nodeStats.add(
+            client.fetch(target, List.of(request.docs()), attributes, listener.delegateFailureAndWrap((l, response) -> {
+                requestStats.add(
                     new NodeFetchStats(
                         target.getName(),
-                        request.shards().size(),
-                        request.docCount(),
+                        1,
+                        request.docs().docCount(),
                         System.nanoTime() - sentNanos,
                         response.tookNanos(),
                         response.setupNanos()
@@ -365,14 +366,14 @@ public final class FetchOperator implements Operator {
                     // the driver thread reads and releases them
                     page.allowPassingToDifferentDriver();
                 }
-                // the base class releases the page that names the node only when the request fails
-                releasePageOnAnyThread(node);
-                l.onResponse(new NodeResponse(pages, response.completionInfo().warnings()));
+                // the base class releases the page that names the shard only when the request fails
+                releasePageOnAnyThread(shard);
+                l.onResponse(new ShardResponse(pages, response.completionInfo().warnings()));
             }));
         }
 
         @Override
-        protected void releaseFetchedOnAnyThread(NodeResponse response) {
+        protected void releaseFetchedOnAnyThread(ShardResponse response) {
             // the pages already allow passing to another driver
             Releasables.closeExpectNoException(response.pages());
         }
@@ -437,7 +438,7 @@ public final class FetchOperator implements Operator {
          * @param pagesEmitted  pages of rows with their fetched columns
          * @param planNanos     grouping the documents of the cut into requests
          * @param gatherNanos   appending the fetched columns to the rows
-         * @param nodes         the fetch from each node that answered
+         * @param nodes         the fetch of each request that answered, with the node that served it
          */
         public Status(
             int pagesReceived,
@@ -547,8 +548,9 @@ public final class FetchOperator implements Operator {
     }
 
     /**
-     * The fetch from one node: what it asked for, and its time on the coordinator and on the node.
+     * The fetch of one request: the node that served it, what it asked for, and its time on the coordinator and on the node.
      *
+     * @param shards       the shards the request asked for. A request asks for the documents of one shard
      * @param requestNanos from sending the request to receiving its response, on the coordinator. Without
      *                     {@code tookNanos}, it is the transport, the authorization and the time the request queued
      * @param tookNanos    from receiving the request to building the response, on the node

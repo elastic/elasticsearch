@@ -110,7 +110,7 @@ public class FetchResponseTests extends ComputeTestCase {
 
     /**
      * A response too large for the breaker of the node that reads it fails to read, and leaves nothing on that breaker.
-     * That is what bounds a response, since one request carries every document a node holds for the cut.
+     * That is what bounds a response, since one request carries every document a shard holds for the cut.
      */
     public void testAResponseTooLargeForTheReceiverLeavesNothingOnItsBreaker() throws IOException {
         BlockFactory sender = blockFactory();

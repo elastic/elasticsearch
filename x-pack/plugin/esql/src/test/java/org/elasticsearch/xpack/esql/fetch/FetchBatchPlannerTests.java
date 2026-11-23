@@ -29,10 +29,11 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     private static final DocOrigin N2_S2 = origin("n2", 2);
 
     /**
-     * Nodes and their shards come in the order the cut first names them, and the documents of each shard sorted by
-     * segment and doc. Each row reads the response row of its document.
+     * Each shard gets a request of its own, also two shards of the same node, so the node loads them in parallel. The
+     * shards come in the order the cut first names them, and the documents of each shard sorted by segment and doc. Each
+     * row reads the response row of its document.
      */
-    public void testGroupsByNodeAndShardAndSortsTheDocuments() {
+    public void testOneRequestPerShardWithItsDocumentsSorted() {
         List<Page> pages = List.of(
             page(new Ref(N2_S2, 0, 5), new Ref(N1_S1, 3, 1), new Ref(N1_S0, 1, 9)),
             page(new Ref(N1_S0, 0, 4), new Ref(N1_S1, 0, 7), new Ref(N1_S0, 1, 2))
@@ -40,19 +41,22 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         try {
             FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
 
-            assertThat(batch.nodes().stream().map(FetchBatchPlanner.NodeBatch::nodeId).toList(), equalTo(List.of("n2", "n1")));
-            FetchBatchPlanner.NodeBatch n1 = batch.nodes().get(1);
             assertThat(
-                n1.shards().stream().map(FetchRequest.ShardDocs::shardId).toList(),
-                equalTo(List.of(N1_S1.shardId(), N1_S0.shardId()))
+                batch.shards().stream().map(FetchBatchPlanner.ShardBatch::node).toList(),
+                equalTo(List.of(FetchNode.local("n2"), FetchNode.local("n1"), FetchNode.local("n1")))
             );
-            assertShard(n1.shards().get(0), new int[] { 0, 3 }, new int[] { 7, 1 });
-            assertShard(n1.shards().get(1), new int[] { 0, 1, 1 }, new int[] { 4, 2, 9 });
             assertThat(
-                n1.shards().stream().map(FetchRequest.ShardDocs::contextId).toList(),
-                equalTo(List.of(N1_S1.contextId(), N1_S0.contextId()))
+                batch.shards().stream().map(shard -> shard.docs().shardId()).toList(),
+                equalTo(List.of(N2_S2.shardId(), N1_S1.shardId(), N1_S0.shardId()))
             );
-            // n2 answers first with 1 row, then n1 with the rows of shard 1 and then of shard 0
+            assertThat(
+                batch.shards().stream().map(shard -> shard.docs().contextId()).toList(),
+                equalTo(List.of(N2_S2.contextId(), N1_S1.contextId(), N1_S0.contextId()))
+            );
+            assertShard(batch.shards().get(0).docs(), new int[] { 0 }, new int[] { 5 });
+            assertShard(batch.shards().get(1).docs(), new int[] { 0, 3 }, new int[] { 7, 1 });
+            assertShard(batch.shards().get(2).docs(), new int[] { 0, 1, 1 }, new int[] { 4, 2, 9 });
+            // the request of shard 2 answers with 1 row, then the one of shard 1 with 2 rows, then the one of shard 0
             assertThat(batch.responseRows(), equalTo(new int[] { 0, 2, 5, 3, 1, 4 }));
             assertFalse(batch.deduplicated());
         } finally {
@@ -61,15 +65,15 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     }
 
     /**
-     * Each context appears in one request only, so every node frees the contexts of its request once it answered.
+     * Each context appears in one request only, so every request frees its context once it answered.
      */
-    public void testEveryNodeFreesTheContextsOfItsRequest() {
+    public void testEveryRequestFreesItsContext() {
         List<Page> pages = List.of(page(new Ref(N1_S0, 0, 1), new Ref(N1_S1, 0, 2)), page(new Ref(N2_S2, 0, 3), new Ref(N1_S0, 0, 4)));
         try {
             FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
 
-            List<FetchRequest.ShardDocs> shards = batch.nodes().stream().flatMap(node -> node.shards().stream()).toList();
-            assertThat(shards.stream().map(FetchRequest.ShardDocs::contextId).distinct().count(), equalTo((long) shards.size()));
+            List<FetchRequest.ShardDocs> shards = batch.shards().stream().map(FetchBatchPlanner.ShardBatch::docs).toList();
+            assertThat(shards.stream().map(FetchRequest.ShardDocs::contextId).distinct().count(), equalTo(3L));
             assertThat(shards.stream().map(FetchRequest.ShardDocs::freeAfterFetch).toList(), equalTo(List.of(true, true, true)));
         } finally {
             pages.forEach(Page::releaseBlocks);
@@ -84,7 +88,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         try {
             FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
 
-            assertShard(batch.nodes().getFirst().shards().getFirst(), new int[] { 0, 1 }, new int[] { 8, 3 });
+            assertShard(batch.shards().getFirst().docs(), new int[] { 0, 1 }, new int[] { 8, 3 });
             assertThat(batch.responseRows(), equalTo(new int[] { 1, 1, 0 }));
             assertTrue(batch.deduplicated());
         } finally {
@@ -101,7 +105,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         try {
             FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
 
-            assertShard(batch.nodes().getFirst().shards().getFirst(), new int[] { 1, 1, 2, 70_000 }, new int[] { 5, maxDoc, 0, 0 });
+            assertShard(batch.shards().getFirst().docs(), new int[] { 1, 1, 2, 70_000 }, new int[] { 5, maxDoc, 0, 0 });
             assertThat(batch.responseRows(), equalTo(new int[] { 3, 1, 2, 0 }));
         } finally {
             pages.forEach(Page::releaseBlocks);
@@ -112,7 +116,7 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
         List<Page> pages = List.of(page());
         try {
             FetchBatchPlanner.Batch batch = FetchBatchPlanner.plan(pages, 0);
-            assertThat(batch.nodes(), equalTo(List.of()));
+            assertThat(batch.shards(), equalTo(List.of()));
             assertThat(batch.responseRows().length, equalTo(0));
         } finally {
             pages.forEach(Page::releaseBlocks);
@@ -190,17 +194,16 @@ public class FetchBatchPlannerTests extends ComputeTestCase {
     }
 
     /**
-     * The documents in the order the nodes answer: node after node, shard after shard, in request order.
+     * The documents in the order the requests answer: shard after shard, in request order.
      */
     private static List<Ref> responses(FetchBatchPlanner.Batch batch, List<DocOrigin> origins) {
         List<Ref> responses = new ArrayList<>();
-        for (FetchBatchPlanner.NodeBatch node : batch.nodes()) {
-            for (FetchRequest.ShardDocs shard : node.shards()) {
-                DocOrigin origin = origins.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
-                assertThat(origin.nodeId(), equalTo(node.nodeId()));
-                for (int d = 0; d < shard.docCount(); d++) {
-                    responses.add(new Ref(origin, shard.segments()[d], shard.docs()[d]));
-                }
+        for (FetchBatchPlanner.ShardBatch request : batch.shards()) {
+            FetchRequest.ShardDocs shard = request.docs();
+            DocOrigin origin = origins.stream().filter(o -> o.contextId().equals(shard.contextId())).findFirst().orElseThrow();
+            assertThat(request.node(), equalTo(new FetchNode(origin.clusterAlias(), origin.nodeId())));
+            for (int d = 0; d < shard.docCount(); d++) {
+                responses.add(new Ref(origin, shard.segments()[d], shard.docs()[d]));
             }
         }
         return responses;

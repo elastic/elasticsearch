@@ -42,8 +42,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Checks that what {@link ExecutionEstimators} charges for the Lucene geo queries is a ceiling on the doc id set each leaf's
- * scorer keeps, for every relation, on single- and multi-valued fields.
+ * Checks that what {@link ExecutionCharge} charges for the Lucene geo queries is a ceiling on the doc id set each leaf's
+ * scorer keeps, for every relation, on single- and multivalued fields.
  */
 public class SpatialExecutionEstimatorTests extends ESTestCase {
 
@@ -145,16 +145,14 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
                 Query query = LatLonPoint.newDistanceQuery(GEO_POINT, 0, 0, 1_000_000);
                 Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
                 LeafReaderContext ctx = singleValued.leaves().getFirst();
-                long charged = ExecutionEstimators.forQuery(query)
-                    .estimator()
-                    .bytesForLeaf(ctx, weight.scorerSupplier(ctx), Long.MAX_VALUE);
+                long charged = ExecutionCharge.forQuery(query).estimator().bytesForLeaf(ctx, weight.scorerSupplier(ctx), Long.MAX_VALUE);
                 assertThat(charged, equalTo(PointsExecutionEstimator.bitSetBytes(ctx.reader().maxDoc())));
             }
         }
     }
 
     private void assertChargeIsCeiling(IndexSearcher searcher, Query query) throws IOException {
-        LeafExecutionEstimator estimator = ExecutionEstimators.forQuery(query).estimator();
+        LeafExecutionEstimator estimator = ExecutionCharge.forQuery(query).estimator();
         Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
         for (LeafReaderContext ctx : reader.leaves()) {
             ScorerSupplier supplier = weight.scorerSupplier(ctx);

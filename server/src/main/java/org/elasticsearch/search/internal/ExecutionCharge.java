@@ -9,14 +9,18 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.document.RangeFieldQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
+import org.elasticsearch.lucene.search.IndexedSpatialQueries;
 
 /**
  * What {@link ExecutionBreakerWeight} charges for one query whose scorer allocates per-leaf execution memory.
@@ -32,32 +36,64 @@ import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
  * @param label     the request circuit breaker label the memory is charged under
  */
 record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
-
     /**
      * @return the charge for {@code query}'s execution memory, or {@code null} if it allocates none worth charging
      */
     @Nullable
     static ExecutionCharge forQuery(Query query) {
+        final Query unboosted = unwrapBoost(query);
+        if (unboosted instanceof IndexOrDocValuesQuery iodvq) {
+            // IndexOrDocValuesQuery creates its index query's weight directly, so that query is never looked up on its own.
+            final ExecutionCharge indexCharge = forAllocatingQuery(iodvq.getIndexQuery());
+            return indexCharge == null ? null : new ExecutionCharge(indexSideOnly(indexCharge.estimator()), indexCharge.label());
+        }
+        return forAllocatingQuery(unboosted);
+    }
+
+    @Nullable
+    private static ExecutionCharge forAllocatingQuery(Query query) {
         if (query instanceof PointRangeQuery pointRangeQuery) {
             return new ExecutionCharge(new PointRangeExecutionEstimator(pointRangeQuery), PointRangeExecutionEstimator.BREAKER_LABEL);
         }
-        if (query instanceof IndexOrDocValuesQuery iodvq && iodvq.getIndexQuery() instanceof PointRangeQuery pointRangeQuery) {
-            return new ExecutionCharge(
-                indexSideOnly(new PointRangeExecutionEstimator(pointRangeQuery)),
-                PointRangeExecutionEstimator.BREAKER_LABEL
-            );
+        if (CostlyMultiTermQueries.isCostlyMultiTermQuery(query)) {
+            return new ExecutionCharge(new MultiTermExecutionEstimator(query), MultiTermExecutionEstimator.BREAKER_LABEL);
         }
-        final Query unboosted = unwrapBoost(query);
-        if (CostlyMultiTermQueries.isCostlyMultiTermQuery(unboosted)) {
-            return new ExecutionCharge(new MultiTermExecutionEstimator(unboosted), MultiTermExecutionEstimator.BREAKER_LABEL);
+        if (query instanceof PointInSetQuery pointInSetQuery) {
+            return points(pointInSetQuery.getField());
         }
-        if (unboosted instanceof IndexOrDocValuesQuery iodvq && CostlyMultiTermQueries.isCostlyMultiTermQuery(iodvq.getIndexQuery())) {
-            return new ExecutionCharge(
-                indexSideOnly(new MultiTermExecutionEstimator(iodvq.getIndexQuery())),
-                MultiTermExecutionEstimator.BREAKER_LABEL
-            );
+        if (query instanceof RangeFieldQuery) {
+            return points(fieldOf(query));
         }
-        return null;
+        final IndexedSpatialQueries.Kind spatialKind = IndexedSpatialQueries.kindOf(query);
+        if (spatialKind == null) {
+            return null;
+        }
+        return switch (spatialKind) {
+            case POINT_IN_GEOMETRY -> points(fieldOf(query));
+            case POINT_DISTANCE -> points(new LatLonPointDistanceExecutionEstimator(fieldOf(query)));
+            case SPATIAL -> points(new SpatialExecutionEstimator(fieldOf(query)));
+        };
+    }
+
+    private static ExecutionCharge points(String field) {
+        return points(new PointsExecutionEstimator(field));
+    }
+
+    private static ExecutionCharge points(LeafExecutionEstimator estimator) {
+        return new ExecutionCharge(estimator, PointsExecutionEstimator.BREAKER_LABEL);
+    }
+
+    /** The field of a query that has no getter for it, as reported by its {@link Query#visit}. */
+    static String fieldOf(Query query) {
+        final String[] field = new String[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public boolean acceptField(String visitedField) {
+                field[0] = visitedField;
+                return false;
+            }
+        });
+        return field[0];
     }
 
     /**

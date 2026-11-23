@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Builds each charged query through the Lucene factory Elasticsearch uses and checks that {@link ExecutionEstimators} charges it,
  * so that a Lucene upgrade that changes the class a factory returns fails here rather than going uncharged.
  */
-public class ExecutionEstimatorsTests extends ESTestCase {
+public class ExecutionChargeTests extends ESTestCase {
 
     private static final String FIELD = "f";
     private static final Polygon LAT_LON_POLYGON = new Polygon(new double[] { 0, 0, 10, 10, 0 }, new double[] { 0, 10, 10, 0, 0 });
@@ -78,7 +78,7 @@ public class ExecutionEstimatorsTests extends ESTestCase {
     }
 
     public void testRangeFieldIsFoundThroughVisit() {
-        assertThat(ExecutionEstimators.fieldOf(LongRange.newIntersectsQuery(FIELD, new long[] { 1 }, new long[] { 10 })), equalTo(FIELD));
+        assertThat(ExecutionCharge.fieldOf(LongRange.newIntersectsQuery(FIELD, new long[] { 1 }, new long[] { 10 })), equalTo(FIELD));
     }
 
     public void testLatLonPointDistance() {
@@ -127,7 +127,7 @@ public class ExecutionEstimatorsTests extends ESTestCase {
             LatLonShape.newGeometryQuery(FIELD, QueryRelation.INTERSECTS, LAT_LON_POLYGON),
             XYPointField.newPolygonQuery(FIELD, XY_POLYGON),
             XYShape.newGeometryQuery(FIELD, QueryRelation.INTERSECTS, XY_POLYGON) }) {
-            assertThat(query.toString(), ExecutionEstimators.fieldOf(query), equalTo(FIELD));
+            assertThat(query.toString(), ExecutionCharge.fieldOf(query), equalTo(FIELD));
         }
     }
 
@@ -152,16 +152,16 @@ public class ExecutionEstimatorsTests extends ESTestCase {
     }
 
     private static void assertCharged(Query query) {
-        assertThat("no charge for " + query, ExecutionEstimators.forQuery(query), notNullValue());
+        assertThat("no charge for " + query, ExecutionCharge.forQuery(query), notNullValue());
     }
 
     private static void assertCharged(Query query, Class<? extends LeafExecutionEstimator> estimatorClass) {
-        ExecutionEstimators.ExecutionCharge charge = ExecutionEstimators.forQuery(query);
+        ExecutionCharge charge = ExecutionCharge.forQuery(query);
         assertThat("no charge for " + query, charge, notNullValue());
         assertThat(query.toString(), charge.estimator(), instanceOf(estimatorClass));
     }
 
     private static void assertNotCharged(Query query) {
-        assertThat("unexpected charge for " + query, ExecutionEstimators.forQuery(query), nullValue());
+        assertThat("unexpected charge for " + query, ExecutionCharge.forQuery(query), nullValue());
     }
 }

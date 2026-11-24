@@ -173,6 +173,29 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalStateException.class));
     }
 
+    public void testRefreshThatReachedNoShardFails() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        // The primary was not available, which broadcast replication counts in the total but records as neither a success nor a failure
+        client.answerRefresh(new BroadcastResponse(2, 0, 0, List.of()));
+        assertFalse(driverContext.hasPendingAsyncActions());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
+    }
+
+    public void testRefreshOfAnUnderReplicatedDestinationSucceeds() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        // An unassigned replica is in the total but not among the successes, which is normal on a yellow cluster
+        client.answerRefresh(new BroadcastResponse(2, 1, 0, List.of()));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+    }
+
     public void testRefreshRunsWithTheCallersThreadContext() {
         threadPool.getThreadContext().putHeader(CALLER_HEADER, "caller");
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);

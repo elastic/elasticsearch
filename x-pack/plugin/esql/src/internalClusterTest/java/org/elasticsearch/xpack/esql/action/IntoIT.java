@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -466,6 +467,22 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         createSource();
         disableDestinationRefresh();
         assertRefreshFalseLeavesThreeRowsInvisibleUntilRefreshed("FROM " + SOURCE);
+    }
+
+    public void testRefreshSkipsAClosedNonWriteMemberOfTheDestinationAlias() {
+        String older = "dest-into-older";
+        String alias = "dest-into-alias";
+        assertAcked(indicesAdmin().prepareCreate(older).setSettings(batchIndexingSettings()).setMapping(MAPPING));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(older).alias(alias).writeIndex(false))
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(DESTINATION).alias(alias).writeIndex(true))
+        );
+        assertAcked(indicesAdmin().prepareClose(older));
+        disableDestinationRefresh();
+
+        assertIntoTarget("ROW k = [\"a\", \"b\"] | MV_EXPAND k", alias, 2);
+        assertThat("the write index was refreshed", countDestinationDocuments(), equalTo(2L));
     }
 
     public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {

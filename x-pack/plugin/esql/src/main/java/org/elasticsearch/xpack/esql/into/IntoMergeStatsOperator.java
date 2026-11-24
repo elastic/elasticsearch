@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
@@ -75,9 +76,24 @@ public final class IntoMergeStatsOperator implements Operator {
             try (ThreadContext.StoredContext ignored = caller.get()) {
                 ActionListener<Void> once = ActionListener.notifyOnce(listener);
                 try {
-                    client.execute(RefreshAction.INSTANCE, new RefreshRequest(destination), once.delegateFailureAndWrap((l, response) -> {
+                    // An alias can have closed members that the write never touched, which the default options would reject
+                    RefreshRequest request = new RefreshRequest(destination);
+                    request.indicesOptions(
+                        IndicesOptions.builder(request.indicesOptions())
+                            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                            .build()
+                    );
+                    client.execute(RefreshAction.INSTANCE, request, once.delegateFailureAndWrap((l, response) -> {
                         if (response.getFailedShards() > 0) {
                             l.onFailure(firstShardFailure(response));
+                        } else if (response.getTotalShards() > 0 && response.getSuccessfulShards() == 0) {
+                            // A primary that is not available is counted in the total, but as neither a success nor a failure
+                            l.onFailure(
+                                new ElasticsearchStatusException(
+                                    "no shard of the destination was refreshed",
+                                    RestStatus.SERVICE_UNAVAILABLE
+                                )
+                            );
                         } else {
                             l.onResponse(null);
                         }

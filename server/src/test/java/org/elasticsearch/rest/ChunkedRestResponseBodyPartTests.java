@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -26,12 +27,15 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkedRestResponseBodyPartTests extends ESTestCase {
 
@@ -71,6 +75,24 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
         assertThat(CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])), equalBytes(bytesDirect));
     }
 
+    /** The body part lives until the response has been written, so it must not keep the {@link ChunkedToXContent} reachable. */
+    public void testDoesNotRetainChunkedToXContent() throws Exception {
+        final var channel = new FakeRestChannel(new FakeRestRequest.Builder(xContentRegistry()).build(), randomBoolean());
+        final var bodyPartAndRef = bodyPartOfUnreferencedXContent(channel);
+        final var bodyPart = bodyPartAndRef.v1();
+
+        // Retry until the instance has been collected
+        assertBusy(() -> {
+            System.gc();
+            assertNull(bodyPartAndRef.v2().get());
+        });
+        final List<BytesReference> refsGenerated = new ArrayList<>();
+        while (bodyPart.isPartComplete() == false) {
+            refsGenerated.add(bodyPart.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
+        }
+        assertThat(CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])).utf8ToString(), equalTo("{}"));
+    }
+
     public void testFromTextChunks() throws IOException {
         final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
         var firstBodyPart = ChunkedRestResponseBodyPart.fromTextChunks(
@@ -90,6 +112,23 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
             }
             writer.flush();
             assertThat(chunkedBytes, equalBytes(new BytesArray(outputStream.toByteArray())));
+        }
+    }
+
+    private static Tuple<ChunkedRestResponseBodyPart, WeakReference<ChunkedToXContent>> bodyPartOfUnreferencedXContent(RestChannel channel)
+        throws IOException {
+        final ChunkedToXContent chunkedToXContent = new EmptyObject();
+        return Tuple.tuple(
+            ChunkedRestResponseBodyPart.fromXContent(chunkedToXContent, ToXContent.EMPTY_PARAMS, channel),
+            new WeakReference<>(chunkedToXContent)
+        );
+    }
+
+    /** A class rather than a lambda, since a non-capturing lambda is a singleton and would never be collected. */
+    private static final class EmptyObject implements ChunkedToXContent {
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.single((b, p) -> b.startObject().endObject());
         }
     }
 }

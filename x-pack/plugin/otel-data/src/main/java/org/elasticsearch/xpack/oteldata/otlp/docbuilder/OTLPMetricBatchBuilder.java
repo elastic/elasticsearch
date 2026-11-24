@@ -140,15 +140,13 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
             int resourceFillFrom = prepareFill();
             for (DataPointGroupingContext.ScopeGroup scopeGroup : resourceGroup.scopes()) {
                 int scopeFillFrom = prepareFill();
-                for (var dpByTimestamp : scopeGroup.dataPointGroups().values()) {
-                    for (var dpByHash : dpByTimestamp.values()) {
-                        for (var dataPointGroup : dpByHash.values()) {
-                            int expectedSize = dataPointGroup.dataPoints().size();
-                            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
-                            Map<String, Map<String, String>> dynamicTemplateParams = Maps.newHashMapWithExpectedSize(expectedSize);
-                            writeRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
-                            rowConsumer.accept(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
-                        }
+                for (var dataPointGroups : scopeGroup.dataPointGroups().values()) {
+                    for (var dataPointGroup : dataPointGroups.values()) {
+                        int expectedSize = dataPointGroup.dataPoints().size();
+                        Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
+                        Map<String, Map<String, String>> dynamicTemplateParams = Maps.newHashMapWithExpectedSize(expectedSize);
+                        writeRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+                        rowConsumer.accept(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
                     }
                 }
                 fillScope(scopeGroup.scope(), scopeGroup.scopeSchemaUrl(), scopeFillFrom);

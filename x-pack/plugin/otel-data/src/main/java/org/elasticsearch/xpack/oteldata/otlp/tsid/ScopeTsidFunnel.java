@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.tsid;
 
+import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidBuilder.TsidFunnel;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.List;
 
-public class ScopeTsidFunnel implements TsidFunnel<ScopeMetrics> {
+public class ScopeTsidFunnel implements TsidFunnel<InstrumentationScope> {
 
     private final BufferedByteStringAccessor byteStringAccessor;
 
@@ -24,16 +24,21 @@ public class ScopeTsidFunnel implements TsidFunnel<ScopeMetrics> {
         this.byteStringAccessor = byteStringAccessor;
     }
 
-    public static TsidBuilder forScope(BufferedByteStringAccessor byteStringAccessor, ScopeMetrics scopeMetrics) {
-        TsidBuilder tsidBuilder = new TsidBuilder(scopeMetrics.getScope().getAttributesCount() + 3);
-        new ScopeTsidFunnel(byteStringAccessor).add(scopeMetrics, tsidBuilder);
+    public static TsidBuilder forScope(
+        BufferedByteStringAccessor byteStringAccessor,
+        InstrumentationScope scope,
+        int resourceTsidBuilderSize
+    ) {
+        // + 1 for scope.name
+        TsidBuilder tsidBuilder = new TsidBuilder(scope.getAttributesCount() + 1 + resourceTsidBuilderSize);
+        new ScopeTsidFunnel(byteStringAccessor).add(scope, tsidBuilder);
         return tsidBuilder;
     }
 
     @Override
-    public void add(ScopeMetrics scopeMetrics, TsidBuilder tsidBuilder) {
-        List<KeyValue> resourceAttributes = scopeMetrics.getScope().getAttributesList();
-        byteStringAccessor.addStringDimension(tsidBuilder, "scope.name", scopeMetrics.getScope().getNameBytes());
-        tsidBuilder.add(resourceAttributes, AttributeListTsidFunnel.get(byteStringAccessor, "scope.attributes."));
+    public void add(InstrumentationScope scope, TsidBuilder tsidBuilder) {
+        List<KeyValue> scopeAttributes = scope.getAttributesList();
+        byteStringAccessor.addStringDimension(tsidBuilder, "scope.name", scope.getNameBytes());
+        tsidBuilder.add(scopeAttributes, AttributeListTsidFunnel.get(byteStringAccessor, "scope.attributes."));
     }
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.oteldata.otlp.tsid;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
+import io.opentelemetry.proto.resource.v1.Resource;
 
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidBuilder.TsidFunnel;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.List;
 
-public class ResourceTsidFunnel implements TsidFunnel<ResourceMetrics> {
+public class ResourceTsidFunnel implements TsidFunnel<Resource> {
 
     private final BufferedByteStringAccessor byteStringAccessor;
 
@@ -24,15 +24,15 @@ public class ResourceTsidFunnel implements TsidFunnel<ResourceMetrics> {
         this.byteStringAccessor = byteStringAccessor;
     }
 
-    public static TsidBuilder forResource(BufferedByteStringAccessor byteStringAccessor, ResourceMetrics resourceMetrics) {
-        TsidBuilder tsidBuilder = new TsidBuilder(resourceMetrics.getResource().getAttributesCount());
-        new ResourceTsidFunnel(byteStringAccessor).add(resourceMetrics, tsidBuilder);
+    public static TsidBuilder forResource(BufferedByteStringAccessor byteStringAccessor, Resource resource) {
+        TsidBuilder tsidBuilder = new TsidBuilder(resource.getAttributesCount());
+        new ResourceTsidFunnel(byteStringAccessor).add(resource, tsidBuilder);
         return tsidBuilder;
     }
 
     @Override
-    public void add(ResourceMetrics resourceMetrics, TsidBuilder tsidBuilder) {
-        List<KeyValue> resourceAttributes = resourceMetrics.getResource().getAttributesList();
+    public void add(Resource resource, TsidBuilder tsidBuilder) {
+        List<KeyValue> resourceAttributes = resource.getAttributesList();
         tsidBuilder.add(resourceAttributes, AttributeListTsidFunnel.get(byteStringAccessor, "resource.attributes."));
     }
 }

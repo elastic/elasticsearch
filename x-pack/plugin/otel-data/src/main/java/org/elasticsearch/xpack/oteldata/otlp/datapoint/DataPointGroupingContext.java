@@ -24,7 +24,6 @@ import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
-import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
@@ -51,7 +50,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
     private final BufferedByteStringAccessor byteStringAccessor;
     private final MappingHints defaultMappingHints;
-    private final Map<Hash128, ResourceGroup> resourceGroups = new HashMap<>();
+    private final Map<ResourceEqualityWrapper, ResourceGroup> resourceGroups = new HashMap<>();
     private final Set<String> ignoredDataPointMessages = new HashSet<>();
 
     private int totalDataPoints = 0;
@@ -243,12 +242,12 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     }
 
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {
-        TsidBuilder resourceTsidBuilder = ResourceTsidFunnel.forResource(byteStringAccessor, resourceMetrics);
-        Hash128 resourceHash = resourceTsidBuilder.hash();
-        ResourceGroup resourceGroup = resourceGroups.get(resourceHash);
+        Resource resource = resourceMetrics.getResource();
+        ResourceEqualityWrapper resourceKey = new ResourceEqualityWrapper(resource);
+        ResourceGroup resourceGroup = resourceGroups.get(resourceKey);
         if (resourceGroup == null) {
-            resourceGroup = new ResourceGroup(resourceMetrics.getResource(), resourceMetrics.getSchemaUrlBytes(), resourceTsidBuilder);
-            resourceGroups.put(resourceHash, resourceGroup);
+            resourceGroup = new ResourceGroup(resource, resourceMetrics.getSchemaUrlBytes());
+            resourceGroups.put(resourceKey, resourceGroup);
         }
         return resourceGroup;
     }
@@ -257,28 +256,34 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     public class ResourceGroup {
         private final Resource resource;
         private final ByteString resourceSchemaUrl;
-        private final TsidBuilder resourceTsidBuilder;
+        // only computed on demand, as batch indexing derives the _tsid on its own
+        private TsidBuilder resourceTsidBuilder;
         private final TargetIndex resourceTargetIndex;
-        private final Map<Hash128, ScopeGroup> scopes;
+        private final Map<ScopeEqualityWrapper, ScopeGroup> scopes;
 
-        ResourceGroup(Resource resource, ByteString resourceSchemaUrl, TsidBuilder resourceTsidBuilder) {
+        ResourceGroup(Resource resource, ByteString resourceSchemaUrl) {
             this.resource = resource;
             this.resourceSchemaUrl = resourceSchemaUrl;
-            this.resourceTsidBuilder = resourceTsidBuilder;
             this.resourceTargetIndex = TargetIndex.defaultForMetrics().withAttributeOverrides(resource.getAttributesList());
             this.scopes = new HashMap<>();
         }
 
         public ScopeGroup getOrCreateScope(ScopeMetrics scopeMetrics) {
-            TsidBuilder scopeTsidBuilder = ScopeTsidFunnel.forScope(byteStringAccessor, scopeMetrics);
-            Hash128 scopeHash = scopeTsidBuilder.hash();
-            scopeTsidBuilder.addAll(resourceTsidBuilder);
-            ScopeGroup scopeGroup = scopes.get(scopeHash);
+            InstrumentationScope scope = scopeMetrics.getScope();
+            ScopeEqualityWrapper scopeKey = new ScopeEqualityWrapper(scope);
+            ScopeGroup scopeGroup = scopes.get(scopeKey);
             if (scopeGroup == null) {
-                scopeGroup = new ScopeGroup(this, scopeMetrics.getScope(), scopeMetrics.getSchemaUrlBytes(), scopeTsidBuilder);
-                scopes.put(scopeHash, scopeGroup);
+                scopeGroup = new ScopeGroup(this, scope, scopeMetrics.getSchemaUrlBytes());
+                scopes.put(scopeKey, scopeGroup);
             }
             return scopeGroup;
+        }
+
+        private TsidBuilder resourceTsidBuilder() {
+            if (resourceTsidBuilder == null) {
+                resourceTsidBuilder = ResourceTsidFunnel.forResource(byteStringAccessor, resource);
+            }
+            return resourceTsidBuilder;
         }
 
         public Resource resource() {
@@ -306,19 +311,34 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
-        private final TsidBuilder scopeTsidBuilder;
+        // only computed on demand, includes the resource dimensions
+        private TsidBuilder scopeTsidBuilder;
         private final TargetIndex scopeTargetIndex;
-        // index -> timestamp -> dataPointGroupHash -> DataPointGroup
-        private final Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
+        // index -> timestamps and data point identity -> DataPointGroup
+        private final Map<TargetIndex, Map<DataPointEqualityWrapper, DataPointGroup>> dataPointGroupsByIndex;
 
-        ScopeGroup(ResourceGroup resourceGroup, InstrumentationScope scope, ByteString scopeSchemaUrl, TsidBuilder scopeTsidBuilder) {
+        ScopeGroup(ResourceGroup resourceGroup, InstrumentationScope scope, ByteString scopeSchemaUrl) {
             this.resourceGroup = resourceGroup;
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
-            this.scopeTsidBuilder = scopeTsidBuilder;
             this.scopeTargetIndex = resourceGroup.resourceTargetIndex.withAttributeOverrides(scope.getAttributesList())
                 .maybeApplyScopeBasedRouting(scope);
-            this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
+            this.dataPointGroupsByIndex = new HashMap<>();
+        }
+
+        private TsidBuilder scopeTsidBuilder() {
+            if (scopeTsidBuilder == null) {
+                TsidBuilder resourceTsidBuilder = resourceGroup.resourceTsidBuilder();
+                scopeTsidBuilder = ScopeTsidFunnel.forScope(byteStringAccessor, scope, resourceTsidBuilder.size())
+                    .addAll(resourceTsidBuilder);
+            }
+            return scopeTsidBuilder;
+        }
+
+        /** Builds the TSID dimensions of a data point of this scope, including the scope and resource dimensions. */
+        private TsidBuilder dataPointTsidBuilder(DataPoint dataPoint) {
+            TsidBuilder scopeTsidBuilder = scopeTsidBuilder();
+            return DataPointTsidFunnel.forDataPoint(byteStringAccessor, dataPoint, scopeTsidBuilder.size()).addAll(scopeTsidBuilder);
         }
 
         public <T> void addDataPoints(Metric metric, List<T> dataPoints, BiFunction<T, Metric, DataPoint> createDataPoint) {
@@ -342,32 +362,23 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         }
 
         private DataPointGroup getOrCreateDataPointGroup(DataPoint dataPoint) {
-            TsidBuilder dataPointGroupTsidBuilder = DataPointTsidFunnel.forDataPoint(
-                byteStringAccessor,
-                dataPoint,
-                scopeTsidBuilder.size()
-            );
-            Hash128 dataPointGroupHash = dataPointGroupTsidBuilder.hash();
-            dataPointGroupTsidBuilder.addAll(scopeTsidBuilder);
-            // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
-            Hash128 timestamp = new Hash128(dataPoint.getTimestampUnixNano(), dataPoint.getStartTimestampUnixNano());
             TargetIndex targetIndex = scopeTargetIndex.withAttributeOverrides(dataPoint.getAttributes());
-            var dataPointGroupsByTimestamp = dataPointGroupsByIndexAndTimestamp.computeIfAbsent(targetIndex, k -> new HashMap<>());
-            var dataPointGroups = dataPointGroupsByTimestamp.computeIfAbsent(timestamp, k -> new HashMap<>());
-            DataPointGroup dataPointGroup = dataPointGroups.get(dataPointGroupHash);
+            var dataPointGroups = dataPointGroupsByIndex.computeIfAbsent(targetIndex, k -> new HashMap<>());
+            DataPointEqualityWrapper dataPointGroupKey = new DataPointEqualityWrapper(dataPoint);
+            DataPointGroup dataPointGroup = dataPointGroups.get(dataPointGroupKey);
             if (dataPointGroup == null) {
                 dataPointGroup = new DataPointGroup(
                     resourceGroup.resource,
                     resourceGroup.resourceSchemaUrl,
                     scope,
                     scopeSchemaUrl,
-                    dataPointGroupTsidBuilder,
+                    this,
                     dataPoint.getAttributes(),
                     dataPoint.getUnit(),
                     dataPoint.getTemporality(),
                     targetIndex
                 );
-                dataPointGroups.put(dataPointGroupHash, dataPointGroup);
+                dataPointGroups.put(dataPointGroupKey, dataPointGroup);
             }
             return dataPointGroup;
         }
@@ -380,16 +391,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return scopeSchemaUrl;
         }
 
-        public Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroups() {
-            return dataPointGroupsByIndexAndTimestamp;
+        public Map<TargetIndex, Map<DataPointEqualityWrapper, DataPointGroup>> dataPointGroups() {
+            return dataPointGroupsByIndex;
         }
 
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {
-            for (var dataPointGroupsByTime : dataPointGroupsByIndexAndTimestamp.values()) {
-                for (var dataPointGroups : dataPointGroupsByTime.values()) {
-                    for (DataPointGroup dataPointGroup : dataPointGroups.values()) {
-                        consumer.accept(dataPointGroup);
-                    }
+            for (var dataPointGroups : dataPointGroupsByIndex.values()) {
+                for (DataPointGroup dataPointGroup : dataPointGroups.values()) {
+                    consumer.accept(dataPointGroup);
                 }
             }
         }
@@ -400,7 +409,9 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final ByteString resourceSchemaUrl;
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
-        private final TsidBuilder tsidBuilder;
+        private final ScopeGroup scopeGroup;
+        // only computed on demand, as batch indexing derives the _tsid on its own
+        private TsidBuilder tsidBuilder;
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
         private final @Nullable AggregationTemporality temporality;
@@ -415,7 +426,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             ByteString resourceSchemaUrl,
             InstrumentationScope scope,
             ByteString scopeSchemaUrl,
-            TsidBuilder tsidBuilder,
+            ScopeGroup scopeGroup,
             List<KeyValue> dataPointAttributes,
             String unit,
             @Nullable AggregationTemporality temporality,
@@ -425,7 +436,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             this.resourceSchemaUrl = resourceSchemaUrl;
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
-            this.tsidBuilder = tsidBuilder;
+            this.scopeGroup = scopeGroup;
             this.dataPointAttributes = dataPointAttributes;
             this.unit = unit;
             this.temporality = temporality;
@@ -456,6 +467,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
          * Builds the metric document TSID using the hash of its grouped metric names, in the layout of the target index.
          */
         public BytesRef buildMetricTsid(String metricNamesHash, TsidLayout tsidLayout) {
+            TsidBuilder tsidBuilder = tsidBuilder();
             TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
                 .addStringDimension(MetricDocumentBuilder.METRIC_NAMES_HASH_FIELD, metricNamesHash);
             return finalTsidBuilder.buildTsid(tsidLayout);
@@ -465,9 +477,18 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
          * Builds an exemplar document TSID using its metric name, in the layout of the target index.
          */
         public BytesRef buildExemplarTsid(String metricName, TsidLayout tsidLayout) {
+            TsidBuilder tsidBuilder = tsidBuilder();
             TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
                 .addStringDimension(ExemplarDocumentBuilder.METRIC_NAME_FIELD, metricName);
             return finalTsidBuilder.buildTsid(tsidLayout);
+        }
+
+        private TsidBuilder tsidBuilder() {
+            if (tsidBuilder == null) {
+                // all data points of the group share the same dimensions, so any of them can be used
+                tsidBuilder = scopeGroup.dataPointTsidBuilder(dataPoints.getFirst());
+            }
+            return tsidBuilder;
         }
 
         public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {

@@ -265,6 +265,40 @@ public class DataPointGroupingContextTests extends ESTestCase {
         assertEquals(2, groupCount.get());
     }
 
+    public void testGroupingSameResourceAndScopeWithReorderedAttributes() throws Exception {
+        ResourceMetrics resource1 = createResourceMetrics(
+            List.of(keyValue("service.name", "test-service"), keyValue("host.name", "host")),
+            List.of(
+                createScopeMetrics(
+                    "test",
+                    "1.0.0",
+                    List.of(createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))))
+                )
+            )
+        );
+        ResourceMetrics resource2 = createResourceMetrics(
+            List.of(keyValue("host.name", "host"), keyValue("service.name", "test-service")),
+            List.of(
+                createScopeMetrics(
+                    "test",
+                    "2.0.0",
+                    List.of(createGaugeMetric("system.memory.usage", "", List.of(createLongDataPoint(nowUnixNanos))))
+                )
+            )
+        );
+
+        context.groupDataPoints(ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(List.of(resource1, resource2)).build());
+        assertEquals(2, context.totalItems());
+        assertEquals(0, context.getIgnoredItems());
+        assertEquals(1, context.resourceGroups().size());
+        assertEquals(1, context.resourceGroups().iterator().next().scopes().size());
+
+        List<DataPointGroupingContext.DataPointGroup> groups = new ArrayList<>();
+        context.forEachGroup(groups::add);
+        assertEquals(1, groups.size());
+        assertEquals(2, groups.getFirst().dataPoints().size());
+    }
+
     public void testGroupingDifferentScope() throws Exception {
         ResourceMetrics resource1 = createResourceMetrics(
             List.of(keyValue("service.name", "test-service")),

@@ -6,5 +6,3 @@ RUN npm ci --omit=dev
 
 COPY fetch_arrow.mjs .
 USER node
-
-ENTRYPOINT ["node", "/app/fetch_arrow.mjs"]

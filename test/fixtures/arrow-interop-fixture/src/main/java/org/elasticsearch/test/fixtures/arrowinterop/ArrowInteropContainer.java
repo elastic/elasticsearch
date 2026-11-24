@@ -11,15 +11,17 @@ package org.elasticsearch.test.fixtures.arrowinterop;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerAvailability;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
-import org.testcontainers.containers.output.OutputFrame;
-import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
+import org.testcontainers.containers.Container.ExecResult;
+import org.testcontainers.containers.ExecConfig;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-import java.time.Duration;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 /**
- * A one-shot container that runs an official Apache Arrow client ({@code pyarrow} or {@code apache-arrow}
- * for Node.js) against a running Elasticsearch node.
+ * A container with an official Apache Arrow client ({@code pyarrow} or {@code apache-arrow} for Node.js), that
+ * fetches ES|QL Arrow responses from a running Elasticsearch node.
  * <p>
  * The client POSTs a JSON body to the given URL asking for an Arrow stream, decodes the response with its
  * Arrow library, and prints a JSON description of the schema and values on stdout (see {@code fetch_arrow.py}
@@ -29,6 +31,10 @@ import java.time.Duration;
  * Both clients normalize their output (type names, timestamps as epoch millis, big integers as strings, etc.)
  * so that they print identical JSON for the same stream: a test needs a single table of expected values for
  * all languages. The conventions are documented in the scripts, which must be kept in sync.
+ * <p>
+ * The container is meant to be used as a JUnit {@code @ClassRule}: it is started once for a test class (which
+ * builds its image and skips the class if Docker isn't available), idles, and each {@link #fetch} runs the client in
+ * it with {@code docker exec}.
  * <p>
  * The images are always built locally from the Dockerfiles in {@code docker/<language>/}; they are not
  * published. Docker's layer cache makes subsequent builds cheap.
@@ -63,29 +69,46 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
                 case NODE -> new String[] { "Dockerfile", "package.json", "package-lock.json", "fetch_arrow.mjs" };
             };
         }
+
+        /** The command that runs the client. */
+        private String[] clientCommand() {
+            return switch (this) {
+                case PYTHON -> new String[] { "python", "/app/fetch_arrow.py" };
+                case NODE -> new String[] { "node", "/app/fetch_arrow.mjs" };
+            };
+        }
     }
 
     /** Host name under which a container reaches the Docker host (where the Elasticsearch node under test runs). */
     public static final String HOST_ADDRESS = "host.docker.internal";
 
-    private static final Duration CLIENT_TIMEOUT = Duration.ofMinutes(2);
+    /** A client that doesn't terminate in this time is killed, and its {@link #fetch} fails. */
+    private static final int CLIENT_TIMEOUT_SECONDS = 120;
+
+    /** Exit code of the {@code timeout} command when it had to kill its command. */
+    private static final int TIMEOUT_EXIT_CODE = 124;
+
+    private final Language language;
 
     /**
-     * for packer caching only
-     * see CacheCacheableTestFixtures.
+     * For caching images in CI agent images only: {@code CacheCacheableTestFixtures} calls this by reflection, then
+     * {@link #cache()}, which builds the images of all languages, so the language here is irrelevant.
      */
     protected ArrowInteropContainer() {
-        this(Language.PYTHON, "", "{}");
+        this(Language.PYTHON);
     }
 
-    private ArrowInteropContainer(Language language, String url, String jsonBody) {
+    public ArrowInteropContainer(Language language) {
         super(image(language));
-        withEnv("ARROW_URL", url);
-        withEnv("ARROW_BODY", jsonBody);
+        this.language = language;
         // On Linux, host.docker.internal is not defined by default (it is on Docker Desktop)
         withExtraHost(HOST_ADDRESS, "host-gateway");
-        // The client runs and exits: wait for it to finish, and fail if its exit code is not 0
-        setStartupCheckStrategy(new OneShotStartupCheckStrategy().withTimeout(CLIENT_TIMEOUT));
+        // Keep the container running, as clients are run in it
+        withCommand("sleep", "infinity");
+    }
+
+    public Language language() {
+        return language;
     }
 
     private static ImageFromDockerfile image(Language language) {
@@ -117,29 +140,51 @@ public final class ArrowInteropContainer extends DockerEnvironmentAwareTestConta
     }
 
     /**
-     * Runs the Arrow client of the given language: POSTs {@code jsonBody} to {@code url} and returns what the
+     * Runs the Arrow client in the (started) container: POSTs {@code jsonBody} to {@code url} and returns what the
      * client printed on stdout. The URL must be reachable from inside the container, e.g.
      * {@code "http://" + HOST_ADDRESS + ":" + port + "/_query?format=arrow"}.
      *
-     * The test is skipped (JUnit assumption) if Docker is not available, except on CI where it is expected to be.
-     *
      * @throws AssertionError if the client failed, with its output as the message
      */
-    public static String fetch(Language language, String url, String jsonBody) {
-        // Checked first, as an assumption failure must not be reported as a client failure by the catch below
-        DockerAvailability.assumeDockerIsAvailable();
-        var container = new ArrowInteropContainer(language, url, jsonBody);
+    public String fetch(String url, String jsonBody) {
+        ExecResult result;
         try {
-            container.start();
-            return container.getLogs(OutputFrame.OutputType.STDOUT);
-        } catch (RuntimeException e) {
-            // Includes the startup check failing on a non-zero exit code. The client reports errors on stderr.
-            throw new AssertionError(
-                "Arrow " + language + " client failed: " + e.getMessage() + "\n" + container.getLogs(OutputFrame.OutputType.STDERR),
-                e
+            result = execInContainer(
+                StandardCharsets.UTF_8,
+                ExecConfig.builder()
+                    // "timeout" kills a client that hangs, which would otherwise block the test until the suite times out
+                    .command(withTimeout(language.clientCommand()))
+                    .envVars(Map.of("ARROW_URL", url, "ARROW_BODY", jsonBody))
+                    .build()
             );
-        } finally {
-            container.stop();
+        } catch (IOException e) {
+            throw new AssertionError("Failed to run the Arrow " + language + " client", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while running the Arrow " + language + " client", e);
         }
+
+        if (result.getExitCode() != 0) {
+            // The client reports errors on stderr
+            throw new AssertionError(
+                "Arrow "
+                    + language
+                    + " client failed"
+                    + (result.getExitCode() == TIMEOUT_EXIT_CODE ? " (timeout after " + CLIENT_TIMEOUT_SECONDS + "s)" : "")
+                    + ", exit code "
+                    + result.getExitCode()
+                    + ":\n"
+                    + result.getStderr()
+            );
+        }
+        return result.getStdout();
+    }
+
+    private static String[] withTimeout(String[] command) {
+        String[] withTimeout = new String[command.length + 2];
+        withTimeout[0] = "timeout";
+        withTimeout[1] = String.valueOf(CLIENT_TIMEOUT_SECONDS);
+        System.arraycopy(command, 0, withTimeout, 2, command.length);
+        return withTimeout;
     }
 }

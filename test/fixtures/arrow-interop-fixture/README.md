@@ -13,24 +13,32 @@ The tests that use it are in `x-pack/plugin/esql/qa/server/arrow-interop`.
 ## How it works
 
 ```
- Java test                                 Docker container (one per call)
- ---------                                 --------------------------------
- ArrowInteropContainer.fetch(              builds the image from docker/<language>/Dockerfile
-     language, url, jsonBody)  ----------> runs fetch_arrow.py / fetch_arrow.mjs, which
-                                             1. POSTs ARROW_BODY to ARROW_URL
-                                                (Accept: application/vnd.apache.arrow.stream)
-                                             2. reads the response stream with the Arrow library
-                                             3. prints a JSON description on stdout
- parses the JSON, asserts on it <--------- exits (non-zero + message on stderr if anything failed)
+ Java test                                  Docker container (one per language, started once per test class)
+ ---------                                  ------------------------------------------------------------
+ @ClassRule ArrowInteropContainer(language)  builds the image from docker/<language>/Dockerfile and
+                                             starts the container, which idles
+
+ client.fetch(url, jsonBody)  ------------>  docker exec: fetch_arrow.py / fetch_arrow.mjs, which
+                                               1. POSTs ARROW_BODY to ARROW_URL
+                                                  (Accept: application/vnd.apache.arrow.stream)
+                                               2. reads the response stream with the Arrow library
+                                               3. prints a JSON description on stdout
+ parses the JSON, asserts on it <---------   exits (non-zero + message on stderr if anything failed)
 ```
 
 ```java
+@ClassRule
+public static ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+
 String url = "http://" + ArrowInteropContainer.HOST_ADDRESS + ":" + port + "/_query?format=arrow";
-String json = ArrowInteropContainer.fetch(Language.PYTHON, url, "{\"query\": \"FROM my-index | LIMIT 10\"}");
+String json = pythonClient.fetch(url, "{\"query\": \"FROM my-index | LIMIT 10\"}");
 ```
 
+* The container is a JUnit rule: it is started (and its image built) once for the test class, and stopped at
+  the end. Each `fetch` only runs the client in it.
 * `fetch` returns what the client printed on stdout. If the client fails (HTTP error, malformed stream, ...)
-  it throws an `AssertionError` whose message contains the client's stderr.
+  it throws an `AssertionError` whose message contains the exit code and the client's stderr. A client that
+  doesn't terminate within two minutes is killed and reported the same way.
 * The request is made by the client itself, not by Java, so that the HTTP part (content negotiation, chunked
   streaming of the response) is also exercised from the client's side.
 * The client gets its inputs from two environment variables: `ARROW_URL` and `ARROW_BODY` (the JSON request
@@ -38,8 +46,8 @@ String json = ArrowInteropContainer.fetch(Language.PYTHON, url, "{\"query\": \"F
 
 ### Requirements on the test
 
-* **Docker** must be available. If not, the test is skipped through a JUnit assumption, except on CI where
-  Docker is expected and its absence is a failure (see `DockerAvailability`).
+* **Docker** must be available. If not, the test class is skipped through a JUnit assumption when the rule starts,
+  except on CI where Docker is expected and its absence is a failure (see `DockerAvailability`).
 * The node under test runs on the Docker host, and the container reaches it as `host.docker.internal`
   (`ArrowInteropContainer.HOST_ADDRESS`, mapped to the host with `host-gateway` so that it also works on
   Linux). The node must therefore listen on a non-loopback interface, e.g. `http.host: 0.0.0.0`, which
@@ -144,6 +152,8 @@ type (e.g. `binary`), and the extension is visible in the field's `metadata`.
 ## Adding a language
 
 1. Add `docker/<language>/` with a `Dockerfile` and a script that follows the contract above.
-2. Add the language to `ArrowInteropContainer.Language`, with the files of its Docker context.
-3. Check that the new client prints the same JSON as the existing ones for the same query. The test module runs
-   every scenario with every language, so no other change is needed there.
+2. Add the language to `ArrowInteropContainer.Language`, with the files of its Docker context and the command that
+   runs its client.
+3. In `ArrowInteropIT`, add a `@ClassRule` container for it, and add it to `clients()`. Every scenario is then run
+   with it.
+4. Check that the new client prints the same JSON as the existing ones for the same query.

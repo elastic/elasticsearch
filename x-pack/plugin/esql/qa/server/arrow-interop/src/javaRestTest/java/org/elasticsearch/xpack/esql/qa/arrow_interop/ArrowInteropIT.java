@@ -66,6 +66,20 @@ public class ArrowInteropIT extends ESRestTestCase {
         .setting("http.host", "0.0.0.0")
         .build();
 
+    /**
+     * The Arrow clients are started once for all tests, as each test then only runs a client in its container.
+     * The tests are skipped if Docker is not available.
+     */
+    @ClassRule
+    public static ArrowInteropContainer pythonClient = new ArrowInteropContainer(Language.PYTHON);
+
+    @ClassRule
+    public static ArrowInteropContainer nodeClient = new ArrowInteropContainer(Language.NODE);
+
+    private static List<ArrowInteropContainer> clients() {
+        return List.of(pythonClient, nodeClient);
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -132,9 +146,10 @@ public class ArrowInteropIT extends ESRestTestCase {
         int pageSize = 1_000;
         indexNumbers("arrow-interop-big", docCount);
 
-        for (Language language : Language.values()) {
+        for (ArrowInteropContainer client : clients()) {
+            String language = client.language().toString();
             Map<String, Object> result = fetch(
-                language,
+                client,
                 "FROM arrow-interop-big | KEEP n | LIMIT " + docCount,
                 Map.of("pragma", Map.of("page_size", pageSize), "accept_pragma_risks", true)
             );
@@ -175,23 +190,23 @@ public class ArrowInteropIT extends ESRestTestCase {
     private void assertColumns(String query, String expectedColumns) throws IOException {
         // Parsed the same way as the clients' output, so that numbers have the same Java types
         List<?> expected = (List<?>) parseJson("{\"columns\":" + resource("expected/" + expectedColumns + ".json") + "}").get("columns");
-        for (Language language : Language.values()) {
-            assertEquals("Columns decoded by " + language, expected, fetch(language, query).get("columns"));
+        for (ArrowInteropContainer client : clients()) {
+            assertEquals("Columns decoded by " + client.language(), expected, fetch(client, query).get("columns"));
         }
     }
 
-    /** Runs the query with the Arrow client of the given language, and returns the JSON it printed. */
-    private Map<String, Object> fetch(Language language, String query) throws IOException {
-        return fetch(language, query, Map.of());
+    /** Runs the query with the given Arrow client, and returns the JSON it printed. */
+    private Map<String, Object> fetch(ArrowInteropContainer client, String query) throws IOException {
+        return fetch(client, query, Map.of());
     }
 
     /** Same, with additional fields in the request body. */
-    private Map<String, Object> fetch(Language language, String query, Map<String, Object> extraBody) throws IOException {
+    private Map<String, Object> fetch(ArrowInteropContainer client, String query, Map<String, Object> extraBody) throws IOException {
         String url = "http://" + ArrowInteropContainer.HOST_ADDRESS + ":" + httpPort() + "/_query?format=arrow";
         String body = Strings.toString(
             JsonXContent.contentBuilder().startObject().field("query", query).mapContents(extraBody).endObject()
         );
-        return parseJson(ArrowInteropContainer.fetch(language, url, body));
+        return parseJson(client.fetch(url, body));
     }
 
     private int httpPort() {

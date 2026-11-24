@@ -392,16 +392,20 @@ public class SubscribableListenerTests extends ESTestCase {
 
     public void testIsFailed() {
         final var pending = new SubscribableListener<>();
+        assertFalse(pending.isDone());
         assertFalse(pending.isFailed());
 
         final var succeeded = SubscribableListener.newSucceeded("result");
+        assertTrue(succeeded.isDone());
         assertFalse(succeeded.isFailed());
 
         final var failed = SubscribableListener.newFailed(new ElasticsearchException("simulated"));
-        assertTrue(failed.isFailed());
+        assertTrue(failed.isDone());
         assertFalse(failed.isSuccess());
+        assertTrue(failed.isFailed());
 
         pending.onFailure(new ElasticsearchException("simulated"));
+        assertTrue(pending.isDone());
         assertTrue(pending.isFailed());
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -35,6 +35,10 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -56,14 +60,10 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
@@ -360,60 +360,28 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // An extractor over a window with nothing to extract reports hasNext() == false and next() would throw
             // NoSuchElementException (a 500); an empty window previews as an empty array.
             Optional<InputStream> inputStream = dataExtractor.hasNext() ? dataExtractor.next().data() : Optional.empty();
-            // Extractors write JSON objects separated only by whitespace: the search and aggregation extractors put several
-            // objects on one line, the ES|QL extractor writes one row per line with a leading space on later rows.
-            // Preview wraps them in square brackets and inserts a comma between objects.
-            StringBuilder responseBuilder = new StringBuilder("[");
-            if (inputStream.isPresent()) {
-                try (BufferedReader buffer = new BufferedReader(new InputStreamReader(inputStream.get(), StandardCharsets.UTF_8))) {
-                    appendCommaSeparatedObjects(buffer.lines().collect(Collectors.joining("\n")), responseBuilder);
+            // Extractors write JSON objects separated only by whitespace; preview returns them as one array.
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startArray();
+                if (inputStream.isPresent()) {
+                    try (
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream.get())
+                    ) {
+                        while (parser.nextToken() != null) {
+                            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                throw new IllegalStateException("expected a JSON object but found [" + parser.currentToken() + "]");
+                            }
+                            builder.copyCurrentStructure(parser);
+                        }
+                    }
                 }
+                builder.endArray();
+                listener.onResponse(new PreviewDatafeedAction.Response(BytesReference.bytes(builder)));
             }
-            responseBuilder.append("]");
-            listener.onResponse(
-                new PreviewDatafeedAction.Response(new BytesArray(responseBuilder.toString().getBytes(StandardCharsets.UTF_8)))
-            );
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
             dataExtractor.destroy();
-        }
-    }
-
-    /**
-     * Appends the top-level JSON objects of {@code text} separated by commas. A scan that tracks string literals is used,
-     * rather than a text replace, so a string value that contains a closing brace, a space and an opening brace is left unchanged.
-     */
-    private static void appendCommaSeparatedObjects(String text, StringBuilder out) {
-        int depth = 0;
-        boolean inString = false;
-        boolean escaped = false;
-        boolean objectWritten = false;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (depth == 0 && Character.isWhitespace(c)) {
-                continue;
-            }
-            if (depth == 0 && c == '{' && objectWritten) {
-                out.append(',');
-            }
-            out.append(c);
-            if (inString) {
-                if (escaped) {
-                    escaped = false;
-                } else if (c == '\\') {
-                    escaped = true;
-                } else if (c == '"') {
-                    inString = false;
-                }
-            } else if (c == '"') {
-                inString = true;
-            } else if (c == '{') {
-                depth++;
-            } else if (c == '}' && depth > 0) {
-                depth--;
-                objectWritten = depth == 0;
-            }
         }
     }
 }

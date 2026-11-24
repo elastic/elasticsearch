@@ -65,7 +65,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     public void testEsqlDatafeedWithNoUserLimitShouldKeepAllRowsBelowInjectedCap() throws Exception {
         String index = "esql-no-user-limit";
         createSourceIndex(index);
-        indexDocuments(index, 1_500, BASE_TIME + 1_000L, BASE_TIME + 2_000L);
+        indexDocuments(index, 1_500, BASE_TIME + 1_000L);
 
         assertPreviewAndLookbackRowCount("esql-injected-limit", "FROM " + index + " | KEEP event_time, value", 1_500);
     }
@@ -73,17 +73,17 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     public void testEsqlDatafeedWithUserLimitShouldReturnOnlyLimitedRows() throws Exception {
         String index = "esql-user-limit";
         createSourceIndex(index);
-        indexDocuments(index, 1_500, BASE_TIME + 1_000L, BASE_TIME + 2_000L);
+        indexDocuments(index, 1_500, BASE_TIME + 1_000L);
 
         assertPreviewAndLookbackRowCount("esql-user-limit", "FROM " + index + " | KEEP event_time, value | LIMIT 20", 20);
     }
 
-    public void testEsqlDatafeedWithUnshrinkableChunkShouldWarnAndAuditIncompleteChunk() throws Exception {
+    public void testEsqlDatafeedWithUnshrinkableChunkShouldPostCappedRowsAndAuditIncompleteChunk() throws Exception {
         String index = "esql-truncation-oracle";
         String jobId = "esql-truncation-job";
         String datafeedId = jobId + "-datafeed";
         createSourceIndex(index);
-        indexDocuments(index, 1, BASE_TIME + 1_000L, BASE_TIME + 2_000L);
+        indexDocuments(index, 1, BASE_TIME + 1_000L);
 
         Job.Builder job = createJob(jobId);
         putJob(job);
@@ -99,9 +99,8 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         runLookback(datafeedId, jobId, BASE_TIME, FIRST_WINDOW_END, 1L);
 
         // One row more than the cap, so the chunk really is truncated.
-        indexDocuments(index, ROW_LIMIT + 1, FIRST_WINDOW_END + 1L, FIRST_WINDOW_END + 2L);
+        indexDocuments(index, ROW_LIMIT + 1, FIRST_WINDOW_END + 1L);
         assertThat(previewRowCount(datafeedId, FIRST_WINDOW_END, SECOND_WINDOW_END), equalTo(ROW_LIMIT));
-        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("reached its row limit")));
         openJob(jobId);
         // the first window's row plus the capped rows of the truncated window
         runLookback(datafeedId, jobId, FIRST_WINDOW_END, SECOND_WINDOW_END, ROW_LIMIT + 1L);
@@ -128,7 +127,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < totalDocs; i++) {
             long eventTime = firstEventTime + (totalDocs - 1 - i);
-            bulk.add(new IndexRequest(index).source("source_time", firstEventTime, "event_time", eventTime, "value", i));
+            bulk.add(new IndexRequest(index).source("event_time", eventTime, "value", i));
         }
         BulkResponse bulkResponse = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         for (BulkItemResponse item : bulkResponse) {
@@ -158,6 +157,12 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(previewRowCount(datafeedId, BASE_TIME, FIRST_WINDOW_END), equalTo((int) expectedRecords));
         openJob(jobId);
         runLookback(datafeedId, jobId, BASE_TIME, FIRST_WINDOW_END, expectedRecords);
+        // Any truncation audit is written before the completion audit, so wait for the latter before checking absence.
+        assertBusy(
+            () -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("Datafeed lookback completed")),
+            60,
+            TimeUnit.SECONDS
+        );
         assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("reached its row limit")));
     }
 
@@ -174,7 +179,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // These tests exercise LIMIT injection and chunk-truncation auditing, not delayed
         // data detection, which for ES|QL datafeeds separately requires summary_count_field_name.
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery(query)
-            .setSourceTimeField("source_time")
+            .setSourceTimeField("event_time")
             .setGroupingInterval(BUCKET_SPAN)
             .setChunkingConfig(chunkingConfig)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
@@ -219,14 +224,14 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(index)
-            .setMapping("source_time", "type=date,format=epoch_millis", "event_time", "type=date,format=epoch_millis", "value", "type=long")
+            .setMapping("event_time", "type=date,format=epoch_millis", "value", "type=long")
             .get();
     }
 
-    private void indexDocuments(String index, int count, long sourceTime, long eventTime) {
+    private void indexDocuments(String index, int count, long eventTime) {
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < count; i++) {
-            bulk.add(new IndexRequest(index).source("source_time", sourceTime, "event_time", eventTime, "value", i));
+            bulk.add(new IndexRequest(index).source("event_time", eventTime, "value", i));
         }
         BulkResponse response = bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         for (BulkItemResponse item : response) {

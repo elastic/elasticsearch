@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -383,7 +384,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         TransportPreviewDatafeedAction.previewDatafeed(dataExtractor, actionListener);
 
-        assertThat(capturedResponse, equalTo("[{\"a\":1, \"b\":2},{\"c\":3, \"d\":4},{\"e\":5, \"f\":6}]"));
+        assertThat(capturedResponse, equalTo("[{\"a\":1,\"b\":2},{\"c\":3,\"d\":4},{\"e\":5,\"f\":6}]"));
         assertThat(capturedFailure, is(nullValue()));
         verify(dataExtractor).destroy();
     }
@@ -414,6 +415,14 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(capturedResponse, equalTo("[{\"a\":1},{\"b\":2}]"));
         assertThat(capturedFailure, is(nullValue()));
+    }
+
+    public void testNonObjectRootValueShouldFailPreview() throws IOException {
+        previewStream("{\"a\":1}\n 2\n");
+
+        assertThat(capturedResponse, is(nullValue()));
+        assertThat(capturedFailure, is(instanceOf(IllegalStateException.class)));
+        verify(dataExtractor).destroy();
     }
 
     private void previewStream(String streamAsString) throws IOException {

@@ -16,13 +16,27 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # The _doc order check needs every copy merged, but force merge fails on copies that are still recovering.
+            # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+            # keep a replica for stateless searches.
+            auto_expand_replicas: 0-1
             index.sort: "DATE_TRUNC(1 hour, @timestamp) DESC, host"
+            # ensure no relocation as tests rely on segments.
+            routing.rebalance.enable: "none"
           mappings:
             properties:
               "@timestamp":
                 type: date
               host:
                 type: keyword
+
+  - do:
+      cluster.health:
+        index: computed_sort
+        # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_status: green
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
 
   - do:
       indices.get_settings:

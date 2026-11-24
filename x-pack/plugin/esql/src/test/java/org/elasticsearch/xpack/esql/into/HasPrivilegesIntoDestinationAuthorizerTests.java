@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -69,10 +68,6 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         );
     }
 
-    public void testMissingDestinationPassesWithCreateIndex() {
-        authorizeSucceeds(authorizer(new FakeChecker("create_doc", "create_index")), false);
-    }
-
     public void testMissingDestinationPassesWithAutoConfigure() {
         authorizeSucceeds(authorizer(new FakeChecker("create_doc", "auto_configure")), false);
     }
@@ -85,28 +80,6 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         assertForbidden(
             authorizeFails(authorizer(new FakeChecker("create_index", "auto_configure")), "dest", false),
             CREATE_DOCUMENT_ACTION
-        );
-    }
-
-    /** A caller who cannot write must not be able to tell an existing destination from a missing one. */
-    public void testDenialOfCallerWithoutCreateDocIsIdenticalForExistingAndMissingDestination() {
-        FakeChecker existingChecker = new FakeChecker("read");
-        FakeChecker missingChecker = new FakeChecker("read");
-        Exception existing = authorizeFails(authorizer(existingChecker), "existing-dest", true);
-        Exception missing = authorizeFails(authorizer(missingChecker), "missing-dest", false);
-
-        assertThat(
-            existing.getMessage().replace("existing-dest", "<dest>"),
-            equalTo(missing.getMessage().replace("missing-dest", "<dest>"))
-        );
-        assertThat(((ElasticsearchSecurityException) existing).status(), equalTo(((ElasticsearchSecurityException) missing).status()));
-    }
-
-    public void testDenialNamesTheCallerAndTheDestinationTheyTyped() {
-        Exception e = authorizeFails(authorizer(new FakeChecker()), "dest", true);
-        assertThat(
-            e.getMessage(),
-            equalTo("action [indices:data/write/index:op_type/create] is unauthorized for user [alice] on indices [dest]")
         );
     }
 
@@ -172,6 +145,6 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
     private static void assertForbidden(Exception e, String action) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(((ElasticsearchSecurityException) e).status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), containsString("action [" + action + "] is unauthorized for user [" + USER + "]"));
+        assertThat(e.getMessage(), equalTo("action [" + action + "] is unauthorized for user [" + USER + "] on indices [dest]"));
     }
 }

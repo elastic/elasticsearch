@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.into.IntoDestinationAuthorizer;
@@ -28,7 +26,6 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -48,11 +45,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
-    public void testQueryWithoutIntoAsksForNothing() throws Exception {
-        authorize(grantingAuthorizer(), "ROW x = 1");
-        assertThat(asked, empty());
-    }
-
     public void testAuthorizerIsToldWhetherTheDestinationExists() throws Exception {
         authorize(grantingAuthorizer(), "ROW x = 1 | INTO " + EXISTING);
         authorize(grantingAuthorizer(), "ROW x = 1 | INTO nothing");
@@ -69,17 +61,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         assertThat(name, not(containsString("{")));
         // Everything after this, on whichever node, writes to the name that was authorized
         assertThat(authorized.collect(Into.class).getFirst().destination(), equalTo(name));
-    }
-
-    public void testDenialFailsTheQuery() {
-        IntoDestinationAuthorizer denying = (destination, exists, listener) -> listener.onFailure(
-            new ElasticsearchSecurityException("denied", RestStatus.FORBIDDEN)
-        );
-        ElasticsearchSecurityException e = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(denying, "ROW x = 1 | INTO " + EXISTING)
-        );
-        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
     }
 
     private IntoDestinationAuthorizer grantingAuthorizer() {

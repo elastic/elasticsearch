@@ -11,7 +11,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -124,7 +123,6 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -1073,7 +1071,7 @@ public class LocalExecutionPlanner {
                 String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
                 boolean discard = configuration.explainOnly();
                 if (discard == false) {
-                    requireBatchDestinationStillHolds(target);
+                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
                 }
                 IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
                     escfBulkService,
@@ -1090,25 +1088,6 @@ public class LocalExecutionPlanner {
             }
             case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
         };
-    }
-
-    /**
-     * The coordinator authorized the caller to write to the destination and reported what is wrong with it before it dispatched the
-     * query, so a failure here means the destination changed since. This node does not authorize the caller, and the specific reasons
-     * (an ingest pipeline, routing from a template) describe the destination, so they are not repeated: the failure only says that
-     * the query has to be run again.
-     */
-    private void requireBatchDestinationStillHolds(String target) {
-        try {
-            IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
-        } catch (ElasticsearchStatusException e) {
-            logger.debug(() -> Strings.format("INTO [%s] is no longer a batch destination", target), e);
-            throw new ElasticsearchStatusException(
-                "INTO [{}] can no longer be written as a batch, as its destination changed after the query was planned",
-                RestStatus.CONFLICT,
-                target
-            );
-        }
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {

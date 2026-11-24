@@ -203,7 +203,6 @@ public final class IntoPageWriter {
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             // The coordinator authorizes the caller's write access to the destination before it calls this (IntoDestinationAuthorizer).
-            // A node that plans the write does not, so it must not pass these specific errors on (see LocalExecutionPlanner).
             if (batchIndexingSupported == false) {
                 throw rejection("INTO [%s] requires batch indexing", target);
             }

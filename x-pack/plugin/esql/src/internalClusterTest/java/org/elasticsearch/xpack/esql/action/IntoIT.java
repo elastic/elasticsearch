@@ -97,7 +97,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void createDestination() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        assumeTrue("INTO command required", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         assumeTrue("INTO writes through batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         assertAcked(indicesAdmin().prepareCreate(DESTINATION).setSettings(batchIndexingSettings()).setMapping(MAPPING));
     }

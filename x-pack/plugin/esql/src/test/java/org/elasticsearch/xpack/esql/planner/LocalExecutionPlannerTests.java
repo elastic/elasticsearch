@@ -137,6 +137,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -154,6 +155,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -183,6 +185,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -2108,6 +2111,74 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(dataNode.refCounteds(), sameInstance(ConstantShardContextIndexedByShardId.INSTANCE));
     }
 
+    /**
+     * The coordinator authorized the caller and checked the destination before dispatching the query. A node that finds the destination
+     * no longer fit for a batch does not authorize the caller, so it must not say why: the reason (here an ingest pipeline) would
+     * describe a destination the caller may not be allowed to see.
+     */
+    public void testIntoWriteToADestinationThatChangedFailsWithoutSayingHow() throws IOException {
+        IndexMetadata withPipeline = IndexMetadata.builder("dest")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put("index.default_pipeline", "some-pipeline")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ProjectMetadata projectWithPipeline = ProjectMetadata.builder(randomProjectIdOrDefault()).put(withPipeline, false).build();
+        ProjectMetadata emptyProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+
+        assertIntoWriteConflicts(projectWithPipeline, () -> true);
+        assertIntoWriteConflicts(emptyProject, () -> false);
+    }
+
+    private void assertIntoWriteConflicts(ProjectMetadata project, BooleanSupplier batchIndexingSupported) throws IOException {
+        ReferenceAttribute x = new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        LocalSourceExec source = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(x),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 1 }, 1).asBlock()))
+        );
+        IntoExec into = new IntoExec(
+            Source.EMPTY,
+            source,
+            "dest",
+            List.of(x),
+            IntoStats.createAttributes(Source.EMPTY),
+            IntoExec.Mode.WRITE
+        );
+        LocalExecutionPlanner planner = planner(
+            null,
+            true,
+            null,
+            true,
+            null,
+            FetchOperatorProvider.UNSUPPORTED,
+            LocalExecutionPlanner.ExternalComputeContext.NONE,
+            Settings.EMPTY,
+            config(),
+            project,
+            batchIndexingSupported
+        );
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> planner.plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                into,
+                ConstantShardContextIndexedByShardId.INSTANCE,
+                false
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.getMessage(), containsString("can no longer be written as a batch"));
+        assertThat(e.getMessage(), not(containsString("pipeline")));
+        assertThat(e.getMessage(), not(containsString("batch indexing")));
+    }
+
     private static DocVectorEncoder docEncoder(LocalExecutionPlanner planner, PhysicalPlan topN) {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner.plan(
             "test",
@@ -2392,6 +2463,34 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         Settings extraNodeSettings,
         Configuration configuration
     ) throws IOException {
+        return planner(
+            operatorFactoryRegistry,
+            federationEnabled,
+            inferenceService,
+            snapshotBuild,
+            exchangeSourceSupplier,
+            fetchOperators,
+            externalCompute,
+            extraNodeSettings,
+            configuration,
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+            () -> false
+        );
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        FetchOperatorProvider fetchOperators,
+        LocalExecutionPlanner.ExternalComputeContext externalCompute,
+        Settings extraNodeSettings,
+        Configuration configuration,
+        ProjectMetadata projectMetadata,
+        BooleanSupplier batchIndexingSupported
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -2415,7 +2514,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+            projectMetadata,
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
             snapshotBuild,
@@ -2427,7 +2526,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // client - not needed for these tests
             externalCompute,
             null, // escfBulkService - not needed for these tests
-            () -> false,
+            batchIndexingSupported,
             null  // executionInfo - not needed for these tests
         );
     }

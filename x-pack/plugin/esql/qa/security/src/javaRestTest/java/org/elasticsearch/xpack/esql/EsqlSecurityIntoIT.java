@@ -52,7 +52,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         .build();
 
     @Before
-    public void requiresSnapshot() {
+    public void requiresIntoCommand() {
         assumeTrue("INTO command required", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName())));
     }
 

@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.usage;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -18,6 +19,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -27,10 +29,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 
 /**
  * Sends batches of usage records to the Usage API: a {@code POST} of a JSON array over mutual TLS, with the JDK client.
@@ -39,14 +46,16 @@ import java.util.function.Function;
  * touched and every failure that is not clearly the fault of one record leaves the records pending. The one exception is a batch
  * the Usage API rejects as invalid: it is split in halves, recursively, until the record that is rejected is alone, and only that
  * record is reported {@link PublishResult.FailureClass#INVALID}, so that it does not hold back the others. A batch of {@code n}
- * records needs at most {@code 2n - 1} requests.
+ * records needs at most {@code 2n - 1} requests. A rejection that is not followed by an accepted record is held, not dropped,
+ * because it probably is not the record's fault: see {@link #publish}.
  * <p>
- * The Usage API specification lists only the {@code 201} answer and no error code, so the mapping of statuses to failure classes
- * ({@link #classify}) is our inference, kept in one place so that it is easy to change. A {@code 2xx} answer means that the whole
- * batch was written: the API has no per-record answer.
+ * The OpenAPI specification of the Usage API lists only the {@code 201} answer. The statuses come from the documentation of the
+ * usage data pipeline (201, 400, 401, 403, 500 and 503) and are mapped to failure classes by {@link #classify}, in one place so
+ * that it is easy to change. A {@code 2xx} answer means that the whole batch was written: the API has no per-record answer.
  * <p>
  * It blocks, so it runs on the reporter thread only. The client is rebuilt when the SSL profile reloads, so that a renewed
- * certificate is used without a restart.
+ * certificate is used without a restart. The protocols and cipher suites of the profile are applied to the client; its
+ * {@code verification_mode} is not: the JDK client always verifies the host name of the server, whatever the profile says.
  */
 public final class HttpUsagePublisher implements UsagePublisher {
 
@@ -54,6 +63,8 @@ public final class HttpUsagePublisher implements UsagePublisher {
 
     /** How much of an error body goes into a failure message. */
     private static final int MAX_MESSAGE_BODY_CHARS = 200;
+    /** How many bytes of an error body are read; the rest of the answer is not downloaded. */
+    private static final int MAX_BODY_BYTES = 512;
 
     private final URI uri;
     private final TimeValue requestTimeout;
@@ -61,7 +72,11 @@ public final class HttpUsagePublisher implements UsagePublisher {
     private final Function<List<UsageRecord>, BytesReference> serializer;
     private final Object clientLock = new Object();
     private volatile HttpClient client;
+    /** The context the current client was built with; guarded by {@code clientLock} once the constructor has returned. */
+    private volatile SSLContext clientContext;
     private boolean closed;
+    /** See {@link #wholeBatchRetryable}; only the reporter thread publishes, one batch at a time. */
+    private volatile boolean suspect = true;
 
     public HttpUsagePublisher(UsageReportingSettings settings, SslProfile sslProfile) {
         this(URI.create(settings.url()), settings.requestTimeout(), sslProfile, UsageRecordJson::toJson);
@@ -77,6 +92,15 @@ public final class HttpUsagePublisher implements UsagePublisher {
         this.serializer = serializer;
         this.client = newClient();
         sslProfile.addReloadListener(this::onProfileReloaded);
+        // A reload between building the client and registering the listener is never notified: compare with the context in use now.
+        if (sslProfile.sslContext() != clientContext) {
+            onProfileReloaded(sslProfile);
+        }
+    }
+
+    /** The client in use, for tests that check how it is configured. */
+    HttpClient httpClient() {
+        return client;
     }
 
     @Override
@@ -122,27 +146,38 @@ public final class HttpUsagePublisher implements UsagePublisher {
                 }
             }
         }
-        return systematicRejection(records, accepted, failures) ? wholeBatchRetryable(failures) : new PublishResult(accepted, failures);
+        boolean everyRecordRejected = accepted.isEmpty()
+            && failures.size() == records.size()
+            && failures.stream().allMatch(f -> f.failureClass() == PublishResult.FailureClass.INVALID);
+        if (accepted.isEmpty() == false) {
+            suspect = false;
+        }
+        if (everyRecordRejected) {
+            boolean hold = records.size() > 1 || suspect;
+            suspect = true;
+            if (hold) {
+                return wholeBatchRetryable(records.size(), failures);
+            }
+        }
+        return new PublishResult(accepted, failures);
     }
 
     /**
-     * A batch of several records in which every single record was rejected does not look like several bad records but like a
-     * problem that is not the records' (a serializer bug, a schema or url problem): dropping all of them would lose a whole batch of
-     * usage for good. It is reported as a retryable failure of the whole batch instead, so that the records stay pending, bounded
-     * by the store, until someone notices. A single record that is rejected is still dropped: nothing says that it is not the bad one.
+     * What a rejection that no accepted record follows is held for: a record that the Usage API refuses is almost always the sign of
+     * a problem on our side or on the way (a serializer bug, a schema change, a gateway answering 400), not of one bad record, and
+     * dropping it would lose the usage of every period for good. So a batch in which every record is rejected is not dropped, and
+     * neither is a single rejected record while {@code suspect} is set. The flag starts set, is set again by every rejection of
+     * everything, and is cleared by any accepted record: a record that is really bad is then isolated and dropped by the next batch
+     * that holds an accepted one, and a systematic problem costs at most one record.
      */
-    private static boolean systematicRejection(List<UsageRecord> records, Set<String> accepted, List<PublishResult.Failure> failures) {
-        return records.size() > 1
-            && accepted.isEmpty()
-            && failures.size() == records.size()
-            && failures.stream().allMatch(f -> f.failureClass() == PublishResult.FailureClass.INVALID);
-    }
-
-    private static PublishResult wholeBatchRetryable(List<PublishResult.Failure> failures) {
-        String message = "the Usage API rejected every record of the batch, which looks like a problem that is not the records': "
-            + "they stay pending ("
-            + failures.get(0).message()
-            + ")";
+    private PublishResult wholeBatchRetryable(int size, List<PublishResult.Failure> failures) {
+        String message = size > 1
+            ? "the Usage API rejected every record of the batch, which looks like a problem that is not the records': "
+            : "the Usage API rejected the only record of the batch and no record has been accepted since the last rejection, which "
+                + "looks like a problem that is not the record's: ";
+        message += "they stay pending (" + failures.get(0).message() + ")";
+        // The reporter logs a retryable failure at debug level only, and nothing else tells that records are held.
+        logger.warn("{}", message);
         return new PublishResult(Set.of(), List.of(new PublishResult.Failure(Set.of(), PublishResult.FailureClass.RETRYABLE, message)));
     }
 
@@ -156,19 +191,16 @@ public final class HttpUsagePublisher implements UsagePublisher {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(BytesReference.toBytes(serializer.apply(batch))))
                 .build();
             // The request timeout of the JDK client ends when the headers arrive: the future bounds the whole exchange.
-            CompletableFuture<HttpResponse<String>> future = current.sendAsync(
-                request,
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
-            );
+            CompletableFuture<HttpResponse<String>> future = current.sendAsync(request, HttpUsagePublisher::bodySubscriber);
             try {
                 HttpResponse<String> response = future.get(requestTimeout.millis(), TimeUnit.MILLISECONDS);
                 return classify(response.statusCode(), response.body());
             } catch (TimeoutException e) {
-                FutureUtils.cancel(future);
+                cancelExchange(future);
                 return retryable("request to the Usage API timed out after [" + requestTimeout + "]");
             } catch (InterruptedException e) {
                 // Do not leave the request running after publish returns.
-                FutureUtils.cancel(future);
+                cancelExchange(future);
                 Thread.currentThread().interrupt();
                 return retryable("interrupted while sending usage records");
             }
@@ -228,12 +260,105 @@ public final class HttpUsagePublisher implements UsagePublisher {
     }
 
     private HttpClient newClient() {
-        return HttpClient.newBuilder()
-            .sslContext(sslProfile.sslContext())
+        SSLContext context = sslProfile.sslContext();
+        HttpClient built = HttpClient.newBuilder()
+            .sslContext(context)
+            .sslParameters(sslParameters(context, sslProfile.configuration()))
             .connectTimeout(Duration.ofMillis(requestTimeout.millis()))
             // One request at a time, so multiplexing has nothing to offer, and HTTP/1.1 avoids the cleartext upgrade handshake.
             .version(HttpClient.Version.HTTP_1_1)
             .build();
+        clientContext = context;
+        return built;
+    }
+
+    /**
+     * The protocols and cipher suites the profile allows: an {@code SSLContext} alone does not restrict them. The suites the JVM does
+     * not support are left out, as the SSL service does for its own connections.
+     */
+    private static SSLParameters sslParameters(SSLContext context, SslConfiguration configuration) {
+        SSLParameters parameters = new SSLParameters();
+        parameters.setProtocols(configuration.supportedProtocols().toArray(new String[0]));
+        List<String> supported = List.of(context.getSupportedSSLParameters().getCipherSuites());
+        String[] ciphers = configuration.getCipherSuites().stream().filter(supported::contains).toArray(String[]::new);
+        if (ciphers.length > 0) {
+            parameters.setCipherSuites(ciphers);
+        }
+        return parameters;
+    }
+
+    /**
+     * A success body is not read, and an error body keeps only its first bytes, for the message: the subscription is cancelled as soon
+     * as the bytes wanted have arrived, so that a large answer is neither buffered nor downloaded.
+     */
+    private static BoundedBodySubscriber bodySubscriber(HttpResponse.ResponseInfo info) {
+        boolean success = info.statusCode() >= 200 && info.statusCode() < 300;
+        return new BoundedBodySubscriber(success ? 0 : MAX_BODY_BYTES);
+    }
+
+    /**
+     * Aborts an exchange that has not finished, so that a request that timed out or was interrupted does not stay in flight, before
+     * or after the response headers (the stalled-body test covers the second case). The JDK client documents {@code cancel(true)}, and
+     * only that, as the way to do it; {@code CompletableFuture} gives the flag no other meaning, so no thread is interrupted.
+     */
+    @SuppressForbidden(reason = "cancel(true) is how the JDK HttpClient is told to abort an exchange; no thread is interrupted")
+    private static void cancelExchange(CompletableFuture<?> future) {
+        future.cancel(true);
+    }
+
+    /** Keeps the first {@code limit} bytes of the body as text, and cancels the subscription once they have arrived. */
+    static final class BoundedBodySubscriber implements HttpResponse.BodySubscriber<String> {
+        private final byte[] kept;
+        private int length;
+        private volatile Flow.Subscription subscription;
+        private final CompletableFuture<String> result = new CompletableFuture<>();
+
+        BoundedBodySubscriber(int limit) {
+            this.kept = new byte[limit];
+        }
+
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            this.subscription = subscription;
+            subscription.request(Long.MAX_VALUE);
+        }
+
+        @Override
+        public void onNext(List<ByteBuffer> buffers) {
+            if (result.isDone()) {
+                return;
+            }
+            for (ByteBuffer buffer : buffers) {
+                int n = Math.min(kept.length - length, buffer.remaining());
+                buffer.get(kept, length, n);
+                length += n;
+                buffer.position(buffer.limit());
+            }
+            if (length >= kept.length) {
+                // Enough: the rest of the body is not wanted, and cancelling lets the client release the connection.
+                subscription.cancel();
+                result.complete(text());
+            }
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+            result.completeExceptionally(throwable);
+        }
+
+        @Override
+        public void onComplete() {
+            result.complete(text());
+        }
+
+        private String text() {
+            return new String(kept, 0, length, StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public CompletionStage<String> getBody() {
+            return result;
+        }
     }
 
     /**

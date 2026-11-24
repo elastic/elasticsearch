@@ -25,7 +25,10 @@ public record PublishResult(Set<String> acceptedIds, List<Failure> failures) {
      * and an identity or certificate problem lasts and has to be noticed.
      */
     public enum FailureClass {
-        /** A network or TLS error, a 5xx, a 408 or a 429: the records stay pending and are sent again with the same ids. */
+        /**
+         * A network or TLS error, a timeout, a 5xx, a 408, a 429 or any status that is not known, and a batch in which every record is
+         * rejected (which points at a problem that is not the records'): the records stay pending and are sent again with the same ids.
+         */
         RETRYABLE,
         /** The Usage API rejected the record itself (400): it is dropped alone, with an error log, and never sent again. */
         INVALID,

@@ -13,13 +13,20 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
+import org.elasticsearch.common.ssl.EmptyKeyConfig;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.junit.After;
 import org.junit.Before;
@@ -28,7 +35,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,6 +48,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,7 +67,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Runs the real JDK client against a local plain-HTTP server (mutual TLS and the entitlements are checked end to end by the fake
@@ -88,6 +101,11 @@ public class HttpUsagePublisherTests extends ESTestCase {
     private final CountDownLatch releaseHandlers = new CountDownLatch(1);
     /** Maps the ids of a request to the status of the answer; {@code -1} drops the connection without answering. */
     private volatile Function<List<String>, Integer> statusFor = ids -> 201;
+    /** The status that makes the server send headers and then stall. */
+    private static final int STALL_BODY = -2;
+    private final CountDownLatch clientDropped = new CountDownLatch(1);
+    /** When positive, the size of the body of every answer. */
+    private volatile int answerBytes;
     private TestSslProfile profile;
     private HttpUsagePublisher publisher;
 
@@ -108,8 +126,12 @@ public class HttpUsagePublisherTests extends ESTestCase {
     }
 
     private HttpUsagePublisher newPublisher(TimeValue timeout) {
-        URI uri = URI.create("http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/api/v1/usage");
-        return new HttpUsagePublisher(uri, timeout, profile, SERIALIZER);
+        return new HttpUsagePublisher(uri(), timeout, profile, SERIALIZER);
+    }
+
+    /** Formatted with the brackets an IPv6 loopback address needs. */
+    private URI uri() {
+        return URI.create("http://" + NetworkAddress.format(server.getAddress()) + "/api/v1/usage");
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -117,6 +139,23 @@ public class HttpUsagePublisherTests extends ESTestCase {
         List<String> ids = body.isEmpty() ? List.of() : Arrays.asList(body.split(","));
         requests.add(new Request(exchange.getRequestMethod(), exchange.getRequestHeaders().getFirst("Content-Type"), ids));
         int status = statusFor.apply(ids);
+        if (status == STALL_BODY) {
+            // An error, then a body that trickles and never ends: the connection is dropped only if the client aborts the exchange.
+            exchange.sendResponseHeaders(503, 100L * 1024 * 1024);
+            try {
+                byte[] chunk = new byte[1];
+                while (true) {
+                    exchange.getResponseBody().write(chunk);
+                    exchange.getResponseBody().flush();
+                    Thread.sleep(50);
+                }
+            } catch (IOException e) {
+                clientDropped.countDown();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return;
+        }
         if (status < 0) {
             exchange.close();
             return;
@@ -130,7 +169,9 @@ public class HttpUsagePublisherTests extends ESTestCase {
             exchange.close();
             return;
         }
-        byte[] answer = status >= 400 ? "{\"error\":\"nope\"}".getBytes(StandardCharsets.UTF_8) : new byte[0];
+        byte[] answer = answerBytes > 0 ? "x".repeat(answerBytes).getBytes(StandardCharsets.UTF_8)
+            : status >= 400 ? "{\"error\":\"nope\"}".getBytes(StandardCharsets.UTF_8)
+            : new byte[0];
         exchange.sendResponseHeaders(status, answer.length == 0 ? -1 : answer.length);
         if (answer.length > 0) {
             exchange.getResponseBody().write(answer);
@@ -240,7 +281,9 @@ public class HttpUsagePublisherTests extends ESTestCase {
         PublishResult.Failure failure = result.failures().get(0);
         assertThat(failure.failureClass(), equalTo(PublishResult.FailureClass.INVALID));
         assertThat(failure.recordIds(), equalTo(Set.of(bad)));
-        assertThat(requests.size(), lessThanOrEqualTo(2 * count - 1));
+        // Bisection, not a scan: the root, then both halves of every level on the path to the bad record.
+        int levels = 32 - Integer.numberOfLeadingZeros(count - 1);
+        assertThat(requests.size(), lessThanOrEqualTo(1 + 2 * levels));
         assertIdsNeverChanged(batch);
     }
 
@@ -254,6 +297,22 @@ public class HttpUsagePublisherTests extends ESTestCase {
         // Bounded requests, but no record is reported INVALID: one retryable failure of the whole batch.
         assertWholeBatchFailure(result, PublishResult.FailureClass.RETRYABLE, "rejected every record");
         assertThat(requests, hasSize(2 * count - 1));
+    }
+
+    public void testHoldingAWholeBatchIsLoggedAsAWarning() throws Exception {
+        statusFor = ids -> 400;
+        try (MockLog mockLog = MockLog.capture(HttpUsagePublisher.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch held",
+                    HttpUsagePublisher.class.getCanonicalName(),
+                    Level.WARN,
+                    "the Usage API rejected every record of the batch*they stay pending*status [400]*"
+                )
+            );
+            publisher.publish(records(3));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testAllButOneRejectedStillIsolatesTheGoodRecord() {
@@ -272,13 +331,42 @@ public class HttpUsagePublisherTests extends ESTestCase {
         }
     }
 
-    public void testSingleRecordRejectedIsInvalid() {
+    public void testLoneRejectionIsHeldUntilARecordHasBeenAccepted() {
+        statusFor = ids -> ids.stream().anyMatch(id -> id.startsWith("bad")) ? 400 : 201;
+
+        // A fresh publisher has not seen a record accepted: the rejection may be ours, so the record stays.
+        assertWholeBatchFailure(publisher.publish(List.of(record("bad-1"))), PublishResult.FailureClass.RETRYABLE, "only record");
+        assertWholeBatchFailure(publisher.publish(List.of(record("bad-1"))), PublishResult.FailureClass.RETRYABLE, "status [400]");
+
+        // The next batch has a record that is accepted: the bad one is isolated and dropped now.
+        PublishResult mixed = publisher.publish(List.of(record("bad-1"), record("good-1")));
+        assertThat(mixed.acceptedIds(), equalTo(Set.of("good-1")));
+        assertThat(mixed.failures(), hasSize(1));
+        assertThat(mixed.failures().get(0).failureClass(), equalTo(PublishResult.FailureClass.INVALID));
+        assertThat(mixed.failures().get(0).recordIds(), equalTo(Set.of("bad-1")));
+
+        // After an accepted record a lone rejection is dropped once, and what follows it is held again.
+        PublishResult dropped = publisher.publish(List.of(record("bad-2")));
+        assertThat(dropped.failures().get(0).failureClass(), equalTo(PublishResult.FailureClass.INVALID));
+        assertThat(dropped.failures().get(0).recordIds(), equalTo(Set.of("bad-2")));
+        assertWholeBatchFailure(publisher.publish(List.of(record("bad-3"))), PublishResult.FailureClass.RETRYABLE, "only record");
+
+        // An accepted record clears it.
+        assertThat(publisher.publish(List.of(record("good-2"))).acceptedIds(), equalTo(Set.of("good-2")));
+        assertThat(
+            publisher.publish(List.of(record("bad-4"))).failures().get(0).failureClass(),
+            equalTo(PublishResult.FailureClass.INVALID)
+        );
+    }
+
+    public void testRetryableOrAuthFailureDoesNotChangeWhetherALoneRejectionIsHeld() {
+        statusFor = ids -> 201;
+        assertThat(publisher.publish(List.of(record("good"))).acceptedIds(), equalTo(Set.of("good")));
+        statusFor = ids -> 503;
+        publisher.publish(List.of(record("later")));
         statusFor = ids -> 400;
-        PublishResult result = publisher.publish(records(1));
-        assertThat(result.failures(), hasSize(1));
-        assertThat(result.failures().get(0).recordIds(), equalTo(Set.of("id-0")));
-        assertThat(result.failures().get(0).message(), containsString("400"));
-        assertThat(requests, hasSize(1));
+        // Still "after an accepted record": the first lone rejection is dropped.
+        assertThat(publisher.publish(List.of(record("bad"))).failures().get(0).failureClass(), equalTo(PublishResult.FailureClass.INVALID));
     }
 
     public void testOutageDuringIsolationKeepsTheUntriedRecordsPending() {
@@ -348,8 +436,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
     }
 
     public void testSerializationFailureIsRetryableAndSendsNothing() {
-        URI uri = URI.create("http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/api/v1/usage");
-        try (HttpUsagePublisher failing = new HttpUsagePublisher(uri, TimeValue.timeValueSeconds(10), profile, records -> {
+        try (HttpUsagePublisher failing = new HttpUsagePublisher(uri(), TimeValue.timeValueSeconds(10), profile, records -> {
             throw new UnsupportedOperationException("not yet");
         })) {
             assertWholeBatchFailure(failing.publish(records(2)), PublishResult.FailureClass.RETRYABLE, "not yet");
@@ -358,18 +445,37 @@ public class HttpUsagePublisherTests extends ESTestCase {
     }
 
     public void testProfileReloadBuildsANewClientAndKeepsPublishing() {
-        assertThat(profile.sslContextCalls.get(), equalTo(1));
+        SSLContext before = publisher.httpClient().sslContext();
+        assertThat(before, sameInstance(profile.current));
         profile.reload();
-        assertThat(profile.sslContextCalls.get(), equalTo(2));
+        assertThat(publisher.httpClient().sslContext(), sameInstance(profile.current));
+        assertThat(publisher.httpClient().sslContext(), not(sameInstance(before)));
         List<UsageRecord> batch = records(3);
         assertThat(publisher.publish(batch).acceptedIds(), equalTo(ids(batch)));
     }
 
+    public void testReloadBetweenBuildingTheClientAndRegisteringTheListenerIsNotLost() {
+        // The profile reloads while the listener is being registered, which is after the client was built.
+        profile.rotateOnRegistration = true;
+        try (HttpUsagePublisher racing = newPublisher(TimeValue.timeValueSeconds(10))) {
+            assertThat(racing.httpClient().sslContext(), sameInstance(profile.current));
+        }
+    }
+
     public void testReloadAfterCloseDoesNothing() {
+        SSLContext before = publisher.httpClient().sslContext();
         publisher.close();
         publisher.close();
         profile.reload();
-        assertThat(profile.sslContextCalls.get(), equalTo(1));
+        assertThat(publisher.httpClient().sslContext(), sameInstance(before));
+    }
+
+    public void testProtocolsAndCipherSuitesOfTheProfileAreApplied() {
+        assertThat(Arrays.asList(publisher.httpClient().sslParameters().getProtocols()), equalTo(List.of("TLSv1.3")));
+        assertThat(Arrays.asList(publisher.httpClient().sslParameters().getCipherSuites()), equalTo(List.of("TLS_AES_256_GCM_SHA384")));
+        profile.protocols = List.of("TLSv1.2", "TLSv1.3");
+        profile.reload();
+        assertThat(Arrays.asList(publisher.httpClient().sslParameters().getProtocols()), equalTo(List.of("TLSv1.2", "TLSv1.3")));
     }
 
     public void testPublishAfterCloseIsRetryable() {
@@ -387,6 +493,62 @@ public class HttpUsagePublisherTests extends ESTestCase {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    public void testBodyThatNeverEndsIsAbortedAfterTheTimeout() throws Exception {
+        statusFor = ids -> STALL_BODY;
+        try (HttpUsagePublisher slow = newPublisher(TimeValue.timeValueSeconds(1))) {
+            assertWholeBatchFailure(slow.publish(records(2)), PublishResult.FailureClass.RETRYABLE, null);
+            assertTrue("the connection of the request is released", clientDropped.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testLargeAnswersDoNotPreventAcceptingOrRetrying() {
+        answerBytes = 2 * 1024 * 1024;
+        statusFor = ids -> 201;
+        List<UsageRecord> batch = records(2);
+        assertThat(publisher.publish(batch).acceptedIds(), equalTo(ids(batch)));
+
+        statusFor = ids -> 503;
+        assertWholeBatchFailure(publisher.publish(batch), PublishResult.FailureClass.RETRYABLE, "503");
+    }
+
+    public void testBodySubscriberKeepsOnlyTheStartAndCancelsOnceItHasIt() throws Exception {
+        RecordingSubscription subscription = new RecordingSubscription();
+        HttpUsagePublisher.BoundedBodySubscriber subscriber = new HttpUsagePublisher.BoundedBodySubscriber(10);
+        subscriber.onSubscribe(subscription);
+        assertThat(subscription.requested, equalTo(Long.MAX_VALUE));
+
+        subscriber.onNext(List.of(ByteBuffer.wrap("abcdef".getBytes(StandardCharsets.UTF_8))));
+        assertFalse("not enough yet", subscription.cancelled);
+        ByteBuffer rest = ByteBuffer.wrap("ghijklmnop".getBytes(StandardCharsets.UTF_8));
+        subscriber.onNext(List.of(rest));
+
+        assertTrue("the rest of the body is not wanted", subscription.cancelled);
+        assertThat(rest.hasRemaining(), equalTo(false));
+        assertThat(subscriber.getBody().toCompletableFuture().get(), equalTo("abcdefghij"));
+        subscriber.onNext(List.of(ByteBuffer.wrap("more".getBytes(StandardCharsets.UTF_8))));
+        subscriber.onComplete();
+        assertThat(subscriber.getBody().toCompletableFuture().get(), equalTo("abcdefghij"));
+    }
+
+    public void testBodySubscriberOfASuccessReadsNothing() throws Exception {
+        RecordingSubscription subscription = new RecordingSubscription();
+        HttpUsagePublisher.BoundedBodySubscriber subscriber = new HttpUsagePublisher.BoundedBodySubscriber(0);
+        subscriber.onSubscribe(subscription);
+        subscriber.onNext(List.of(ByteBuffer.wrap("created".getBytes(StandardCharsets.UTF_8))));
+        assertTrue(subscription.cancelled);
+        assertThat(subscriber.getBody().toCompletableFuture().get(), equalTo(""));
+    }
+
+    public void testBodySubscriberOfAShortBodyKeepsItAll() throws Exception {
+        HttpUsagePublisher.BoundedBodySubscriber subscriber = new HttpUsagePublisher.BoundedBodySubscriber(512);
+        RecordingSubscription subscription = new RecordingSubscription();
+        subscriber.onSubscribe(subscription);
+        subscriber.onNext(List.of(ByteBuffer.wrap("{\"error\":\"nope\"}".getBytes(StandardCharsets.UTF_8))));
+        subscriber.onComplete();
+        assertFalse(subscription.cancelled);
+        assertThat(subscriber.getBody().toCompletableFuture().get(), equalTo("{\"error\":\"nope\"}"));
     }
 
     public void testClassifyTable() {
@@ -420,36 +582,80 @@ public class HttpUsagePublisherTests extends ESTestCase {
     }
 
     /**
+     * The JDK client creates the subscription of a real response and gives no way to build one, so the subscriber is fed by hand: this
+     * records what the subscriber asks of it.
+     */
+    private static final class RecordingSubscription implements Flow.Subscription {
+        long requested;
+        boolean cancelled;
+
+        @Override
+        public void request(long n) {
+            requested = n;
+        }
+
+        @Override
+        public void cancel() {
+            cancelled = true;
+        }
+    }
+
+    /**
      * A stand-in for the real profile, which only x-pack-core can build from an SSL configuration and certificate files: the
      * publisher uses nothing but {@code sslContext()} and the reload listener, which this implements for real. The server of these
      * tests is plain HTTP, so the context is never used for a handshake.
      */
     private static final class TestSslProfile implements SslProfile {
-        final AtomicInteger sslContextCalls = new AtomicInteger();
+        volatile SSLContext current = newContext();
+        volatile List<String> protocols = List.of("TLSv1.3");
+        /** When set, the next listener registration is preceded by a reload, as if it raced with the constructor. */
+        volatile boolean rotateOnRegistration;
         private final List<Consumer<SslProfile>> listeners = new ArrayList<>();
 
-        @Override
-        public SSLContext sslContext() {
-            sslContextCalls.incrementAndGet();
+        private static SSLContext newContext() {
             try {
-                return SSLContext.getDefault();
-            } catch (NoSuchAlgorithmException e) {
+                SSLContext context = SSLContext.getInstance("TLS");
+                context.init(null, null, null);
+                return context;
+            } catch (NoSuchAlgorithmException | KeyManagementException e) {
                 throw new AssertionError(e);
             }
         }
 
         @Override
+        public SSLContext sslContext() {
+            return current;
+        }
+
+        @Override
         public void addReloadListener(Consumer<SslProfile> listener) {
+            if (rotateOnRegistration) {
+                rotateOnRegistration = false;
+                current = newContext();
+            }
             listeners.add(listener);
         }
 
+        /** A reload: a new context, and the listeners are told. */
         void reload() {
+            current = newContext();
             listeners.forEach(l -> l.accept(this));
         }
 
         @Override
         public SslConfiguration configuration() {
-            throw new UnsupportedOperationException();
+            return new SslConfiguration(
+                "xpack.esql.usage_reporting.ssl",
+                true,
+                DefaultJdkTrustConfig.DEFAULT_INSTANCE,
+                EmptyKeyConfig.INSTANCE,
+                SslVerificationMode.FULL,
+                SslClientAuthenticationMode.NONE,
+                // The second suite does not exist: it checks that suites the JVM does not support are left out.
+                List.of("TLS_AES_256_GCM_SHA384", "NOT_A_CIPHER_SUITE"),
+                protocols,
+                10_000L
+            );
         }
 
         @Override

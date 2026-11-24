@@ -70,7 +70,7 @@ Either this parameter or `word_list` must be specified.
 `only_longest_match`
 :   (Optional, Boolean) If `true`, only include the longest matching subword at each position. Defaults to `false`.
 
-{applies_to}`stack: ga 9.8` If the index was created on or after 9.8.0, it will also skip subwords that start inside a match.
+{applies_to}`stack: ga 9.8` If the index was created on or after 9.8.0, `only_longest_match: true` also skip subwords that start inside a match.
 
 
 ## Customize and add to an analyzer [analysis-dict-decomp-tokenfilter-customize]

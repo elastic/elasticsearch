@@ -2,19 +2,19 @@ area: Analysis
 breaking:
   area: Analysis
   details: >-
-    Newly created indices with `only_longest_match: true` have new behavior - the filter now emits the longest match at each position,
+    Newly created indices with `only_longest_match` set to `true` have new behavior - the filter now emits the longest match at each position,
     and skips subsequent matches within that already-emitted subword. Existing indices keep the previous matching behavior for both indexing
     and search, including for documents added later.
   impact: >-
-    Existing indices retain their previous behavior. Searches on a new index that use `only_longest_match: true` no longer match
+    Existing indices retain their previous behavior. Searches on a new index that use `only_longest_match` set to `true` no longer match
     documents on a subword that starts inside a longer dictionary match. To use the new behavior for existing data, reindex it into a new index.
     Additionally, applications that depend on the exact tokens produced by a
-    `dictionary_decompounder` filter with `only_longest_match: true` should test their analysis output before creating or rolling
+    `dictionary_decompounder` filter with `only_longest_match` set to `true` should test their analysis output before creating or rolling
     over to a new index. Analyze API requests that do not specify an index use the new behavior.
   notable: false
-  title: Behavior change for `only_longest_match: true` in the `dictionary_decompounder` filter for newly created indices
+  title: Behavior change for `only_longest_match` in the `dictionary_decompounder` filter for newly created indices
 issues:
  - 163528
 pr: 166679
-summary: Behavior change for `only_longest_match: true` in the `dictionary_decompounder` filter for newly created indices
+summary: Behavior change for `only_longest_match` in the `dictionary_decompounder` filter for newly created indices
 type: breaking

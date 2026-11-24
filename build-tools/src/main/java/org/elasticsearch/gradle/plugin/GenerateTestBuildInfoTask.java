@@ -302,26 +302,43 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * and matches the one used by {@link #extractClassNameFromJar(JarFile)}; keep the two in sync.
      */
     private String extractClassNameFromDirectory(File dir) throws IOException {
-        var visitor = new SimpleFileVisitor<Path>() {
-            String result = null;
-
-            @Override
-            public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
-                String name = candidate.getFileName().toString(); // Just the part after the last dir separator
-                if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
-                    String relative = candidate.toAbsolutePath()
-                        .toString()
-                        .substring(dir.getAbsolutePath().length() + 1)
-                        .replace(File.separatorChar, '/');
-                    if (result == null || relative.compareTo(result) < 0) {
-                        result = relative;
-                    }
-                }
-                return CONTINUE;
-            }
-        };
+        var visitor = new RepresentativeClassVisitor(dir);
         Files.walkFileTree(dir.toPath(), visitor);
-        return visitor.result;
+        return visitor.result();
+    }
+
+    /**
+     * Collects the representative class of a directory class path entry while its files are visited.
+     * Visits every file rather than stopping at the first match so that the result does not depend
+     * on the (filesystem dependent) visit order. Package-private so tests can drive it with a known visit order.
+     */
+    static final class RepresentativeClassVisitor extends SimpleFileVisitor<Path> {
+        private final String rootPath;
+        private String result;
+
+        RepresentativeClassVisitor(File root) {
+            this.rootPath = root.getAbsolutePath();
+        }
+
+        @Override
+        public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
+            String name = candidate.getFileName().toString(); // Just the part after the last dir separator
+            if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
+                String relative = candidate.toAbsolutePath().toString().substring(rootPath.length() + 1).replace(File.separatorChar, '/');
+                if (result == null || relative.compareTo(result) < 0) {
+                    result = relative;
+                }
+            }
+            return CONTINUE;
+        }
+
+        /**
+         * @return the lexicographically smallest eligible class path, relative to the root and using {@code '/'} separators,
+         * or null if no eligible class was visited
+         */
+        String result() {
+            return result;
+        }
     }
 
     /**

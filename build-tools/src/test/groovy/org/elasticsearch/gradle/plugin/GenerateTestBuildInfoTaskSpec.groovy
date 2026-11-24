@@ -16,6 +16,8 @@ import org.objectweb.asm.Opcodes
 import spock.lang.Specification
 import spock.lang.TempDir
 
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 
@@ -24,29 +26,50 @@ class GenerateTestBuildInfoTaskSpec extends Specification {
     @TempDir
     File tmp
 
-    def "representative class is the lexicographically smallest regardless of directory content order"() {
+    /**
+     * Drives the directory visitor with an explicit, non-lexicographic visit order: the first eligible class
+     * visited is {@code z/Last.class}, so a first-match implementation would pick it. The excluded descriptors
+     * and inner class all sort before the expected winner, so removing any of those filters fails the test.
+     */
+    def "directory representative class is the lexicographically smallest for a known non-lexicographic visit order"() {
         given:
         def classes = new File(tmp, "classes")
-        // many sibling directories so that the walk order is very unlikely to coincide with the lexicographic order
-        def names = (1..50).collect { "pkg${it}/Cls${it}.class".toString() }
-        names += ["z/Last.class", "m/Middle.class", "a/b/First.class", "a/First\$Inner.class", "module-info.class", "a/module-info.class"]
-        names.reverse().each {
-            def f = new File(classes, it)
-            f.parentFile.mkdirs()
-            // module-info.class files are parsed to find the module name, so they must be valid
-            f.bytes = it.endsWith("module-info.class") ? moduleInfoBytes() : "x".bytes
+        def visitOrder = ["z/Last.class", "a/module-info.class", "n/b/First.class", "o/Middle.class", "module-info.class",
+                          "a/First\$Inner.class", "a/Readme.txt"]
+        def visitor = new GenerateTestBuildInfoTask.RepresentativeClassVisitor(classes)
+
+        when:
+        visitOrder.each {
+            def path = writeFile(classes, it).toPath()
+            visitor.visitFile(path, Files.readAttributes(path, BasicFileAttributes))
         }
 
+        then:
+        visitor.result() == "n/b/First.class"
+    }
+
+    def "directory representative class is the lexicographically smallest when walking the file tree"() {
+        given:
+        def classes = new File(tmp, "classes")
+        // The walk order is filesystem dependent, so this only complements the explicit-order test above:
+        // the expected winner is created last so that filesystems returning entries in insertion order visit it last.
+        def names = (1..50).collect { "pkg${it}/Cls${it}.class".toString() }
+        names += ["z/Last.class", "o/Middle.class", "a/First\$Inner.class", "a/module-info.class", "module-info.class",
+                  "n/b/First.class"]
+        names.each { writeFile(classes, it) }
+
         expect:
-        generate(classes).contains('"representative_class" : "a/b/First.class"')
+        generate(classes).contains('"representative_class" : "n/b/First.class"')
     }
 
     def "representative class is the lexicographically smallest regardless of jar entry order"() {
         given:
         def jar = new File(tmp, "some-lib-1.0.jar")
         new JarOutputStream(new FileOutputStream(jar)).withCloseable { out ->
-            ["z/Last.class", "m/Middle.class", "a/First.class", "a/First\$Inner.class", "META-INF/Aaa.class",
-             "module-info.class", "a/module-info.class"].each {
+            // module-info.class, META-INF and inner class entries all sort before the expected winner,
+            // so removing any of those filters fails the test
+            ["z/Last.class", "o/Middle.class", "n/First.class", "a/First\$Inner.class", "META-INF/Aaa.class",
+             "module-info.class"].each {
                 out.putNextEntry(new JarEntry(it))
                 out.write(it.endsWith("module-info.class") ? moduleInfoBytes() : [1] as byte[])
                 out.closeEntry()
@@ -54,7 +77,15 @@ class GenerateTestBuildInfoTaskSpec extends Specification {
         }
 
         expect:
-        generate(jar).contains('"representative_class" : "a/First.class"')
+        generate(jar).contains('"representative_class" : "n/First.class"')
+    }
+
+    private static File writeFile(File root, String name) {
+        def f = new File(root, name)
+        f.parentFile.mkdirs()
+        // module-info.class files are parsed to find the module name, so they must be valid
+        f.bytes = name.endsWith("module-info.class") ? moduleInfoBytes() : "x".bytes
+        return f
     }
 
     private static byte[] moduleInfoBytes() {

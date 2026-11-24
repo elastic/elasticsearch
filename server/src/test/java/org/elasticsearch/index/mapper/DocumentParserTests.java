@@ -2488,6 +2488,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // object notation keeps working
         ParsedDocument doc = mapper.parse(source("{\"n\": {\"f\": {\"key\": \"a\"}}}"));
         assertEquals(2, doc.docs().size());
+        // the flattened value ends up in the nested document, not in the root document
+        assertNotNull(doc.docs().get(0).getField("n.f._keyed"));
+        assertNull(doc.rootDoc().getField("n.f._keyed"));
 
         for (String json : List.of("{\"n.f.key\": \"a\"}", "{\"n.f\": {\"key\": \"a\"}}")) {
             DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(json)));

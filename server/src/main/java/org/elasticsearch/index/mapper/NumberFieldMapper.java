@@ -2662,7 +2662,11 @@ public class NumberFieldMapper extends FieldMapper {
             if (upTo == 0) {
                 return Queries.newMatchNoDocsQuery("No value can match a [" + type.typeName() + "] field");
             }
-            return SortedNumericDocValuesField.newSlowSetQuery(name(), Arrays.copyOf(v, upTo));
+            long[] keys = Arrays.stream(v, 0, upTo).distinct().sorted().toArray();
+            if (keys.length == 1) {
+                return SortedNumericDocValuesField.newSlowRangeQuery(name(), keys[0], keys[0]);
+            }
+            return SortedNumericDocValuesField.newSlowSetQuery(name(), keys);
         }
 
         /** Returns the numeric type of this field. */

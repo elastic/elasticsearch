@@ -130,7 +130,12 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             assertTrue(ft.termsQuery(List.of(), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
         }
         MappedFieldType byteFt = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE, false, true);
-        assertEquals(SortedNumericDocValuesField.newSlowSetQuery("field", 1), byteFt.termsQuery(Arrays.asList(1, 1000), MOCK_CONTEXT));
+        assertEquals(SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 1), byteFt.termsQuery(Arrays.asList(1, 1000), MOCK_CONTEXT));
+        assertEquals(
+            SortedNumericDocValuesField.newSlowRangeQuery("field", 7, 7),
+            byteFt.termsQuery(Arrays.asList(7, 7.0, "7"), MOCK_CONTEXT)
+        );
+        assertEquals(SortedNumericDocValuesField.newSlowSetQuery("field", 1, 7), byteFt.termsQuery(Arrays.asList(7, 1, 7), MOCK_CONTEXT));
         assertTrue(byteFt.termsQuery(List.of(1000), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
         MappedFieldType longFt = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG, false, true);
         assertEquals(

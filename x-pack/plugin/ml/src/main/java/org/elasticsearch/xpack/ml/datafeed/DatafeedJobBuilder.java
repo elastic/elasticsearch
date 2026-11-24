@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -44,11 +41,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_CYCLES;
 import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_FLOOR;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
-import static org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction.skipsRemoteClusterChecks;
 
 public class DatafeedJobBuilder {
-
-    private static final Logger logger = LogManager.getLogger(DatafeedJobBuilder.class);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -64,7 +58,6 @@ public class DatafeedJobBuilder {
     // here and silently strip the cloud token from the datafeed runner's field_caps probe.
     private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
     private final DatafeedSearchTelemetry searchTelemetry;
-    private final EsqlDatafeedQueryValidator esqlQueryValidator;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -82,36 +75,6 @@ public class DatafeedJobBuilder {
         Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
         DatafeedSearchTelemetry searchTelemetry
     ) {
-        this(
-            client,
-            xContentRegistry,
-            auditor,
-            annotationPersister,
-            currentTimeSupplier,
-            jobResultsPersister,
-            settings,
-            clusterService,
-            cloudCredentialManagerSupplier,
-            searchTelemetry,
-            new EsqlDatafeedQueryValidator()
-        );
-    }
-
-    // visible for testing
-    DatafeedJobBuilder(
-        Client client,
-        NamedXContentRegistry xContentRegistry,
-        AnomalyDetectionAuditor auditor,
-        AnnotationPersister annotationPersister,
-        Supplier<Long> currentTimeSupplier,
-        JobResultsPersister jobResultsPersister,
-        Settings settings,
-        ClusterService clusterService,
-        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
-        DatafeedSearchTelemetry searchTelemetry,
-        EsqlDatafeedQueryValidator esqlQueryValidator
-    ) {
-        this.esqlQueryValidator = Objects.requireNonNull(esqlQueryValidator);
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);
@@ -160,7 +123,7 @@ public class DatafeedJobBuilder {
             jobResultsPersister::persistDatafeedTimingStats
         );
 
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
 
@@ -206,7 +169,7 @@ public class DatafeedJobBuilder {
             listener.onFailure(enriched);
         });
 
-        Runnable createDataExtractorFactory = () -> DataExtractorFactory.create(
+        DataExtractorFactory.create(
             parentTaskAssigningClient,
             cloudCredentialManagerSupplier.get(),
             effectiveDatafeedConfig,
@@ -216,44 +179,6 @@ public class DatafeedJobBuilder {
             timingStatsReporter,
             searchTelemetry,
             dataExtractorFactoryHandler
-        );
-
-        if (remoteClusterClient
-            || datafeedConfig.getEsqlQuery() == null
-            || skipsRemoteClusterChecks(effectiveDatafeedConfig, crossProjectModeDecider)) {
-            createDataExtractorFactory.run();
-            return;
-        }
-        // An ES|QL datafeed has no index list, so ask ES|QL for its remote sources. This node cannot reach remote clusters.
-        esqlQueryValidator.validateAtStart(
-            cloudCredentialManagerSupplier.get().wrapClient(parentTaskAssigningClient, cloudCredential),
-            datafeedConfig.getHeaders(),
-            datafeedConfig.getEsqlQuery(),
-            effectiveDatafeedConfig.getProjectRouting(),
-            job.getDataDescription().getTimeField(),
-            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeedConfig, job),
-            ActionListener.wrap(remoteIndices -> {
-                if (remoteIndices.isEmpty() == false) {
-                    dataExtractorFactoryHandler.onFailure(
-                        ExceptionsHelper.badRequestException(
-                            Messages.getMessage(
-                                Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                                datafeedConfig.getId(),
-                                remoteIndices,
-                                clusterService.getNodeName()
-                            )
-                        )
-                    );
-                } else {
-                    createDataExtractorFactory.run();
-                }
-            }, e -> {
-                // The master validated the query at start. A transient probe failure must not stop a datafeed that reads local indices,
-                // and extraction reports and retries its own errors.
-                logger.debug(() -> "[" + datafeedConfig.getId() + "] ES|QL remote source probe failed. Creating the extractor.", e);
-                createDataExtractorFactory.run();
-            }),
-            datafeedConfig.getId()
         );
     }
 
@@ -286,7 +211,7 @@ public class DatafeedJobBuilder {
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
-        if (failListenerOnPreflightValidation(datafeedConfig, job, listener)) {
+        if (failListenerOnPreflightValidation(task, datafeedConfig, job, listener)) {
             return;
         }
         var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(crossProjectModeDecider, null);
@@ -368,9 +293,14 @@ public class DatafeedJobBuilder {
         listener.onResponse(datafeedJob);
     }
 
-    private boolean failListenerOnPreflightValidation(DatafeedConfig datafeedConfig, Job job, ActionListener<DatafeedJob> listener) {
+    private boolean failListenerOnPreflightValidation(
+        TransportStartDatafeedAction.DatafeedTask task,
+        DatafeedConfig datafeedConfig,
+        Job job,
+        ActionListener<DatafeedJob> listener
+    ) {
         try {
-            checkRemoteIndicesAreAvailable(datafeedConfig);
+            checkRemoteIndicesAreAvailable(task, datafeedConfig);
             DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
@@ -380,13 +310,14 @@ public class DatafeedJobBuilder {
     }
 
     // visible for testing
-    void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
+    void checkRemoteIndicesAreAvailable(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
-            // ES|QL sources are in esql_query, not indices; build() probes them instead.
-            if (datafeedConfig.getIndices() == null) {
+            // An ES|QL datafeed has no indices in its config. Its remote sources are in the start parameters, set by the master.
+            List<String> sources = datafeedConfig.getEsqlQuery() == null ? datafeedConfig.getIndices() : task.getDatafeedIndices();
+            if (sources == null) {
                 return;
             }
-            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
+            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(sources);
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(

@@ -213,6 +213,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             return null;
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
         TransportStartDatafeedAction.checkEsqlSourcesAtStart(
             validator,
@@ -221,10 +222,12 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             effective,
             newJob(),
             new CrossProjectModeDecider(Settings.EMPTY),
+            params,
             future
         );
 
         assertThat(future.actionGet(), sameInstance(remote));
+        assertThat(params.getDatafeedIndices(), equalTo(remote));
         // cross-project search is off, so the persisted project routing is inert and must not reach ES|QL
         verify(validator).validateAtStart(
             same(probeClient),
@@ -246,6 +249,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             return null;
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
         TransportStartDatafeedAction.checkEsqlSourcesAtStart(
             validator,
@@ -254,10 +258,12 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             datafeed,
             newJob(),
             new CrossProjectModeDecider(Settings.EMPTY),
+            params,
             future
         );
 
         expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(params.getDatafeedIndices(), equalTo(List.of()));
     }
 
     public void testCheckEsqlSourcesAtStartWithCrossProjectEnabledShouldNotProbe() {
@@ -268,12 +274,39 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
 
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
         PlainActionFuture<List<String>> future = new PlainActionFuture<>();
-        TransportStartDatafeedAction.checkEsqlSourcesAtStart(validator, mock(Client.class), datafeed, datafeed, newJob(), decider, future);
+        TransportStartDatafeedAction.checkEsqlSourcesAtStart(
+            validator,
+            mock(Client.class),
+            datafeed,
+            datafeed,
+            newJob(),
+            decider,
+            params,
+            future
+        );
 
         assertThat(future.actionGet(), equalTo(List.of()));
+        assertThat(params.getDatafeedIndices(), equalTo(List.of()));
         verifyNoInteractions(validator);
         assertThat(TransportStartDatafeedAction.skipsRemoteClusterChecks(datafeed, decider), is(true));
+    }
+
+    public void testDatafeedTaskShouldExposeDatafeedIndicesFromParams() {
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
+        params.setDatafeedIndices(List.of("east:logs-*"));
+
+        TransportStartDatafeedAction.DatafeedTask task = createDatafeedTask(
+            1L,
+            "type",
+            "action",
+            new TaskId("node", 1L),
+            params,
+            mock(DatafeedRunner.class)
+        );
+
+        assertThat(task.getDatafeedIndices(), equalTo(List.of("east:logs-*")));
     }
 
     private static DatafeedConfig.Builder newEsqlDatafeed() {

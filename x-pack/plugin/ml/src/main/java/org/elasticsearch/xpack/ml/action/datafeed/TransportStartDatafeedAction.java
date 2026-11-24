@@ -234,9 +234,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             Messages.getMessage(
                                 Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
                                 datafeedConfigHolder.get().getId(),
-                                datafeedConfigHolder.get().getEsqlQuery() == null
-                                    ? RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices())
-                                    : remoteIndices,
+                                RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
                                 clusterService.getNodeName()
                             )
                         )
@@ -303,8 +301,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 effectiveDatafeed,
                 job,
                 crossProjectModeDecider,
+                params,
                 ActionListener.wrap(
-                    remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, remoteIndices),
+                    remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, trueRemoteIndices(params.getDatafeedIndices())),
                     responseHeaderPreservingListener::onFailure
                 )
             );
@@ -374,8 +373,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     /**
-     * Probes the query of an ES|QL datafeed and passes the remote sources it reads to {@code listener}. Cross-project mode has
-     * projects, not remote clusters, so it has nothing to probe or check.
+     * Probes the query of an ES|QL datafeed and stores the remote sources it reads in {@code params} as the datafeed indices, so
+     * the remote cluster checks of a DSL datafeed apply, on this node and on the node that runs the datafeed. Only remote sources
+     * are stored, which is all those checks read. Cross-project mode has projects, not remote clusters, so it has nothing to probe.
      */
     static void checkEsqlSourcesAtStart(
         EsqlDatafeedQueryValidator validator,
@@ -384,6 +384,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         DatafeedConfig effectiveDatafeed,
         Job job,
         CrossProjectModeDecider crossProjectModeDecider,
+        StartDatafeedAction.DatafeedParams params,
         ActionListener<List<String>> listener
     ) {
         if (skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
@@ -397,7 +398,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             effectiveDatafeed.getProjectRouting(),
             job.getDataDescription().getTimeField(),
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
-            listener,
+            ActionListener.wrap(remoteSources -> {
+                params.setDatafeedIndices(remoteSources);
+                listener.onResponse(remoteSources);
+            }, listener::onFailure),
             datafeed.getId()
         );
     }
@@ -679,6 +683,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final String datafeedId;
         private final long startTime;
         private final Long endTime;
+        private final List<String> datafeedIndices;
         /**
          * This must always be set within a synchronized block that also checks
          * the value of the {@code stoppedOrIsolatedBeforeRunning} flag.
@@ -698,6 +703,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             this.datafeedId = params.getDatafeedId();
             this.startTime = params.getStartTime();
             this.endTime = params.getEndTime();
+            this.datafeedIndices = params.getDatafeedIndices();
         }
 
         public String getDatafeedId() {
@@ -706,6 +712,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         public long getDatafeedStartTime() {
             return startTime;
+        }
+
+        /** The indices from the start parameters. For an ES|QL datafeed these are the remote sources found when it started. */
+        public List<String> getDatafeedIndices() {
+            return datafeedIndices;
         }
 
         @Nullable

@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -59,12 +58,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -435,16 +431,15 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig datafeedWithoutIndices = spy(datafeed);
         doReturn(null).when(datafeedWithoutIndices).getIndices();
 
-        datafeedJobBuilder.checkRemoteIndicesAreAvailable(datafeedWithoutIndices);
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1"), datafeedWithoutIndices);
     }
 
     public void testBuildGivenEsqlRemoteSourceAndNoRemoteSearchingShouldFail() throws Exception {
-        EsqlDatafeedQueryValidator validator = validatorReportingRemotes(List.of("east:logs-*"));
-        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode(), validator);
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode());
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         datafeedJobBuilder.build(
-            newDatafeedTask("datafeed1"),
+            newDatafeedTask("datafeed1", List.of("east:logs-*")),
             newEsqlContext(),
             ActionListener.wrap(datafeedJob -> fail("expected the build to fail"), failure::set)
         );
@@ -457,12 +452,11 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     }
 
     public void testBuildGivenEsqlLocalSourceAndNoRemoteSearchingShouldSucceed() throws Exception {
-        EsqlDatafeedQueryValidator validator = validatorReportingRemotes(List.of());
-        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode(), validator);
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         datafeedJobBuilder.build(
-            newDatafeedTask("datafeed1"),
+            newDatafeedTask("datafeed1", List.of()),
             newEsqlContext(),
             ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
         );
@@ -470,32 +464,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    public void testBuildGivenEsqlDatafeedAndRemoteSearchingShouldNotProbe() throws Exception {
-        EsqlDatafeedQueryValidator validator = validatorReportingRemotes(List.of("east:logs-*"));
-        datafeedJobBuilder = newBuilder(Settings.EMPTY, validator);
+    public void testBuildGivenEsqlRemoteSourceAndRemoteSearchingShouldSucceed() throws Exception {
+        datafeedJobBuilder = newBuilder(Settings.EMPTY);
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         datafeedJobBuilder.build(
-            newDatafeedTask("datafeed1"),
-            newEsqlContext(),
-            ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
-        );
-
-        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
-        verifyNoInteractions(validator);
-    }
-
-    public void testBuildGivenEsqlProbeFailureAndNoRemoteSearchingShouldStillBuild() throws Exception {
-        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
-        doAnswer(invocation -> {
-            invocation.<ActionListener<List<String>>>getArgument(6).onFailure(new IllegalStateException("shard not available"));
-            return null;
-        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
-        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode(), validator);
-
-        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        datafeedJobBuilder.build(
-            newDatafeedTask("datafeed1"),
+            newDatafeedTask("datafeed1", List.of("east:logs-*")),
             newEsqlContext(),
             ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
         );
@@ -503,7 +477,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    private DatafeedJobBuilder newBuilder(Settings settings, EsqlDatafeedQueryValidator validator) {
+    private DatafeedJobBuilder newBuilder(Settings settings) {
         return new DatafeedJobBuilder(
             client,
             xContentRegistry(),
@@ -514,19 +488,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             settings,
             clusterService,
             CloudCredentialManager.Noop::new,
-            DatafeedSearchTelemetry.NOOP,
-            validator
+            DatafeedSearchTelemetry.NOOP
         );
-    }
-
-    @SuppressWarnings("unchecked")
-    private static EsqlDatafeedQueryValidator validatorReportingRemotes(List<String> remotes) {
-        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
-        doAnswer(invocation -> {
-            ((ActionListener<List<String>>) invocation.getArgument(6)).onResponse(remotes);
-            return null;
-        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
-        return validator;
     }
 
     private static DatafeedContext newEsqlContext() {
@@ -550,8 +513,13 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {
+        return newDatafeedTask(datafeedId, List.of());
+    }
+
+    private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId, List<String> datafeedIndices) {
         TransportStartDatafeedAction.DatafeedTask task = mock(TransportStartDatafeedAction.DatafeedTask.class);
         when(task.getDatafeedId()).thenReturn(datafeedId);
+        when(task.getDatafeedIndices()).thenReturn(datafeedIndices);
         TaskId parentTaskId = new TaskId("");
         when(task.getParentTaskId()).thenReturn(parentTaskId);
         return task;

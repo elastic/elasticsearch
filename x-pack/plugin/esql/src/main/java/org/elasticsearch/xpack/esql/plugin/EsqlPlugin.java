@@ -918,7 +918,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
             handlers.add(
-                new RestEsqlStreamQueryAction(capabilities, batchIndexingSupported.get(), escfBulkService.get(), storedStreamBreaker.get())
+                new RestEsqlStreamQueryAction(
+                    capabilities,
+                    batchIndexingSupported.get(),
+                    escfBulkService.get(),
+                    storedStreamBreaker.get(),
+                    restHandlersServices.projectResolver()
+                )
             );
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is

@@ -7,22 +7,25 @@
 
 package org.elasticsearch.xpack.esql.streaming;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,12 +36,12 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.INDEX;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_FIELD;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_OFFSET_FIELD;
@@ -77,19 +80,25 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
     private volatile StreamMetadata started;
     private boolean terminated;
 
+    /**
+     * @param client the client that sends the bulks. It must be scoped to the project that owns the stream and set the ESQL origin.
+     */
     @SuppressWarnings("this-escape")
-    public SystemIndexStreamWriter(Client client, EscfBulkService bulks, CircuitBreaker breaker, TransportVersion version) {
+    public SystemIndexStreamWriter(Client client, EscfBulkService escfBulkService, CircuitBreaker breaker, TransportVersion version) {
         this.version = version;
-        EscfBulkWriter.Policy defaultPolicy = bulks.defaultPolicy();
-        this.writer = bulks.newWriter(
-            new OriginSettingClient(client, ESQL_ORIGIN),
+        this.writer = escfBulkService.newWriter(
+            client,
             breaker,
             INDEX,
-            new EscfBulkWriter.Policy(1, defaultPolicy.targetBulkBytes(), defaultPolicy.maxNodeBytes()),
-            SystemIndexStreamWriter::logFailedItems,
-            this::wake
+            createPolicy(escfBulkService.defaultPolicy()),
+            this::logFailedItems,
+            () -> runWaiting(false)
         );
         this.producer = writer.newProducer();
+    }
+
+    private static EscfBulkWriter.Policy createPolicy(EscfBulkWriter.Policy defaultPolicy) {
+        return new EscfBulkWriter.Policy(1, defaultPolicy.targetBulkBytes(), defaultPolicy.maxNodeBytes());
     }
 
     @Override
@@ -133,9 +142,6 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         terminate(() -> started.canceled());
     }
 
-    /**
-     * Runs {@code runnable} once more pages may be appended, right away if they may now.
-     */
     public void onCapacity(Runnable runnable) {
         synchronized (this) {
             if (producer.hasCapacity() == false) {
@@ -146,10 +152,10 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         runnable.run();
     }
 
-    private void wake() {
+    private void runWaiting(boolean force) {
         List<Runnable> ready;
         synchronized (this) {
-            if (waiting.isEmpty() || producer.hasCapacity() == false) {
+            if (waiting.isEmpty() || (force == false && producer.hasCapacity() == false)) {
                 return;
             }
             ready = List.copyOf(waiting);
@@ -169,14 +175,26 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             producer.add(new MetadataRow(finalStatus.get()), true);
             producer.close();
         }
-        writer.finish(ActionListener.wrap(ignored -> {}, e -> logger.warn("failed to store stream results", e)));
+        writer.finish(
+            ActionListener.runAfter(
+                ActionListener.wrap(ignored -> {}, e -> logger.warn("failed to store stream results", e)),
+                () -> runWaiting(true)
+            )
+        );
     }
 
-    private static Exception logFailedItems(BulkResponse response) {
-        if (response.hasFailures()) {
+    private Exception logFailedItems(BulkResponse response) {
+        if (response.hasFailures() && isOnlyOutdatedStart(response, started.streamId()) == false) {
             logger.warn("failed to store stream results: {}", response.buildFailureMessage());
         }
         return null;
+    }
+
+    private static boolean isOnlyOutdatedStart(BulkResponse response, String streamId) {
+        List<BulkItemResponse> failed = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
+        return failed.size() == 1
+            && failed.getFirst().getId().equals(streamId)
+            && failed.getFirst().getFailure().getStatus() == RestStatus.CONFLICT;
     }
 
     private record MetadataRow(StreamMetadata metadata) implements EscfBulkWriter.Rows {
@@ -197,15 +215,15 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
                 row.longField(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());
             }
             stringField(row, STREAM_STATUS, metadata.status().name());
-            stringField(row, STREAM_COLUMNS, withJsonBuilder(json -> {
+            jsonField(row, STREAM_COLUMNS, json -> {
                 json.startArray();
                 for (ColumnInfo column : metadata.columns()) {
                     column.toXContent(json, ToXContent.EMPTY_PARAMS);
                 }
                 return json.endArray();
-            }));
-            stringField(row, STREAM_HEADERS, withJsonBuilder(json -> json.map(metadata.headers())));
-            stringField(row, STREAM_WARNINGS, withJsonBuilder(json -> json.value(metadata.warnings())));
+            });
+            jsonField(row, STREAM_HEADERS, json -> json.map(metadata.headers()));
+            jsonField(row, STREAM_WARNINGS, json -> json.value(metadata.warnings()));
             StreamMetadata.StreamCompletionInfo completion = metadata.completionInfo();
             if (completion != null) {
                 row.booleanField(STREAM_PARTIAL, completion.partial());
@@ -218,16 +236,14 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
                 }
                 StreamMetadata.StreamFailure failure = completion.failure();
                 if (failure != null) {
-                    stringField(
+                    jsonField(
                         row,
                         STREAM_FAILURE,
-                        withJsonBuilder(
-                            json -> json.startObject()
-                                .field("type", failure.type())
-                                .field("reason", failure.reason())
-                                .field("status", failure.status().getStatus())
-                                .endObject()
-                        )
+                        json -> json.startObject()
+                            .field("type", failure.type())
+                            .field("reason", failure.reason())
+                            .field("status", failure.status().getStatus())
+                            .endObject()
                     );
                 }
             }
@@ -251,13 +267,14 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         }
 
         @FunctionalInterface
-        private interface JsonStringBuilder {
+        private interface JsonContent {
             XContentBuilder apply(XContentBuilder builder) throws IOException;
         }
 
-        private static String withJsonBuilder(JsonStringBuilder builder) {
+        private static void jsonField(EscfRowBuffer row, String name, JsonContent content) {
             try {
-                return Strings.toString(builder.apply(jsonBuilder()));
+                BytesRef bytes = BytesReference.bytes(content.apply(jsonBuilder(new BytesStreamOutput()))).toBytesRef();
+                row.stringField(name, bytes.bytes, bytes.offset, bytes.length);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -36,6 +36,7 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         new EsqlCapabilities.Builder(false).build(),
         () -> true,
         null,
+        null,
         null
     );
 
@@ -58,7 +59,7 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         esqlRequest.columnar(true);
         expectThrows(IllegalArgumentException.class, containsString("columnar"), () -> {
             RestRequest request = requestWithParams(Map.of());
-            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null);
+            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
         });
     }
 
@@ -66,7 +67,7 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         expectThrows(IllegalArgumentException.class, allOf(containsString("ndjson"), containsString("csv")), () -> {
             RestRequest request = requestWithParams(Map.of("format", "csv"));
-            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null);
+            RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
         });
     }
 
@@ -92,7 +93,7 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         Map<String, String> params = Map.of("allow_partial_results", "" + allowPartial);
         RestRequest request = requestWithParams(params);
-        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null);
+        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, null, null, null, null);
         assertThat(esqlRequest.allowPartialResults(), equalTo(allowPartial));
     }
 
@@ -215,6 +216,7 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         RestEsqlStreamQueryAction unsupported = new RestEsqlStreamQueryAction(
             new EsqlCapabilities.Builder(false).build(),
             () -> false,
+            null,
             null,
             null
         );

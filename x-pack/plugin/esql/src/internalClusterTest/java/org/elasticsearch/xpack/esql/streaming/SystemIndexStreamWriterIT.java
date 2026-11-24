@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Page;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.INDEX;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_FIELD;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_OFFSET_FIELD;
@@ -132,7 +135,7 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
 
     private SystemIndexStreamWriter newWriter(TransportVersion transportVersion) {
         return new SystemIndexStreamWriter(
-            client(),
+            new OriginSettingClient(client().projectClient(ProjectId.DEFAULT), ESQL_ORIGIN),
             internalCluster().getInstance(EscfBulkService.class),
             internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
             transportVersion

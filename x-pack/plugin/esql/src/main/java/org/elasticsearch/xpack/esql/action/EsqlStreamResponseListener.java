@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -55,6 +57,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
@@ -111,6 +114,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final RestChannel channel;
     private final ThreadContext threadContext;
     private final Client client;
+    private final ProjectId projectId;
     private final EscfBulkService escfBulkService;
     private final CircuitBreaker breaker;
     private final StreamOptions options;
@@ -149,6 +153,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         RestChannel channel,
         ThreadContext threadContext,
         Client client,
+        ProjectId projectId,
         EscfBulkService escfBulkService,
         CircuitBreaker breaker,
         StreamOptions options
@@ -156,6 +161,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         this.channel = channel;
         this.threadContext = threadContext;
         this.client = client;
+        this.projectId = projectId;
         this.escfBulkService = escfBulkService;
         this.breaker = breaker;
         this.options = options;
@@ -293,7 +299,12 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
         this.contextRestorer = threadContext.newRestorableContext(false);
         if (client != null && options.store() != StreamOptions.Store.NONE) {
-            writer = new SystemIndexStreamWriter(client, escfBulkService, breaker, TransportVersion.current());
+            writer = new SystemIndexStreamWriter(
+                new OriginSettingClient(client.projectClient(projectId), ESQL_ORIGIN),
+                escfBulkService,
+                breaker,
+                TransportVersion.current()
+            );
             streamId = writer.createStarted(resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
         }
         resultStream.publisher().subscribe(subscriber);

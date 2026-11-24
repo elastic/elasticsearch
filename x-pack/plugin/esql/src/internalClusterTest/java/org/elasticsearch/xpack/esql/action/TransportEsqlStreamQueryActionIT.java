@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -228,6 +229,7 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
             channel,
             client().threadPool().getThreadContext(),
             client(),
+            ProjectId.DEFAULT,
             internalCluster().getInstance(EscfBulkService.class),
             internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
             options
@@ -274,7 +276,6 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
         return response.getSourceAsMap();
     }
 
-    /** The page documents of the stream in page order, without its metadata document. */
     private List<Map<String, Object>> getPageDocuments(String streamId) {
         indicesAdmin().prepareRefresh(INDEX).get();
         List<Map<String, Object>> pages = new ArrayList<>();

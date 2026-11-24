@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -46,6 +47,10 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER
  *
  * <p>When anything is stored, the first line of the response carries a {@code stream_id}. The stored modes need the
  * {@code esql_stream_results_stored} feature flag, which is on in snapshot builds; without it only {@code none} is accepted.
+ * With the flag on, {@code overflow} and {@code all} are still rejected unless batch indexing is supported, which needs both:
+ * the {@code indices.batch_indexing} cluster setting is enabled (it can only be enabled when the {@code batch_indexing} feature
+ * flag is on), and every node in the cluster can receive pre-built batches. Enabling the setting helps only in the first case.
+ * In the second, such as during a rolling upgrade, the request is accepted once all nodes support it.
  * {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON number, which is a count of bytes,
  * or a size string with a unit such as {@code "1mb"}. With {@code store} set to {@code none} the query runs only for as long
  * as the response is open: a disconnect cancels it, and so does a response that ends at a limit. With the other modes a
@@ -73,16 +78,20 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     private final CircuitBreaker breaker;
 
+    private final ProjectResolver projectResolver;
+
     public RestEsqlStreamQueryAction(
         EsqlCapabilities capabilities,
         BooleanSupplier batchIndexingSupported,
         EscfBulkService escfBulkService,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        ProjectResolver projectResolver
     ) {
         this.capabilities = capabilities;
         this.batchIndexingSupported = batchIndexingSupported;
         this.escfBulkService = escfBulkService;
         this.breaker = breaker;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -110,7 +119,7 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         if (store != StreamOptions.Store.NONE && batchIndexingSupported.getAsBoolean() == false) {
             throw new IllegalArgumentException("[store] set to [" + store + "] requires batch indexing");
         }
-        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, escfBulkService, breaker);
+        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, escfBulkService, breaker, projectResolver);
     }
 
     static RestChannelConsumer streamingChannelConsumer(
@@ -119,7 +128,8 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         RestRequest request,
         NodeClient client,
         EscfBulkService escfBulkService,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        ProjectResolver projectResolver
     ) {
         if (esqlRequest.columnar()) {
             throw new IllegalArgumentException("[columnar] cannot be used with [POST /_query/stream]");
@@ -140,6 +150,7 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
                 channel,
                 client.threadPool().getThreadContext(),
                 client,
+                projectResolver.getProjectId(),
                 escfBulkService,
                 breaker,
                 options

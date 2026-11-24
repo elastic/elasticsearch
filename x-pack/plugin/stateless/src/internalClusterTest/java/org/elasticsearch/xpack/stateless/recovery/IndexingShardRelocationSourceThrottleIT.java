@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 /// Integration tests for source-side relocation throttling in stateless Elasticsearch.
 public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPluginIntegTestCase {
 
-    /// Unthrottle master-side allocation so concurrent primary relocations can reach the source queue.
+    /// Unthrottle master-side allocation and data node limits. Each test customizes its own throttle.
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
@@ -53,6 +53,8 @@ public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPl
                 StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
                 Integer.MAX_VALUE
             )
+            .put(unthrottledIncomingRecoveryNodeSettings())
+            .put(unthrottledOutgoingRecoveryNodeSettings())
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE);
     }
 

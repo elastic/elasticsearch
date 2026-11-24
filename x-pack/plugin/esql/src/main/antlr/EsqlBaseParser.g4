@@ -81,12 +81,13 @@ processingCommand
     | mmrCommand
     | highlightCommand
     | denseVectorCommand
+    | describeCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
-    | {this.isDevVersion()}? describeCommand
     | {this.isDevVersion()}? intoCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     ;
 
 whereCommand
@@ -306,6 +307,10 @@ mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
+nestedExpandCommand
+    : DEV_NESTED_EXPAND qualifiedName
+    ;
+
 explainCommand
     : DEV_EXPLAIN subqueryExpression
     ;
@@ -402,7 +407,7 @@ tsCollapseCommand
     ;
 
 describeCommand
-    : DEV_DESCRIBE
+    : DESCRIBE
     ;
 
 //
@@ -461,7 +466,7 @@ setField
     ;
 
 letCommand
-    : DEV_LET letBinding SEMICOLON
+    : LET letBinding SEMICOLON
     ;
 
 letBinding

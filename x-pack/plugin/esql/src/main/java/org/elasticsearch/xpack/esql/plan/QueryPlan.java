@@ -39,7 +39,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;
-    private List<Expression> lazyExpressions;
+    private volatile List<Expression> lazyExpressions;
     private AttributeSet lazyReferences;
 
     /**
@@ -48,7 +48,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      */
     private PlanId planId;
     /** Nodes this one was derived from. Empty until a translation such as logical-to-physical records them. */
-    private List<PlanId> origin;
+    private volatile List<PlanId> origin;
     /** The exchange this node is one side of. Only exchange nodes have one. See {@link ExchangeRef}. */
     private ExchangeRef exchange;
 
@@ -119,8 +119,9 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         if (ids == null || ids.length == 0) {
             return (PlanType) this;
         }
-        List<PlanId> merged = new ArrayList<>(origin.size() + ids.length);
-        merged.addAll(origin);
+        List<PlanId> current = origin;
+        List<PlanId> merged = new ArrayList<>(current.size() + ids.length);
+        merged.addAll(current);
         for (PlanId id : ids) {
             if (id != null) {
                 merged.add(id);
@@ -212,17 +213,21 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     public abstract List<Attribute> output();
 
     public AttributeSet outputSet() {
-        if (lazyOutputSet == null) {
-            lazyOutputSet = AttributeSet.of(output());
+        AttributeSet outputSet = lazyOutputSet;
+        if (outputSet == null) {
+            outputSet = AttributeSet.of(output());
+            lazyOutputSet = outputSet;
         }
-        return lazyOutputSet;
+        return outputSet;
     }
 
     public AttributeSet inputSet() {
-        if (lazyInputSet == null) {
-            lazyInputSet = AttributeSet.of(children(), QueryPlan::output);
+        AttributeSet inputSet = lazyInputSet;
+        if (inputSet == null) {
+            inputSet = AttributeSet.of(children(), QueryPlan::output);
+            lazyInputSet = inputSet;
         }
-        return lazyInputSet;
+        return inputSet;
     }
 
     /**
@@ -251,10 +256,12 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      * {@code some_enrich_field}.
      */
     public AttributeSet references() {
-        if (lazyReferences == null) {
-            lazyReferences = computeReferences();
+        AttributeSet references = lazyReferences;
+        if (references == null) {
+            references = computeReferences();
+            lazyReferences = references;
         }
-        return lazyReferences;
+        return references;
     }
 
     /**

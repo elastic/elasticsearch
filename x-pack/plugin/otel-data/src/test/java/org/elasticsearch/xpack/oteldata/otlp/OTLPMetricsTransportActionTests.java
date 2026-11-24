@@ -552,7 +552,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         );
         ctx.groupDataPoints(request);
         List<DataPointGroupingContext.DataPointGroup> groups = new ArrayList<>();
-        ctx.consume(groups::add);
+        ctx.forEachGroup(groups::add);
         return groups;
     }
 

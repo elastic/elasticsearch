@@ -41,7 +41,7 @@ import java.util.List;
  */
 public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public WithinSeriesAggregate(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);

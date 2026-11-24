@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.EmptyTokenStream;
+import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexableFieldType;
@@ -17,6 +21,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -632,6 +637,9 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         // Held so record* helpers can update the count on each slot without re-deriving the companion from the document.
         private NumericDocValuesField countField;
 
+        // Reported instead of the doc-values type when every slot is null, or null if the keyed values are not indexed. See fieldType().
+        private IndexableFieldType typeWhenValueless;
+
         public KeyedArrayOrderInlineNull(String name) {
             // Use eagerAllocate=false so the base-class `values` field stays null; slot state is managed here.
             super(name, ValueOrdering.UNSORTED, false);
@@ -653,11 +661,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         /**
          * Records a null slot for {@code fieldName}. {@code keyPlusSep} must be {@code key\0} (key bytes followed by the separator byte).
          * The key is preserved inline so synthetic source can reconstruct which key had a null value.
+         *
+         * @param typeWhenValueless the doc-values type plus the index options of the keyed terms, or {@code null} if they are not indexed.
+         *                          Only consulted if the document ends up holding no value; a later value makes it moot.
          */
-        public static void recordNull(LuceneDocument doc, String fieldName, BytesRef keyPlusSep) {
+        public static void recordNull(
+            LuceneDocument doc,
+            String fieldName,
+            BytesRef keyPlusSep,
+            @Nullable IndexableFieldType typeWhenValueless
+        ) {
             var field = getOrCreate(doc, fieldName);
             field.addSlot(keyPlusSep, true);
             field.countField.setLongValue(field.count());
+            field.typeWhenValueless = typeWhenValueless;
         }
 
         /**
@@ -686,6 +703,27 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         @Override
         public int count() {
             return slotBytesList.size();
+        }
+
+        /**
+         * The doc-values type, or, for a document whose slots are all null under an indexed field, that type plus the index options of the
+         * keyed terms. The keyed terms share this field's name, so a document that indexed no term would otherwise present the field
+         * without them, and Lucene rejects a document whose index options differ from the ones the field already has.
+         */
+        @Override
+        public IndexableFieldType fieldType() {
+            return typeWhenValueless != null && nullMarkers.cardinality() == count() ? typeWhenValueless : super.fieldType();
+        }
+
+        /** Inverted into nothing, so reporting {@link #typeWhenValueless} adds no postings. */
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.TOKEN_STREAM;
+        }
+
+        @Override
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
+            return new EmptyTokenStream();
         }
 
         @Override

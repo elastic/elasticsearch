@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.HashSet;
@@ -1643,7 +1644,7 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_TS,
 
         /**
-         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractInSubqueryJoin} nodes when their left side is an empty
          * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
          * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
          */
@@ -4525,6 +4526,13 @@ public class EsqlCapabilities {
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
 
         /**
+         * {@code FILLNULL ... ON *} leaves a column with a metadata name, such as {@code _index}, alone after a union of subqueries, where
+         * it filled it once the union had turned the metadata column into a plain one.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/165855">#165855</a>.
+         */
+        FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4689,10 +4697,9 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
-         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
-         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type and unit.
          */
-        DESCRIBE_COMMAND(Build.current().isSnapshot()),
+        DESCRIBE_COMMAND,
 
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
@@ -4954,25 +4961,25 @@ public class EsqlCapabilities {
          * {@code DESCRIBE} and {@code column_metadata} keep the field semantics and units that merged branches agree on,
          * for views next to indices, {@code FORK} and subqueries.
          */
-        COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+        COLUMN_METADATA_MERGED_BRANCHES,
 
         /**
          * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
          * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
          * they merge indices.
          */
-        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+        COLUMN_METADATA_LISTED_UNITS,
 
         /**
          * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
          * that is rounded or converted to another date type.
          */
-        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+        DESCRIBE_TIME_COLUMNS,
 
         /**
          * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
          */
-        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+        DESCRIBE_INTERVAL,
 
         /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
@@ -5046,6 +5053,13 @@ public class EsqlCapabilities {
          * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
          */
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
+
+        /**
+         * The fetch phase for {@code TopN}: with the {@code fetch_phase} pragma or the {@code esql.query.fetch_phase.enabled}
+         * setting, a query loads the columns it only needs after its {@code TopN} for the rows that survive it. The setting
+         * is on by default in builds with the feature flag.
+         */
+        FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

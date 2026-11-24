@@ -573,7 +573,8 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            CrossProjectModeDecider.NOOP
+            CrossProjectModeDecider.NOOP,
+            null
         );
     }
 }

@@ -41,9 +41,8 @@ AFTER_IN_WS
 // so that, on a release build, `eql` stays a plain identifier and `IN (eql)` remains a value-list. Listed
 // before IN_SUBQUERY_LP so the predicated `( eql` match is considered first.
 IN_SUBQUERY_EQL_LP
-    : {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}?
-      '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
-      'eql'
+    : '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
+      'eql' {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}?
       { this.rewindToTokenStart(1); }
       -> type(LP), mode(DEFAULT_MODE)
     ;

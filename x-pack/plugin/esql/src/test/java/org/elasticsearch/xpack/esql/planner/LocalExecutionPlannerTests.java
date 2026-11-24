@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -477,6 +478,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             notNullValue()
         );
         assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
+    /**
+     * Empty pragmas size parse width and scan drivers from this node's {@code node.processors}, not host JVM.
+     * Parse is raw P; drivers use the search formula ({@code 1.5P+1}), so {@code node.processors=1} is parse 1
+     * and 2 drivers — not raw P.
+     */
+    public void testExternalSourceHonorsNodeProcessorsWhenPragmasUnset() throws IOException {
+        assumeTrue(
+            "node.processors=1 must be below host CPU so the fallback is observable",
+            EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
+        );
+        PlannedExternalSource planned = planExternalSourceWithSplits(
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build(),
+            QueryPragmas.EMPTY,
+            8
+        );
+        assertThat(planned.context().parsingParallelism(), equalTo(1));
+        assertThat(planned.context().parallelism(), equalTo(2));
+        assertThat(planned.plan().driverFactories.get(0).driverParallelism().instanceCount(), equalTo(2));
+    }
+
+    public void testExternalSourceParsingParallelismExplicitPragmaWins() throws IOException {
+        PlannedExternalSource planned = planExternalSourceWithSplits(
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build(),
+            new QueryPragmas(Settings.builder().put(QueryPragmas.PARSING_PARALLELISM.getKey(), 3).build()),
+            8
+        );
+        assertThat(planned.context().parsingParallelism(), equalTo(3));
+        assertThat(planned.context().parallelism(), equalTo(2));
+        assertThat(planned.plan().driverFactories.get(0).driverParallelism().instanceCount(), equalTo(2));
+    }
+
+    public void testExternalSourceTaskConcurrencyExplicitPragmaWins() throws IOException {
+        PlannedExternalSource planned = planExternalSourceWithSplits(
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build(),
+            new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 5).build()),
+            8
+        );
+        assertThat(planned.context().parallelism(), equalTo(5));
+        assertThat(planned.context().parsingParallelism(), equalTo(1));
+        assertThat(planned.plan().driverFactories.get(0).driverParallelism().instanceCount(), equalTo(5));
     }
 
     /**
@@ -2264,6 +2307,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     private LocalExecutionPlanner planner(
         OperatorFactoryRegistry operatorFactoryRegistry,
+        Settings extraNodeSettings,
+        QueryPragmas queryPragmas
+    ) throws IOException {
+        return planner(
+            operatorFactoryRegistry,
+            true,
+            null,
+            true,
+            null,
+            FetchOperatorProvider.UNSUPPORTED,
+            LocalExecutionPlanner.ExternalComputeContext.NONE,
+            extraNodeSettings,
+            config(queryPragmas)
+        );
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
         boolean federationEnabled,
         InferenceService inferenceService,
         boolean snapshotBuild,
@@ -2276,7 +2337,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             snapshotBuild,
             null,
             FetchOperatorProvider.UNSUPPORTED,
-            externalCompute
+            externalCompute,
+            Settings.EMPTY,
+            config()
         );
     }
 
@@ -2312,7 +2375,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             true,
             exchangeSourceSupplier,
             fetchOperators,
-            LocalExecutionPlanner.ExternalComputeContext.NONE
+            LocalExecutionPlanner.ExternalComputeContext.NONE,
+            Settings.EMPTY,
+            config()
         );
     }
 
@@ -2323,7 +2388,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         boolean snapshotBuild,
         Supplier<ExchangeSource> exchangeSourceSupplier,
         FetchOperatorProvider fetchOperators,
-        LocalExecutionPlanner.ExternalComputeContext externalCompute
+        LocalExecutionPlanner.ExternalComputeContext externalCompute,
+        Settings extraNodeSettings,
+        Configuration configuration
     ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
@@ -2337,8 +2404,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
                 // several tests here plan an ExternalSourceExec, which the federation gate refuses unless it is enabled
                 .put(Federation.FEDERATION_ENABLED.getKey(), federationEnabled)
+                .put(extraNodeSettings)
                 .build(),
-            config(),
+            configuration,
             exchangeSourceSupplier,
             null,
             null,
@@ -2478,13 +2546,56 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertBusy(() -> assertThat(inner.getCompletedTaskCount(), equalTo(completed)));
     }
 
+    private record PlannedExternalSource(SourceOperatorContext context, LocalExecutionPlanner.LocalExecutionPlan plan) {}
+
+    private PlannedExternalSource planExternalSourceWithSplits(Settings extraNodeSettings, QueryPragmas queryPragmas, int splitCount)
+        throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = capturingProvider(captured);
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        List<ExternalSplit> splits = new ArrayList<>(splitCount);
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(
+                new FileSplit("file", StoragePath.of("s3://test-bucket/data/part-" + i + ".csv"), 0, 10, ".csv", Map.of(), Map.of())
+            );
+        }
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/data/*.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withSplits(splits);
+        assertThat(exec.pushedLimit(), equalTo(FormatReader.NO_LIMIT));
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(operatorFactoryRegistry, extraNodeSettings, queryPragmas).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        assertThat(captured.get(), notNullValue());
+        return new PlannedExternalSource(captured.get(), plan);
+    }
+
     private Configuration config() {
+        return config(pragmas);
+    }
+
+    private Configuration config(QueryPragmas queryPragmas) {
         return new Configuration(
             randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE)),
             randomLocale(random()),
             "test_user",
             "test_cluster",
-            pragmas,
+            queryPragmas,
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
             StringUtils.EMPTY,

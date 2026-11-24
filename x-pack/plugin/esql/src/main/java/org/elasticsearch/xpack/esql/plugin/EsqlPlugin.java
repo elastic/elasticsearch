@@ -769,6 +769,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_FETCH_PHASE,
                 EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
                 EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,

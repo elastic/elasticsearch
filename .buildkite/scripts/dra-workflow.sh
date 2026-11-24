@@ -3,12 +3,11 @@
 set -euo pipefail
 
 WORKFLOW="${DRA_WORKFLOW:-snapshot}"
-BRANCH="${BUILDKITE_BRANCH:-}"
 
-# Don't publish main branch to staging
-if [[ ("$BRANCH" == "main" || "$BRANCH" == *.x) && "$WORKFLOW" == "staging" ]]; then
-  exit 0
-fi
+# Resolved by dra-generate-steps.sh, which also passes them to the dra-prep
+# plugin, so the build and the DRA manifest use the same dependency builds.
+BEATS_BUILD_ID="${BEATS_BUILD_ID:?BEATS_BUILD_ID is required}"
+ML_CPP_BUILD_ID="${ML_CPP_BUILD_ID:?ML_CPP_BUILD_ID is required}"
 
 echo --- Preparing
 
@@ -16,18 +15,7 @@ echo --- Preparing
 sudo NEEDRESTART_MODE=l apt-get update -y
 sudo NEEDRESTART_MODE=l apt-get install -y libxml2-utils python3.10-venv
 
-# Branch used to resolve dependency manifests (beats, ml-cpp). Defaults to the
-# current Buildkite branch, but is overridable so feature branches can point at
-# a real release branch's manifests when testing DRA changes (the ml-cpp / beats
-# DRA pipelines only build the actual release branches, so a feature branch would
-# otherwise fail manifest lookup).
-RM_BRANCH="${RM_BRANCH:-$BRANCH}"
-if [[ "$RM_BRANCH" == "main" ]]; then
-  RM_BRANCH=master
-fi
-
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
-BASE_VERSION="$ES_VERSION"
 echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
@@ -39,12 +27,6 @@ if [[ -n "${VERSION_QUALIFIER:-}" ]]; then
   ES_VERSION="${ES_VERSION}-${VERSION_QUALIFIER}"
   echo "Version qualifier specified. ES_VERSION=${ES_VERSION}."
 fi
-
-BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
-echo "BEATS_BUILD_ID=$BEATS_BUILD_ID"
-
-ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
-echo "ML_CPP_BUILD_ID=$ML_CPP_BUILD_ID"
 
 LICENSE_KEY_ARG=""
 BUILD_SNAPSHOT_ARG=""
@@ -110,7 +92,8 @@ find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 # Publish the exploded maven aggregation tree to snapshots.elastic.co /
 # artifacts.elastic.co. The maven tree is published directly from the workspace;
-# GCS publication of all other artifacts is handled by the dra-prep plugin below.
+# GCS publication of all other artifacts is handled by the dra-prep plugin, which
+# runs in this step's post-command hook on the artifacts/ directory staged below.
 echo --- Publishing maven aggregation to S3
 DRA_WORKFLOW="$WORKFLOW" \
   .buildkite/scripts/dra-maven-publish.sh
@@ -159,52 +142,3 @@ cp "build/distributions/dependencies-${ES_VERSION}${VERSION_SUFFIX}.csv"      ar
 
 echo "Artifacts to be staged:"
 ls -1 artifacts/
-
-echo --- Uploading artifacts to Buildkite store
-buildkite-agent artifact upload 'artifacts/*'
-
-echo --- Uploading DRA pipeline steps
-cat <<EOF | buildkite-agent pipeline upload
-steps:
-  - wait: ~
-
-  - label: ":package: DRA Prep"
-    key: dra-prep
-    command: ".buildkite/scripts/stage_artifacts.sh"
-    env:
-      DRA_WORKFLOW: "${WORKFLOW}"
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2204
-      machineType: n2-standard-8
-      diskSizeGb: 100
-    plugins:
-      - elastic/dra-prep#v0.1.6:
-          product_id: elasticsearch
-          stack_version: "${BASE_VERSION}"
-          workflow: "${WORKFLOW}"
-          dependencies:
-            - "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
-            - "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
-
-  - label: ":pipeline: DRA processing for elasticsearch / ${BASE_VERSION} / ${WORKFLOW}"
-    trigger: unified-release-dra-processing
-    async: true
-    depends_on: dra-prep
-    build:
-      env:
-        DRA_PRODUCT_ID: elasticsearch
-        DRA_STACK_VERSION: "${BASE_VERSION}"
-        DRA_WORKFLOW: "${WORKFLOW}"
-
-  - trigger: elasticsearch-hadoop-dra-workflow
-    label: "Trigger DRA staging workflow for elasticsearch-hadoop"
-    async: true
-    depends_on: dra-prep
-    build:
-      branch: "${BUILDKITE_BRANCH}"
-      env:
-        DRA_WORKFLOW: staging
-        USE_PROD_DOCKER_CREDENTIALS: "true"
-    if: build.env('DRA_WORKFLOW') == 'staging'
-EOF

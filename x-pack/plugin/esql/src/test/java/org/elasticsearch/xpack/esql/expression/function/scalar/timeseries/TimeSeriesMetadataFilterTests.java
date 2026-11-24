@@ -43,6 +43,8 @@ public class TimeSeriesMetadataFilterTests extends AbstractScalarFunctionTestCas
         suppliers.add(keep("repeated and absent keys", keys, List.of("pod", "pod", "missing"), "{\"pod\":\"a\"}"));
         suppliers.add(keep("absent key", keys, List.of("missing"), "{}"));
         suppliers.add(keep("every key", keys, List.of("pod", "job"), keys));
+        // by () keeps no label
+        suppliers.add(keep("no key", keys, List.of(), "{}"));
         suppliers.add(keep("empty metadata", "{}", List.of("pod"), "{}"));
         suppliers.add(keep("multiple values", "{\"pod\":[\"b\",\"a\"],\"single\":\"one\"}", List.of("pod"), "{\"pod\":[\"b\",\"a\"]}"));
         suppliers.add(

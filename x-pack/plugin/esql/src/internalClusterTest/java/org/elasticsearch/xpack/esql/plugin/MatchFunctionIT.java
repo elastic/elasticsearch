@@ -324,7 +324,8 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         // the scores of the search need the shards too
         for (String scored : List.of(
             "WHERE match(content, \"fox\") | KEEP id, _score",
-            "WHERE match(content, \"fox\") AND _score > 0 | KEEP id, _score",
+            // the search of a column scores without shards, which keeps the filter scoring, the indexed search with it
+            "EVAL c2 = CONCAT(content, \"\") | WHERE match(content, \"fox\") OR match(c2, \"fox\") | KEEP id, _score",
             "WHERE match(content, \"fox\") | EVAL s = score(match(content, \"dog\")) | KEEP id, s"
         )) {
             String query = "FROM test METADATA _score | WHERE " + empty + " | " + scored;

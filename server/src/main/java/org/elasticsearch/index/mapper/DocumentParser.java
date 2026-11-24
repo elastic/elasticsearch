@@ -967,7 +967,7 @@ public final class DocumentParser {
         if (fieldType != null) {
             if (context.indexSettings().getMode().isStrictColumnar() && context.mappingLookup().getMapper(fieldPath) != null) {
                 // A concrete mapper exists for this path, but it is not reachable from the current parent. This happens when the parent
-                // has subobjects disabled and a dotted key addresses a field of a nested object or a multi-field. Silently dropping the
+                // has subobjects disabled and a dotted key addresses a field of a nested object. Silently dropping the
                 // value is not acceptable in strict columnar index modes, so we reject the document. This is because with other index
                 // modes these dotted field names would still be part of source or ignored source and subobjects option is always disabled.
                 throw new DocumentParsingException(
@@ -976,8 +976,7 @@ public final class DocumentParser {
                         + fieldPath
                         + "] can not be indexed as a leaf field of ["
                         + context.parent().fullPath()
-                        + "]: it is mapped "
-                        + "as part of a nested object or multi-field, use object notation instead of a dotted field name"
+                        + "]: it is mapped as part of a nested object. Use object notation instead of a dotted field name."
                 );
             }
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.

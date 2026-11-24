@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -4079,7 +4080,7 @@ public class BatchBulkIT extends ESIntegTestCase {
 
     private void createNestedIndex(String index, IndexMode mode, SourceFieldMapper.Mode sourceMode) {
         final String timestamp = mode == IndexMode.LOGSDB_COLUMNAR ? "\"@timestamp\": { \"type\": \"date\" }," : "";
-        final String mapping = """
+        final String mapping = Strings.format("""
             {
                 "properties": {
                     %s
@@ -4093,7 +4094,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                     }
                 }
             }
-            """.formatted(timestamp);
+            """, timestamp);
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(

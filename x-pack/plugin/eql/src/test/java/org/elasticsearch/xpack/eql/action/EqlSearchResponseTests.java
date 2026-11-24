@@ -130,8 +130,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             (String) args[3],
             (boolean) args[4],
             (boolean) args[5],
-            Objects.requireNonNullElse((List<ShardSearchFailure>) args[6], List.<ShardSearchFailure>of())
-                .toArray(ShardSearchFailure.EMPTY_ARRAY)
+            Objects.requireNonNullElse((List<ShardSearchFailure>) args[6], List.of())
         )
     );
 
@@ -182,8 +181,9 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
      */
     public void testFromXContentWithShardFailures() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
-        ShardSearchFailure[] shardFailures = new ShardSearchFailure[randomIntBetween(1, 5)];
-        for (int i = 0; i < shardFailures.length; i++) {
+        int numFailures = randomIntBetween(1, 5);
+        List<ShardSearchFailure> shardFailures = new ArrayList<>(numFailures);
+        for (int i = 0; i < numFailures; i++) {
             SearchShardTarget target = randomBoolean()
                 ? null
                 : new SearchShardTarget(
@@ -191,7 +191,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), IndexMetadata.INDEX_UUID_NA_VALUE), randomNonNegativeInt()),
                     randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null
                 );
-            shardFailures[i] = new ShardSearchFailure(new IllegalArgumentException("failure-" + i), target);
+            shardFailures.add(new ShardSearchFailure(new IllegalArgumentException("failure-" + i), target));
         }
         EqlSearchResponse response = new EqlSearchResponse(
             new EqlSearchResponse.Hits(null, null, null),
@@ -214,9 +214,9 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 assertThat(parsed.id(), equalTo(response.id()));
                 assertThat(parsed.isRunning(), equalTo(response.isRunning()));
                 assertThat(parsed.isPartial(), equalTo(response.isPartial()));
-                assertThat(parsed.shardFailures(), arrayWithSize(shardFailures.length));
-                for (int i = 0; i < shardFailures.length; i++) {
-                    ShardSearchFailure expected = shardFailures[i];
+                assertThat(parsed.shardFailures(), arrayWithSize(numFailures));
+                for (int i = 0; i < numFailures; i++) {
+                    ShardSearchFailure expected = shardFailures.get(i);
                     ShardSearchFailure actual = parsed.shardFailures()[i];
                     assertThat(actual.shard(), equalTo(expected.shard()));
                     assertThat(
@@ -393,7 +393,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of());
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -402,7 +402,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomAlphaOfLength(10),
                 randomBoolean(),
                 randomBoolean(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
         }
     }
@@ -426,7 +426,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), List.of());
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -435,7 +435,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomAlphaOfLength(10),
                 randomBoolean(),
                 randomBoolean(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
         }
     }
@@ -479,7 +479,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             instance.id(),
             instance.isRunning(),
             instance.isPartial(),
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
     }
 

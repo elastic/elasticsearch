@@ -75,7 +75,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
     private static final ParseField SHARD_FAILURES = new ParseField(Fields.SHARD_FAILURES);
 
-    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, ShardSearchFailure[] shardFailures) {
+    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, List<ShardSearchFailure> shardFailures) {
         this(hits, tookInMillis, isTimeout, null, false, false, shardFailures);
     }
 
@@ -86,7 +86,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         String asyncExecutionId,
         boolean isRunning,
         boolean isPartial,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
@@ -95,7 +95,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
-        this.shardFailures = shardFailures;
+        this.shardFailures = shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {

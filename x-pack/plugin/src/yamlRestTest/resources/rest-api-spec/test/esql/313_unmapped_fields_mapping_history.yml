@@ -18,8 +18,8 @@ setup:
   # The rebalancer must not move a copy of this index once the mapping is tightened: a copy built by recovery replays the
   # translog with the current mapping, so replaying the first document would try a dynamic mapping update for "extra", which
   # is not allowed during recovery and fails the shard in a retry loop that never converges. Rebalancing is disabled for it.
-  # The replicas are left as they are, since Serverless needs a copy to search. See
-  # https://github.com/elastic/elasticsearch/issues/164963.
+  # The replicas are left as they are, since Serverless needs a copy to search. A workaround for
+  # https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
   - do:
       indices.create:
         index: unmapped-history
@@ -102,11 +102,10 @@ setup:
 
   # "note" is a runtime field while the document is indexed, so no field holds its value once it is removed.
   #
-  #
   # The rebalancer must not move a copy of this index once "note" is removed: a copy built by recovery replays the translog with
   # the current mapping, and replaying the first document then hits "note" as an unknown field under dynamic:strict, which fails
-  # the shard in a retry loop that never converges. Rebalancing is disabled for it, and the replicas are left as they are. See
-  # https://github.com/elastic/elasticsearch/issues/164963.
+  # the shard in a retry loop that never converges. Rebalancing is disabled for it, and the replicas are left as they are. A
+  # workaround for https://github.com/elastic/elasticsearch/issues/167063, to be removed when that is fixed.
   - do:
       indices.create:
         index: unmapped-runtime

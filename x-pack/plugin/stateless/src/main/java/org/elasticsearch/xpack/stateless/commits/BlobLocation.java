@@ -57,7 +57,9 @@ public record BlobLocation(Blob blob, long offset, long fileLength) implements W
         if (blob instanceof BccBlob bccBlob) {
             return bccBlob;
         }
-        throw new IllegalStateException("expected a BccBlob but blob [" + blob + "] is a " + blob.getClass().getSimpleName());
+        final var e = new IllegalStateException("expected a BccBlob but blob [" + blob + "] is a " + blob.getClass().getSimpleName());
+        assert false : e;
+        throw e;
     }
 
     @Deprecated(forRemoval = true)

@@ -23,10 +23,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRa
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -192,6 +197,55 @@ public class PushdownPredicatesTests extends ESTestCase {
     public void testMvCompareDeclinesANullBound() {
         Literal nullBound = new Literal(SRC, null, DataType.LONG);
         assertFalse(PushdownPredicates.isMvCompare(new MvGreater(SRC, field("id", DataType.LONG), nullBound), SUPPORTED));
+    }
+
+    public void testComparisonAcceptsScalarLiteral() {
+        Equals eq = new Equals(SRC, field("id", DataType.INTEGER), new Literal(SRC, 1, DataType.INTEGER), null);
+        assertTrue(PushdownPredicates.isComparison(eq, SUPPORTED));
+    }
+
+    public void testComparisonDeclinesMultiValuedLiteral() {
+        Literal mv = new Literal(SRC, List.of(1, 2), DataType.INTEGER);
+        Equals eq = new Equals(SRC, field("id", DataType.INTEGER), mv, null);
+        GreaterThan gt = new GreaterThan(SRC, field("id", DataType.INTEGER), mv, null);
+        assertFalse(PushdownPredicates.isComparison(eq, SUPPORTED));
+        assertFalse(PushdownPredicates.isComparison(gt, SUPPORTED));
+    }
+
+    public void testInAcceptsScalarListItems() {
+        In in = new In(
+            SRC,
+            field("id", DataType.INTEGER),
+            List.of(new Literal(SRC, 1, DataType.INTEGER), new Literal(SRC, 2, DataType.INTEGER))
+        );
+        assertTrue(PushdownPredicates.isIn(in, SUPPORTED));
+    }
+
+    public void testInDeclinesMultiValuedListItem() {
+        In in = new In(SRC, field("id", DataType.INTEGER), List.of(new Literal(SRC, List.of(1, 2), DataType.INTEGER)));
+        assertFalse(PushdownPredicates.isIn(in, SUPPORTED));
+    }
+
+    public void testRangeAcceptsScalarBounds() {
+        Range range = new Range(
+            SRC,
+            field("id", DataType.INTEGER),
+            new Literal(SRC, 1, DataType.INTEGER),
+            true,
+            new Literal(SRC, 9, DataType.INTEGER),
+            true,
+            ZoneOffset.UTC
+        );
+        assertTrue(PushdownPredicates.isRange(range, SUPPORTED));
+    }
+
+    public void testRangeDeclinesMultiValuedBound() {
+        Literal mv = new Literal(SRC, List.of(1, 2), DataType.INTEGER);
+        Literal scalar = new Literal(SRC, 9, DataType.INTEGER);
+        Range lowerIsMv = new Range(SRC, field("id", DataType.INTEGER), mv, true, scalar, true, ZoneOffset.UTC);
+        Range upperIsMv = new Range(SRC, field("id", DataType.INTEGER), scalar, true, mv, true, ZoneOffset.UTC);
+        assertFalse(PushdownPredicates.isRange(lowerIsMv, SUPPORTED));
+        assertFalse(PushdownPredicates.isRange(upperIsMv, SUPPORTED));
     }
 
     private static FieldAttribute field(String name, DataType type) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.pushdown;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -173,6 +175,7 @@ public final class PushdownPredicates {
         if (bc.left() instanceof NamedExpression ne
             && isVirtualColumn(ne) == false
             && bc.right().foldable()
+            && isMultiValuedLiteral(bc.right()) == false
             && typeSupported.test(ne.dataType())
             && isAgreeingPushdownLiteral(ne.dataType(), bc.right())) {
             return bc instanceof Equals
@@ -194,7 +197,7 @@ public final class PushdownPredicates {
         if (inExpr.value() instanceof NamedExpression ne && isVirtualColumn(ne) == false && typeSupported.test(ne.dataType())) {
             boolean hasNonNull = false;
             for (Expression item : inExpr.list()) {
-                if (item.foldable() == false || isAgreeingPushdownLiteral(ne.dataType(), item) == false) {
+                if (item.foldable() == false || isMultiValuedLiteral(item) || isAgreeingPushdownLiteral(ne.dataType(), item) == false) {
                     return false;
                 }
                 if (literalValueOf(item) != null) {
@@ -233,6 +236,8 @@ public final class PushdownPredicates {
             && typeSupported.test(ne.dataType())
             && range.lower().foldable()
             && range.upper().foldable()
+            && isMultiValuedLiteral(range.lower()) == false
+            && isMultiValuedLiteral(range.upper()) == false
             && isAgreeingPushdownLiteral(ne.dataType(), range.lower())
             && isAgreeingPushdownLiteral(ne.dataType(), range.upper());
     }
@@ -358,6 +363,16 @@ public final class PushdownPredicates {
     private static boolean isScalarBound(Expression bound) {
         Object value = literalValueOf(bound);
         return value != null && value instanceof List == false;
+    }
+
+    /**
+     * Engine {@code EsqlBinaryComparison#translatable} declines a {@link Collection}-valued literal so the Lucene
+     * translator never sees a multi-value on the right. Dataset readers later do {@code (Number) value}; return
+     * {@code false} here so those leaves stay in {@code FilterExec}. Inspect the {@link Literal} payload only —
+     * {@code Expression.fold()} is not a pushdown-time operation.
+     */
+    private static boolean isMultiValuedLiteral(Expression e) {
+        return e instanceof Literal lit && lit.value() instanceof Collection<?>;
     }
 
     /** An {@code mv_} leaf's literal agrees with its field, or the leaf is not a field-and-literal shape at all. */

@@ -41,6 +41,10 @@ public final class Re2Programs {
      * @throws IllegalArgumentException if the expression isn't valid RE2, or its nested repeats make too many copies
      */
     public static Parsed parse(String pattern, int flags) {
+        // TODO: RE2/J 1.8 never returns from parsing a case-insensitive literal or class range that holds one of
+        // U+1C80..U+1C88, such as (?i)\x{1C80}, as label_replace never returns from compiling it:
+        // https://github.com/google/re2j/issues/215. Fixed upstream by https://github.com/google/re2j/pull/220, so
+        // it goes away with the upgrade of RE2/J to a release that has it.
         Regexp re;
         try {
             re = Parser.parse(pattern, flags);

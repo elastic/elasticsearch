@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -519,21 +520,20 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
-    public void testMinHashParamBoundsOnLegacyIndex() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)
+    public void testMinHashParamBoundsCheck() {
+        Function<IndexVersion, List<DeprecationIssue>> issuesFor = version -> minHashIssues(
+            settings(version).put("index.analysis.filter.big.type", "min_hash")
+                .put("index.analysis.filter.big.hash_count", 1)
+                .put("index.analysis.filter.big.bucket_count", 512)
+                .put("index.analysis.filter.big.hash_set_size", 200)
+                .put("index.analysis.filter.small.type", "min_hash")
+                .put("index.analysis.filter.small.hash_set_size", 20)
+                .put("index.analysis.filter.other.type", "lowercase")
         );
-        Settings.Builder settings = settings(version).put("index.analysis.filter.big.type", "min_hash")
-            .put("index.analysis.filter.big.hash_count", 1)
-            .put("index.analysis.filter.big.bucket_count", 512)
-            .put("index.analysis.filter.big.hash_set_size", 200)
-            .put("index.analysis.filter.small.type", "min_hash")
-            .put("index.analysis.filter.small.hash_set_size", 20)
-            .put("index.analysis.filter.other.type", "lowercase");
-        List<DeprecationIssue> issues = minHashIssues(settings);
+
+        // Only the filter that exceeds the bounds is reported, not one within them or a filter of another type.
         assertThat(
-            issues,
+            issuesFor.apply(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)),
             contains(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
@@ -548,24 +548,12 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 )
             )
         );
-    }
 
-    public void testMinHashParamBoundsWithinLimitsOnLegacyIndex() {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)
-        );
-        Settings.Builder settings = settings(version).put("index.analysis.filter.small.type", "min_hash")
-            .put("index.analysis.filter.small.hash_set_size", 20);
-        assertThat(minHashIssues(settings), equalTo(List.of()));
-    }
-
-    public void testMinHashParamBoundsNotReportedOnNewIndex() {
         // Indices created on or after the bounds were introduced can't hold such a filter, so there is nothing to report.
-        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        Settings.Builder settings = settings(version).put("index.analysis.filter.big.type", "min_hash")
-            .put("index.analysis.filter.big.hash_set_size", 200);
-        assertThat(minHashIssues(settings), equalTo(List.of()));
+        assertThat(
+            issuesFor.apply(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)),
+            equalTo(List.of())
+        );
     }
 
     private List<DeprecationIssue> minHashIssues(Settings.Builder settings) {

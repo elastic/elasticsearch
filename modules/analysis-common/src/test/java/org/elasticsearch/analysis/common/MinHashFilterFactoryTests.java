@@ -12,6 +12,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -36,6 +38,8 @@ import java.io.StringReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertStreamHasNumberOfTokens;
 import static org.hamcrest.Matchers.containsString;
@@ -117,48 +121,38 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
 
     // ---- Filters defined inline in a request (e.g. _analyze) ----
 
-    public void testInlineOversizedParametersRejected() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildInline(null, Map.of("hash_count", 2147483639, "bucket_count", 2147483639, "hash_set_size", 1))
-        );
-        assertThat(e.getMessage(), containsString("must not exceed"));
-    }
+    public void testInlineParameterCapEnforced() {
+        BiConsumer<Map<String, Integer>, String> assertCapExceeded = (params, param) -> {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildInline(null, params));
+            assertThat(e.getMessage(), containsString("[" + param + "] must not exceed"));
+        };
 
-    public void testInlineIndividualParameterCapEnforced() {
-        Map<String, Integer> overLimit = Map.of(
-            "hash_count",
-            MinHashTokenFilterFactory.MAX_HASH_COUNT + 1,
-            "bucket_count",
-            MinHashTokenFilterFactory.MAX_BUCKET_COUNT + 1,
-            "hash_set_size",
-            MinHashTokenFilterFactory.MAX_HASH_SET_SIZE + 1
-        );
-        for (Map.Entry<String, Integer> entry : overLimit.entrySet()) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> buildInline(null, Map.of(entry.getKey(), entry.getValue()))
-            );
-            assertThat(e.getMessage(), containsString("[" + entry.getKey() + "] must not exceed"));
-        }
-    }
-
-    public void testInlineOverflowBypassRejected() {
+        assertCapExceeded.accept(Map.of("hash_count", MinHashTokenFilterFactory.MAX_HASH_COUNT + 1), "hash_count");
+        assertCapExceeded.accept(Map.of("bucket_count", MinHashTokenFilterFactory.MAX_BUCKET_COUNT + 1), "bucket_count");
+        assertCapExceeded.accept(Map.of("hash_set_size", MinHashTokenFilterFactory.MAX_HASH_SET_SIZE + 1), "hash_set_size");
+        assertCapExceeded.accept(Map.of("hash_count", 2147483639, "bucket_count", 2147483639, "hash_set_size", 1), "hash_count");
         // Three values whose product wraps to zero in long arithmetic must still be rejected by the per-parameter cap.
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildInline(null, Map.of("hash_count", 2097152, "bucket_count", 2097152, "hash_set_size", 4194304))
-        );
-        assertThat(e.getMessage(), containsString("must not exceed"));
+        assertCapExceeded.accept(Map.of("hash_count", 2097152, "bucket_count", 2097152, "hash_set_size", 4194304), "hash_count");
     }
 
     public void testInlineProductIncludesHashSetSize() {
         // hash_count * bucket_count is within 10,000, but the filter can hold up to 10^8 hashes while reading its input.
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildInline(null, Map.of("hash_count", 10000, "bucket_count", 1, "hash_set_size", 10000))
+        Consumer<IndexSettings> assertRejected = indexSettings -> {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> buildInline(indexSettings, Map.of("hash_count", 10000, "bucket_count", 1, "hash_set_size", 10000))
+            );
+            assertThat(e.getMessage(), containsString("exceeds the maximum token count limit [10000]"));
+        };
+
+        assertRejected.accept(null);
+        // Inline definitions are checked even when the request targets an index created before the index bounds were introduced.
+        assertRejected.accept(
+            indexSettings(
+                IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS),
+                Settings.builder()
+            )
         );
-        assertThat(e.getMessage(), containsString("exceeds the maximum token count limit [10000]"));
     }
 
     public void testInlineProductUsesIndexMaxTokenCount() throws IOException {
@@ -171,19 +165,6 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         assertThat(e.getMessage(), containsString("exceeds the maximum token count limit [20000]"));
     }
 
-    public void testInlineCheckedAgainstLegacyIndex() {
-        // Inline definitions are checked even when the request targets an index created before the index bounds were introduced.
-        IndexSettings indexSettings = indexSettings(
-            IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS),
-            Settings.builder()
-        );
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildInline(indexSettings, Map.of("hash_count", 10000, "bucket_count", 1, "hash_set_size", 10000))
-        );
-        assertThat(e.getMessage(), containsString("exceeds the maximum token count limit"));
-    }
-
     public void testInlineMaxParamValueAllowed() throws IOException {
         int maxBucketCount = MinHashTokenFilterFactory.MAX_BUCKET_COUNT;
         // Product is 1 * 10000 * 1 = 10000, which equals the default max_token_count.
@@ -192,35 +173,14 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
 
     // ---- Filters defined in the settings of indices created on or after MIN_HASH_INDEX_PARAM_BOUNDS ----
 
-    public void testIndexHashSetsBound() throws IOException {
+    public void testIndexBoundsEnforced() throws IOException {
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        assertNotNull(buildFromIndexSettings(version, Settings.builder(), 100, 100, 1));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildFromIndexSettings(version, Settings.builder(), 10001, 1, 1)
-        );
-        assertThat(e.getMessage(), containsString("is [10001], which exceeds the limit [10000]"));
-    }
-
-    public void testIndexHashEntriesBound() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        // 1 * 512 * 195 = 99,840
         assertNotNull(buildFromIndexSettings(version, Settings.builder(), 1, 512, 195));
-        // 1 * 512 * 196 = 100,352
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> buildFromIndexSettings(version, Settings.builder(), 1, 512, 196)
         );
-        assertThat(e.getMessage(), containsString("is [100352], which exceeds the limit [100000]"));
-    }
-
-    public void testIndexBoundsDoNotOverflow() {
-        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildFromIndexSettings(version, Settings.builder(), 2097152, 2097152, 4194304)
-        );
-        assertThat(e.getMessage(), containsString("which exceeds the limit [10000]"));
+        assertThat(e.getMessage(), containsString(MinHashIndexParamBounds.violation(1, 512, 196)));
     }
 
     public void testIndexBoundsIgnoreMaxTokenCount() throws IOException {
@@ -230,62 +190,52 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         assertNotNull(buildFromIndexSettings(version, lowMaxTokenCount, 1, 512, 20));
     }
 
-    public void testIndexFilterWithAnonymousPrefixUsesIndexBounds() throws IOException {
-        // The name of a filter defined in index settings can start with the prefix that inline definitions get. It must
-        // still get the index bounds, not the inline checks, which depend on index.analyze.max_token_count.
+    public void testIndexDefinedFilterUsesIndexBounds() throws IOException {
+        // A filter defined in index settings gets the index bounds, not the inline checks, which depend on
+        // index.analyze.max_token_count. That holds when an _analyze request refers to the filter by name, and when the
+        // filter's name starts with the prefix that inline definitions get (index settings don't reserve it).
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        Settings.Builder lowMaxTokenCount = Settings.builder().put("index.analyze.max_token_count", 1);
-        String name = AnalysisRegistry.ANONYMOUS_COMPONENT_PREFIX + "min_hash";
-        assertNotNull(buildFromIndexSettings(name, version, lowMaxTokenCount, 1, 512, 20));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> buildFromIndexSettings(name, version, Settings.builder(), 1, 512, 196)
+        CheckedBiFunction<String, Integer, NamedAnalyzer, IOException> buildByName = (name, hashSetSize) -> buildCustomAnalyzer(
+            indexSettings(
+                version,
+                Settings.builder()
+                    .put("index.analyze.max_token_count", 1)
+                    .put("index.analysis.filter." + name + ".type", "min_hash")
+                    .put("index.analysis.filter." + name + ".hash_set_size", hashSetSize)
+            ),
+            new NameOrDefinition(name)
         );
-        assertThat(e.getMessage(), containsString("is [100352], which exceeds the limit [100000]"));
-    }
 
-    public void testIndexFilterReferencedByNameInRequestUsesIndexBounds() throws IOException {
-        // An _analyze request can refer to a filter defined in the index by name; that filter gets the index bounds.
-        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        IndexSettings indexSettings = indexSettings(
-            version,
-            Settings.builder()
-                .put("index.analyze.max_token_count", 1)
-                .put("index.analysis.filter.test_min_hash.type", "min_hash")
-                .put("index.analysis.filter.test_min_hash.hash_set_size", 20)
-        );
-        assertNotNull(buildCustomAnalyzer(indexSettings, new NameOrDefinition("test_min_hash")));
+        for (String name : List.of("test_min_hash", AnalysisRegistry.ANONYMOUS_COMPONENT_PREFIX + "min_hash")) {
+            // Built with the index's analysis components.
+            assertNotNull(buildFromIndexSettings(name, version, Settings.builder().put("index.analyze.max_token_count", 1), 1, 512, 20));
+            // Referenced by name from a request.
+            assertNotNull(buildByName.apply(name, 20));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildByName.apply(name, 196));
+            assertThat(e.getMessage(), containsString(MinHashIndexParamBounds.violation(1, 512, 196)));
+        }
     }
 
     // ---- Filters defined in the settings of indices created before MIN_HASH_INDEX_PARAM_BOUNDS ----
 
-    public void testLegacyIndexAboveBoundsStillBuilds() throws IOException {
+    public void testLegacyIndexWarnings() throws IOException {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        assertNotNull(buildFromIndexSettings(version, Settings.builder(), 1, 512, 200));
-        assertWarnings(
-            "[min_hash] filter [test_min_hash] on index [test]: The product of hash_count [1], bucket_count [512], and hash_set_size "
-                + "[200] is [102400], which exceeds the limit [100000]. This configuration is allowed on this index, but can't be used "
-                + "on new indices. Lower these parameters in the settings of any new index, for example a reindex destination; note "
-                + "that this changes the hashes the filter produces."
-        );
-    }
+        String suffix = " This configuration is allowed on this index, but can't be used on new indices. Lower these parameters in "
+            + "the settings of any new index, for example a reindex destination; note that this changes the hashes the filter produces.";
 
-    public void testLegacyIndexAboveParamCapStillBuilds() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
-        Settings.Builder lowMaxTokenCount = Settings.builder().put("index.analyze.max_token_count", 1);
-        assertNotNull(buildFromIndexSettings(version, lowMaxTokenCount, 1, MinHashTokenFilterFactory.MAX_BUCKET_COUNT + 1, 1));
-        assertWarnings(
-            "[min_hash] filter [test_min_hash] on index [test]: The product of hash_count [1] and bucket_count [10001] is [10001], "
-                + "which exceeds the limit [10000]. This configuration is allowed on this index, but can't be used on new indices. "
-                + "Lower these parameters in the settings of any new index, for example a reindex destination; note that this "
-                + "changes the hashes the filter produces."
-        );
-    }
-
-    public void testLegacyIndexWithinBoundsNoWarning() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
         assertNotNull(buildFromIndexSettings(version, Settings.builder(), 1, 512, 20));
-        // ESTestCase fails the test on any unexpected deprecation warning.
+        ensureNoWarnings();
+
+        assertNotNull(buildFromIndexSettings(version, Settings.builder(), 1, 512, 200));
+        assertWarnings("[min_hash] filter [test_min_hash] on index [test]: " + MinHashIndexParamBounds.violation(1, 512, 200) + suffix);
+
+        // Above the inline per-parameter cap too, and index.analyze.max_token_count doesn't apply.
+        Settings.Builder lowMaxTokenCount = Settings.builder().put("index.analyze.max_token_count", 1);
+        int bucketCount = MinHashTokenFilterFactory.MAX_BUCKET_COUNT + 1;
+        assertNotNull(buildFromIndexSettings(version, lowMaxTokenCount, 1, bucketCount, 1));
+        assertWarnings(
+            "[min_hash] filter [test_min_hash] on index [test]: " + MinHashIndexParamBounds.violation(1, bucketCount, 1) + suffix
+        );
     }
 
     private TokenFilterFactory buildFromIndexSettings(

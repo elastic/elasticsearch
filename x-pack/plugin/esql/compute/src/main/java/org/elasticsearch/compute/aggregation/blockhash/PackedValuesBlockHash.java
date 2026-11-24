@@ -356,6 +356,20 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
      * {@code resultFactory}, so each caller charges its own breaker rather than the one the hash was built on.
      */
     public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory resultFactory, ByteSizeValue targetBlockSize) {
+        return lookup(page, resultFactory, targetBlockSize, false);
+    }
+
+    /**
+     * Like {@link #lookup(Page, BlockFactory, ByteSizeValue)}, but with {@code multivaluesMiss} a position where any key has
+     * more than one value is a miss rather than a lookup of every combination of its values. That lets a caller that treats
+     * multivalued keys as invalid skip them without copying the key blocks to null them out.
+     */
+    public ReleasableIterator<IntBlock> lookup(
+        Page page,
+        BlockFactory resultFactory,
+        ByteSizeValue targetBlockSize,
+        boolean multivaluesMiss
+    ) {
         if (wholeMultivalues) {
             throw new UnsupportedOperationException("lookup isn't supported with whole multivalues");
         }
@@ -369,7 +383,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         );
         boolean success = false;
         try {
-            LookupWork work = new LookupWork(page, resultFactory, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch);
+            LookupWork work = new LookupWork(page, resultFactory, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE, scratch, multivaluesMiss);
             success = true;
             return work;
         } finally {
@@ -385,14 +399,33 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
         private final long targetByteSize;
         private final int positionCount;
         private final BreakingBytesRefBuilder bytes;
+        /**
+         * Key blocks whose multivalued positions are misses, each referenced until this closes. Empty unless the caller
+         * asked for multivalues to miss. These are the raw blocks because the encoders deduplicate values, and a key
+         * like {@code [7, 7]} is still multivalued.
+         */
+        private final Block[] multivaluedKeys;
         private int position;
 
-        LookupWork(Page page, BlockFactory resultFactory, long targetByteSize, int batchSize, BreakingBytesRefBuilder bytes) {
+        LookupWork(
+            Page page,
+            BlockFactory resultFactory,
+            long targetByteSize,
+            int batchSize,
+            BreakingBytesRefBuilder bytes,
+            boolean multivaluesMiss
+        ) {
             this.groups = specs.stream().map(s -> new Group(s, page, batchSize, false)).toArray(Group[]::new);
             this.resultFactory = resultFactory;
             this.positionCount = page.getPositionCount();
             this.targetByteSize = targetByteSize;
             this.bytes = bytes;
+            this.multivaluedKeys = multivaluesMiss
+                ? specs.stream().map(s -> page.<Block>getBlock(s.channel())).filter(Block::doesHaveMultivaluedFields).toArray(Block[]::new)
+                : new Block[0];
+            for (Block key : multivaluedKeys) {
+                key.incRef();
+            }
         }
 
         @Override
@@ -412,7 +445,9 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                 while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
                     // TODO a test where targetByteSize is very small should still make a few rows.
                     boolean singleEntry = startPosition(groups, bytes);
-                    if (singleEntry) {
+                    if (isMultivaluedMiss()) {
+                        missMultivalued(ords);
+                    } else if (singleEntry) {
                         lookupSingleEntry(ords);
                     } else {
                         lookupMultipleEntries(ords);
@@ -420,6 +455,25 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                     position++;
                 }
                 return ords.build();
+            }
+        }
+
+        private boolean isMultivaluedMiss() {
+            for (Block key : multivaluedKeys) {
+                if (key.getValueCount(position) > 1) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Appends a miss and moves every group past this position's values without looking them up.
+         */
+        private void missMultivalued(IntBlock.Builder ords) {
+            ords.appendNull();
+            for (Group group : groups) {
+                group.valueOffset += group.valueCount;
             }
         }
 
@@ -478,7 +532,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(Releasables.wrap(groups), bytes);
+            Releasables.closeExpectNoException(Releasables.wrap(groups), bytes, Releasables.wrap(multivaluedKeys));
         }
     }
 

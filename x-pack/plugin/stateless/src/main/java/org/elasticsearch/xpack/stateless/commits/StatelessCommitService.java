@@ -501,10 +501,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * runs independently, and will call this function for itself.
      * @param sourceShardId the source shard ID. Commits uploaded from this shard will be copied to the target shard.
      * @param targetShardId the target shard ID.
+     * @return a runnable that calls {@link #markSplitEnding}. This is used to handle the case where a shard relocates from and back to its
+     *         original node, and a new split clashes with the original one. This ensures the split ends on the right
+     *         {@link ShardCommitState}. TODO: remove when we transition to a source shard state machine.
      */
-    public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
+    public Runnable markSplitting(ShardId sourceShardId, ShardId targetShardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
         commitState.markSplitting(targetShardId);
+        return () -> commitState.markSplitEnding(targetShardId, true);
     }
 
     /**

@@ -18,9 +18,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.read.DelegatingBlockLoaderFactory;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
@@ -43,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +103,7 @@ public final class EsqlSortKey {
         .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
         .build();
 
-    /** Builds the blocks that the fields' {@link BlockLoader}s read, resolving ordinals one value at a time. */
+    /** Builds the blocks that the fields' {@link BlockLoader}s read, with a dictionary of the ordinals of each chunk. */
     static final BlockLoader.BlockFactory LOADER_FACTORY = new DelegatingBlockLoaderFactory(BLOCK_FACTORY) {
         @Override
         public BlockLoader.Block constantNulls(int count) {
@@ -107,84 +112,139 @@ public final class EsqlSortKey {
 
         @Override
         public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
-            return new OrdinalBytes(factory.newBytesRefBlockBuilder(count), ordinals::lookupOrd);
+            return new ChunkOrdinals(factory, count, ordinals::lookupOrd, Block.MvOrdering.UNORDERED);
         }
 
         @Override
         public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
-            BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(count);
-            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
-            return new OrdinalBytes(builder, ordinals::lookupOrd);
+            return new ChunkOrdinals(factory, count, ordinals::lookupOrd, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
     };
 
-    /** Appends the bytes of each ordinal, looked up when it is appended. */
-    private static final class OrdinalBytes implements BlockLoader.SingletonOrdinalsBuilder, BlockLoader.SortedSetOrdinalsBuilder {
-        private final BytesRefBlock.Builder builder;
+    /** Builds a block whose dictionary holds the distinct ordinals of the chunk, each looked up once. */
+    private static final class ChunkOrdinals implements BlockLoader.SingletonOrdinalsBuilder, BlockLoader.SortedSetOrdinalsBuilder {
+        private final BlockFactory factory;
+        private final IntBlock.Builder ords;
         private final OrdinalLookup lookup;
+        private final Block.MvOrdering mvOrdering;
 
-        OrdinalBytes(BytesRefBlock.Builder builder, OrdinalLookup lookup) {
-            this.builder = builder;
+        ChunkOrdinals(BlockFactory factory, int count, OrdinalLookup lookup, Block.MvOrdering mvOrdering) {
+            this.factory = factory;
+            this.ords = factory.newIntBlockBuilder(count);
             this.lookup = lookup;
-        }
-
-        private BytesRef bytes(int ord) {
-            try {
-                return lookup.lookupOrd(ord);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            this.mvOrdering = mvOrdering;
         }
 
         @Override
-        public OrdinalBytes appendOrd(int value) {
-            builder.appendBytesRef(bytes(value));
+        public ChunkOrdinals appendOrd(int value) {
+            ords.appendInt(value);
             return this;
         }
 
         @Override
-        public OrdinalBytes appendOrds(int ord, int length) {
-            BytesRef value = bytes(ord);
+        public ChunkOrdinals appendOrds(int ord, int length) {
             for (int i = 0; i < length; i++) {
-                builder.appendBytesRef(value);
+                ords.appendInt(ord);
             }
             return this;
         }
 
         @Override
-        public OrdinalBytes appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+        public ChunkOrdinals appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
             for (int i = from; i < from + length; i++) {
-                builder.appendBytesRef(bytes(values[i]));
+                ords.appendInt(values[i]);
             }
             return this;
         }
 
         @Override
-        public OrdinalBytes appendNull() {
-            builder.appendNull();
+        public ChunkOrdinals appendNull() {
+            ords.appendNull();
             return this;
         }
 
         @Override
-        public OrdinalBytes beginPositionEntry() {
-            builder.beginPositionEntry();
+        public ChunkOrdinals beginPositionEntry() {
+            ords.beginPositionEntry();
             return this;
         }
 
         @Override
-        public OrdinalBytes endPositionEntry() {
-            builder.endPositionEntry();
+        public ChunkOrdinals endPositionEntry() {
+            ords.endPositionEntry();
             return this;
         }
 
         @Override
         public BytesRefBlock build() {
-            return builder.build();
+            try (IntBlock ordinals = ords.build()) {
+                if (ordinals.getTotalValueCount() == 0) {
+                    return (BytesRefBlock) factory.newConstantNullBlock(ordinals.getPositionCount());
+                }
+                int[] distinct = new int[ordinals.getTotalValueCount()];
+                int n = 0;
+                for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                    int first = ordinals.getFirstValueIndex(p);
+                    for (int i = first; i < first + ordinals.getValueCount(p); i++) {
+                        distinct[n++] = ordinals.getInt(i);
+                    }
+                }
+                Arrays.sort(distinct);
+                int size = 0;
+                for (int ord : distinct) {
+                    if (size == 0 || distinct[size - 1] != ord) {
+                        distinct[size++] = ord;
+                    }
+                }
+                BytesRefVector dictionary = null;
+                IntBlock mapped = null;
+                try {
+                    try (BytesRefVector.Builder builder = factory.newBytesRefVectorBuilder(size)) {
+                        for (int i = 0; i < size; i++) {
+                            builder.appendBytesRef(lookup.lookupOrd(distinct[i]));
+                        }
+                        dictionary = builder.build();
+                    }
+                    mapped = remap(ordinals, distinct, size);
+                    BytesRefBlock result = new OrdinalBytesRefBlock(mapped, dictionary);
+                    dictionary = null;
+                    mapped = null;
+                    return result;
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                } finally {
+                    Releasables.close(dictionary, mapped);
+                }
+            }
+        }
+
+        private IntBlock remap(IntBlock ordinals, int[] distinct, int size) {
+            try (IntBlock.Builder builder = factory.newIntBlockBuilder(ordinals.getPositionCount())) {
+                for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                    int count = ordinals.getValueCount(p);
+                    if (count == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int first = ordinals.getFirstValueIndex(p);
+                    if (count > 1) {
+                        builder.beginPositionEntry();
+                    }
+                    for (int i = first; i < first + count; i++) {
+                        builder.appendInt(Arrays.binarySearch(distinct, 0, size, ordinals.getInt(i)));
+                    }
+                    if (count > 1) {
+                        builder.endPositionEntry();
+                    }
+                }
+                builder.mvOrdering(mvOrdering);
+                return builder.build();
+            }
         }
 
         @Override
         public void close() {
-            builder.close();
+            ords.close();
         }
     }
 

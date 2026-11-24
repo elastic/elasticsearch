@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.util.GradleUtils
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -29,22 +31,17 @@ restResources {
   }
 }
 
-// Unit tests parse index.sort expressions with ES|QL. Test nodes find its parser on the classpath even without the plugin, so keep
-// it off the internal cluster tests.
-configurations {
-  internalClusterTestRuntimeClasspath {
-    exclude group: 'org.elasticsearch.plugin', module: 'esql'
-  }
-}
+// Tests that parse index.sort expressions with ES|QL, apart from the tests whose nodes would find its parser without the plugin
+def esqlIndexSortTest = GradleUtils.addTestSourceSet(project, 'esqlIndexSortTest')
+GradleUtils.extendSourceSet(project, 'test', 'esqlIndexSortTest', esqlIndexSortTest)
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   implementation project(':modules:mapper-extras')
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  // ES|QL parses the index.sort expression
-  testImplementation project(xpackModule('esql'))
-  testImplementation project(xpackModule('esql-core'))
+  esqlIndexSortTestImplementation project(xpackModule('esql'))
+  esqlIndexSortTestImplementation project(xpackModule('esql-core'))
   javaRestTestImplementation("commons-io:commons-io:2.15.1")
   javaRestTestImplementation(testArtifact(project(xpackModule('spatial'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))

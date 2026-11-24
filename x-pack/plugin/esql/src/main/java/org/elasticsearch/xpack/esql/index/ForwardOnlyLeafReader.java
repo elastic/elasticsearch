@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.index;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FilterBinaryDocValues;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FilterNumericDocValues;
@@ -40,6 +41,12 @@ final class ForwardOnlyLeafReader extends FilterLeafReader {
     @Override
     public int maxDoc() {
         return maxDoc;
+    }
+
+    /** A segment that is being flushed has no skippers. */
+    @Override
+    public DocValuesSkipper getDocValuesSkipper(String field) {
+        return null;
     }
 
     @Override

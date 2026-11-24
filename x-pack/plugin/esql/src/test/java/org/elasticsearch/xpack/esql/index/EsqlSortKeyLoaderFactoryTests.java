@@ -38,6 +38,11 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
                 TreeSet<String> values = new TreeSet<>();
+                if (i == 0) {
+                    // At least one document has several values
+                    values.add("a");
+                    values.add("b");
+                }
                 int count = between(0, 4);
                 for (int v = 0; v < count; v++) {
                     values.add(randomAlphaOfLength(between(1, 8)));
@@ -93,7 +98,7 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
-                if (randomBoolean()) {
+                if (i == 0 || randomBoolean()) {
                     expected[i] = randomAlphaOfLength(between(1, 8));
                     doc.add(new SortedDocValuesField("f", new BytesRef(expected[i])));
                 }
@@ -103,9 +108,6 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 LeafReader leaf = reader.leaves().getFirst().reader();
                 SortedDocValues dv = leaf.getSortedDocValues("f");
-                if (dv == null) {
-                    return;
-                }
                 try (
                     BlockLoader.SingletonOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.singletonOrdinalsBuilder(dv, numDocs, false)
                 ) {

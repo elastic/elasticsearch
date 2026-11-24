@@ -61,6 +61,10 @@ public final class EsqlSortField extends ComputedKeySortField {
 
         @Override
         public DocComparator getDocComparator(LeafReader reader, int maxDoc) throws IOException {
+            if (maxDoc == 0) {
+                // Lucene checks the sort on an empty reader that has no field infos
+                return (doc1, doc2) -> 0;
+            }
             EsqlSortKeyValues values = values(new ForwardOnlyLeafReader(reader, maxDoc), maxDoc);
             long[] keys = new long[maxDoc];
             int doc = 0;

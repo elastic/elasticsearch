@@ -288,6 +288,60 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
         assertHourOrder(INDEX, numDocs);
     }
 
+    /** A key on a multi-valued field with binary doc values sorts the same at flush, where segments have no skippers, and at merge. */
+    public void testMultiValuedBinaryField() {
+        assertAcked(
+            indicesAdmin().prepareCreate(INDEX)
+                .setSettings(indexSettings(1, 0).put("index.mode", "columnar").put("index.sort", "MV_COUNT(addresses) DESC"))
+                .setMapping("addresses", "type=ip", "n", "type=integer")
+        );
+        int batches = between(2, 4);
+        for (int b = 0; b < batches; b++) {
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            int docs = between(50, 300);
+            for (int i = 0; i < docs; i++) {
+                int count = between(1, 5);
+                List<String> addresses = new ArrayList<>();
+                for (int a = 0; a < count; a++) {
+                    addresses.add("10." + b + "." + i + "." + a);
+                }
+                bulk.add(prepareIndex(INDEX).setSource("addresses", addresses, "n", count));
+            }
+            assertNoFailures(bulk.get());
+        }
+        assertCountOrder();
+        assertNoFailures(indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+        refresh(INDEX);
+        assertCountOrder();
+    }
+
+    /** Each segment is sorted on the number of values, highest first, as recorded in {@code n}. */
+    private void assertCountOrder() {
+        for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = indicesService.indexService(resolveIndex(INDEX));
+            if (indexService == null) {
+                continue;
+            }
+            for (IndexShard shard : indexService) {
+                try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                    for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                        var counts = leaf.reader().getSortedNumericDocValues("n");
+                        assertNotNull(counts);
+                        long previous = Long.MAX_VALUE;
+                        for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                            assertTrue(counts.advanceExact(doc));
+                            long count = counts.nextValue();
+                            assertThat("doc " + doc, count, lessThanOrEqualTo(previous));
+                            previous = count;
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }
+    }
+
     /**
      * Indexes batches of documents, some without a timestamp and some with several, which have no key, unless
      * {@code singleTimestamp} as logsdb requires.

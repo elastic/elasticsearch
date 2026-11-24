@@ -25,6 +25,8 @@ import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -47,6 +49,8 @@ import static org.hamcrest.Matchers.is;
  * tests that extend ESTestCase for the same reason.
  */
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@RunWith(ESRandomizedRunner.class)
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
     private static final String CONTROLLER_SOURCE = """

@@ -106,8 +106,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Large chunks of REST responses waiting to be written to the client, see {@link org.elasticsearch.rest.RestController}. */
     public static final String CATEGORY_REST_RESPONSE = "rest_response";
 
-    /** Sources of the documents in multi-get shard responses (label is {@code get[<detail>]}). */
-    public static final String CATEGORY_GET = "get";
+    /** Sources of the documents in multi-get shard responses (label is {@code mget[<detail>]}). */
+    public static final String CATEGORY_MGET = "mget";
 
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
@@ -121,7 +121,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         CATEGORY_TERMS,
         CATEGORY_PARSED_REQUEST,
         CATEGORY_REST_RESPONSE,
-        CATEGORY_GET
+        CATEGORY_MGET
     );
 
     /**

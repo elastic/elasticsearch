@@ -32,7 +32,7 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST, ChildMemoryCircuitBreaker.categoryFor("parsed_request"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_REST_RESPONSE, ChildMemoryCircuitBreaker.categoryFor("rest_response"));
-        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_GET, ChildMemoryCircuitBreaker.categoryFor("get"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MGET, ChildMemoryCircuitBreaker.categoryFor("mget"));
     }
 
     public void testCategoryForCompositeLabelsBracket() {
@@ -42,7 +42,7 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH, ChildMemoryCircuitBreaker.categoryFor("msearch[failure]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch[source]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch[script_field]"));
-        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_GET, ChildMemoryCircuitBreaker.categoryFor("get[source]"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MGET, ChildMemoryCircuitBreaker.categoryFor("mget[source]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_WILDCARD, ChildMemoryCircuitBreaker.categoryFor("wildcard[ci]:my_field"));
     }
 

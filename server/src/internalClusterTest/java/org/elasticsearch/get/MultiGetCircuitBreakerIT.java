@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -236,7 +237,7 @@ public class MultiGetCircuitBreakerIT extends ESIntegTestCase {
         assertThat(ExceptionsHelper.status(failure.getFailure()), equalTo(RestStatus.TOO_MANY_REQUESTS));
         Throwable trip = ExceptionsHelper.unwrap(failure.getFailure(), CircuitBreakingException.class);
         assertThat(trip, notNullValue());
-        assertThat(trip.getMessage(), containsString("[get[source]]"));
+        assertThat(trip.getMessage(), containsString("[" + ChildMemoryCircuitBreaker.CATEGORY_MGET + "[source]]"));
     }
 
     private static void assertRequestBreakersReleased() throws Exception {

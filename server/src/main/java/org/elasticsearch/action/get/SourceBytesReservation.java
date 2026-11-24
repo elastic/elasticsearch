@@ -27,8 +27,8 @@ import org.elasticsearch.index.get.GetResult;
  */
 final class SourceBytesReservation implements Releasable {
 
-    /** The label of the charges, whose metrics category is {@link ChildMemoryCircuitBreaker#CATEGORY_GET}. */
-    static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_GET + "[source]";
+    /** The label of the charges, whose metrics category is {@link ChildMemoryCircuitBreaker#CATEGORY_MGET}. */
+    static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MGET + "[source]";
 
     static final long CHARGE_THRESHOLD_BYTES = ByteSizeValue.ofMb(1).getBytes();
 

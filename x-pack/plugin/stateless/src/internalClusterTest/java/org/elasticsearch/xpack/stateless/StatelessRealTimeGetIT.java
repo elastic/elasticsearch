@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -260,7 +261,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(ExceptionsHelper.status(failure.getFailure()), equalTo(RestStatus.TOO_MANY_REQUESTS));
         assertThat(
             ExceptionsHelper.unwrap(failure.getFailure(), CircuitBreakingException.class).getMessage(),
-            containsString("[get[source]]")
+            containsString("[" + ChildMemoryCircuitBreaker.CATEGORY_MGET + "[source]]")
         );
         assertTrue(response.getResponses()[1].getResponse().isExists());
     }

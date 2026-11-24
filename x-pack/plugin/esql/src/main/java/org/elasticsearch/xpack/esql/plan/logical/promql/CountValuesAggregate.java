@@ -154,7 +154,9 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
             : context.collapse(ir, union(ir.schema(), finite(keys)), ir.value());
 
         Source source = source();
-        Alias key = new Alias(source, label, groupingKey(table.valueColumn()));
+        // an unresolved key is found by name, so it takes a name the formatted label does not share
+        String keyName = table.valueColumn().resolved() ? label : label + "$key";
+        Alias key = new Alias(source, keyName, groupingKey(table.valueColumn()));
         LogicalPlan keyed = new Eval(source, table.plan(), List.of(key));
         // the key replaces a stored label of the same name, which the regroup would otherwise prefer as its backing field
         List<Attribute> shadowed = keyed.output()
@@ -166,16 +168,18 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
         }
 
         List<String> regroupKeys = new ArrayList<>(keys);
-        regroupKeys.add(label);
+        regroupKeys.add(keyName);
         IntermediateResult counted = context.regroup(
-            table.with(keyed, union(table.schema(), finite(List.of(label))), table.value()),
+            table.with(keyed, union(table.schema(), finite(List.of(keyName))), table.value()),
             finite(regroupKeys),
             false,
             new Count(source, key.toAttribute())
         );
         counted = context.eval(counted, TranslationContext.zeroCountAsNull(counted.valueColumn()));
-        Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, counted.label(label)), valueLabel.id());
-        return counted.with(new Eval(source, counted.plan(), List.of(formatted)), counted.schema(), counted.value());
+        Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, counted.label(keyName)), valueLabel.id());
+        List<String> labels = new ArrayList<>(keys);
+        labels.add(label);
+        return counted.with(new Eval(source, counted.plan(), List.of(formatted)), finite(labels), counted.value());
     }
 
     /**
@@ -207,23 +211,20 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
     }
 
     private Expression asDouble(Expression value) {
-        return value.dataType() == DataType.DOUBLE ? value : new ToDouble(source(), value);
+        return value.resolved() && value.dataType() == DataType.DOUBLE ? value : new ToDouble(source(), value);
     }
 
     /**
      * The value as a double grouping key. Packed multi-key hashing compares a double's raw bits, so a value that can be
      * NaN maps every NaN payload to the one canonical NaN; a whole number never converts to NaN.
      * <p>
-     * A value still unresolved here reads a metric the index does not map: it is null where missing fields read as null, and
-     * fails verification otherwise. Its key is null then, so it counts nothing, as Prometheus gives nothing for an absent metric.
+     * A value still unresolved here reads a metric the index does not map. Its type is known only once the analyzer resolves
+     * it, so the key stays tied to the value and is converted then: null where the missing field reads as null, whatever
+     * the value computes otherwise (such as {@code absent}, which is 1), and a verification failure elsewhere.
      */
     private Expression groupingKey(Attribute value) {
-        if (value.resolved() == false) {
-            return new Literal(source(), null, DataType.DOUBLE);
-        }
         Expression asDouble = asDouble(value);
-        DataType type = value.dataType();
-        if (type.noCounter().isWholeNumber()) {
+        if (value.resolved() && value.dataType().noCounter().isWholeNumber()) {
             return asDouble;
         }
         Source source = source();

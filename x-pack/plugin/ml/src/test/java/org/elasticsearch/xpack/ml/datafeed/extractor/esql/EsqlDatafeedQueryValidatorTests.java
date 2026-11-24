@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -210,7 +209,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(validateAtStart(harness), equalTo(List.of("east:logs-*", "west:*")));
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1"));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2"));
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
     }
 
@@ -353,9 +352,9 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation());
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1"));
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2"));
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
-        assertThat(harness.capturedParams, empty());
+        assertThat(harness.capturedParams, equalTo(describeParams("@timestamp", "@timestamp")));
     }
 
     public void testValidationQueryWithSummaryCountShouldFilterBothColumns() {
@@ -363,14 +362,33 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation().summaryCountField(SUMMARY_COUNT_FIELD));
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\", \"doc_count\")\n| LIMIT 2"));
-        assertThat(harness.capturedParams, empty());
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2"));
+        assertThat(harness.capturedParams, equalTo(describeParams("@timestamp", "doc_count")));
     }
 
-    public void testDescribeFilterShouldEscapeColumnNames() {
-        assertThat(EsqlDatafeedQueryValidator.esqlString("@timestamp"), equalTo("\"@timestamp\""));
-        assertThat(EsqlDatafeedQueryValidator.esqlString("a\"b\\c"), equalTo("\"a\\\"b\\\\c\""));
-        assertThat(EsqlDatafeedQueryValidator.esqlString("a\nb\rc\td"), equalTo("\"a\\nb\\rc\\td\""));
+    public void testColumnNameWithQuotesShouldBeBoundAsParamNotInlined() {
+        String timeField = "a\"b\\c\nd";
+        ValidatorHarness harness = harness(row(timeField, "date"));
+
+        assertValidationSucceeds(harness, validation().timeField(timeField));
+
+        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2"));
+        assertThat(harness.capturedParams, equalTo(describeParams(timeField, timeField)));
+    }
+
+    private static List<EsqlQueryRequestBuilder.EsqlQueryParam> describeParams(String timeField, String countField) {
+        return List.of(
+            new EsqlQueryRequestBuilder.EsqlQueryParam(
+                "timeField",
+                timeField,
+                EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE
+            ),
+            new EsqlQueryRequestBuilder.EsqlQueryParam(
+                "countField",
+                countField,
+                EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE
+            )
+        );
     }
 
     public void testTrailingLineCommentShouldKeepDescribeOnNewLine() {
@@ -380,7 +398,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(
             harness.capturedQuery,
-            equalTo("FROM logs | KEEP @timestamp // hourly\n\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1")
+            equalTo("FROM logs | KEEP @timestamp // hourly\n" + "\n| DESCRIBE\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2")
         );
     }
 

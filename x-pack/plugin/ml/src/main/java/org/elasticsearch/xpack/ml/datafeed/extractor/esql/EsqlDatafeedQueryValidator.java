@@ -23,6 +23,7 @@ import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -39,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
+
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 
 /**
  * Includes helper functions for validating the ESQL query provided to a datafeed.
@@ -65,6 +68,11 @@ public class EsqlDatafeedQueryValidator {
     // https://github.com/elastic/elasticsearch/pull/166439 releases it. Until then validateQuery rejects ES|QL datafeeds in release
     // builds with a clear error; remove that guard once DESCRIBE is released.
     private static final String DESCRIBE = "\n| DESCRIBE";
+    /**
+     * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. A datafeed query has no
+     * params of its own, so the column names can be bound as params.
+     */
+    private static final String DESCRIBE_REQUIRED_COLUMNS = DESCRIBE + "\n| WHERE name IN (?timeField, ?countField)\n| LIMIT 2";
 
     // MUST FIX before production: matching the ES|QL error text is brittle and breaks if the message changes; ES|QL needs to
     // expose a typed missing-index signal. See https://github.com/elastic/elasticsearch/issues/161207
@@ -234,25 +242,22 @@ public class EsqlDatafeedQueryValidator {
         });
         queryRunner.executeAsync(
             client,
-            describeQuery(esqlQuery, timeField, summaryCountField),
+            EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, DESCRIBE_REQUIRED_COLUMNS),
             null,
             headers,
             projectRouting,
-            List.of(),
+            describeParams(timeField, summaryCountField),
             ExecutionMetadata.CCS_ONLY,
             responseListener
         );
     }
 
-    /**
-     * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. The names are inlined as
-     * string literals, not bound as params: params apply to the whole request, user query included.
-     */
-    private static String describeQuery(String esqlQuery, String timeField, @Nullable String summaryCountField) {
-        String describeSuffix = summaryCountField != null
-            ? DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ", " + esqlString(summaryCountField) + ")\n| LIMIT 2"
-            : DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ")\n| LIMIT 1";
-        return EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, describeSuffix);
+    /** Without a summary count column, the time column fills both names of {@link #DESCRIBE_REQUIRED_COLUMNS}. */
+    private static List<EsqlQueryParam> describeParams(String timeField, @Nullable String summaryCountField) {
+        return List.of(
+            new EsqlQueryParam("timeField", timeField, VALUE),
+            new EsqlQueryParam("countField", Objects.requireNonNullElse(summaryCountField, timeField), VALUE)
+        );
     }
 
     /**
@@ -280,12 +285,6 @@ public class EsqlDatafeedQueryValidator {
         if (EsqlQueryClauseScanner.hasOuterLimit(esqlQuery)) {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, esqlDatafeedSubject(datafeedId)));
         }
-    }
-
-    /** An ES|QL double-quoted string literal for {@code value}, escaping every character the ES|QL lexer cannot take raw. */
-    static String esqlString(String value) {
-        String escaped = value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
-        return "\"" + escaped + "\"";
     }
 
     private static void checkDescription(

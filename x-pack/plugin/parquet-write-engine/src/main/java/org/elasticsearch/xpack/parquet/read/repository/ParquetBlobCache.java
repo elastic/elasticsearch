@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.parquet.read.repository;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.blobcache.common.ByteBufferReference;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -169,7 +169,7 @@ public final class ParquetBlobCache implements Releasable {
             BlobCacheUtils.roundDownToAlignedSize(position, SharedBytes.PAGE_SIZE),
             Math.min(BlobCacheUtils.roundUpToAlignedSize(position + length, SharedBytes.PAGE_SIZE), fileLength)
         );
-        ByteBufferReference target = new ByteBufferReference(ByteBuffer.wrap(destination, destinationOffset, length));
+        BufferFillScope target = BufferFillScope.of(ByteBuffer.wrap(destination, destinationOffset, length));
         try {
             int read = file.populateAndRead(
                 rangeToWrite,
@@ -194,7 +194,7 @@ public final class ParquetBlobCache implements Releasable {
                 location
             );
             assert read == length : read + " vs " + length;
-            target.finish(read);
+            target.complete(read);
         } catch (IOException | RuntimeException e) {
             stopWriting(target);
             throw e;
@@ -218,15 +218,9 @@ public final class ParquetBlobCache implements Releasable {
     }
 
     /** Makes sure that no callback of a failed read writes into the result any more. */
-    private static void stopWriting(ByteBufferReference target) {
-        try {
-            target.finish(0);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (Exception e) {
-            // finish only waits for the permits of the callbacks, and the read has failed already, so there is nothing more to report
-            assert false : e;
-        }
+    private static void stopWriting(BufferFillScope target) {
+        // complete waits for the callbacks that run and stops the later ones, and it cannot fail
+        target.complete(0);
     }
 
     /** What the cache has done so far. */

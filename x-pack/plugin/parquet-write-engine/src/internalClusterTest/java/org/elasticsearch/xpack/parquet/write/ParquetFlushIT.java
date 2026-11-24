@@ -808,7 +808,7 @@ public class ParquetFlushIT extends ESIntegTestCase {
         final BroadcastResponse failed = indicesAdmin().prepareFlush(other).get();
         assertThat(failed.getFailedShards(), equalTo(1));
         assertThat(
-            org.elasticsearch.ExceptionsHelper.stackTrace(failed.getShardFailures()[0].getCause()),
+            org.elasticsearch.ExceptionsHelper.stackTrace(failed.getShardFailures().get(0).getCause()),
             containsString("belongs to the index [" + INDEX + "/" + resolveIndex(INDEX).getUUID() + "]")
         );
         // the rows of the other index are safe in its local files, and the table of the first index is untouched

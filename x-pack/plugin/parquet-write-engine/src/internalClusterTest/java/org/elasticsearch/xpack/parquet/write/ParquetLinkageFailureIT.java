@@ -86,7 +86,7 @@ public class ParquetLinkageFailureIT extends ESIntegTestCase {
         final BroadcastResponse flush = indicesAdmin().prepareFlush("parquet-linkage").get();
 
         assertThat(flush.getFailedShards(), equalTo(1));
-        final String failure = ExceptionsHelper.stackTrace(flush.getShardFailures()[0].getCause());
+        final String failure = ExceptionsHelper.stackTrace(flush.getShardFailures().get(0).getCause());
         assertThat(failure, containsString("org/apache/iceberg/TableMetadata"));
         assertThat(failure, containsString("is not available"));
         // the rows are still counted, in the local files

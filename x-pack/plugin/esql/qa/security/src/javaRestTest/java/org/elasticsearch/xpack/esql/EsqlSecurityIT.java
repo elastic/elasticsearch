@@ -1264,8 +1264,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         // field as null (see partialMayReadAsNull) has nulls there, and a field that holds a value must keep it.
         EsqlResult unfilled = esqlResult(runESQLCommand("fls_user", "FROM index | SORT value"));
         List<Object> before = unfilled.values("partial");
-        if (partialMayReadAsNull() == false) {
-            assertThat(before, equalTo(List.of("sales10.0", "engineering20.0")));
+        // Each value is the row's own or, where the mode reads the field as null, null. Never another field's value such as the denied org.
+        List<String> fixture = List.of("sales10.0", "engineering20.0");
+        assertThat(before, hasSize(fixture.size()));
+        for (int i = 0; i < fixture.size(); i++) {
+            Object value = before.get(i);
+            if (partialMayReadAsNull() && value == null) {
+                continue;
+            }
+            assertThat(value, equalTo(fixture.get(i)));
         }
         List<Object> expected = new ArrayList<>();
         for (Object value : before) {

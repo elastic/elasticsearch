@@ -1866,8 +1866,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *
      * <p>Only the VOTE is withheld, never the row: the sample is replayed as data unchanged, so a short row is still
      * reported and still charged to the error budget. Padding keeps such rows, so under it they keep their vote. A
-     * file whose every sampled row is short leaves nothing else to type from, so the sample stands as it is rather
-     * than inferring from no evidence.
+     * sample whose every row is short leaves every column without a vote, which types it {@code keyword} as any
+     * column with no evidence is: a type taken from rows the read will refuse would null or drop the rows it keeps.
      */
     private static List<String[]> typeInferenceRows(List<String[]> rows, int fileWidth, boolean shortRowIsNotData) {
         if (shortRowIsNotData == false) {
@@ -1877,17 +1877,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // while leaving the rows after it at the sample positions the widening warnings name.
         String[] noVote = Strings.EMPTY_ARRAY;
         List<String[]> voting = null;
-        int withheld = 0;
         for (int i = 0; i < rows.size(); i++) {
             if (rows.get(i).length < fileWidth) {
                 if (voting == null) {
                     voting = new ArrayList<>(rows);
                 }
                 voting.set(i, noVote);
-                withheld++;
             }
         }
-        return voting == null || withheld == rows.size() ? rows : voting;
+        return voting == null ? rows : voting;
     }
 
     private InferredSchema inferSchemaFromSample(

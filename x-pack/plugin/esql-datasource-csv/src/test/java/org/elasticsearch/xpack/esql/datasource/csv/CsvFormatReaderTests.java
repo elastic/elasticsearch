@@ -9659,6 +9659,19 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A sample whose every row is short has no row the read keeps, so none of them types a column. Taking the type from
+     * them anyway would let a refused row decide how the kept rows read: here {@code 42} would make {@code v} an
+     * integer, and the full row after it would lose {@code alice}.
+     */
+    public void testASampleOfOnlyShortRowsDecidesNoColumnsType() throws IOException {
+        StorageObject object = createStorageObject("v,n\n42\nalice,10\n");
+        CsvFormatReader dropping = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("error_mode", "skip_row", "max_errors", 10, "schema_sample_size", 1)
+        );
+        assertEquals(DataType.KEYWORD, dropping.metadata(object).schema().get(0).dataType());
+    }
+
+    /**
      * Every walker that keeps a padded row has to report it, and each one emits the notice from its own commit point:
      * the batch arm and the zero-column {@code COUNT(*)} arm of the materialized path, the direct walkers' shared row
      * finish, and the fused bracket walker. A walker that kept the row but lost the notice would invent nulls in

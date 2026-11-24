@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161157
+pr: 167287
+summary: Treat one-element list literals as values
+type: bug

@@ -1537,10 +1537,14 @@ public class DriverTests extends ESTestCase {
 
     /** A failed blocked future fails the driver even when another operator is still blocked on a pending future. */
     public void testDriverFailsWhenOneBlockedFutureFailedAndAnotherPending() {
+        assertDriverFailsWithFailedAndPendingFutures(true);
+        assertDriverFailsWithFailedAndPendingFutures(false);
+    }
+
+    private void assertDriverFailsWithFailedAndPendingFutures(boolean sourceFails) {
         DriverContext driverContext = driverContext();
         SubscribableListener<Void> failed = SubscribableListener.newFailed(new IllegalStateException("blocked failed"));
         SubscribableListener<Void> pending = new SubscribableListener<>();
-        boolean sourceFails = randomBoolean();
         UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
             @Override
             public Page getOutput() {

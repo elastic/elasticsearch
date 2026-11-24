@@ -21,6 +21,8 @@ public final class ContentPath {
 
     private boolean withinLeafObject = false;
 
+    private String objectPrefix = null;
+
     public ContentPath() {
         this.sb = new StringBuilder();
     }
@@ -55,6 +57,14 @@ public final class ContentPath {
 
     public boolean isWithinLeafObject() {
         return withinLeafObject;
+    }
+
+    void setObjectPrefix(String objectPrefix) {
+        this.objectPrefix = objectPrefix;
+    }
+
+    String getObjectPrefix() {
+        return objectPrefix;
     }
 
     public String pathAsText(String name) {

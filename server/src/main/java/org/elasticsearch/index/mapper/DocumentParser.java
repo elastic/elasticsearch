@@ -349,6 +349,12 @@ public final class DocumentParser {
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
+        // The parser expands dots in the field names of this object while advancing, so the prefix of an auto-flattened object has to be
+        // known before the first advance. It is reset for objects that are not auto-flattened, as they have their own path entry.
+        ContentPath contentPath = context.path();
+        String previousFlattenPrefix = contentPath.getObjectPrefix();
+        contentPath.setObjectPrefix(flatParentName);
+
         // if we are at the end of the previous object, advance
         if (token == XContentParser.Token.END_OBJECT) {
             token = parser.nextToken();
@@ -359,6 +365,7 @@ public final class DocumentParser {
         }
 
         innerParseObject(context, flatParentName == null ? null : flatParentName.concat("."));
+        contentPath.setObjectPrefix(previousFlattenPrefix);
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());

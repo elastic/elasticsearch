@@ -90,8 +90,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (dotCount == 0) {
                 return;
             }
-            if (shouldExpand != null && shouldExpand.test(contentPath.pathAsText(field)) == false) {
-                return;
+            if (shouldExpand != null) {
+                String flattenPrefix = contentPath.getObjectPrefix();
+                if (shouldExpand.test(contentPath.pathAsText(flattenPrefix == null ? field : flattenPrefix + "." + field)) == false) {
+                    return;
+                }
             }
             doExpandDots(delegate, field, dotCount);
         }

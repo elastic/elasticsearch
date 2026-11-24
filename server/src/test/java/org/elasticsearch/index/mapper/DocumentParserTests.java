@@ -2484,7 +2484,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSubobjectsFalseDottedKeyIntoDottedNested() throws Exception {
         DocumentMapper mapper = nestedUnderNoSubobjectsMapper("a.n", false);
         ParsedDocument structured = mapper.parse(source("{\"a.n\": {\"k\": \"v\"}}"));
-        for (String json : List.of("{\"a.n.k\": \"v\"}")) {
+        for (String json : List.of("{\"a.n.k\": \"v\"}", "{\"a\": {\"n.k\": \"v\"}}", "{\"a\": [{\"n.k\": \"v\"}]}")) {
             ParsedDocument doc = mapper.parse(source(json));
             assertEquals(json, 2, doc.docs().size());
             assertNotNull(json, doc.docs().get(0).getField("a.n.k"));
@@ -2504,6 +2504,22 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // The explicit keyword f.k wins over the flattened f, as it does when there is no nested field in the mapping
         ParsedDocument doc = mapper.parse(source("{\"f.k\": \"v\"}"));
         assertNotNull(doc.rootDoc().getField("f.k"));
+    }
+
+    public void testSubobjectsFalseNestedMappedKeepsExactMapperUnderAutoFlattenedPrefix() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.startObject("a.n").field("type", "flattened").endObject();
+            b.startObject("a.n.k").field("type", "keyword").endObject();
+        }));
+        // "n.k" is not inside the nested field n here: the full path is a.n.k, as "a" is an auto-flattened prefix
+        for (String json : List.of("{\"a\": {\"n.k\": \"v\"}}", "{\"a\": [{\"n.k\": \"v\"}]}", "{\"a.n.k\": \"v\"}")) {
+            ParsedDocument doc = mapper.parse(source(json));
+            assertEquals(json, 1, doc.docs().size());
+            assertNotNull(json, doc.rootDoc().getField("a.n.k"));
+        }
     }
 
     public void testSubobjectsFalseNestedMappedKeepsLiteralNamesOutsideNested() throws Exception {

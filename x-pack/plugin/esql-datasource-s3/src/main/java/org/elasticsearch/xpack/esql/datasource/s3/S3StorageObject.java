@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
@@ -96,8 +97,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      */
     private static final String STREAMING_GET_RETRY_SCOPE = "s3-streaming-get";
 
-    private final S3Client s3Client;
-    private final S3AsyncClient s3AsyncClient;
+    private volatile S3Client s3Client;
+    private volatile S3AsyncClient s3AsyncClient;
+    /** Non-null when this object is owned by a provider that resolves per-bucket region. */
+    private S3StorageProvider owner;
+    private final AtomicBoolean wrongRegionHealed = new AtomicBoolean();
     private final RetryStrategy asyncRetryStrategy;
     private final StorageIdentity storageIdentity;
     private final String bucket;
@@ -209,6 +213,43 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.path = path;
     }
 
+    void ownedBy(S3StorageProvider owner) {
+        this.owner = owner;
+    }
+
+    private void ensureClients() throws IOException {
+        if (owner == null) {
+            return;
+        }
+        BucketRegionResolver.ClientPair pair = owner.clientsFor(bucket);
+        s3Client = pair.sync();
+        s3AsyncClient = pair.async();
+    }
+
+    private static boolean isActionableWrongRegion(Throwable cause) {
+        if (BucketRegionResolver.isWrongRegion(cause) == false) {
+            return false;
+        }
+        S3Exception s3 = BucketRegionResolver.s3Exception(cause);
+        return s3 != null && (s3.statusCode() == 301 || BucketRegionResolver.observedRegion(cause) != null);
+    }
+
+    private boolean canHealWrongRegion(Throwable cause) {
+        return owner != null
+            && owner.discoversRegion()
+            && BucketRegionResolver.isWrongRegion(cause)
+            && wrongRegionHealed.compareAndSet(false, true);
+    }
+
+    private void applyWrongRegionHeal(Throwable cause) throws IOException {
+        String observed = BucketRegionResolver.observedRegion(cause);
+        owner.invalidateBucketRegion(bucket, observed);
+        if (observed != null && observed.isEmpty() == false) {
+            owner.rememberBucketRegion(bucket, observed);
+        }
+        ensureClients();
+    }
+
     S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length) {
         this(s3Client, bucket, key, path);
         this.cachedLength = length;
@@ -279,8 +320,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
         try {
+            ensureClients();
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key);
-            ResponseInputStream<GetObjectResponse> response = getObject(request);
+            ResponseInputStream<GetObjectResponse> response = getObjectHealed(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, 0L, false);
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
@@ -375,6 +417,19 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 path,
                 S3FailureDetail.of(archived),
                 S3FailureDetail.archivedRemedy(tier),
+                cause
+            );
+        }
+        if (isActionableWrongRegion(cause)) {
+            String region = BucketRegionResolver.observedRegion(cause);
+            String detail = cause instanceof S3Exception s3 && s3.statusCode() == 301
+                ? "HTTP 301 PermanentRedirect"
+                : S3FailureDetail.of(cause);
+            return new ExternalClientException(
+                ExternalClientException.Condition.ACCESS_DENIED,
+                path,
+                detail,
+                BucketRegionResolver.wrongRegionRemedy(bucket, region),
                 cause
             );
         }
@@ -574,6 +629,39 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * {@code NotImplemented} does not support If-Match on GET: one unconditioned retry is allowed,
      * but its response and every later response must carry the pinned ETag.
      */
+    private ResponseInputStream<GetObjectResponse> getObjectHealed(GetObjectRequest.Builder builder) {
+        try {
+            return getObject(builder);
+        } catch (RuntimeException e) {
+            if (canHealWrongRegion(e) == false) {
+                throw e;
+            }
+            try {
+                applyWrongRegionHeal(e);
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
+            return getObject(builder);
+        }
+    }
+
+    private HeadObjectResponse headObjectHealed() {
+        HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
+        try {
+            return s3Client.headObject(request);
+        } catch (RuntimeException e) {
+            if (canHealWrongRegion(e) == false) {
+                throw e;
+            }
+            try {
+                applyWrongRegionHeal(e);
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
+            return s3Client.headObject(request);
+        }
+    }
+
     private ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest.Builder builder) {
         boolean sentIfMatch = applyIfMatch(builder);
         GetObjectRequest request = builder.build();
@@ -861,8 +949,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         try {
+            ensureClients();
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader);
-            ResponseInputStream<GetObjectResponse> response = getObject(request);
+            ResponseInputStream<GetObjectResponse> response = getObjectHealed(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
             // contentLength of this response body (the range size), or -1 if unknown.
@@ -937,10 +1026,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      */
     private void probeObject() throws IOException {
         try {
+            ensureClients();
             // Size discovery for the read path: folding it into a GET lets exists() and length() on one object
             // cost a single request. bytes=0-0 rather than a suffix range: the Content-Range total is the same.
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
-            try (var response = getObject(request)) {
+            try (var response = getObjectHealed(request)) {
                 // Drain the 1-byte body so the HTTP connection returns to the pool
                 // instead of being aborted on close.
                 byte[] drained = response.readAllBytes();
@@ -994,9 +1084,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * does.
      */
     StorageEntry headObjectMetadata() throws IOException {
+        ensureClients();
         HeadObjectResponse response;
         try {
-            response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            response = headObjectHealed();
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof S3Exception s3e
@@ -1103,7 +1194,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private void probeObjectViaRangeGet() throws IOException {
         try {
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
-            try (var response = getObject(request)) {
+            try (var response = getObjectHealed(request)) {
                 byte[] drained = response.readAllBytes();
                 GetObjectResponse metadata = response.response();
                 ExternalPlanningIo.addMetadataGet(drained.length);
@@ -1178,6 +1269,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         ActionListener<DirectReadBuffer> listener
     ) {
         counters.bindPlanningIo();
+        try {
+            ensureClients();
+        } catch (Exception e) {
+            listener.onFailure(mapReadFailure("Failed to read object from", e));
+            return () -> {};
+        }
         if (s3AsyncClient == null) {
             // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
             // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
@@ -1443,6 +1540,27 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return;
         }
         Throwable unwrapped = unwrapCompletionWrappers(throwable);
+        if (canHealWrongRegion(unwrapped)) {
+            executor.execute(() -> {
+                try {
+                    applyWrongRegionHeal(unwrapped);
+                    readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
+                } catch (Exception e) {
+                    if (handle.tryCompleteListener()) {
+                        counters.addRequest(System.nanoTime() - startNanos, 0L);
+                        listener.onFailure(mapReadFailure("Failed to read object from", e));
+                    }
+                }
+            });
+            return;
+        }
+        if (BucketRegionResolver.isWrongRegion(unwrapped)) {
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", unwrapped));
+            }
+            return;
+        }
         // If the request sent If-Match and the store does not support it, retry once without the
         // header. This matches the sync path's fallback and does not consume retry budget.
         if (request.ifMatch() != null && isIfMatchUnsupported(unwrapped)) {

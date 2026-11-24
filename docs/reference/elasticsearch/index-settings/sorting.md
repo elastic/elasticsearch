@@ -189,7 +189,7 @@ stack: ga 9.7
 A key of `index.sort` that isn't a field, `MV_MIN(field)` or `MV_MAX(field)` is computed by an ES|QL expression from the doc values of the fields it reads. The key is never stored: it's computed again each time a segment is sorted, when it's written and each time it's merged, on whichever node does it. An expression that breaks one of the following rules is rejected when the index is created.
 
 Functions
-:   A key can only use functions that always compute the same result for the same input, on every node and in every version, because a segment sorted by one node can be merged by another. These are the arithmetic, comparison and logical operators, `IS NULL`, `IS NOT NULL`, `IN`, and the functions `CASE`, `COALESCE`, `GREATEST`, `LEAST`, `DATE_TRUNC`, `DATE_EXTRACT`, `ABS`, `CEIL`, `FLOOR`, `SIGNUM`, `SQRT`, `MV_MIN`, `MV_MAX`, `MV_COUNT`, `LENGTH`, `CONCAT`, `STARTS_WITH` and `ENDS_WITH`.
+:   A key can only use functions that always compute the same result for the same input, on every node and in every version, because a segment sorted by one node can be merged by another. These are the arithmetic, comparison and logical operators, `IS NULL`, `IS NOT NULL`, `IN`, and the functions `CASE`, `COALESCE`, `GREATEST`, `LEAST`, `DATE_TRUNC`, `DATE_EXTRACT`, `ABS`, `CEIL`, `FLOOR`, `SIGNUM`, `SQRT`, `MV_MIN`, `MV_MAX`, `MV_COUNT`, `LENGTH`, `STARTS_WITH` and `ENDS_WITH`.
 
     Other functions are rejected, for example functions whose floating point results may differ between JVMs, such as `SIN` and `ROUND`, functions that depend on the JVM's Unicode or locale data, such as `TO_LOWER`, and the type conversions, which parse strings. Aggregate and full-text functions are rejected too, because they don't compute a value for each document.
 

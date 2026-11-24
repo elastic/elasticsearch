@@ -109,11 +109,11 @@ public class EsqlIndexSortParserTests extends ESTestCase {
 
     public void testComputedKeys() {
         List<SortEntry> entries = PARSER.parse(
-            "DATE_TRUNC(1 hour, @timestamp) DESC NULLS LAST, host.name, CONCAT(a, \"x,) DESC\", `b)`) == \"c\", count + 1"
+            "DATE_TRUNC(1 hour, @timestamp) DESC NULLS LAST, host.name, GREATEST(a, \"x,) DESC\", `b)`) == \"c\", count + 1"
         );
         assertComputedKey(entries.get(0), "DATE_TRUNC(1 hour, @timestamp)", SortOrder.DESC, "_last", Set.of("@timestamp"));
         assertField(entries.get(1), "host.name", SortOrder.ASC, MultiValueMode.MIN, "_last");
-        assertComputedKey(entries.get(2), "CONCAT(a, \"x,) DESC\", `b)`) == \"c\"", SortOrder.ASC, "_last", Set.of("a", "b)"));
+        assertComputedKey(entries.get(2), "GREATEST(a, \"x,) DESC\", `b)`) == \"c\"", SortOrder.ASC, "_last", Set.of("a", "b)"));
         assertComputedKey(entries.get(3), "count + 1", SortOrder.ASC, "_last", Set.of("count"));
         for (String key : List.of("-a", "NOT flag", "MV_MAX(a) + 1", "MV_MAX(a, b)", "MV_COUNT(a)")) {
             assertThat(key, PARSER.parse(key).getFirst().computedKey(), equalTo(key));
@@ -159,6 +159,8 @@ public class EsqlIndexSortParserTests extends ESTestCase {
         assertParseFails("TO_LONG(host.name)", "uses [TO_LONG(host.name)], which isn't guaranteed");
         assertParseFails("SIN(ratio)", "uses [SIN(ratio)], which isn't guaranteed to compute the same values on every node and version");
         assertParseFails("LENGTH(TO_LOWER(host.name))", "uses [TO_LOWER(host.name)], which isn't guaranteed");
+        // CONCAT fails past a size limit, which would fail the flush
+        assertParseFails("LENGTH(CONCAT(host.name, host.name))", "uses [CONCAT(host.name, host.name)], which isn't guaranteed");
         assertParseFails("MAX(count)", "uses [MAX(count)], which can't be computed for each document");
         assertParseFails("MATCH(host.name, \"a\")", "which can't be computed for each document");
         assertParseFails("NOPE(count)", "uses unknown function [NOPE]");

@@ -4139,7 +4139,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullAllFields() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull DEFAULT ON *");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -4148,7 +4147,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithValue() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull 0 ON *");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -4159,7 +4157,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullNamedFields() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull DEFAULT ON a, b");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -4170,7 +4167,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithValueAndFields() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull \"N/A\" ON status, category");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -4184,7 +4180,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithNullValue() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull null ON a");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -4197,7 +4192,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithDecimalValue() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = processingCommand("fillnull 1.5 ON a");
         assertEquals(FillNull.class, plan.getClass());
         FillNull fillNull = (FillNull) plan;
@@ -4210,7 +4204,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithBooleanValue() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         for (boolean expected : new boolean[] { true, false }) {
             LogicalPlan plan = processingCommand("fillnull " + expected + " ON a");
             assertEquals(FillNull.class, plan.getClass());
@@ -4225,7 +4218,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithPositionalParameter() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = query("row a = 1 | fillnull ? ON a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
@@ -4236,7 +4228,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithNamedParameter() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         LogicalPlan plan = query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fill", 42))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
@@ -4247,7 +4238,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithNullParameterFails() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         String error = "] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged";
         List<QueryParam> nullNamed = List.of(paramAsConstant("fill", null));
         List<QueryParam> nullUnnamed = List.of(paramAsConstant(null, null));
@@ -4258,7 +4248,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWithUnknownParameterIsNotReportedAsNull() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> query("row a = 1 | fillnull ?fill ON a", new QueryParams(List.of(paramAsConstant("fil", 0))))
@@ -4268,7 +4257,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullExplicitDefaultKeyword() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         FillNull fillNull = as(processingCommand("fillnull DEFAULT ON a"), FillNull.class);
         assertNull(fillNull.fillValue());
         assertEquals(1, fillNull.targetFields().size());
@@ -4276,7 +4264,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullWildcardPatternTarget() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         FillNull fillNull = as(processingCommand("fillnull 0 ON a*"), FillNull.class);
         assertThat(fillNull.fillValue(), instanceOf(Literal.class));
         assertEquals(0, ((Literal) fillNull.fillValue()).value());
@@ -4285,7 +4272,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullStarMixedWithNamesIsAllColumns() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         // `*` co-listed with names/patterns selects every column regardless of position, but the co-listed names are
         // retained so the analyzer still resolves them and reports a typo like any other command would.
         for (String targets : new String[] { "*, first_name", "first_name, *", "*, a*", "a, *, b*" }) {
@@ -4310,23 +4296,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFillNullMissingOnFails() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         expectThrows(ParsingException.class, () -> processingCommand("fillnull 0 a"));
     }
 
     public void testFillNullMissingValueFails() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         expectThrows(ParsingException.class, () -> processingCommand("fillnull ON a"));
     }
 
     public void testFillNullMissingFieldsFails() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         expectThrows(ParsingException.class, () -> processingCommand("fillnull 0"));
-    }
-
-    public void testFillNullNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
     }
 
     public void testValidFork() {
@@ -4574,7 +4552,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testForkWithBareFillNull() {
-        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         assertThat(query("FROM foo* | FORK (WHERE a < 1) (WHERE a < 1 | FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
         assertThat(query("FROM foo* | FORK (SORT a) (FILLNULL DEFAULT ON *) | KEEP a"), instanceOf(Keep.class));
         assertThat(query("FROM foo* | FORK (WHERE a < 1 | FILLNULL 0 ON *) (FILLNULL DEFAULT ON a) | KEEP a"), instanceOf(Keep.class));

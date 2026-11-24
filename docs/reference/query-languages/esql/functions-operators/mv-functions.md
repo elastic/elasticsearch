@@ -26,7 +26,7 @@ return multi-values.
 
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_append.md
   :::
-* [`MV_DIFFERENCE`](./mv-functions/mv_difference.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+* [`MV_DIFFERENCE`](./mv-functions/mv_difference.md) {applies_to}`stack: preview 9.4-9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_difference.md
   :::
 * [`MV_DEDUPE`](./mv-functions/mv_dedupe.md)
@@ -35,10 +35,10 @@ return multi-values.
 * [`MV_SORT`](./mv-functions/mv_sort.md)
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_sort.md
   :::
-* [`MV_INTERSECTION`](./mv-functions/mv_intersection.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`MV_INTERSECTION`](./mv-functions/mv_intersection.md) {applies_to}`stack: preview 9.3-9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_intersection.md
   :::
-* [`MV_UNION`](./mv-functions/mv_union.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+* [`MV_UNION`](./mv-functions/mv_union.md) {applies_to}`stack: preview 9.4-9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_union.md
   :::
 * [`MV_SLICE`](./mv-functions/mv_slice.md)
@@ -56,16 +56,16 @@ Functions that map a multi-value to a new multi-value.
 Functions that return a boolean value based on the properties of a multi-value.
 These provide optimized shorthand expressions for common operations.
 
-* [`MV_CONTAINS`](./mv-functions/mv_contains.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* [`MV_CONTAINS`](./mv-functions/mv_contains.md) {applies_to}`stack: preview 9.2-9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_contains.md
   :::
-* [`MV_GREATER`](./mv-functions/mv_greater.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+* [`MV_GREATER`](./mv-functions/mv_greater.md) {applies_to}`stack: preview =9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_greater.md
   :::
-* [`MV_INTERSECTS`](./mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+* [`MV_INTERSECTS`](./mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.4-9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_intersects.md
   :::
-* [`MV_LESS`](./mv-functions/mv_less.md) {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+* [`MV_LESS`](./mv-functions/mv_less.md) {applies_to}`stack: preview =9.6, ga 9.7+`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_less.md
   :::
 

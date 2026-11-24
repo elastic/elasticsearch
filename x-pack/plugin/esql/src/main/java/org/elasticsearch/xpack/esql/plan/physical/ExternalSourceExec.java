@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,9 +20,12 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -498,6 +503,85 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      */
     public Set<String> partitionColumnNames() {
         return SourceStatisticsSerializer.partitionColumnNames(sourceMetadata);
+    }
+
+    /**
+     * The subset of {@code candidates} that at least one file read by this exec stores at a type other than the
+     * query's, i.e. columns whose values a reconciliation cast ({@code union_by_name} widening) produces
+     * <em>above</em> the reader, in {@code SchemaAdaptingIterator}. A reader sees such a column at the file's
+     * type, so any predicate it is handed on it is at best a hint, never an exact answer; the filter pushdown
+     * rule keeps those conjuncts in the {@code FilterExec} on top of pushing them.
+     * <p>
+     * Decided per node from the splits stamped on this exec: each {@link FileSplit#readSchema()} carries the
+     * file's own (declared-overlaid, logical-named) column types, while {@link #output()} carries the query's
+     * reconciled types -- the same by-name comparison {@code ColumnMapping.alignToQuery} casts on at read
+     * time. Falls back to the coordinator-only {@link #schemaMap()} when no split carries a read schema (the
+     * zero-split multi-file read; also what a data node sees when an older coordinator sent splits without a
+     * read schema -- its {@code schemaMap} is empty, so nothing is held back, as before). When only some splits
+     * carry a read schema, an unstamped file's types are unknown on this node (the coordinator stamps from the
+     * same {@code schemaMap} entry it lacks), so it might be cast and every candidate in {@link #output()} is reported.
+     * A column a file lacks altogether is null-filled, not cast, and is not reported. Declared types and
+     * {@code first_file_wins} pins put the planner type on the read schema and coerce inside the reader, so they
+     * never show up here.
+     */
+    public Set<String> reconciliationCastColumnNames(Set<String> candidates) {
+        if (candidates.isEmpty() || (splits.isEmpty() && schemaMap.isEmpty())) {
+            return Set.of();
+        }
+        Map<String, DataType> queryTypes = Maps.newHashMapWithExpectedSize(candidates.size());
+        for (Attribute attribute : attributes) {
+            if (candidates.contains(attribute.name())) {
+                queryTypes.put(attribute.name(), attribute.dataType());
+            }
+        }
+        if (queryTypes.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> cast = new HashSet<>();
+        ReadSchemaStamps stamps = new ReadSchemaStamps();
+        collectCastColumnsFromSplits(splits, queryTypes, cast, stamps);
+        if (stamps.stamped == false) {
+            for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
+                collectCastColumns(info.fileSchema().attributes(), queryTypes, cast);
+            }
+        } else if (stamps.unstamped) {
+            return Set.copyOf(queryTypes.keySet());
+        }
+        return cast;
+    }
+
+    /** Whether any split leaf walked carried a read schema, and whether any lacked one. */
+    private static final class ReadSchemaStamps {
+        private boolean stamped;
+        private boolean unstamped;
+    }
+
+    /** Walks the splits, through any (possibly nested) {@link CoalescedSplit}, recording on {@code stamps} what it saw. */
+    private static void collectCastColumnsFromSplits(
+        List<ExternalSplit> splits,
+        Map<String, DataType> queryTypes,
+        Set<String> cast,
+        ReadSchemaStamps stamps
+    ) {
+        for (ExternalSplit split : splits) {
+            if (split instanceof CoalescedSplit coalesced) {
+                collectCastColumnsFromSplits(coalesced.children(), queryTypes, cast, stamps);
+            } else if (split instanceof FileSplit fileSplit && fileSplit.readSchema() != null) {
+                stamps.stamped = true;
+                collectCastColumns(fileSplit.readSchema(), queryTypes, cast);
+            } else {
+                stamps.unstamped = true;
+            }
+        }
+    }
+
+    private static void collectCastColumns(List<Attribute> fileSchema, Map<String, DataType> queryTypes, Set<String> cast) {
+        for (Attribute fileAttribute : fileSchema) {
+            DataType queryType = queryTypes.get(fileAttribute.name());
+            if (queryType != null && queryType != fileAttribute.dataType()) {
+                cast.add(fileAttribute.name());
+            }
+        }
     }
 
     /**
@@ -1076,6 +1160,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
         // debug-log output.
         return List.of(sourcePath, sourceType, attributes);
+    }
+
+    @Override
+    public Object jsonPropertyValue(Object property) {
+        // The same as nodeString shows: the plan JSON must not reveal the bucket and prefix either
+        return sourcePath.equals(property) ? StoragePath.objectName(sourcePath) : property;
     }
 
     @Override

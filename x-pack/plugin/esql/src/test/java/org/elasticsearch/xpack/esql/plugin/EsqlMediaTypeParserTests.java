@@ -105,6 +105,28 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         );
     }
 
+    public void testMetadataWithArrow() {
+        // Arrow can be selected either with the format parameter or with the Accept header
+        assertMetadataRejectedWithArrow(reqWithParams(Map.of("format", "arrow")));
+        assertMetadataRejectedWithArrow(reqWithAccept("application/vnd.apache.arrow.stream"));
+    }
+
+    private void assertMetadataRejectedWithArrow(RestRequest request) {
+        String msg = "cannot be used in combination with [arrow] formats";
+        var ccs = expectThrows(IllegalArgumentException.class, () -> getResponseMediaType(request, createTestInstance(false, true, false)));
+        assertEquals("Invalid use of [include_ccs_metadata] argument: " + msg, ccs.getMessage());
+        var exec = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(request, createCpsTestInstance(false, true, false))
+        );
+        assertEquals("Invalid use of [include_execution_metadata] argument: " + msg, exec.getMessage());
+        var profile = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(request, createTestInstance(false, false, true))
+        );
+        assertEquals("Invalid use of [profile] argument: " + msg, profile.getMessage());
+    }
+
     public void testColumnarWithParamText() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

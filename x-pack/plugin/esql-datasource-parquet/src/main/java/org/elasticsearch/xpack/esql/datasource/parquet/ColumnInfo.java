@@ -82,6 +82,17 @@ record ColumnInfo(
         return new ColumnInfo(descriptor, parquetType, fileEsqlType, maxDefLevel, maxRepLevel, logicalType, dateFormatter, fileEsqlType);
     }
 
+    /**
+     * A view typed at {@code target} rather than the file's own type, carrying the column's declared date
+     * {@code formatter}. The decode loops read it the way they read the eager scan's view: straight to
+     * {@code target} for a {@code DeclaredTypeCoercions.fusedInDecode} pair, and at {@link #fileEsqlType()}
+     * followed by {@code castBlock} for every other pair.
+     */
+    ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
+        DataType fileType = fileEsqlType == null ? esqlType : fileEsqlType;
+        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, fileType);
+    }
+
     /** Sentinel marker for the synthetic {@code _rowPosition} column slot. */
     private static final ColumnInfo ROW_POSITION = new ColumnInfo(null, null, DataType.LONG, 0, 0, null);
 

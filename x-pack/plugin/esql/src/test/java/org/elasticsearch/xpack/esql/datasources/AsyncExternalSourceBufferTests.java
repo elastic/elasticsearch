@@ -22,12 +22,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -615,6 +619,40 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertEquals("finish must stop following later increments", 250L, buffer.bytesRead());
     }
 
+    /**
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream} holds the last
+     * partial 256 KiB until close. Finishing after that close folds the tail; finishing first
+     * drops it.
+     */
+    public void testFinishAfterMeteredStreamCloseIncludesRemainder() throws Exception {
+        byte[] payload = randomByteArrayOfLength(between(1, 1024));
+        RemainderStorageObject object = new RemainderStorageObject(payload);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.trackStorageObject(object);
+        try (InputStream in = object.newStream()) {
+            assertEquals(payload.length, in.read(payload));
+            assertEquals("unpublished tail is invisible until close", 0L, buffer.bytesRead());
+        }
+        assertEquals("close publishes the tail while the object is still tracked", payload.length, buffer.bytesRead());
+        buffer.finishInFlightBytes();
+        assertEquals(payload.length, buffer.bytesRead());
+    }
+
+    public void testFinishBeforeMeteredStreamCloseDropsRemainder() throws Exception {
+        byte[] payload = randomByteArrayOfLength(between(1, 1024));
+        RemainderStorageObject object = new RemainderStorageObject(payload);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.trackStorageObject(object);
+        InputStream in = object.newStream();
+        try {
+            assertEquals(payload.length, in.read(payload));
+            buffer.finishInFlightBytes();
+        } finally {
+            in.close();
+        }
+        assertEquals("untracking before close drops the unpublished tail", 0L, buffer.bytesRead());
+    }
+
     public void testCommitIgnoresThrowAndDoesNotResetBaseline() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         MutableMetricsStorageObject object = new MutableMetricsStorageObject();
@@ -961,6 +999,48 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("s3://bucket/test");
+        }
+    }
+
+    /** Leaf object whose {@code newStream} is wrapped in {@code MeteredInputStream}. */
+    private static final class RemainderStorageObject extends AbstractMeteredStorageObject {
+        private final byte[] payload;
+
+        RemainderStorageObject(byte[] payload) {
+            this.payload = payload;
+        }
+
+        @Override
+        public StorageIdentity storageIdentity() {
+            return StorageIdentity.unique();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int from = Math.toIntExact(position);
+            int len = length == StorageObject.READ_TO_END ? payload.length - from : Math.toIntExact(length);
+            int to = Math.min(payload.length, from + Math.max(0, len));
+            return metered(new ByteArrayInputStream(payload, from, Math.max(0, to - from)));
+        }
+
+        @Override
+        public long length() {
+            return payload.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/test.csv");
         }
     }
 }

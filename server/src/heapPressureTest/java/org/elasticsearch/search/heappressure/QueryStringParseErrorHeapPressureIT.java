@@ -11,6 +11,7 @@ package org.elasticsearch.search.heappressure;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 

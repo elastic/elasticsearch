@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoF
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoMergePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitIntoEqlRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectAndOrderBy;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointByExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceCountFieldWithCountStar;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceDeferredRegex;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
@@ -101,6 +103,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportV
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.UseSinglePassTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -153,6 +156,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         new Batch<>("Single Pass Time Series", Limiter.ONCE, new UseSinglePassTimeSeriesAggregate()),
         cleanup(),
         warnings(),
+        // Last, so no other rule meets a Fetch, and the plan already has the cut and the commands the mapper splits it at.
+        new Batch<>("Plan Fetch", Limiter.ONCE, new PlanFetch()),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );
 
@@ -276,6 +281,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceStringCasingWithInsensitiveEquals(),
             new ReplaceStatsFilteredOrNullAggWithEval(),
             new ExtractAggregateCommonFilter(),
+            // after the filters of the aggregates are extracted into a filter below the aggregation
+            new ReplaceCountFieldWithCountStar(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),
@@ -285,6 +292,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new PushDownAndCombineLimitBy(),
             new PushLimitToKnn(),
+            new PushLimitIntoEqlRelation(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),

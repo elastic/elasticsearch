@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166661
+summary: Retry S3 `InvalidAccessKeyId` 403s
+type: enhancement

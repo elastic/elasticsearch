@@ -81,7 +81,7 @@
  * which caps the number of expanded candidates from brace/range groups before falling back to listing,
  * and the {@code esql.external.max_discovered_files} setting which caps files kept after listing
  * filters ({@code _file.*}). The listing path also respects {@code esql.external.max_listed_objects}
- * (default 1,000,000), which caps objects visited during listing, including non-matches and exclusions.
+ * (default 10,000,000), which caps objects visited during listing, including non-matches and exclusions.
  * That walk cap applies independently to each glob listing: a comma-separated resource of {@code N}
  * globs does {@code N} listings, each against the setting. The kept-files cap is shared across that list.
  *

@@ -31,10 +31,10 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         sumBuilder = null;
         countBuilder = null;
         try {
-            minBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            maxBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            sumBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
-            countBuilder = new IntBlockBuilder(estimatedSize, blockFactory);
+            minBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            maxBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            sumBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory, false);
+            countBuilder = new IntBlockBuilder(estimatedSize, blockFactory, false);
         } finally {
             if (countBuilder == null) {
                 Releasables.closeWhileHandlingException(minBuilder, maxBuilder, sumBuilder, countBuilder);

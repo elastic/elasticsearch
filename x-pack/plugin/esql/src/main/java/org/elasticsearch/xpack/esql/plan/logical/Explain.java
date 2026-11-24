@@ -27,13 +27,15 @@ public class Explain extends LeafPlan implements TelemetryAware {
      * - role: coordinator, data, or subplan
      * - type: the plan type (parsedPlan, optimizedLogicalPlan, optimizedPhysicalPlan, localPlan)
      * - plan: the plan string representation
+     * - plan_json: compact JSON for the same plan ({@code PlanToXContent})
      */
     public static final List<Attribute> OUTPUT_ATTRIBUTES = List.of(
         new ReferenceAttribute(Source.EMPTY, null, "cluster", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "node", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "role", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
-        new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
+        new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "plan_json", DataType.KEYWORD)
     );
 
     private final LogicalPlan query;

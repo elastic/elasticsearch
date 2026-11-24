@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.UploadDurationBuckets;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -216,13 +217,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM,
             "total time (includes time spent on failed attempts) until the translog is uploaded to the object store",
             "milliseconds",
-            ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
         );
         this.translogUploadConsistencyCheckDurationHistogram = meterRegistry.registerLongHistogram(
             TRANSLOG_UPLOAD_CONSISTENCY_CHECK_DURATION_HISTOGRAM,
             "time taken to validate the cluster state is consistent with the root blob after a translog upload, including retries",
             "milliseconds",
-            ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
         );
         this.translogUploadHedgesCounter = meterRegistry.registerLongCounter(
             TRANSLOG_UPLOAD_HEDGES_TOTAL,
@@ -1055,10 +1056,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                         ShardSyncState.SyncMarker syncMarker = entry.getValue();
                                         boolean syncFinishedAccepted = shardSyncState.markSyncFinished(syncMarker);
                                         if (syncFinishedAccepted) {
-                                            assert syncMarker.primaryTerm() == shardSyncState.currentPrimaryTerm();
                                             modifiedShardSyncedLocations.add(shardSyncState);
                                         } else if (shardSyncState.isPrimaryTermStale()) {
-                                            assert syncMarker.primaryTerm() < shardSyncState.currentPrimaryTerm();
+                                            assert assertTermStaleOrDeleted(syncMarker.primaryTerm(), shardSyncState.currentPrimaryTerm());
                                             shardsWithNewPrimaryTerm.add(shardSyncState);
                                             logger.debug(
                                                 () -> format(
@@ -1109,6 +1109,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             for (ShardSyncState shardSyncState : shardsWithNewPrimaryTerm) {
                 shardSyncState.failPendingListeners(ShardSyncState.stalePrimaryTermException(shardSyncState.getShardId()));
             }
+        }
+
+        private static boolean assertTermStaleOrDeleted(long markerTerm, long currentTerm) {
+            assert markerTerm < currentTerm || currentTerm == Long.MIN_VALUE;
+            return true;
         }
 
         private void clusterStateValidateForFileDelete(BlobTranslogFile fileToDelete) {

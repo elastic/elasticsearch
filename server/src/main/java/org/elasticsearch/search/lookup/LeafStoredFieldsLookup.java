@@ -18,6 +18,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+/**
+ * The {@code _fields} map that scripts use to read stored fields for the current document.
+ * <p>
+ * Fields are resolved lazily by name, so this map has no set of entries to enumerate. The read and enumeration
+ * methods that would need one ({@link #size}, {@link #isEmpty}, {@link #containsValue}, {@link #keySet},
+ * {@link #values} and {@link #entrySet}) throw an {@link IllegalArgumentException}: reaching them means a script
+ * enumerated or returned the whole map, which is a mistake in the request. The mutators throw an
+ * {@link UnsupportedOperationException}, as any unmodifiable map does.
+ */
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
@@ -62,27 +71,27 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("size");
     }
 
     @Override
     public boolean isEmpty() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("isEmpty");
     }
 
     @Override
     public Set keySet() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("keySet");
     }
 
     @Override
     public Collection values() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("values");
     }
 
     @Override
     public Set entrySet() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("entrySet");
     }
 
     @Override
@@ -107,7 +116,7 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     @Override
     public boolean containsValue(Object value) {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("containsValue");
     }
 
     private FieldLookup loadFieldData(String name) throws IOException {
@@ -124,6 +133,12 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
             leafFieldLookupProvider.populateFieldLookup(data, docId);
         }
         return data;
+    }
+
+    private static IllegalArgumentException notEnumerable(String method) {
+        return new IllegalArgumentException(
+            "[_fields] does not support [" + method + "]; access stored fields by name, e.g. params._fields['field']"
+        );
     }
 
     private void clearCache() {

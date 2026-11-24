@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -240,7 +241,6 @@ public class PatternTextFieldMapper extends FieldMapper {
     private final NamedAnalyzer analyzer;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
-    private final FieldType templateIdFieldType;
     private final boolean useBinaryDocValueArgs;
     private final boolean useBinaryDocValuesForRawText;
 
@@ -258,7 +258,6 @@ public class PatternTextFieldMapper extends FieldMapper {
         this.fieldType = fieldType;
         this.analyzer = builder.analyzer.get();
         this.templateIdMapper = templateIdMapper;
-        this.templateIdFieldType = templateIdMapper.luceneFieldType();
         this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();
         this.useBinaryDocValuesForRawText = builder.useBinaryDocValuesForRawText;
     }
@@ -349,7 +348,7 @@ public class PatternTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings settings) {
+    protected boolean doSupportsColumnarParse(IndexSettings settings, Set<String> relativeKeys) {
         return useBinaryDocValueArgs            // only the binary-doc-values args encoding is handled
             && useBinaryDocValuesForRawText     // always true in columnar mode; required for correctness
             && fieldType().isWithinMultiField() == false;
@@ -484,7 +483,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             }
 
             if (fieldType().disableTemplating() == false) {
-                addOwnedColumn(ctx, templateIdBuilder, docCount, fieldType().templateIdFieldName(), templateIdFieldType);
+                addOwnedColumn(ctx, templateIdBuilder, docCount, fieldType().templateIdFieldName(), templateIdMapper.luceneFieldType());
             }
 
             if (templateBuilder != null) {

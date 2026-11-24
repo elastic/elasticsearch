@@ -2835,7 +2835,15 @@ public class GlobExpanderTests extends ESTestCase {
      * Hive rewrite of {@code region=us} that hits store IO must not retry the original glob and flatten
      * {@code logs/}.
      */
-    public void testHiveRewrittenWalkFailureDoesNotFlattenOriginalGlob() {
+    public void testHiveRewrittenWalkFailureDoesNotFlattenOriginalGlob() throws Exception {
+        assertHiveRewrittenWalkFailureDoesNotFlattenOriginalGlob(false);
+    }
+
+    public void testHiveRewrittenWalkFailureDoesNotFlattenOriginalGlobAsync() throws Exception {
+        assertHiveRewrittenWalkFailureDoesNotFlattenOriginalGlob(true);
+    }
+
+    private void assertHiveRewrittenWalkFailureDoesNotFlattenOriginalGlob(boolean async) throws Exception {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/logs/",
@@ -2846,12 +2854,82 @@ public class GlobExpanderTests extends ESTestCase {
         provider.unknownPrefixFailure = new IOException("connection reset");
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us"));
 
-        IOException thrown = expectThrows(
-            IOException.class,
-            () -> GlobExpander.expand("s3://bucket/logs/region=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX)
-        );
+        IOException thrown = expectThrows(IOException.class, () -> {
+            if (async) {
+                expandSync("s3://bucket/logs/region=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX, MAX, MAX, 4, () -> false);
+            } else {
+                GlobExpander.expand("s3://bucket/logs/region=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+            }
+        });
         assertThat(thrown.getMessage(), containsString("connection reset"));
         assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/logs/")));
+    }
+
+    /**
+     * Last placeholder splice keeps the account prefix when a later template literal is the last
+     * changed glob dir. A missing region must not probe every account under {@code logs/}.
+     */
+    public void testTemplateLaterLiteralDoesNotDropSplicedAccountPrefix() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                ListingWalkHarness.entry("s3://bucket/logs/acme/us/2026/events/a.parquet"),
+                ListingWalkHarness.entry("s3://bucket/logs/other/eu/2026/events/b.parquet")
+            )
+        );
+        var hints = List.of(
+            hint("account", PartitionFilterHintExtractor.Operator.EQUALS, "acme"),
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "missing")
+        );
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{account}/{region}/{year}/events");
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*/*/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals("s3://bucket/logs/acme/us/2026/events/a.parquet", result.path(0).toString());
+        assertThat(provider.listedPrefixes(), hasItem("s3://bucket/logs/acme/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/logs/")));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+    }
+
+    /**
+     * Repeated slashes are a different S3 key. Probe {@code logs//daily/}, not {@code logs/daily/}.
+     */
+    public void testTemplateRepeatedSlashProbeKeepsEmptySegment() throws IOException {
+        String file = "s3://bucket/logs//daily/us/a.parquet";
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/logs//daily/", List.of(entry(file, 1))));
+        provider.throwOnUnknownPrefix = true;
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu"));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}");
+
+        FileList result = GlobExpander.expand("s3://bucket/logs//daily/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals(file, result.path(0).toString());
+        assertThat(provider.listedPrefixes, hasItem("s3://bucket/logs//daily/"));
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/logs/daily/")));
+    }
+
+    /**
+     * Empty dirs must not shift TEMPLATE literals left. {@code logs//us/2026/events/a.parquet} still
+     * matches {@code {region}/{year}/events} when right-aligned above the filename.
+     */
+    public void testTemplateAnchorRightAlignsLiteralsPastEmptyDirs() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                ListingWalkHarness.entry("s3://bucket/logs//us/2026/archive/a.parquet"),
+                ListingWalkHarness.entry("s3://bucket/logs//us/2026/events/b.parquet")
+            )
+        );
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu"));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}/{year}/events");
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals("s3://bucket/logs//us/2026/events/b.parquet", result.path(0).toString());
     }
 
     /**
@@ -7531,7 +7609,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    public void testProbeIoExceptionFallsThroughToStage2() throws IOException {
+    public void testProbeIoExceptionFailsClosed() {
         List<StorageEntry> tree = List.of(
             entry("s3://bucket/data/year=2024/a.parquet", 100),
             entry("s3://bucket/data/year=2025/b.parquet", 100)
@@ -7546,13 +7624,14 @@ public class GlobExpanderTests extends ESTestCase {
                 return super.listObjects(prefix, recursive);
             }
         };
-        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, 1, MAX);
-        assertEquals(1, result.fileCount());
-        assertTrue(result.isInferenceAnchor());
-        assertTrue(provider.listedPrefixes.contains("s3://bucket/data/"));
+        IOException thrown = expectThrows(
+            IOException.class,
+            () -> GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, 1, MAX)
+        );
+        assertThat(thrown.getMessage(), containsString("probe failed"));
     }
 
-    public void testProbeUnavailableFallsThroughToStage2() throws IOException {
+    public void testProbeUnavailableFailsClosed() {
         List<StorageEntry> tree = List.of(
             entry("s3://bucket/data/year=2024/a.parquet", 100),
             entry("s3://bucket/data/year=2025/b.parquet", 100)
@@ -7567,9 +7646,10 @@ public class GlobExpanderTests extends ESTestCase {
                 return super.listObjects(prefix, recursive);
             }
         };
-        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, 1, MAX);
-        assertEquals(1, result.fileCount());
-        assertTrue(result.isInferenceAnchor());
+        expectThrows(
+            ExternalUnavailableException.class,
+            () -> GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, 1, MAX)
+        );
     }
 
     public void testCancelDuringProbeThrows() {

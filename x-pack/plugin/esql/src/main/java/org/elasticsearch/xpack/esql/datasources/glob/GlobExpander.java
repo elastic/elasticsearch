@@ -1083,15 +1083,15 @@ public final class GlobExpander {
             return null;
         }
         StoragePath original = StoragePath.of(pattern);
-        StoragePath parent = inferenceAnchorParent(pattern, effective);
-        if (parent == null) {
-            return null;
-        }
         WalkLayout layout = TemplatePartitionDetector.walkLayout(
             original.patternPrefix(),
             original.globPart(),
             partitionConfig.pathTemplate()
         );
+        StoragePath parent = inferenceAnchorParent(pattern, effective, layout);
+        if (parent == null) {
+            return null;
+        }
         StorageEntry found = findAnchor(
             provider,
             List.of(parent),
@@ -1118,31 +1118,51 @@ public final class GlobExpander {
 
     /**
      * Directory to probe for one schema-inference file after an empty exact-string TEMPLATE prefix.
-     * Parent of the last rewritten folder, never above {@code pattern}'s listing prefix, and never a
-     * glob (a wildcard before the splice clamps to that dataset prefix).
+     * Parent of the last rewritten <em>placeholder</em> folder (not a trailing template literal),
+     * never above {@code pattern}'s listing prefix, and never a glob (a wildcard before the splice
+     * clamps to that dataset prefix). Repeated slashes in the rewritten path are kept.
      */
     @Nullable
-    static StoragePath inferenceAnchorParent(String pattern, String effective) {
+    static StoragePath inferenceAnchorParent(String pattern, String effective, @Nullable WalkLayout layout) {
         StoragePath original = StoragePath.of(pattern);
         StoragePath datasetPrefix = original.patternPrefix();
-        String[] origSegs = pathSegments(original.path());
-        String[] effSegs = pathSegments(StoragePath.of(effective).path());
-        int n = Math.min(origSegs.length, effSegs.length);
-        int lastSplice = -1;
-        for (int i = 0; i < n; i++) {
-            if (origSegs[i].equals(effSegs[i]) == false) {
-                lastSplice = i;
+        String origPath = original.path();
+        String effPath = StoragePath.of(effective).path();
+        if (origPath == null || origPath.isEmpty() || effPath == null || effPath.isEmpty()) {
+            return null;
+        }
+        String[] origRaw = origPath.split("/");
+        String[] effRaw = effPath.split("/");
+        List<Integer> origDirs = globDirectoryIndices(origRaw);
+        List<Integer> effDirs = globDirectoryIndices(effRaw);
+        int n = Math.min(origDirs.size(), effDirs.size());
+        int prefixDirCount = nonEmptySegmentCount(datasetPrefix.path());
+        int lastPlaceholder = -1;
+        int lastAny = -1;
+        for (int d = 0; d < n; d++) {
+            if (origRaw[origDirs.get(d)].equals(effRaw[effDirs.get(d)]) == false) {
+                lastAny = d;
+                int globLevel = d - prefixDirCount;
+                if (layout == null || globLevel < 0) {
+                    lastPlaceholder = d;
+                } else if (globLevel < layout.depth() && layout.level(globLevel).isPlaceholder()) {
+                    lastPlaceholder = d;
+                }
             }
         }
-        if (lastSplice < 0) {
+        int splice = lastPlaceholder >= 0 ? lastPlaceholder : lastAny;
+        if (splice < 0) {
             return null;
         }
         String loc = original.toString();
-        String origPath = original.path();
-        String root = origPath.isEmpty() == false && loc.endsWith(origPath) ? loc.substring(0, loc.length() - origPath.length()) : loc;
+        String root = loc.endsWith(origPath) ? loc.substring(0, loc.length() - origPath.length()) : loc;
+        int cut = effDirs.get(splice);
         StringBuilder parentPath = new StringBuilder(root);
-        for (int i = 0; i < lastSplice; i++) {
-            parentPath.append('/').append(effSegs[i]);
+        for (int i = 0; i < cut; i++) {
+            if (i > 0) {
+                parentPath.append('/');
+            }
+            parentPath.append(effRaw[i]);
         }
         parentPath.append('/');
         StoragePath parent = StoragePath.of(parentPath.toString());
@@ -1157,9 +1177,27 @@ public final class GlobExpander {
         return parent;
     }
 
-    private static String[] pathSegments(String path) {
+    /** Non-empty glob-directory indices; the last non-empty raw slot is the filename. */
+    private static List<Integer> globDirectoryIndices(String[] raw) {
+        List<Integer> idx = new ArrayList<>();
+        for (int i = 0; i < raw.length; i++) {
+            if (raw[i].isEmpty() == false) {
+                idx.add(i);
+            }
+        }
+        if (idx.isEmpty() == false) {
+            idx.remove(idx.size() - 1);
+        }
+        return idx;
+    }
+
+    private static int nonEmptySegmentCount(String path) {
+        return nonEmptyPathSegments(path).size();
+    }
+
+    private static List<String> nonEmptyPathSegments(String path) {
         if (path == null || path.isEmpty()) {
-            return new String[0];
+            return List.of();
         }
         List<String> segs = new ArrayList<>();
         for (String segment : path.split("/")) {
@@ -1167,23 +1205,29 @@ public final class GlobExpander {
                 segs.add(segment);
             }
         }
-        return segs.toArray(String[]::new);
+        return segs;
     }
 
-    /** {@code true} when every TEMPLATE literal glob-directory on {@code entry} matches {@code layout}. */
-    private static boolean matchesTemplateLiterals(WalkLayout layout, StoragePath datasetPrefix, StorageEntry entry) {
+    /**
+     * {@code true} when every TEMPLATE literal on {@code entry} matches {@code layout}, right-aligned
+     * to the directories above the filename the same way {@link TemplatePartitionDetector} binds.
+     */
+    private static boolean matchesTemplateLiterals(WalkLayout layout, StorageEntry entry) {
         if (layout == null) {
             return true;
         }
-        String[] prefixDirs = pathSegments(datasetPrefix.path());
-        String[] entryDirs = pathSegments(entry.path().path());
-        if (entryDirs.length <= prefixDirs.length) {
+        List<String> dirs = nonEmptyPathSegments(entry.path().path());
+        if (dirs.size() <= 1) {
             return false;
         }
-        int globDirs = entryDirs.length - prefixDirs.length - 1;
-        for (int i = 0; i < globDirs && i < layout.depth(); i++) {
-            WalkLayout.Level level = layout.level(i);
-            if (level.isLiteral() && level.literal().equals(entryDirs[prefixDirs.length + i]) == false) {
+        dirs = dirs.subList(0, dirs.size() - 1);
+        List<TemplateSegment> segments = layout.segments();
+        if (dirs.size() < segments.size()) {
+            return false;
+        }
+        int offset = dirs.size() - segments.size();
+        for (int t = 0; t < segments.size(); t++) {
+            if (segments.get(t) instanceof TemplateSegment.Literal(String value) && value.equals(dirs.get(offset + t)) == false) {
                 return false;
             }
         }
@@ -3086,6 +3130,9 @@ public final class GlobExpander {
                     String relativePath = entryPath.startsWith(prefixStr)
                         ? entryPath.substring(prefixStr.length())
                         : entry.path().objectName();
+                    while (relativePath.startsWith("/")) {
+                        relativePath = relativePath.substring(1);
+                    }
                     if (relativePath.isEmpty() || relativePath.endsWith("/")) {
                         continue;
                     }
@@ -3098,7 +3145,7 @@ public final class GlobExpander {
                     if (requiredKeys.isEmpty() == false && bindsWalkKeys(entry, requiredKeys) == false) {
                         continue;
                     }
-                    if (matchesTemplateLiterals(layout, listingPrefix, entry) == false) {
+                    if (matchesTemplateLiterals(layout, entry) == false) {
                         continue;
                     }
                     List<StorageEntry> kept = new ArrayList<>(1);

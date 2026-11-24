@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 
 import java.util.function.BooleanSupplier;
 
-/// Notified of each segment that a merge of an index shard produced, before the merge is committed to the index writer.
+/// Listener that is notified of each segment that a merge of an index shard produced, before the merge is committed to the index writer.
 ///
 /// The notification happens on the merge thread, which waits for the listener to be completed. Until then the merged segment cannot be
 /// part of any commit, so an implementation completes the listener only once whatever must happen before the segment can be published has

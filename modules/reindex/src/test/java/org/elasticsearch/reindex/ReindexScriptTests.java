@@ -182,6 +182,26 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         assertFalse(result.isRoutingFromSlice());
     }
 
+    public void testScriptChangingIndexDoesNotKeepOriginalDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("source", "id", 0);
+
+        IndexRequest result = applyScriptToRequest(
+            (Map<String, Object> ctx) -> ctx.put("_index", "plain-destination"),
+            request,
+            index,
+            doc
+        );
+        assertEquals("plain-destination", result.index());
+        assertNull(result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
     public void testSetSlice() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);

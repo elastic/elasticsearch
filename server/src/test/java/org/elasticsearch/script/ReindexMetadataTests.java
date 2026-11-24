@@ -196,6 +196,15 @@ public class ReindexMetadataTests extends ESTestCase {
         assertTrue(metadata.routingChangedWithSlice(true));
     }
 
+    public void testRoutingChangedWithSliceTracksIndexChanges() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        metadata.put("_index", "other-index");
+        assertFalse(metadata.routingChanged());
+        assertFalse(metadata.routingChangedWithSlice(false));
+        assertTrue(metadata.routingChangedWithSlice(true));
+    }
+
     /**
      * A script may catch the error from assigning a non-string routing. The rejected write leaves the metadata untouched, so it must not
      * count as a routing change either, or the request's slice would be discarded.

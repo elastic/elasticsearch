@@ -193,11 +193,12 @@ public class ReindexMetadata extends Metadata {
 
     /**
      * The routing value is compared against the hit, so re-assigning the hit's own routing is not a change. The slice provenance is
-     * compared against the request, and only if the script wrote {@code _routing} or {@code _slice}, since {@link #routingFromSlice}
-     * starts at {@code false} whether or not the request is slice-routed.
+     * compared against the request if the script wrote {@code _routing} or {@code _slice}, or changed {@code _index} because the prepared
+     * provenance belongs to the original target. Without either change, {@link #routingFromSlice} starts at {@code false} whether or not
+     * the request is slice-routed.
      */
     public boolean routingChangedWithSlice(boolean previousRoutingFromSlice) {
-        return routingChanged() || (routingWritten && routingFromSlice != previousRoutingFromSlice);
+        return routingChanged() || ((routingWritten || indexChanged()) && routingFromSlice != previousRoutingFromSlice);
     }
 
     public boolean isRoutingFromSlice() {

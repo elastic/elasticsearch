@@ -224,7 +224,7 @@
   - match: { _source.user: otherkimchy }
 
 ---
-"Script that does not assign _slice keeps the slice of a slice-enabled source":
+"Script that does not assign _slice keeps the slices of an unscoped slice-enabled source":
   - requires:
       cluster_features: ["index.slice_indexing"]
       reason: "requires _slice support in reindex script metadata"
@@ -263,13 +263,12 @@
         body:
           source:
             index: sliced_twitter
-            _slice: tenant-a
           dest:
             index: new_twitter
           script:
             lang: painless
             source: ctx._source.user = "other" + ctx._source.user
-  - match: {created: 1}
+  - match: {created: 2}
   - match: {failures: []}
 
   - do:
@@ -278,6 +277,13 @@
         id:     "1"
         _slice: tenant-a
   - match: { _source.user: otherkimchy }
+
+  - do:
+      get:
+        index:  new_twitter
+        id:     "2"
+        _slice: tenant-b
+  - match: { _source.user: otherfoo }
 
 ---
 "Script that does not assign _slice fails gracefully for a slice-enabled destination":

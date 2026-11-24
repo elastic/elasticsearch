@@ -359,21 +359,6 @@ tests:
   - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/166601
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testStopQueryLocalNoRemotes
-  issue: https://github.com/elastic/elasticsearch/issues/166987
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/166989
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testStopQueryInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/166991
 - class: org.elasticsearch.index.replication.RecoveryDuringReplicationTests
   tasks:
   - :server:test

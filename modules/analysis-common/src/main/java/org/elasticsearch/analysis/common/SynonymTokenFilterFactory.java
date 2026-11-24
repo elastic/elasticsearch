@@ -337,12 +337,27 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         if (analysisMode != AnalysisMode.SEARCH_TIME) {
             return;
         }
-        // lenient's default depends on the index version, so it is not always in the settings.
-        loadedRules = token == null ? readRules() : token.loadOnce(new ReadKey(settings, lenient), this::readRules);
+        Object readKey = readKey();
+        loadedRules = token == null || readKey == null ? readRules() : token.loadOnce(readKey, this::readRules);
         sharingKey = null;
     }
 
-    private record ReadKey(Settings settings, boolean lenient) {}
+    /** The resource {@link #readRules()} reads, or {@code null} when it reads only settings. */
+    private Object readKey() {
+        String path = settings.get(SynonymsSource.LOCAL_FILE.getSettingName());
+        return switch (synonymsSource) {
+            // Lenient reads skip missing sets, so lenient changes what is read.
+            case INDEX -> new ReadKey(
+                synonymsSource,
+                settings.getAsList(SynonymsSource.INDEX.getSettingName()).stream().distinct().sorted().toList(),
+                lenient
+            );
+            // Inline rules with a path read the file as a word list, unlike a plain synonyms_path, hence the source in the key.
+            case LOCAL_FILE, INLINE -> path == null ? null : new ReadKey(synonymsSource, path, false);
+        };
+    }
+
+    private record ReadKey(SynonymsSource source, Object resource, boolean lenient) {}
 
     private LoadedRules readRules() {
         ReaderWithOrigin source = synonymsSource.getRulesReader(this, IndexCreationContext.RELOAD_ANALYZERS);

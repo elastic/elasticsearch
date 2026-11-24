@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -1441,15 +1442,19 @@ public final class AnalysisRegistry implements Closeable {
             reloadable.reload(build.get(), null);
             return;
         }
-        Slot<AnalyzerComponents> entry = acquireComponents(key, build);
-        reloadable.reload(entry.future.join(), () -> releaseComponents(key, entry));
+        HeldComponents held = acquireComponents(key, build);
+        reloadable.reload(held.components(), held.release());
     }
 
+    /** One index's components and the release of its hold on them, or a {@code null} release when they are private to it. */
+    private record HeldComponents(AnalyzerComponents components, @Nullable Releasable release) {}
+
     /**
-     * Returns a held slot for {@code key}, building it outside the map lock if none is live; concurrent callers join that
-     * build. A failed build is removed and rethrown. A degraded one is handed to its callers but never shared.
+     * Returns components for {@code key}, building them outside the map lock if no live slot exists; concurrent callers join that
+     * build. A failed build is removed and rethrown. A degraded build is never shared: it is removed for later loads, and a caller
+     * that joined it builds its own instead.
      */
-    private Slot<AnalyzerComponents> acquireComponents(AnalyzerKey key, Supplier<AnalyzerComponents> build) {
+    private HeldComponents acquireComponents(AnalyzerKey key, Supplier<AnalyzerComponents> build) {
         boolean[] created = { false };
         Slot<AnalyzerComponents> entry = componentsCache.compute(key, (k, existing) -> {
             if (existing != null && existing.tryAcquire()) {
@@ -1462,25 +1467,37 @@ public final class AnalysisRegistry implements Closeable {
             AnalyzerComponents built;
             try {
                 built = build.get();
-            } catch (RuntimeException e) {
+            } catch (Throwable t) {
                 componentsCache.remove(key, entry);
-                entry.future.completeExceptionally(e);
+                entry.future.completeExceptionally(t);
                 entry.refCount.decrementAndGet();
-                throw e;
+                throw t;
             }
-            if (Arrays.stream(built.getTokenFilters()).anyMatch(TokenFilterFactory::isDegraded)) {
+            if (isDegraded(built)) {
                 componentsCache.remove(key, entry);
             }
             entry.future.complete(built);
-            return entry;
+            return new HeldComponents(built, () -> releaseComponents(key, entry));
         }
+        AnalyzerComponents joined;
         try {
-            entry.future.join();
+            joined = entry.future.join();
         } catch (CompletionException e) {
             entry.refCount.decrementAndGet();
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
             throw e.getCause() instanceof RuntimeException r ? r : e;
         }
-        return entry;
+        if (isDegraded(joined)) {
+            releaseComponents(key, entry);
+            return new HeldComponents(build.get(), null);
+        }
+        return new HeldComponents(joined, () -> releaseComponents(key, entry));
+    }
+
+    private static boolean isDegraded(AnalyzerComponents components) {
+        return Arrays.stream(components.getTokenFilters()).anyMatch(TokenFilterFactory::isDegraded);
     }
 
     private void releaseComponents(AnalyzerKey key, Slot<AnalyzerComponents> entry) {

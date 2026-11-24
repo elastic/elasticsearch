@@ -27,10 +27,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
@@ -72,6 +76,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         return new SynonymsManagementAPIService(
             client,
             cs,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             maxRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             chunkSize,
@@ -83,6 +88,26 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
      * All rules plus the synonym set document are written regardless of whether the rule count
      * falls below or above the chunk size boundary.
      */
+    /** Hidden indices are reloaded by name only when open and an analyzer of theirs runs a filter naming the set. */
+    public void testReloadTargetsAddsOpenHiddenIndicesUsingTheSet() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexUsingSet("visible", false, IndexMetadata.State.OPEN, true), false)
+            .put(indexUsingSet("hidden", true, IndexMetadata.State.OPEN, true), false)
+            .put(indexUsingSet("hidden-unused-filter", true, IndexMetadata.State.OPEN, false), false)
+            .put(indexUsingSet("hidden-closed", true, IndexMetadata.State.CLOSE, true), false)
+            .build();
+        assertArrayEquals(new String[] { "*", "hidden" }, SynonymsManagementAPIService.reloadTargets(project, "s"));
+    }
+
+    private static IndexMetadata indexUsingSet(String name, boolean hidden, IndexMetadata.State state, boolean analyzerUsesFilter) {
+        Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_HIDDEN, hidden)
+            .put("index.analysis.filter.syn.type", "synonym_graph")
+            .putList("index.analysis.filter.syn.synonyms_set", "s")
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", analyzerUsesFilter ? "syn" : "lowercase");
+        return IndexMetadata.builder(name).settings(settings).state(state).build();
+    }
+
     public void testBulkUpdateWritesAllDocs() throws Exception {
         int chunkSize = randomIntBetween(2, 10);
         // randomize below and above the chunk boundary

@@ -44,8 +44,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -148,6 +148,7 @@ public class SynonymsManagementAPIService {
     private final int pitBatchSize;
     private final int bulkChunkSize;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -166,10 +167,16 @@ public class SynonymsManagementAPIService {
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 
-    public SynonymsManagementAPIService(Client client, ClusterService clusterService, FeatureService featureService) {
+    public SynonymsManagementAPIService(
+        Client client,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        FeatureService featureService
+    ) {
         this(
             client,
             clusterService,
+            projectResolver,
             clusterService.getClusterSettings().get(MAX_SYNONYM_RULES_SETTING),
             PIT_BATCH_SIZE,
             BULK_CHUNK_SIZE,
@@ -182,6 +189,7 @@ public class SynonymsManagementAPIService {
     SynonymsManagementAPIService(
         Client client,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         int maxSynonymRules,
         int pitBatchSize,
         int bulkChunkSize,
@@ -189,6 +197,7 @@ public class SynonymsManagementAPIService {
     ) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.maxSynonymRules = maxSynonymRules;
         this.pitBatchSize = pitBatchSize;
         this.bulkChunkSize = bulkChunkSize;
@@ -1043,10 +1052,17 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        // Reloads do not resolve projects yet (TransportReloadAnalyzersAction), so with several projects only "*" is sent.
-        Metadata metadata = clusterService.state().metadata();
-        String[] targets = metadata.projects().size() == 1 ? reloadTargets(metadata.getProject(), synonymSetId) : new String[] { "*" };
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, targets);
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(
+            synonymSetId,
+            preview,
+            reloadTargets(projectResolver.getProjectMetadata(clusterService.state()), synonymSetId)
+        );
+        // A hidden index named above may be deleted or closed before the reload resolves it; skip it rather than fail the reload.
+        reloadAnalyzersRequest.indicesOptions(
+            IndicesOptions.builder(reloadAnalyzersRequest.indicesOptions())
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .build()
+        );
         client.execute(
             TransportReloadAnalyzersAction.TYPE,
             reloadAnalyzersRequest,
@@ -1054,22 +1070,30 @@ public class SynonymsManagementAPIService {
         );
     }
 
-    /** {@code *} plus the open hidden indices whose filters name this set, which {@code *} would skip. */
+    /** {@code *} plus the open hidden indices with an analyzer using this set, which {@code *} would skip. */
     static String[] reloadTargets(ProjectMetadata project, String synonymSetId) {
         List<String> targets = new ArrayList<>();
         targets.add("*");
         for (IndexMetadata index : project) {
-            if (index.isHidden()
-                && index.getState() == IndexMetadata.State.OPEN
-                && index.getSettings()
-                    .getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER)
-                    .values()
-                    .stream()
-                    .anyMatch(filter -> filter.getAsList("synonyms_set").contains(synonymSetId))) {
+            if (index.isHidden() && index.getState() == IndexMetadata.State.OPEN && usesSynonymsSet(index.getSettings(), synonymSetId)) {
                 targets.add(index.getIndex().getName());
             }
         }
         return targets.toArray(String[]::new);
+    }
+
+    private static boolean usesSynonymsSet(Settings indexSettings, String synonymSetId) {
+        Set<String> filters = indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER)
+            .entrySet()
+            .stream()
+            .filter(filter -> filter.getValue().getAsList("synonyms_set").contains(synonymSetId))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        return filters.isEmpty() == false
+            && indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER)
+                .values()
+                .stream()
+                .anyMatch(analyzer -> analyzer.getAsList("filter").stream().anyMatch(filters::contains));
     }
 
     // Allows checking failures in tests

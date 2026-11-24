@@ -258,6 +258,16 @@ public class SharingKeyTests extends ESTestCase {
 
         assertThat(terms(file, "the foo"), contains("the"));
         assertThat(terms(other, "the foo"), contains("foo"));
+
+        // The reloaded components are shared under the new content.
+        IndexSettings updated = indexSettings(
+            "updated",
+            IndexVersion.current(),
+            Settings.builder().put(chain).putList("index.analysis.filter.st.stopwords", "foo").build()
+        );
+        IndexAnalyzers third = buildTracked(updated);
+        third.reload(registry, updated, null, false, null);
+        assertSame(components(file), components(third));
     }
 
     private static IndexSettings indexSettings(String name, IndexVersion version, Settings analysis) {

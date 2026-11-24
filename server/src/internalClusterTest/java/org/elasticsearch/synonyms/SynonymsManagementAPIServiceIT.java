@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.analysis.Analysis;
@@ -57,6 +58,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService = new SynonymsManagementAPIService(
             client(),
             clusterService(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             maxSynonymRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE,
@@ -142,6 +144,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(
             client(),
             clusterService(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             maxRules,
             pitBatchSize,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE,
@@ -169,6 +172,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(
             client(),
             clusterService(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             maxRules,
             pitBatchSize,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE,
@@ -330,6 +334,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService = new SynonymsManagementAPIService(
             client(),
             clusterService(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             100_000,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE,
@@ -446,6 +451,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymsManagementAPIService service = new SynonymsManagementAPIService(
             client(),
             clusterService(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             maxRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
             SynonymsManagementAPIService.BULK_CHUNK_SIZE,

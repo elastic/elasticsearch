@@ -8,9 +8,16 @@
 package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -23,12 +30,14 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.INDEX;
@@ -37,7 +46,9 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_SEQ_FIELD;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_SIZE_FIELD;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.PAGE_TRANSPORT_VERSION_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
 
@@ -46,14 +57,17 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
     }
 
+    @Before
+    public void enableBatchIndexing() {
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
+    }
+
     @After
     public void resetBatchIndexing() {
         updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
     }
 
     public void testStartAppendPagesAndComplete() throws Exception {
-        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
-
         TransportVersion transportVersion = TransportVersion.current();
         var writer = newWriter(transportVersion);
         TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
@@ -88,8 +102,6 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFinalStatusIsNotOverwritten() throws Exception {
-        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
-
         var writer = newWriter(TransportVersion.current());
         TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
         Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
@@ -117,8 +129,6 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFinalStatusIsWrittenWithoutWaitingForCapacity() throws Exception {
-        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
-
         var writer = newWriter(TransportVersion.current());
         TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
         Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
@@ -134,12 +144,49 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
     }
 
     private SystemIndexStreamWriter newWriter(TransportVersion transportVersion) {
+        return newWriter(client(), transportVersion, failure -> { throw new AssertionError("unexpected failure", failure); });
+    }
+
+    private SystemIndexStreamWriter newWriter(Client client, TransportVersion transportVersion, Consumer<Exception> onFailure) {
         return new SystemIndexStreamWriter(
-            new OriginSettingClient(client().projectClient(ProjectId.DEFAULT), ESQL_ORIGIN),
+            new OriginSettingClient(client.projectClient(ProjectId.DEFAULT), ESQL_ORIGIN),
             internalCluster().getInstance(EscfBulkService.class),
             internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
-            transportVersion
+            transportVersion,
+            onFailure
         );
+    }
+
+    public void testFailedItemFailsTheWriter() {
+        PlainActionFuture<Exception> failure = new PlainActionFuture<>();
+        var writer = newWriter(client(), TransportVersion.current(), failure::onResponse);
+        writer.createStarted(new TaskId(randomIdentifier(), randomNonNegativeLong()), null, List.of(), Map.of(), List.of());
+        try (Page page = new Page(TestBlockFactory.getNonBreakingInstance().newConstantIntBlockWith(1, 3))) {
+            writer.appendPage(1, 0, page);
+            writer.appendPage(1, 0, page); // storing the same page twice is causing a conflict on non-metadata document
+        }
+
+        assertThat(safeGet(failure).getMessage(), containsString("failed to store stream results"));
+        awaitCapacity(writer);
+    }
+
+    public void testFailedBulkFailsTheWriter() {
+        Client failingClient = new FilterClient(client()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                listener.onFailure(new RuntimeException("simulated"));
+            }
+        };
+        PlainActionFuture<Exception> failure = new PlainActionFuture<>();
+        var writer = newWriter(failingClient, TransportVersion.current(), failure::onResponse);
+        writer.createStarted(new TaskId(randomIdentifier(), randomNonNegativeLong()), null, List.of(), Map.of(), List.of());
+
+        assertThat(safeGet(failure), instanceOf(RuntimeException.class));
+        awaitCapacity(writer);
     }
 
     private void assertMetadata(String streamId, StreamMetadata expected) throws Exception {

@@ -139,6 +139,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final AtomicLong rowsWritten = new AtomicLong();
     private final AtomicLong bytesWritten = new AtomicLong();
     private volatile SystemIndexStreamWriter writer;
+    private volatile boolean storeFailed;
     private volatile String streamId;
     private final AtomicLong pagesSeen = new AtomicLong();
     private final AtomicLong rowsSeen = new AtomicLong();
@@ -303,7 +304,8 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 new OriginSettingClient(client.projectClient(projectId), ESQL_ORIGIN),
                 escfBulkService,
                 breaker,
-                TransportVersion.current()
+                TransportVersion.current(),
+                this::onStoreFailure
             );
             streamId = writer.createStarted(resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
         }
@@ -312,9 +314,20 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         requestNextPage();
     }
 
+    void onStoreFailure(Exception e) {
+        logger.warn("Failed to store stream data", e);
+        storeFailed = true;
+        Flow.Subscription subscription = subscriber.subscription;
+        if (subscription != null && limitReached()) {
+            subscription.cancel();
+        }
+    }
+
     private void requestNextPage() {
         Flow.Subscription subscription = subscriber.subscription;
-        if (writer == null) {
+        if (storeFailed && limitReached()) {
+            subscription.cancel();
+        } else if (writer == null) {
             subscription.request(1);
         } else {
             writer.onCapacity(() -> subscription.request(1));

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.streaming;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
@@ -23,8 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -65,16 +66,16 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
  * A {@link StoredStreamWriter} that keeps the stream in the system index defined by {@link EsqlStreamResultsIndexDescriptor}:
  * one metadata document and one document per page. Everything goes through one {@link EscfBulkWriter} with one bulk in flight,
  * so the rows are indexed in the order they are added. Each metadata row starts a new batch, so that a bulk never holds the same
- * document twice. Failed items are logged and do not stop the stream. Use {@link #onCapacity} to wait until more pages may be
- * appended.
+ * document twice. A failed bulk or item fails the writer: it drops the rows it has not sent and passes the failure to the callback
+ * once. Use {@link #onCapacity} to wait until more pages may be appended.
  */
 public class SystemIndexStreamWriter implements StoredStreamWriter {
-
-    private static final Logger logger = LogManager.getLogger(SystemIndexStreamWriter.class);
 
     private final TransportVersion version;
     private final EscfBulkWriter writer;
     private final EscfBulkWriter.Producer producer;
+    private final Consumer<Exception> onFailure;
+    private final AtomicBoolean failureReported = new AtomicBoolean();
     private final List<Runnable> waiting = new ArrayList<>();
 
     private volatile StreamMetadata started;
@@ -84,15 +85,22 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
      * @param client the client that sends the bulks. It must be scoped to the project that owns the stream and set the ESQL origin.
      */
     @SuppressWarnings("this-escape")
-    public SystemIndexStreamWriter(Client client, EscfBulkService escfBulkService, CircuitBreaker breaker, TransportVersion version) {
+    public SystemIndexStreamWriter(
+        Client client,
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker,
+        TransportVersion version,
+        Consumer<Exception> onFailure
+    ) {
         this.version = version;
+        this.onFailure = onFailure;
         this.writer = escfBulkService.newWriter(
             client,
             breaker,
             INDEX,
             createPolicy(escfBulkService.defaultPolicy()),
-            this::logFailedItems,
-            () -> runWaiting(false)
+            this::failure,
+            this::wake
         );
         this.producer = writer.newProducer();
     }
@@ -152,6 +160,18 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         runnable.run();
     }
 
+    private void wake() {
+        reportFailure();
+        runWaiting(false);
+    }
+
+    private void reportFailure() {
+        Exception failure = writer.failure();
+        if (failure != null && failureReported.compareAndSet(false, true)) {
+            onFailure.accept(failure);
+        }
+    }
+
     private void runWaiting(boolean force) {
         List<Runnable> ready;
         synchronized (this) {
@@ -175,26 +195,24 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             producer.add(new MetadataRow(finalStatus.get()), true);
             producer.close();
         }
-        writer.finish(
-            ActionListener.runAfter(
-                ActionListener.wrap(ignored -> {}, e -> logger.warn("failed to store stream results", e)),
-                () -> runWaiting(true)
-            )
-        );
+        writer.finish(ActionListener.runAfter(ActionListener.wrap(ignored -> {}, e -> reportFailure()), () -> runWaiting(true)));
     }
 
-    private Exception logFailedItems(BulkResponse response) {
-        if (response.hasFailures() && isOnlyOutdatedStart(response, started.streamId()) == false) {
-            logger.warn("failed to store stream results: {}", response.buildFailureMessage());
+    private Exception failure(BulkResponse response) {
+        if (response.hasFailures() && hasUnexpectedFailures(response, started.streamId())) {
+            return new ElasticsearchException("failed to store stream results: [{}]", response.buildFailureMessage());
         }
         return null;
     }
 
-    private static boolean isOnlyOutdatedStart(BulkResponse response, String streamId) {
+    private static boolean hasUnexpectedFailures(BulkResponse response, String streamId) {
         List<BulkItemResponse> failed = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
-        return failed.size() == 1
-            && failed.getFirst().getId().equals(streamId)
-            && failed.getFirst().getFailure().getStatus() == RestStatus.CONFLICT;
+        return switch (failed.size()) {
+            case 0 -> false;
+            case 1 -> failed.getFirst().getId().equals(streamId) == false
+                || failed.getFirst().getFailure().getStatus() != RestStatus.CONFLICT;
+            default -> true;
+        };
     }
 
     private record MetadataRow(StreamMetadata metadata) implements EscfBulkWriter.Rows {

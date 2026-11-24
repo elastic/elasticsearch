@@ -165,6 +165,27 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         return new Drained(Map.of(), rows, footer);
     }
 
+    public void testStoreFailureAfterTheLimitStopsTheQuery() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 3, StreamOptions.NO_LIMIT));
+        decodeRows(sendFirstPage(s, buildLargePage(5, 1)));
+        assertFalse(s.publisher().isClosed());
+
+        s.listener().onStoreFailure(new RuntimeException("store failed"));
+
+        assertTrue(s.publisher().isClosed());
+        s.response().close();
+    }
+
+    public void testStoreFailureBeforeTheLimitKeepsTheQueryRunning() throws IOException {
+        Subscribed s = subscribe(new StreamOptions(StreamOptions.Store.NONE, 100, StreamOptions.NO_LIMIT));
+        decodeRows(sendFirstPage(s, buildLargePage(5, 1)));
+
+        s.listener().onStoreFailure(new RuntimeException("store failed"));
+
+        assertFalse(s.publisher().isClosed());
+        s.response().close();
+    }
+
     private static void assertLimitFooter(Map<String, Object> footer, int nextOffset) {
         assertThat(footer.get("status"), equalTo(200));
         assertThat(footer.get("is_partial"), equalTo(false));

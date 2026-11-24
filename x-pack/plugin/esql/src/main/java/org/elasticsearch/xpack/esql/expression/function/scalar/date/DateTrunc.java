@@ -34,6 +34,9 @@ import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -165,7 +168,10 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
         return rounding.round(fieldVal);
     }
 
-    /** A bucket that starts before 1970, such as the week of 1970-01-01, can't be represented in nanoseconds, so it is null. */
+    /**
+     * A bucket that starts before 1970, such as the week of 1970-01-01, can't be represented in nanoseconds: this throws, and the
+     * evaluator returns null with a warning.
+     */
     @Evaluator(extraName = "DateNanos", warnExceptions = IllegalArgumentException.class)
     static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
         // Currently, ES|QL doesn’t support rounding to sub-millisecond values, so it’s safe to cast before rounding.
@@ -239,6 +245,13 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
             return null;
         }
         Rounding.Prepared rounding = createRounding(interval, zone, null, null);
+        if (field.dataType() == DATE_NANOS
+            && rounding.round(0) < 0
+            && (cmp instanceof LessThan || cmp instanceof LessThanOrEqual || cmp instanceof NotEquals)) {
+            // The first date_nanos values truncate to null when their bucket starts before 1970, but a range without a lower
+            // bound would match them
+            return null;
+        }
         long literalMillis = DateFunctionLiterals.toMillis(literalEpoch, field.dataType());
         long startMillis = rounding.round(literalMillis);
         long nextMillis = rounding.nextRoundingValue(startMillis);

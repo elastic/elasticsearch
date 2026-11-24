@@ -36,7 +36,7 @@ public class DictionaryCompoundWordTokenFilterFactoryTests extends ESTestCase {
 
     public void testLegacyIndexKeepsOverlappingSubwordsForOnlyLongestMatch() throws IOException {
         IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleVersion(UPGRADE_TO_LUCENE_11_0_0);
-        assertThat(analyze(legacy, true, "schweinefleisch"), contains("schweinefleisch", "schwein", "wein", "fleisch"));
+        assertThat(analyze(legacy, true, "schweinefleisch"), contains("schweinefleisch", "schwein", "wein", "fleisch", "sch"));
     }
 
     public void testNewIndexDropsSubwordsInsideLongestMatchForOnlyLongestMatch() throws IOException {
@@ -46,14 +46,15 @@ public class DictionaryCompoundWordTokenFilterFactoryTests extends ESTestCase {
 
     public void testAllMatchesEmittedOnEveryVersionWhenOnlyLongestMatchIsFalse() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
-        assertThat(analyze(version, false, "schweinefleisch"), contains("schweinefleisch", "schwein", "wein", "fleisch"));
+        // sch is in the word twice
+        assertThat(analyze(version, false, "schweinefleisch"), contains("schweinefleisch", "sch", "schwein", "wein", "fleisch", "sch"));
     }
 
     private static TokenFilterFactory factory(IndexVersion version, boolean onlyLongestMatch) throws IOException {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         Settings filterSettings = Settings.builder()
             .put("type", "dictionary_decompounder")
-            .putList("word_list", "schwein", "wein", "fleisch")
+            .putList("word_list", "schwein", "sch", "wein", "fleisch")
             .put("only_longest_match", onlyLongestMatch)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);

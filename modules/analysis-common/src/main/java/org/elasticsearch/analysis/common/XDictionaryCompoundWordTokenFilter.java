@@ -19,7 +19,8 @@ import org.elasticsearch.core.UpdateForV10;
  * {@link org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter}. Its replacement also skips subwords that start inside
  * the longest match, so it emits fewer tokens than this filter for the same input.
  *
- * <p>Equivalent to the Lucene 10 filter with {@code reuseChars=true}, which Elasticsearch always used.
+ * <p>Equivalent to the Lucene 10 filter with {@code reuseChars=true}, which Elasticsearch always used,
+ * except for the token type of subwords. These will now always have a type of {@code subword}.
  * See <a href="https://github.com/elastic/elasticsearch/issues/163528">#163528</a>.
  */
 @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE)  // remove when index compatibility with pre-Lucene-11 is not required

@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
@@ -137,7 +138,14 @@ public class EsqlDatafeedQueryValidator {
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
-                checkClustersAvailable(response, datafeedId);
+                List<String> unavailable = unavailableClustersWithoutDescription(response);
+                if (unavailable.isEmpty() == false) {
+                    logger.debug(
+                        () -> "[" + datafeedId + "] ES|QL DESCRIBE probe skipped clusters " + unavailable + ". Deferring to start."
+                    );
+                    listener.onResponse(Boolean.TRUE);
+                    return;
+                }
                 checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -146,8 +154,8 @@ public class EsqlDatafeedQueryValidator {
             listener.onResponse(Boolean.TRUE);
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (isDeferredExistenceFailure(cause)) {
-                // Source may not exist yet; skip column checks (same as DSL datafeed PUT).
+            // A source that does not exist yet or an unreachable remote does not fail PUT, same as a DSL datafeed. Start checks remotes.
+            if (isDeferredExistenceFailure(cause) || cause instanceof ConnectTransportException) {
                 logger.debug(() -> "[" + datafeedId + "] ES|QL DESCRIBE probe failed with [" + cause + "]. Deferring to runtime.");
                 listener.onResponse(Boolean.TRUE);
             } else {
@@ -216,28 +224,19 @@ public class EsqlDatafeedQueryValidator {
 
     /**
      * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote instead of failing. When every source is on such a remote,
-     * the response has only a placeholder column instead of the DESCRIBE columns, so name the unavailable clusters instead of
-     * reporting a missing column.
+     * the response has only a placeholder column instead of the DESCRIBE columns. Returns those clusters, or an empty list when the
+     * response has the DESCRIBE columns.
      */
-    private static void checkClustersAvailable(EsqlQueryResponse response, @Nullable String datafeedId) {
+    private static List<String> unavailableClustersWithoutDescription(EsqlQueryResponse response) {
         if (response.response().columns().stream().anyMatch(c -> "name".equals(c.name()))) {
-            return;
+            return List.of();
         }
-        List<String> unavailable = response.response()
+        return response.response()
             .clusters()
             .stream()
             .filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED || c.status() == EsqlClusterInfo.Status.FAILED)
             .map(EsqlClusterInfo::clusterAlias)
             .toList();
-        if (unavailable.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(
-                    Messages.DATAFEED_ESQL_CLUSTERS_UNAVAILABLE,
-                    esqlDatafeedSubject(datafeedId),
-                    String.join(", ", unavailable)
-                )
-            );
-        }
     }
 
     /**

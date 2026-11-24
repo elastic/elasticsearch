@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
@@ -159,7 +160,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertValidationSucceeds(harness, validation());
     }
 
-    public void testUnavailableRemoteWithNoColumnsShouldFailValidationNamingTheCluster() {
+    public void testUnavailableRemoteWithNoColumnsShouldDeferValidation() {
         ValidatorHarness harness = new ValidatorHarness(
             new TestEsqlQueryResponse(
                 describeResponse(
@@ -172,11 +173,28 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 )
             )
         );
-        Exception failure = assertValidationFails(harness, validation().query("FROM east:logs-*,west:logs-*"));
+        assertValidationSucceeds(harness, validation().query("FROM east:logs-*,west:logs-*"));
+    }
 
-        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.getMessage(), containsString("clusters are not available: [east, west]"));
+    public void testUnreachableRemoteShouldDeferValidation() {
+        assertValidationSucceeds(
+            new ValidatorHarness(new ConnectTransportException(null, "connect_exception")),
+            validation().query("FROM east:logs-*")
+        );
+    }
+
+    public void testRemoteIndexExpressionsGivenUnreachableRemoteShouldFail() {
+        ValidatorHarness harness = new ValidatorHarness(new ConnectTransportException(null, "connect_exception"));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.validator.remoteIndexExpressions(
+            null,
+            Collections.emptyMap(),
+            "FROM east:logs-*",
+            null,
+            ActionListener.wrap(remote -> fail("expected failure"), failure::set),
+            null
+        );
+        assertThat(failure.get(), instanceOf(ConnectTransportException.class));
     }
 
     public void testUnavailableRemoteWithLocalColumnsShouldPassValidation() {

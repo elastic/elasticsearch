@@ -21,8 +21,8 @@ class GenerateTransportVersionManifestFuncTest extends AbstractTransportVersionF
         given:
         // create definitions in reverse name order so that creation or hash order is unlikely to match sorted order
         (40..1).each { i ->
-            referableTransportVersion(String.format("def_%02d", i), "${8200000 + i * 1000}")
-            unreferableTransportVersion(String.format("unref_%02d", i), "${8300000 + i * 1000}")
+            referableTransportVersion(String.format(Locale.ROOT, "def_%02d", i), "${8200000 + i * 1000}")
+            unreferableTransportVersion(String.format(Locale.ROOT, "unref_%02d", i), "${8300000 + i * 1000}")
         }
 
         when:

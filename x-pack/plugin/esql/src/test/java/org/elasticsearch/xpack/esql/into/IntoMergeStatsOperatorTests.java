@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.DISCARD;
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
@@ -337,9 +338,14 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         op.finish();
 
         Throwable[] other = new Throwable[1];
+        AtomicInteger calls = new AtomicInteger();
         RuntimeException first = new RuntimeException("first") {
             @Override
             public synchronized Throwable getCause() {
+                // Fail promptly if the walk does not end, instead of exhausting the heap of the test JVM
+                if (calls.incrementAndGet() > 1_000) {
+                    throw new AssertionError("the cause chain is walked without end");
+                }
                 return other[0];
             }
         };

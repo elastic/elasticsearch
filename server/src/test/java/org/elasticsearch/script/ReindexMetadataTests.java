@@ -196,6 +196,23 @@ public class ReindexMetadataTests extends ESTestCase {
         assertTrue(metadata.routingChangedWithSlice(true));
     }
 
+    /**
+     * A script may catch the error from assigning a non-string routing. The rejected write leaves the metadata untouched, so it must not
+     * count as a routing change either, or the request's slice would be discarded.
+     */
+    public void testRejectedRoutingWriteIsNotAChange() {
+        expectThrows(IllegalArgumentException.class, () -> metadata.put("_routing", 5));
+        assertFalse(metadata.routingChanged());
+        assertFalse(metadata.routingChangedWithSlice(false));
+        assertFalse(metadata.routingChangedWithSlice(true));
+
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            expectThrows(IllegalArgumentException.class, () -> metadata.put(SliceIndexing.FIELD_NAME, 5));
+            assertFalse(metadata.routingChangedWithSlice(false));
+            assertFalse(metadata.routingChangedWithSlice(true));
+        }
+    }
+
     public void testSliceUnavailableWhenFeatureFlagDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         assertFalse(metadata.isAvailable(SliceIndexing.FIELD_NAME));

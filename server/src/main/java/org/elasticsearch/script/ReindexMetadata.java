@@ -100,30 +100,35 @@ public class ReindexMetadata extends Metadata {
 
     @Override
     public Object put(String key, Object value) {
-        if (ROUTING.equals(key) || SLICE.equals(key)) {
-            routingWritten = true;
-        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.put(ROUTING, value);
             super.put(SLICE, value);
             routingFromSlice = SLICE.equals(key);
+            routingWritten = true;
             return previous;
         }
-        return super.put(key, value);
+        final Object previous = super.put(key, value);
+        // Only after the write is accepted: a script may catch a rejected assignment, and that must not count as a routing change.
+        if (ROUTING.equals(key) || SLICE.equals(key)) {
+            routingWritten = true;
+        }
+        return previous;
     }
 
     @Override
     public Object remove(String key) {
-        if (ROUTING.equals(key) || SLICE.equals(key)) {
-            routingWritten = true;
-        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.remove(ROUTING);
             super.remove(SLICE);
             routingFromSlice = false;
+            routingWritten = true;
             return previous;
         }
-        return super.remove(key);
+        final Object previous = super.remove(key);
+        if (ROUTING.equals(key) || SLICE.equals(key)) {
+            routingWritten = true;
+        }
+        return previous;
     }
 
     @Override

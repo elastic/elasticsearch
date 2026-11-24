@@ -88,7 +88,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_THRESHOLD_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
 /// See [StatelessPrimaryRelocationTargetService] for target side logic.
@@ -102,8 +102,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
-    /// how long the source waits for the prewarm to finish before acquiring permits; value of 0 still sends the prewarm but does not
-    /// wait for it (recorded as timed out)
+    /// How long the source waits for the prewarm to finish before acquiring permits; value of 0 still sends the prewarm but does not
+    /// wait for it (recorded as timed out). If you increase this setting, you might want to increase
+    /// `stateless.cluster.primary_relocation.slow_relocation_warning_threshold` accordingly because the whole relocation time includes
+    /// the waiting here.
     public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.prewarm_wait_timeout",
         TimeValue.timeValueSeconds(5),
@@ -140,7 +142,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     @Nullable
     private final ThrottledPrimaryRelocations throttledPrimaryRelocations;
 
-    private volatile TimeValue slowHandoffWarningThreshold;
+    private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
     private volatile TimeValue preFlushSlowUploadQueueThreshold;
     private volatile TimeValue prewarmWaitTimeout;
@@ -175,7 +177,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             : null;
 
         clusterService.getClusterSettings()
-            .initializeAndWatch(SLOW_HANDOFF_THRESHOLD_SETTING, value -> this.slowHandoffWarningThreshold = value);
+            .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
@@ -346,7 +348,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         final var threadDumpListener = SlowRelocationLogger.slowShardOperationListener(
             indexShard,
             request.targetAllocationId(),
-            slowHandoffWarningThreshold,
+            slowRelocationWarningThreshold,
             "flush and acquire permits",
             indexShard::getActiveOperationsCount
         );
@@ -518,7 +520,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         relocationSourceMetricsBuilder.recordSecondFlushDuration(secondFlushDuration.millis());
                         relocationSourceMetricsBuilder.recordHandoffDuration(handOffDuration.millis());
 
-                        boolean aboveThreshold = relocationDuration.getMillis() >= slowHandoffWarningThreshold.getMillis();
+                        boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
                             final var indexingStats = indexShard.indexingStats().getTotal();
                             final boolean shuttingDown = isShuttingDown();
@@ -555,7 +557,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                                 secondFlushDuration,
                                 handOffDuration,
                                 aboveThreshold ? "above" : "below",
-                                slowHandoffWarningThreshold
+                                slowRelocationWarningThreshold
                             ).withFields(fields);
                             logger.log(Level.INFO, message);
                         }

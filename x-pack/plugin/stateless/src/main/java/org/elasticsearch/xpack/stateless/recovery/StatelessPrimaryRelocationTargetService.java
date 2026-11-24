@@ -34,6 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_THRESHOLD_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Target-side stateless primary relocation: prewarm and primary-context handoff.
 public class StatelessPrimaryRelocationTargetService {
@@ -47,6 +48,7 @@ public class StatelessPrimaryRelocationTargetService {
     private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
     private final ThreadPool threadPool;
 
+    private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue slowHandoffWarningThreshold;
     private volatile int idLookupPrewarmMaxSegments;
 
@@ -65,6 +67,8 @@ public class StatelessPrimaryRelocationTargetService {
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
 
+        clusterService.getClusterSettings()
+            .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_HANDOFF_THRESHOLD_SETTING, value -> this.slowHandoffWarningThreshold = value);
         clusterService.getClusterSettings()
@@ -106,7 +110,7 @@ public class StatelessPrimaryRelocationTargetService {
         final var threadDumpListener = SlowRelocationLogger.slowShardOperationListener(
             indexShard,
             targetAllocationId,
-            slowHandoffWarningThreshold,
+            slowRelocationWarningThreshold,
             "starting",
             null
         );

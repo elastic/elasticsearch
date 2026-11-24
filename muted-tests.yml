@@ -652,11 +652,6 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testDedicatedMlNode
   issue: https://github.com/elastic/elasticsearch/issues/166408
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
-  tasks:
-  - :x-pack:plugin:searchable-snapshots:internalClusterTest
-  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/166411
 - class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
   tasks:
   - :x-pack:plugin:slm:internalClusterTest
@@ -667,8 +662,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testPointInTimeRelocationPitPositionsInBcc
   issue: https://github.com/elastic/elasticsearch/issues/166791
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitorTests
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   tasks:
-  - :x-pack:plugin:stateless:test
-  method: testRerouteCalledWhenNodeExceedsHighWatermark
-  issue: https://github.com/elastic/elasticsearch/issues/166993
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testPostWriteRefreshTimeoutDoesNotMakeOnGoingRecoveryFail
+  issue: https://github.com/elastic/elasticsearch/issues/167208

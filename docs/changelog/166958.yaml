@@ -1,0 +1,5 @@
+area: EQL
+issues: []
+pr: 166958
+summary: Fix EQL responses dropping `fields` after search hits are released
+type: bug

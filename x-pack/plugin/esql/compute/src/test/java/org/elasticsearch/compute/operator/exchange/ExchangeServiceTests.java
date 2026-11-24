@@ -1129,6 +1129,8 @@ public class ExchangeServiceTests extends ESTestCase {
                 remoteSink.close(closed);
                 closed.actionGet(10, TimeUnit.SECONDS);
                 assertBusy(() -> assertTrue("the sink must not outlive the cancelled query", exchange1.isEmpty()));
+                // A compute request that registered before the ban completes empty instead of failing on a missing exchange.
+                assertNull(exchange1.getSinkHandlerIfOpen(exchangeId));
             } finally {
                 node0.getTaskManager().unregister(queryTask);
             }

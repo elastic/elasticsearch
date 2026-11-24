@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -23,8 +24,10 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Verifies that the {@code EQL} source command works across clusters. Its leading index-pattern argument may be
@@ -34,6 +37,9 @@ import static org.hamcrest.Matchers.hasSize;
  * finalization, so it must actually run, not merely compile.
  */
 public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
+
+    private static final String PARTIAL_PATTERN = "eql_partial_*";
+    private static final String PARTIAL_EVENT = "process where value == 1 or fail_me == 1";
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -86,6 +92,120 @@ public class CrossClusterEqlCommandIT extends AbstractCrossClusterTestCase {
             EsqlExecutionInfo.Cluster remoteCluster = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
+    }
+
+    public void testLostShardOfASingleRemoteClusterSearchIsListedOnThatCluster() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        try (EsqlQueryResponse resp = runQuery(partialRequest(REMOTE_CLUSTER_1 + ":" + PARTIAL_PATTERN))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"))));
+            assertTrue(resp.isPartial());
+            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), "eql_partial_fail");
+            assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER), nullValue());
+        }
+    }
+
+    public void testLostShardOfAWildcardRemoteClusterSearchIsListedOnThatCluster() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        String wildcardCluster = REMOTE_CLUSTER_1.substring(0, REMOTE_CLUSTER_1.length() - 1) + "*";
+        try (EsqlQueryResponse resp = runQuery(partialRequest(wildcardCluster + ":" + PARTIAL_PATTERN))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"))));
+            assertTrue(resp.isPartial());
+            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), "eql_partial_fail");
+        }
+    }
+
+    public void testLostShardsOfALocalAndRemoteSearchAreListedOnTheirClusters() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(LOCAL_CLUSTER));
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        try (EsqlQueryResponse resp = runQuery(partialRequest(PARTIAL_PATTERN + "," + REMOTE_CLUSTER_1 + ":" + PARTIAL_PATTERN))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"), List.of("ok1"))));
+            assertTrue(resp.isPartial());
+            assertLostShard(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER), "eql_partial_fail");
+            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), REMOTE_CLUSTER_1 + ":eql_partial_fail");
+        }
+    }
+
+    public void testShardLostInAnInSubqueryDoesNotSkipTheRemoteClusterForTheMainQuery() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        String remotePattern = REMOTE_CLUSTER_1 + ":" + PARTIAL_PATTERN;
+        String query = "FROM "
+            + REMOTE_CLUSTER_1
+            + ":eql_partial_ok METADATA _id | WHERE value IN (EQL "
+            + remotePattern
+            + " \""
+            + PARTIAL_EVENT
+            + "\" | KEEP value) | KEEP _id";
+        try (EsqlQueryResponse resp = runQuery(EsqlQueryRequest.syncEsqlQueryRequest(query).allowPartialResults(true))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"))));
+            assertTrue(resp.isPartial());
+            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), "eql_partial_fail");
+        }
+    }
+
+    public void testShardLostInAnInSubqueryOfAnEqlQueryMarksTheRemoteClusterPartial() throws Exception {
+        setupRemoteEvents();
+        setupFailingShardIndices(client(REMOTE_CLUSTER_1));
+        String query = "EQL "
+            + REMOTE_CLUSTER_1
+            + ":eql_partial_ok \"process where true\" METADATA _id | WHERE value IN (EQL "
+            + REMOTE_CLUSTER_1
+            + ":"
+            + PARTIAL_PATTERN
+            + " \""
+            + PARTIAL_EVENT
+            + "\" | KEEP value) | KEEP _id";
+        try (EsqlQueryResponse resp = runQuery(EsqlQueryRequest.syncEsqlQueryRequest(query).allowPartialResults(true))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("ok1"))));
+            assertTrue(resp.isPartial());
+            assertLostShard(resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1), "eql_partial_fail");
+        }
+    }
+
+    private static EsqlQueryRequest partialRequest(String pattern) {
+        String query = "EQL " + pattern + " \"" + PARTIAL_EVENT + "\" METADATA _id | KEEP _id";
+        return EsqlQueryRequest.syncEsqlQueryRequest(query).allowPartialResults(true);
+    }
+
+    private static void assertLostShard(EsqlExecutionInfo.Cluster cluster, String index) {
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(cluster.getFailures(), hasSize(1));
+        ShardSearchFailure lost = cluster.getFailures().get(0);
+        assertThat(lost.index(), equalTo(index));
+        assertThat(lost.reason(), containsString("Accessing failing field"));
+    }
+
+    private static void setupFailingShardIndices(Client client) {
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate("eql_partial_ok")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "value", "type=long")
+        );
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate("eql_partial_fail")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("""
+                    {"properties":{"@timestamp":{"type":"date"},"event.category":{"type":"keyword"},"value":{"type":"long"}},
+                    "runtime":{"fail_me":{"type":"long","script":{"source":"","lang":"failing_field"}}}}""")
+        );
+        client.prepareBulk()
+            .add(
+                new IndexRequest("eql_partial_ok").id("ok1")
+                    .source("@timestamp", "2026-07-22T10:00:00Z", "event.category", "process", "value", 1)
+            )
+            .add(
+                new IndexRequest("eql_partial_fail").id("fail2")
+                    .source("@timestamp", "2026-07-22T10:00:01Z", "event.category", "process", "value", 2)
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
     }
 
     private void setupRemoteEvents() throws IOException {

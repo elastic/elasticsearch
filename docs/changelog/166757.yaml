@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166757
+summary: Stop constant folding at LEFT joins and unions
+type: bug

@@ -1433,6 +1433,40 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyTrue() {
+        assertTopDocsStatsMergeEarlyTermination(true, true, true);
+        assertTopDocsStatsMergeEarlyTermination(true, false, true);
+        assertTopDocsStatsMergeEarlyTermination(true, null, true);
+        assertTopDocsStatsMergeEarlyTermination(false, true, true);
+        assertTopDocsStatsMergeEarlyTermination(null, true, true);
+    }
+
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyFalse() {
+        assertTopDocsStatsMergeEarlyTermination(false, false, false);
+        assertTopDocsStatsMergeEarlyTermination(null, false, false);
+        assertTopDocsStatsMergeEarlyTermination(false, null, false);
+    }
+
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyNull() {
+        assertTopDocsStatsMergeEarlyTermination(null, null, null);
+    }
+
+    private void assertTopDocsStatsMergeEarlyTermination(Boolean first, Boolean second, Boolean expected) {
+        TopDocsStats accumulated = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        accumulated.terminatedEarly = first;
+        TopDocsStats batch = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        batch.terminatedEarly = second;
+        accumulated.add(batch);
+
+        assertEquals("merging termination flags " + first + " then " + second, expected, accumulated.terminatedEarly);
+
+        // The ordinary shard-result overload must agree with the batched overload, including empty results.
+        TopDocsStats unbatched = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        unbatched.terminatedEarly = first;
+        unbatched.add(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN), false, second);
+        assertEquals(expected, unbatched.terminatedEarly);
+    }
+
     public void testMergeWithPartialFetchResults() {
         int nShards = 3;
         int hitsPerShard = 5;

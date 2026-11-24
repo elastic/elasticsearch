@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
@@ -454,7 +455,7 @@ public record SplitDiscoveryContext(
         // when the survivor map is frozen. A provided set is authoritative aside from those three keys.
         retainedPartitionKeys = retainedPartitionKeys == null ? null : Set.copyOf(retainedPartitionKeys);
         if (taskConcurrency <= 0) {
-            taskConcurrency = ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY;
+            taskConcurrency = ExternalLimitSplits.defaultTaskConcurrency(Settings.EMPTY);
         }
         if (minTransportVersion == null) {
             throw new IllegalArgumentException("minTransportVersion cannot be null");

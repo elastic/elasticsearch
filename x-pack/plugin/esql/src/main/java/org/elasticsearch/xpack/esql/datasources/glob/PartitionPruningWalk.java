@@ -591,7 +591,11 @@ final class PartitionPruningWalk {
         }
     }
 
-    /** Infers the {@link DataType} for each partition key from all values collected during the walk. */
+    /**
+     * Infers the {@link DataType} for each partition key from all values collected during the walk.
+     * Insertion order of values in each list does not matter: {@link HivePartitionDetector#inferType}
+     * scans the whole list.
+     */
     private static Map<String, DataType> inferColumnTypes(Map<String, List<String>> seenValues) {
         if (seenValues.isEmpty()) {
             return Map.of();
@@ -1098,9 +1102,6 @@ final class PartitionPruningWalk {
                     return null;
                 }
                 ClassifiedLevel level = classifyListed(listed);
-                if (level == null) {
-                    return null;
-                }
                 if (applyPeeksIfNeeded(level) == false) {
                     return null;
                 }
@@ -1139,10 +1140,6 @@ final class PartitionPruningWalk {
                             level = classifyListed(listed);
                         } catch (Exception e) {
                             listener.onFailure(e);
-                            return;
-                        }
-                        if (level == null) {
-                            listener.onResponse(null);
                             return;
                         }
                         applyPeeksIfNeededAsync(level, concurrency, executor, new ActionListener<>() {
@@ -1356,10 +1353,9 @@ final class PartitionPruningWalk {
          * folder level are deferred until {@link #applyClassified} so a finish-survivors recursive
          * listing of the same parent does not double-count them. A glob-matching file at a folder
          * level breaks Hive detection; the caller's validation then rejects the walk. Unshaped dirs
-         * (junk, nested root) are descended untouched. An empty directory name (S3 {@code foo//})
-         * returns {@code null} so the walk withdraws rather than binding the next folder.
-         */
-        @Nullable
+     * (junk, nested root) are descended untouched. An empty directory name (S3 {@code foo//})
+     * returns {@link ClassifiedLevel#withdrawn} so the walk withdraws rather than binding the next folder.
+     */
         private ClassifiedLevel classifyListed(StorageChildren[] listed) {
             int listedDirs = dirs.size();
             List<StoragePath> shapedDirs = new ArrayList<>();

@@ -1064,6 +1064,10 @@ public final class GlobExpander {
      * schema-inference anchor, not a flatten of the original glob. Never lists above the original
      * pattern prefix. {@code null} when the parent cannot be listed or holds no glob match — then the
      * empty prefix listing stands.
+     * <p>
+     * Cost: one extra {@code listObjects} on every untruncated empty TEMPLATE miss. When the splice is
+     * the first glob directory, the parent is the dataset prefix and the probe lists recursively until
+     * the first glob-and-literal match, capped by {@code maxListedObjects} (usually one page).
      */
     @Nullable
     private static FileList exactPrefixInferenceAnchor(
@@ -2097,6 +2101,8 @@ public final class GlobExpander {
                     return;
                 }
                 // Same rule as the synchronous fallback: TEMPLATE empty miss probes an inference anchor.
+                // Blocking listObjects here, same as the walk callback in doExpandGlob. fanOutExecutor
+                // (or DIRECT) is an ES thread, not an S3 SDK event loop.
                 if (narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(finalRewritten, partitionConfig) == false) {
                     try {
                         FileList anchored = exactPrefixInferenceAnchor(
@@ -2148,6 +2154,7 @@ public final class GlobExpander {
                 // Local-filesystem missing prefix is empty, same as the sync path and same as S3. Other listing
                 // IO still fails. Neither case lists the original glob.
                 if (finalRewritten && keepExactPrefix && isMissingPrefix(narrowFailure)) {
+                    // Blocking listObjects; same ES-thread contract as the empty-narrowed branch above.
                     try {
                         FileList anchored = exactPrefixInferenceAnchor(
                             pattern,
@@ -3095,7 +3102,9 @@ public final class GlobExpander {
      * placeholders, exclusion-policy hits, and files missing a walk-listed key (a stray) are skipped. A
      * {@code _file.*} reject is still the one-file stash. Provider failures on one dir try the next; a
      * failure on the last dir is surfaced so a single-directory probe cannot turn a 503 into a glob miss.
-     * Cancel aborts. Stops at the first keep rather than draining the subtree.
+     * That last-dir rule only holds because the caller falls back to the flat listing, which then
+     * surfaces a 503 that this method swallowed on every earlier directory. Cancel aborts. Stops at
+     * the first keep rather than draining the subtree.
      */
     @Nullable
     private static StorageEntry findAnchor(
@@ -3130,9 +3139,6 @@ public final class GlobExpander {
                     String relativePath = entryPath.startsWith(prefixStr)
                         ? entryPath.substring(prefixStr.length())
                         : entry.path().objectName();
-                    while (relativePath.startsWith("/")) {
-                        relativePath = relativePath.substring(1);
-                    }
                     if (relativePath.isEmpty() || relativePath.endsWith("/")) {
                         continue;
                     }
@@ -3162,10 +3168,7 @@ public final class GlobExpander {
                     if (isMissingPrefix(t)) {
                         return null;
                     }
-                    if (t instanceof ExternalUnavailableException ex) {
-                        throw ex;
-                    }
-                    if (t instanceof IOException io) {
+                    if (e instanceof UncheckedIOException u && u.getCause() instanceof IOException io) {
                         throw io;
                     }
                     throw e;

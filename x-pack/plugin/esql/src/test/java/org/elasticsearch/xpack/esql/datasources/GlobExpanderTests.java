@@ -2748,12 +2748,20 @@ public class GlobExpanderTests extends ESTestCase {
      * {@code region == "eu-west-1"} on a us-east-1-only dataset must not throw “matched no files”: keep one
      * sibling file as a schema-inference anchor. The exact prefix is still listed first.
      */
-    public void testTemplateEmptyExactRegionKeepsInferenceAnchor() throws IOException {
+    public void testTemplateEmptyExactRegionKeepsInferenceAnchor() throws Exception {
+        assertTemplateEmptyExactRegionKeepsInferenceAnchor(false);
+    }
+
+    public void testTemplateEmptyExactRegionKeepsInferenceAnchorAsync() throws Exception {
+        assertTemplateEmptyExactRegionKeepsInferenceAnchor(true);
+    }
+
+    private void assertTemplateEmptyExactRegionKeepsInferenceAnchor(boolean async) throws Exception {
         ListingWalkHarness provider = new ListingWalkHarness(List.of(ListingWalkHarness.entry("s3://bucket/logs/us-east-1/a.parquet")));
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu-west-1"));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}");
 
-        FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+        FileList result = expandTemplate(async, "s3://bucket/logs/*/*.parquet", provider, hints, config);
 
         assertEquals(1, result.fileCount());
         assertTrue(result.isInferenceAnchor());
@@ -2818,6 +2826,14 @@ public class GlobExpanderTests extends ESTestCase {
      * A 503 listing the inference-anchor parent is a store failure, not “matched no files”.
      */
     public void testTemplateAnchorParentUnavailableFailsClosed() {
+        assertTemplateAnchorParentUnavailableFailsClosed(false);
+    }
+
+    public void testTemplateAnchorParentUnavailableFailsClosedAsync() {
+        assertTemplateAnchorParentUnavailableFailsClosed(true);
+    }
+
+    private void assertTemplateAnchorParentUnavailableFailsClosed(boolean async) {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/logs/eu-west-1/", List.of()));
         provider.throwOnUnknownPrefix = true;
         provider.unknownPrefixFailure = new IOException("connection reset");
@@ -2826,9 +2842,22 @@ public class GlobExpanderTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX)
+            () -> expandTemplate(async, "s3://bucket/logs/*/*.parquet", provider, hints, config)
         );
         assertThat(thrown.getMessage(), containsString("connection reset"));
+    }
+
+    private static FileList expandTemplate(
+        boolean async,
+        String pattern,
+        StorageProvider provider,
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        PartitionConfig config
+    ) throws Exception {
+        if (async) {
+            return expandSync(pattern, provider, hints, configMapOf(config), MAX, MAX, MAX, MAX, 4, () -> false);
+        }
+        return GlobExpander.expand(pattern, provider, hints, configMapOf(config), MAX, MAX);
     }
 
     /**
@@ -2912,8 +2941,9 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Empty dirs must not shift TEMPLATE literals left. {@code logs//us/2026/events/a.parquet} still
-     * matches {@code {region}/{year}/events} when right-aligned above the filename.
+     * Empty dirs in the listing prefix must not shift TEMPLATE literals left. The glob keeps
+     * an empty folder after logs, so the events file is a real glob match (same relative path
+     * the flat listing uses). archive is skipped.
      */
     public void testTemplateAnchorRightAlignsLiteralsPastEmptyDirs() throws IOException {
         ListingWalkHarness provider = new ListingWalkHarness(
@@ -2925,7 +2955,7 @@ public class GlobExpanderTests extends ESTestCase {
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu"));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}/{year}/events");
 
-        FileList result = GlobExpander.expand("s3://bucket/logs/*/*/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+        FileList result = GlobExpander.expand("s3://bucket/logs//*/*/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
 
         assertEquals(1, result.fileCount());
         assertTrue(result.isInferenceAnchor());

@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedRunnable;
@@ -224,7 +226,14 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
                 StatelessCommitService.class.getCanonicalName(),
                 Level.INFO,
                 "*upload took*over [" + attempts + "] attempt(s): attempt=" + attempts + " *"
-            )
+            ) {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    // the structured field of the same event, which dashboards read
+                    return event.getMessage() instanceof ESLogMessage message
+                        && String.valueOf(attempts).equals(message.get("elasticsearch.primary.bcc_upload_attempts"));
+                }
+            }
         );
 
         // the histogram is recorded right after the log

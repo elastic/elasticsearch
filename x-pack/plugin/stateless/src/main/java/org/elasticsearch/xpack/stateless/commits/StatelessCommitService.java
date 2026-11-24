@@ -1220,6 +1220,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         if (bccUploadSlowLogThresholdMillis <= 0 || uploadResult.totalUploadTimeMs() < bccUploadSlowLogThresholdMillis) {
             return;
         }
+        // the total time spans every attempt and the delays between them, the other fields describe the successful attempt
         final var timing = uploadResult.timing();
         final var message = new ESLogMessage(
             "{} batched compound commit [{}] upload took [{}]ms over [{}] attempt(s): {}",

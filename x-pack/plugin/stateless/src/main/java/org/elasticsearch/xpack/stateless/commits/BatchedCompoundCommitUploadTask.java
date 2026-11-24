@@ -177,6 +177,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
             BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
             assert uploadedBcc.lastCompoundCommit() != null;
             final long totalUploadTimeMs = threadPool.relativeTimeInMillis() - taskStartMillis;
+            assert attemptTiming.get() != null : shardId + " commit [" + generation + "] uploaded without a timing";
             l.onResponse(new BccUploadResult(uploadedBcc, totalUploadTimeMs, attemptTiming.get()));
         }))) {
             if (cacheWarmedAttempted.compareAndSet(false, true)) {

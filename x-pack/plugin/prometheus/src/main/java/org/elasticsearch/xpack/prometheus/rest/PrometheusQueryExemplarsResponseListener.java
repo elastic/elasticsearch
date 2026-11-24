@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  *   "timestamp":1600096945.479}]}]}
  * }</pre>
  * The labels of a series are those of the {@code _timeseries} column, named like the query endpoints name them, see
- * {@link PrometheusQueryResponseListener#writeMetricFromSeriesJson}. The labels of an exemplar are its {@code trace_id} and
+ * {@link PrometheusQueryResponseListener#collectMetricFromTimeseriesJson}. The labels of an exemplar are its {@code trace_id} and
  * {@code span_id} plus the ones recorded with it: the {@code filtered_attributes} of OTLP exemplars and the {@code exemplar_labels} of
  * Prometheus remote write ones.
  *
@@ -272,7 +272,7 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
 
     /**
      * The labels of the series an exemplar belongs to, from its {@code _timeseries} dimensions. These are named like the query endpoints
-     * name them (see {@link PrometheusQueryResponseListener#writeMetricFromSeriesJson}): the {@code labels} of Prometheus series without
+     * name them (see {@link PrometheusQueryResponseListener#collectMetricFromTimeseriesJson}): the {@code labels} of Prometheus series without
      * their prefix, all other dimensions by their dot-separated path. {@code __name__} is always {@code metricName}, the metric of the
      * exemplar, so a {@code metric_name} or {@code __name__} dimension is dropped.
      */

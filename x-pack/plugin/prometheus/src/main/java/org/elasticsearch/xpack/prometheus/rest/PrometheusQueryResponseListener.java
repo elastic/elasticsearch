@@ -35,11 +35,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
@@ -176,9 +174,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         if (columns.size() < 2 || STEP_PARAM.equals(columns.get(stepColIdx).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'step' column at last index " + stepColIdx);
         }
-        // Promoted labels may precede the blob; scanning avoids treating that layout as concrete-only.
         final int timeseriesColIdx = findTimeseriesColumn(columns, stepColIdx);
-        assert timeseriesColIdx >= 0 || hasDistinctLabelNames(columns, stepColIdx) : "PROMQL response has duplicate label columns";
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -280,7 +276,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return false;
     }
 
-    /** First _timeseries / _timeseries$... column, or -1 if concrete-only. */
+    /** The {@code _timeseries} column, which label columns may precede, or -1 if the labels are columns only. */
     private static int findTimeseriesColumn(List<ColumnInfoImpl> columns, int stepColIdx) {
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
             if (isTimeseriesColumn(columns.get(i).name())) {
@@ -290,17 +286,10 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return -1;
     }
 
-    /** Concrete-only labels stream without a merge, so two columns must never carry the same label. */
-    private static boolean hasDistinctLabelNames(List<ColumnInfoImpl> columns, int stepColIdx) {
-        Set<String> names = new HashSet<>();
-        for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-            if (names.add(prometheusLabelName(columns.get(i).name())) == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
+    /**
+     * Writes the labels of a series: those of its {@code _timeseries}, then each label column over them. A null or empty column
+     * removes its label, as Prometheus treats a label with an empty value as absent.
+     */
     private static void buildMetricLabels(
         XContentBuilder builder,
         int timeseriesColIdx,
@@ -311,113 +300,45 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         ZoneId zoneId,
         BytesRef scratch
     ) throws IOException {
+        Map<String, String> metric = new LinkedHashMap<>();
+        if (timeseriesColIdx >= 0) {
+            Block timeseries = page.getBlock(timeseriesColIdx);
+            if (timeseries.isNull(position) == false) {
+                BytesRef json = ((BytesRefBlock) timeseries).getBytesRef(timeseries.getFirstValueIndex(position), scratch);
+                collectMetricFromTimeseriesJson(metric, json.utf8ToString());
+            }
+        }
+        for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+            ColumnInfoImpl column = columns.get(i);
+            if (isTimeseriesColumn(column.name())) {
+                continue;
+            }
+            String name = prometheusLabelName(column.name());
+            String value = labelColumnValue(page.getBlock(i), column.type(), position, zoneId, scratch);
+            if (value == null) {
+                metric.remove(name);
+            } else {
+                metric.put(name, value);
+            }
+        }
         builder.startObject("metric");
-        if (timeseriesColIdx < 0) {
-            writeConcreteLabelColumns(builder, page, position, stepColIdx, columns, zoneId, scratch);
-            builder.endObject(); // metric
-            return;
-        }
-        // Map merge: null/empty overlay deletes a blob key; avoids duplicate JSON fields on overwrite.
-        LinkedHashMap<String, String> metric = new LinkedHashMap<>();
-        Block timeseriesBlock = page.getBlock(timeseriesColIdx);
-        String timeseriesJson = "{}";
-        if (timeseriesBlock.isNull(position) == false) {
-            BytesRef val = ((BytesRefBlock) timeseriesBlock).getBytesRef(timeseriesBlock.getFirstValueIndex(position), scratch);
-            timeseriesJson = val.utf8ToString();
-        }
-        collectMetricFromTimeseriesJson(metric, timeseriesJson);
-        overlayConcreteLabelColumns(metric, page, position, DIMENSION_COL_START_IDX, stepColIdx, columns, zoneId, scratch);
-        for (Map.Entry<String, String> entry : metric.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
+        for (Map.Entry<String, String> label : metric.entrySet()) {
+            builder.field(label.getKey(), label.getValue());
         }
         builder.endObject(); // metric
     }
 
-    /**
-     * Writes the label columns of a concrete-only layout, which has no label container blob to merge with, straight into the
-     * builder. Omits null labels (e.g. a null-filled missing BY label) and empty ones (a label function that emptied a
-     * label): Prometheus treats a label with an empty value as absent.
-     * PromQL {@code by}-labels are almost always {@code keyword}-typed: that case writes the UTF-8 bytes straight
-     * into the builder, avoiding a {@code utf8ToString()} allocation per label per row (profiling showed this was
-     * a measurable cost once done correctly for every row of a wide-cardinality result). Other types (IP, VERSION,
-     * DATETIME, etc. - all still backed by BytesRefBlock/LongBlock, not plain strings) fall back to ES|QL's own
-     * type-to-value extraction table for correctness; that fallback is not a hot path since it only runs for the
-     * rare non-keyword dimension column, not for every row's multi-valued value/step data.
-     */
-    private static void writeConcreteLabelColumns(
-        XContentBuilder builder,
-        Page page,
-        int position,
-        int stepColIdx,
-        List<ColumnInfoImpl> columns,
-        ZoneId zoneId,
-        BytesRef scratch
-    ) throws IOException {
-        for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-            Block labelBlock = page.getBlock(i);
-            if (labelBlock.isNull(position)) {
-                continue;
-            }
-            String labelName = prometheusLabelName(columns.get(i).name());
-            DataType type = columns.get(i).type();
-            if (type == DataType.KEYWORD || type == DataType.TEXT) {
-                BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
-                if (val.length > 0) {
-                    builder.field(labelName);
-                    builder.utf8Value(val.bytes, val.offset, val.length);
-                }
-                continue;
-            }
-            Object value = ResponseValueUtils.valueExtractorFor(type, zoneId)
-                .extract(labelBlock, labelBlock.getFirstValueIndex(position), scratch);
-            String text = value == null ? "" : value.toString();
-            if (text.isEmpty() == false) {
-                builder.field(labelName, text);
-            }
+    /** The value of a label column at {@code position}, or null where it is null or empty. */
+    @Nullable
+    private static String labelColumnValue(Block block, DataType type, int position, ZoneId zoneId, BytesRef scratch) {
+        if (block.isNull(position)) {
+            return null;
         }
-    }
-
-    /** Overlay concrete columns onto metric; null/empty means absent. Skip secondary _timeseries label container blobs. */
-    private static void overlayConcreteLabelColumns(
-        Map<String, String> metric,
-        Page page,
-        int position,
-        int from,
-        int stepColIdx,
-        List<ColumnInfoImpl> columns,
-        ZoneId zoneId,
-        BytesRef scratch
-    ) throws IOException {
-        for (int i = from; i < stepColIdx; i++) {
-            String columnName = columns.get(i).name();
-            if (isTimeseriesColumn(columnName)) {
-                continue;
-            }
-            String labelName = prometheusLabelName(columnName);
-            Block labelBlock = page.getBlock(i);
-            if (labelBlock.isNull(position)) {
-                metric.remove(labelName);
-                continue;
-            }
-            DataType type = columns.get(i).type();
-            if (type == DataType.KEYWORD || type == DataType.TEXT) {
-                BytesRef val = ((BytesRefBlock) labelBlock).getBytesRef(labelBlock.getFirstValueIndex(position), scratch);
-                if (val.length == 0) {
-                    metric.remove(labelName);
-                } else {
-                    metric.put(labelName, val.utf8ToString());
-                }
-                continue;
-            }
-            Object value = ResponseValueUtils.valueExtractorFor(type, zoneId)
-                .extract(labelBlock, labelBlock.getFirstValueIndex(position), scratch);
-            String text = value == null ? "" : value.toString();
-            if (text.isEmpty()) {
-                metric.remove(labelName);
-            } else {
-                metric.put(labelName, text);
-            }
-        }
+        int index = block.getFirstValueIndex(position);
+        Object value = type == DataType.KEYWORD || type == DataType.TEXT
+            ? ((BytesRefBlock) block).getBytesRef(index, scratch).utf8ToString()
+            : ResponseValueUtils.valueExtractorFor(type, zoneId).extract(block, index, scratch);
+        return value == null ? null : labelValue(value);
     }
 
     /** Strip labels. prefix used when a BY label collides with the value column name. */
@@ -555,26 +476,13 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     /**
-     * Writes metric labels from a {@code _timeseries} JSON value.
+     * Collects the labels of a {@code _timeseries} JSON value into {@code metric}, leaving out empty ones.
      * <ul>
      *   <li>The {@code labels} namespace is unwrapped without a prefix:
-     *       {@code {"labels":{"__name__":"up","job":"prometheus"}}} → fields {@code __name__}, {@code job}.</li>
+     *       {@code {"labels":{"__name__":"up","job":"prometheus"}}} -> labels {@code __name__}, {@code job}.</li>
      *   <li>All other namespaces are flattened recursively with dot-separated paths:
-     *       {@code {"attributes":{"resource":{"service.name":"foo"}}}} → field {@code attributes.resource.service.name}.</li>
+     *       {@code {"attributes":{"resource":{"service.name":"foo"}}}} -> label {@code attributes.resource.service.name}.</li>
      * </ul>
-     */
-    static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson) throws IOException {
-        forEachEntryFlattened(parseLabelsJson(seriesJson, true), (name, value) -> {
-            String labelValue = labelValue(value);
-            if (labelValue != null) {
-                builder.field(name, labelValue);
-            }
-        });
-    }
-
-    /**
-     * Collects metric labels from a {@code _timeseries} JSON value into {@code metric}, named and omitted as
-     * {@link #writeMetricFromSeriesJson} writes them, so that label columns can overlay them.
      */
     static void collectMetricFromTimeseriesJson(Map<String, String> metric, String timeseriesJson) throws IOException {
         forEachEntryFlattened(parseLabelsJson(timeseriesJson, true), (name, value) -> {

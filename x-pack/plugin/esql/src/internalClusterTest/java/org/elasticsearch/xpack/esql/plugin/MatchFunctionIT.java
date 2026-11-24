@@ -321,6 +321,17 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 assertThat(stats, getValuesList(resp), equalTo(List.of(List.of(0L, 0L))));
             }
         }
+        // the scores of the search need the shards too
+        for (String scored : List.of(
+            "WHERE match(content, \"fox\") | KEEP id, _score",
+            "WHERE match(content, \"fox\") AND _score > 0 | KEEP id, _score",
+            "WHERE match(content, \"fox\") | EVAL s = score(match(content, \"dog\")) | KEEP id, s"
+        )) {
+            String query = "FROM test METADATA _score | WHERE " + empty + " | " + scored;
+            try (var resp = run(query)) {
+                assertThat(query, getValuesList(resp), equalTo(List.of()));
+            }
+        }
     }
 
     public void testMatchWithStats() {

@@ -823,7 +823,7 @@ public abstract class FullTextFunction extends Function
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         if (shardContexts.isEmpty()) {
-            return new NoDocumentsEvaluator.Factory(functionName());
+            return new NoDocumentsEvaluator.Factory(functionName(), false);
         }
         return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(shardContexts));
     }
@@ -833,8 +833,10 @@ public abstract class FullTextFunction extends Function
      * rejects the queries that take rows away from their documents before such a function, so this only gets to run when
      * there are no rows either: the source of the query turned out to be empty while planning, e.g. for
      * {@code WHERE x IN (FROM ...)} when the subquery returns nothing. It fails on any row it is given.
+     *
+     * @param scores whether it stands for the scores of the query, or for whether the rows match it
      */
-    private record NoDocumentsEvaluator(String functionName, DriverContext context) implements ExpressionEvaluator {
+    private record NoDocumentsEvaluator(String functionName, boolean scores, DriverContext context) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NoDocumentsEvaluator.class);
 
         @Override
@@ -842,7 +844,9 @@ public abstract class FullTextFunction extends Function
             if (page.getPositionCount() > 0) {
                 throw new IllegalStateException("[" + functionName + "] requires the documents of an index, but this node has no shards");
             }
-            return context.blockFactory().newConstantBooleanBlockWith(false, 0);
+            return scores
+                ? context.blockFactory().newConstantDoubleBlockWith(0.0, 0)
+                : context.blockFactory().newConstantBooleanBlockWith(false, 0);
         }
 
         @Override
@@ -858,10 +862,10 @@ public abstract class FullTextFunction extends Function
             return "NoDocuments[" + functionName + "]";
         }
 
-        record Factory(String functionName) implements ExpressionEvaluator.Factory {
+        record Factory(String functionName, boolean scores) implements ExpressionEvaluator.Factory {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new NoDocumentsEvaluator(functionName, context);
+                return new NoDocumentsEvaluator(functionName, scores, context);
             }
 
             @Override
@@ -891,7 +895,11 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
-        return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toScorer.shardContexts();
+        if (shardContexts.isEmpty()) {
+            return new NoDocumentsEvaluator.Factory(functionName(), true);
+        }
+        return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(shardContexts));
     }
 
     @Override

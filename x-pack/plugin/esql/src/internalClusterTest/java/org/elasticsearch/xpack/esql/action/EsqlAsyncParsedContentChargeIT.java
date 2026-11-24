@@ -35,6 +35,7 @@ import static org.elasticsearch.test.BreakerTestUtil.parsedRequestHeldBytes;
 import static org.elasticsearch.test.BreakerTestUtil.parsedRequestMeasurements;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -93,12 +94,7 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
                 );
                 // Check after the cancel is processed, so a charge dropped on cancel is caught.
                 assertBusy(() -> {
-                    List<TaskInfo> tasks = client().admin()
-                        .cluster()
-                        .prepareListTasks()
-                        .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
-                        .get()
-                        .getTasks();
+                    List<TaskInfo> tasks = asyncQueryTasks();
                     assertThat(tasks, hasSize(1));
                     assertTrue(tasks.getFirst().cancelled());
                 });
@@ -118,9 +114,26 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
                 assertTrue(deleteAsyncId(client(), id).isAcknowledged());
             }
         } finally {
+            // Unblock a query left in pause_me by a failure. Let it end before draining, or the drain could take its permits.
+            scriptPermits.release(numberOfDocs());
+            try {
+                assertBusy(() -> assertThat(asyncQueryTasks(), empty()));
+            } catch (AssertionError e) {
+                // Log rather than throw, so a failure of the test body is not hidden.
+                logger.warn("async query still running after releasing script permits", e);
+            }
             scriptPermits.drainPermits();
             scriptWaits.drainPermits();
         }
+    }
+
+    private List<TaskInfo> asyncQueryTasks() {
+        return client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
+            .get()
+            .getTasks();
     }
 
     public void testChargeIsReleasedWhenTheQueryEndsBeforeTheResponse() throws Exception {

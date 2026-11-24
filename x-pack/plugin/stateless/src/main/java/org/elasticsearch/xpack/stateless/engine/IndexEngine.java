@@ -1138,7 +1138,8 @@ public class IndexEngine extends InternalEngine {
                 }
             }
 
-            // the index writer sets the merged segment before it warms it
+            // the index writer sets the merged segment before it warms it, during mergeMiddle, so we hook in here to detect newly
+            // started merges
             @Override
             public void setMergeInfo(SegmentCommitInfo info) {
                 super.setMergeInfo(info);

@@ -32,7 +32,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -232,7 +235,9 @@ public final class IntoMergeStatsOperator implements Operator {
     /** The failure and what it wraps, outermost first, which is where the node that refused is named. */
     private static String wrappers(Throwable cause) {
         StringBuilder chain = new StringBuilder();
-        for (Throwable t = cause; t != null; t = t.getCause()) {
+        // A cause chain can be cyclic, and this runs in the failure callback, so it must end
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable t = cause; t != null && seen.add(t); t = t.getCause()) {
             chain.append(chain.isEmpty() ? "" : " <- ").append(t);
         }
         return chain.toString();

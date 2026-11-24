@@ -330,6 +330,26 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         }
     }
 
+    /** A cause chain can be cyclic, and describing it for the log must still end, or the failure never reaches the query. */
+    public void testCyclicCauseChainDoesNotBlockTheFailure() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        Throwable[] other = new Throwable[1];
+        RuntimeException first = new RuntimeException("first") {
+            @Override
+            public synchronized Throwable getCause() {
+                return other[0];
+            }
+        };
+        other[0] = new RuntimeException("second", first);
+        client.failRefresh(new ElasticsearchException("refresh failed", first));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.getMessage(), containsString("refresh failed"));
+    }
+
     private static RemoteTransportException remoteBreaker() {
         CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
         return new RemoteTransportException("[node-b][127.0.0.1:9300][indices:admin/refresh[s][r]]", breaker);

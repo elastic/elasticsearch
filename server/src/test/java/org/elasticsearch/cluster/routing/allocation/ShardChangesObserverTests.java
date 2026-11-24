@@ -64,7 +64,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 
 @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE", reason = "verifies debug level logging")
 public class ShardChangesObserverTests extends ESAllocationTestCase {
@@ -282,8 +281,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             everyItem(hasEntry("es_can_remain_decider", Objects.requireNonNullElse(reason.canRemainDecider(), "missing")))
         );
         assertThat(attributes, everyItem(hasEntry("es_shard_primary", primary)));
-        // the attribute map is cached
-        assertThat(attributes, everyItem(sameInstance(attributes.getFirst())));
     }
 
     public void testRelocationMetricReportsComputedReason() {

@@ -12,18 +12,15 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.MoveReason;
-import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -44,29 +41,17 @@ class ShardChangesObserver implements RoutingChangesObserver {
             .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name())));
     }
 
-    /**
-     * The attributes of {@link #RELOCATION_STARTED_METRIC}
-     */
-    record RelocationAttributes(MoveType type, @Nullable String canRemainDecider, boolean primary) {
-
-        static RelocationAttributes of(MoveReason reason, boolean primary) {
-            return new RelocationAttributes(reason.type(), reason.canRemainDecider(), primary);
-        }
-
-        Map<String, Object> toMap() {
-            return Map.of(
-                "es_relocation_reason",
-                type.reason(),
-                "es_can_remain_decider",
-                canRemainDecider == null ? "missing" : canRemainDecider,
-                "es_shard_primary",
-                primary
-            );
-        }
+    // Relocations are rare and the telemetry client builds its own attributes from this map on every call, so it is not worth caching
+    private static Map<String, Object> relocationAttributes(MoveReason reason, boolean primary) {
+        return Map.of(
+            "es_relocation_reason",
+            reason.type().reason(),
+            "es_can_remain_decider",
+            reason.canRemainDecider() == null ? "missing" : reason.canRemainDecider(),
+            "es_shard_primary",
+            primary
+        );
     }
-
-    // Cache the attribute maps: the set of distinct combinations is small (move types x deciders x 2)
-    private static final Map<RelocationAttributes, Map<String, Object>> RELOCATION_ATTRIBUTES = new ConcurrentHashMap<>();
 
     private final LongHistogram unassignedToInitializingDuration;
     private final LongHistogram unassignedToStartedDuration;
@@ -144,10 +129,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
             startedShard.currentNodeId(),
             targetRelocatingShard.currentNodeId()
         );
-        relocationStartedCounter.incrementBy(
-            1,
-            RELOCATION_ATTRIBUTES.computeIfAbsent(RelocationAttributes.of(reason, startedShard.primary()), RelocationAttributes::toMap)
-        );
+        relocationStartedCounter.incrementBy(1, relocationAttributes(reason, startedShard.primary()));
     }
 
     @Override

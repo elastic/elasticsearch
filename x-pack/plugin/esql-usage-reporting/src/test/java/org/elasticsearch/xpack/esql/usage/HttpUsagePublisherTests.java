@@ -104,6 +104,8 @@ public class HttpUsagePublisherTests extends ESTestCase {
     /** The status that makes the server send headers and then stall. */
     private static final int STALL_BODY = -2;
     private final CountDownLatch clientDropped = new CountDownLatch(1);
+    /** Counted down when the server has sent the headers and the first byte of a body that never ends. */
+    private final CountDownLatch bodyStarted = new CountDownLatch(1);
     /** When positive, the size of the body of every answer. */
     private volatile int answerBytes;
     private TestSslProfile profile;
@@ -147,6 +149,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
                 while (true) {
                     exchange.getResponseBody().write(chunk);
                     exchange.getResponseBody().flush();
+                    bodyStarted.countDown();
                     Thread.sleep(50);
                 }
             } catch (IOException e) {
@@ -482,7 +485,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
                         "[xpack.esql.usage_reporting.ssl.verification_mode] is ["
                             + mode
                             + "] but the usage reporting client always "
-                            + "verifies the host name*"
+                            + "verifies the host name*must match the host name of [xpack.esql.usage_reporting.url]"
                     )
                 );
                 newPublisher(TimeValue.timeValueSeconds(10)).close();
@@ -529,8 +532,10 @@ public class HttpUsagePublisherTests extends ESTestCase {
 
     public void testBodyThatNeverEndsIsAbortedAfterTheTimeout() throws Exception {
         statusFor = ids -> STALL_BODY;
-        try (HttpUsagePublisher slow = newPublisher(TimeValue.timeValueSeconds(1))) {
+        try (HttpUsagePublisher slow = newPublisher(TimeValue.timeValueSeconds(2))) {
             assertWholeBatchFailure(slow.publish(records(2)), PublishResult.FailureClass.RETRYABLE, null);
+            // The timeout must have hit while the body was being received, or this checks the abort before the headers instead.
+            assertTrue("the response had started before the timeout", bodyStarted.await(0, TimeUnit.SECONDS));
             assertTrue("the connection of the request is released", clientDropped.await(5, TimeUnit.SECONDS));
         }
     }

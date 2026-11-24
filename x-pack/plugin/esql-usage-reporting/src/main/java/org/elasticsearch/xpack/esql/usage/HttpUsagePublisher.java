@@ -286,10 +286,10 @@ public final class HttpUsagePublisher implements UsagePublisher {
         if (mode.isHostnameVerificationEnabled() == false) {
             logger.warn(
                 "[{}.verification_mode] is [{}] but the usage reporting client always verifies the host name of the Usage API: "
-                    + "the certificate of the server must match the host name of [{}.url]",
-                configuration.settingPrefix(),
+                    + "the certificate of the server must match the host name of [{}]",
+                UsageReportingSettings.SSL_PREFIX,
                 mode,
-                UsageReportingSettings.PREFIX
+                UsageReportingSettings.URL.getKey()
             );
         }
     }

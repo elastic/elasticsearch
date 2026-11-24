@@ -253,7 +253,8 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
             XContentParseException.class,
             () -> parseStream("{\"query\": \"FROM idx\", \"store\": \"bogus\"}")
         );
-        assertThat(e.getCause().getMessage(), equalTo("[store] must be one of [none, overflow, all], got [bogus]"));
+        String accepted = EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled() ? "[none, overflow, all]" : "[none]";
+        assertThat(e.getCause().getMessage(), equalTo("[store] must be one of " + accepted + ", got [bogus]"));
     }
 
     public void testInvalidLimitsAreRejected() {

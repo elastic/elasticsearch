@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 165057
+pr: 166673
+summary: Keep adaptive allocations idle time across master failover
+type: bug

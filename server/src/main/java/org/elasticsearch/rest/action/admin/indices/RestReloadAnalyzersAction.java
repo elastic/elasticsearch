@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAc
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,6 +28,16 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestReloadAnalyzersAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "resource",
+        "preview"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     /**
      * Capability advertising that this node shares analyzer instances across indices with identical
@@ -68,4 +79,15 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
             new RestToXContentListener<>(channel)
         );
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

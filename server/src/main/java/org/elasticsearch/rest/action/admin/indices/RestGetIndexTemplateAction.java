@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -33,6 +34,16 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * The REST handler for get template and head template APIs.
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        Settings.FLAT_SETTINGS_PARAM
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS),
+        "name"
+    );
 
     private static final Set<String> CAPABILITIES = Set.of("local_param_deprecated");
 
@@ -77,4 +88,15 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return CAPABILITIES;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

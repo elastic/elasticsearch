@@ -18,17 +18,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
@@ -36,7 +32,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
-import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -49,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestHeldBytes;
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestMeasurements;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,10 +103,10 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         Map<String, Object> body = performAndParse(startTask(api, slices));
         TaskId taskId = new TaskId((String) body.get("task"));
         // The response is sent, but the task still runs.
-        assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+        assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
         // And once it is throttled after its first batch.
         assertBusy(() -> assertTrue(isThrottled(taskId)));
-        assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+        assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
 
         if (cancel) {
             clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
@@ -124,7 +121,7 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         if (cancel == false) {
             assertNull(result.getError());
         }
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     /**
@@ -154,7 +151,7 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
 
         // Throttled after its first batch, so no parse is in flight.
         assertBusy(() -> assertTrue(isThrottled(taskId)));
-        long held = parsedRequestHeldBytes();
+        long held = parsedRequestHeldBytes(internalCluster());
         assertThat(held, greaterThan(0L));
 
         new RethrottleRequestBuilder(client()).setTargetTaskId(taskId).setRequestsPerSecond(20f).get().rethrowFailures("Rethrottle");
@@ -162,12 +159,12 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         // Throttled again, so the task cannot finish while it is sampled.
         new RethrottleRequestBuilder(client()).setTargetTaskId(taskId).setRequestsPerSecond(0.000001f).get().rethrowFailures("Rethrottle");
         // Busy, since a sample can catch a parse in flight. Held parses would only add up, so it would never match.
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(held)));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(held)));
         assertFalse("the task has to be running when sampled", clusterAdmin().prepareGetTask(taskId).get().getTask().isCompleted());
 
         clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
         clusterAdmin().prepareGetTask(taskId).setWaitForCompletion(true).get();
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     public void testChargeIsReleasedWhenTheTaskCannotBeRegistered() throws Exception {
@@ -176,24 +173,24 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         Request request = startTask(randomFrom(TestApi.values()), 1);
         // Passes the http limit, but not the task headers limit, which counts two bytes per char.
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLength(10_000)));
-        int measurementsBefore = parsedRequestMeasurements().size();
+        int measurementsBefore = parsedRequestMeasurements(internalCluster()).size();
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("Request exceeded the maximum size of task headers"));
-        assertThat(parsedRequestMeasurements().size(), greaterThan(measurementsBefore));
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertThat(parsedRequestMeasurements(internalCluster()).size(), greaterThan(measurementsBefore));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     public void testChargeIsReleasedWhenTheTaskFails() throws Exception {
         // The source index is missing, so the task fails.
-        int measurementsBefore = parsedRequestMeasurements().size();
+        int measurementsBefore = parsedRequestMeasurements(internalCluster()).size();
         Map<String, Object> body = performAndParse(startTask(randomFrom(TestApi.values()), 1));
         TaskId taskId = new TaskId((String) body.get("task"));
         TaskResult result = clusterAdmin().prepareGetTask(taskId).setWaitForCompletion(true).get().getTask();
         assertTrue(result.isCompleted());
         assertNotNull(result.getError());
-        assertThat(parsedRequestMeasurements().size(), greaterThan(measurementsBefore));
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertThat(parsedRequestMeasurements(internalCluster()).size(), greaterThan(measurementsBefore));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     /** The request fails validation before the task is started, so it never takes the hold, and the response releases its charge. */
@@ -201,12 +198,12 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         Request request = new Request("POST", "/_reindex");
         request.addParameter("wait_for_completion", "false");
         request.setJsonEntity("{\"source\":{\"index\":\"" + SOURCE + "\",\"_source\":false},\"dest\":{\"index\":\"dest\"}}");
-        int measurementsBefore = parsedRequestMeasurements().size();
+        int measurementsBefore = parsedRequestMeasurements(internalCluster()).size();
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("_source:false is not supported in this context"));
-        assertThat(parsedRequestMeasurements().size(), greaterThan(measurementsBefore));
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertThat(parsedRequestMeasurements(internalCluster()).size(), greaterThan(measurementsBefore));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     private void indexDocs(int count) {
@@ -306,30 +303,5 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    /** The bytes the request breakers of all nodes hold for parsed requests, from the held memory metric. */
-    private long parsedRequestHeldBytes() {
-        return parsedRequestMeasurements().stream().mapToLong(Measurement::getLong).sum();
-    }
-
-    private List<Measurement> parsedRequestMeasurements() {
-        List<Measurement> measurements = new ArrayList<>();
-        for (String node : internalCluster().getNodeNames()) {
-            TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, node)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
-            for (Measurement measurement : telemetry.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)) {
-                Map<String, Object> attributes = measurement.attributes();
-                if (CircuitBreaker.REQUEST.equals(attributes.get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
-                    && ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST.equals(
-                        attributes.get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
-                    )) {
-                    measurements.add(measurement);
-                }
-            }
-        }
-        return measurements;
     }
 }

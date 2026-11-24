@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 167005
+summary: Update TSDB time series range immediately when elected master
+type: bug

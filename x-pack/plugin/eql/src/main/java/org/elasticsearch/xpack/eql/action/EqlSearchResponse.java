@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
@@ -31,29 +30,21 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
@@ -71,7 +62,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private static final class Fields {
         static final String TOOK = "took";
         static final String TIMED_OUT = "timed_out";
-        static final String HITS = "hits";
         static final String ID = "id";
         static final String IS_RUNNING = "is_running";
         static final String IS_PARTIAL = "is_partial";
@@ -80,29 +70,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
     private static final ParseField TIMED_OUT = new ParseField(Fields.TIMED_OUT);
-    private static final ParseField HITS = new ParseField(Fields.HITS);
     private static final ParseField ID = new ParseField(Fields.ID);
     private static final ParseField IS_RUNNING = new ParseField(Fields.IS_RUNNING);
     private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
     private static final ParseField SHARD_FAILURES = new ParseField(Fields.SHARD_FAILURES);
-
-    private static final InstantiatingObjectParser<EqlSearchResponse, Void> PARSER;
-
-    static {
-        InstantiatingObjectParser.Builder<EqlSearchResponse, Void> parser = InstantiatingObjectParser.builder(
-            "eql/search_response",
-            true,
-            EqlSearchResponse.class
-        );
-        parser.declareObject(constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
-        parser.declareLong(constructorArg(), TOOK);
-        parser.declareBoolean(constructorArg(), TIMED_OUT);
-        parser.declareString(optionalConstructorArg(), ID);
-        parser.declareBoolean(constructorArg(), IS_RUNNING);
-        parser.declareBoolean(constructorArg(), IS_PARTIAL);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.EMPTY_ARRAY, SHARD_FAILURES);
-        PARSER = parser.build();
-    }
 
     public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, ShardSearchFailure[] shardFailures) {
         this(hits, tookInMillis, isTimeout, null, false, false, shardFailures);
@@ -138,10 +109,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         if (in.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
             directoryMetrics = new DirectoryMetrics(in);
         }
-    }
-
-    public static EqlSearchResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -233,8 +200,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         }
         EqlSearchResponse that = (EqlSearchResponse) o;
         return Objects.equals(hits, that.hits)
-            && Objects.equals(tookInMillis, that.tookInMillis)
-            && Objects.equals(isTimeout, that.isTimeout)
+            && tookInMillis == that.tookInMillis
+            && isTimeout == that.isTimeout
             && Objects.equals(asyncExecutionId, that.asyncExecutionId)
             && Arrays.equals(shardFailures, that.shardFailures);
     }
@@ -301,45 +268,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             static final String SOURCE = SourceFieldMapper.NAME;
             static final String FIELDS = "fields";
             static final String MISSING = "missing";
-        }
-
-        private static final ParseField INDEX = new ParseField(Fields.INDEX);
-        private static final ParseField ID = new ParseField(Fields.ID);
-        private static final ParseField SOURCE = new ParseField(Fields.SOURCE);
-        private static final ParseField FIELDS = new ParseField(Fields.FIELDS);
-        private static final ParseField MISSING = new ParseField(Fields.MISSING);
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Event, Void> PARSER = new ConstructingObjectParser<>(
-            "eql/search_response_event",
-            true,
-            args -> new Event(
-                (String) args[0],
-                (String) args[1],
-                (BytesReference) args[2],
-                (Map<String, DocumentField>) args[3],
-                (Boolean) args[4]
-            )
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), INDEX);
-            PARSER.declareString(constructorArg(), ID);
-            PARSER.declareObject(constructorArg(), (p, c) -> {
-                try (XContentBuilder builder = XContentBuilder.builder(p.contentType().xContent())) {
-                    builder.copyCurrentStructure(p);
-                    return ReleasableBytesReference.wrap(BytesReference.bytes(builder));
-                }
-            }, SOURCE);
-            PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-                Map<String, DocumentField> fields = new HashMap<>();
-                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                    DocumentField field = DocumentField.fromXContent(p);
-                    fields.put(field.getName(), field);
-                }
-                return fields;
-            }, FIELDS);
-            PARSER.declareBoolean(optionalConstructorArg(), MISSING);
         }
 
         private String index;
@@ -438,10 +366,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             return builder;
         }
 
-        public static Event fromXContent(XContentParser parser) throws IOException {
-            return PARSER.apply(parser, null);
-        }
-
         public void index(String index) {
             this.index = index;
         }
@@ -500,32 +424,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private static final class Fields {
             static final String JOIN_KEYS = "join_keys";
             static final String EVENTS = "events";
-        }
-
-        private static final ParseField JOIN_KEYS = new ParseField(Fields.JOIN_KEYS);
-        private static final ParseField EVENTS = new ParseField(Fields.EVENTS);
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Sequence, Void> PARSER = new ConstructingObjectParser<>(
-            "eql/search_response_sequence",
-            true,
-            args -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<Object> joinKeys = (List<Object>) args[i++];
-                @SuppressWarnings("unchecked")
-                List<Event> events = (List<Event>) args[i];
-                return new EqlSearchResponse.Sequence(joinKeys, events);
-            }
-        );
-
-        static {
-            PARSER.declareFieldArray(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> XContentParserUtils.parseFieldsValue(p),
-                JOIN_KEYS,
-                ObjectParser.ValueType.VALUE_ARRAY
-            );
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Event.fromXContent(p), EVENTS);
         }
 
         private final List<Object> joinKeys;
@@ -640,38 +538,6 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 out.writeBoolean(false);
             }
-        }
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER = new ConstructingObjectParser<>(
-            "eql/search_response_hits",
-            true,
-            args -> {
-                int i = 0;
-                @SuppressWarnings("unchecked")
-                List<Event> events = (List<Event>) args[i++];
-                @SuppressWarnings("unchecked")
-                List<Sequence> sequences = (List<Sequence>) args[i++];
-                TotalHits totalHits = (TotalHits) args[i];
-                return new EqlSearchResponse.Hits(events, sequences, totalHits);
-            }
-        );
-
-        static {
-            PARSER.declareObjectArray(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> Event.fromXContent(p),
-                new ParseField(Fields.EVENTS)
-            );
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER, new ParseField(Fields.SEQUENCES));
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> SearchHits.parseTotalHitsFragment(p),
-                new ParseField(Fields.TOTAL)
-            );
-        }
-
-        public static Hits fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
 
         @Override

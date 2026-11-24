@@ -113,6 +113,10 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             // the per-stripe interval-cover must stitch fragments from more than one parallel chunk. This is the
             // "multiple chunks per stripe" geometry the sibling fold ITs (64kb stripe, or parallelism 1) never hit.
             .put("esql.external.cache.stripe.size", "6mb")
+            // Empty-pragma parse width now follows node.processors. InternalTestCluster randomizes that 1–4, and
+            // the snapshot-only external_parsing_parallelism pragma cannot pin release ITs, so lock processors at
+            // 2 (capped by host CPUs) so the parallel-chunk path actually runs.
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), Math.min(2, EsExecutors.allocatedProcessors(Settings.EMPTY)))
             // Reap inactive exchange sinks within a few seconds (default is 5 minutes) so a data-node sink whose
             // async cleanup trails the query response is released well inside the exchange/breaker teardown checks.
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
@@ -159,11 +163,11 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     private void assertWarmAggregatesShortCircuit(DatasetFiles under) {
         String dataset = under.dataset();
         // The multi-chunk-per-stripe geometry requires the parallel-parse path (external_parsing_parallelism > 1). That
-        // pragma is snapshot-only (rejected in release builds), so this test relies on its node default —
-        // EsExecutors.allocatedProcessors(EMPTY), i.e. the machine's cores — and skips on a single-processor
-        // runner, where the read would be a whole-file sequential scan and the geometry would not be exercised.
+        // pragma is snapshot-only (rejected in release builds), so this test relies on node.processors pinned in
+        // nodeSettings (2, or host CPUs if lower) and skips on a single-processor runner, where the read would be a
+        // whole-file sequential scan and the geometry would not be exercised.
         assumeTrue(
-            "multi-chunk-per-stripe geometry needs external_parsing_parallelism > 1 (allocated processors)",
+            "multi-chunk-per-stripe geometry needs external_parsing_parallelism > 1 (node.processors >= 2)",
             EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
         );
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
@@ -227,8 +231,8 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     /**
      * Runs {@code query} with profiling on. {@code external_parsing_parallelism} is NOT pinned here: it is a
      * snapshot-only pragma (a request carrying it is rejected in release builds), so the parallel-parse path
-     * relies on the node default (allocated processors), which the {@code assumeTrue} in
-     * {@link #assertWarmAggregatesShortCircuit} requires to be &gt; 1.
+     * relies on {@code node.processors} pinned in {@link #nodeSettings}, which the {@code assumeTrue} in
+     * {@link #assertWarmAggregatesShortCircuit} requires the host to support at &gt; 1.
      */
     private EsqlQueryResponse runProfiled(String query) {
         return run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5));

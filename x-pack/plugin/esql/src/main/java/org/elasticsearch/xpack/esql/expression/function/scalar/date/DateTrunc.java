@@ -165,7 +165,8 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
         return rounding.round(fieldVal);
     }
 
-    @Evaluator(extraName = "DateNanos")
+    /** A bucket that starts before 1970, such as the week of 1970-01-01, can't be represented in nanoseconds, so it is null. */
+    @Evaluator(extraName = "DateNanos", warnExceptions = IllegalArgumentException.class)
     static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
         // Currently, ES|QL doesn’t support rounding to sub-millisecond values, so it’s safe to cast before rounding.
         return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));

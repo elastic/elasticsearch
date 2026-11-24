@@ -69,7 +69,9 @@ abstract class AbstractFixed64Column extends EscfColumn {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        assert i == dst.length : i + " != " + dst.length;
+        if (i != dst.length) {
+            throw new IllegalStateException("read [" + i + "] floats but expected [" + dst.length + "]");
+        }
     }
 
     /** The raw little-endian 8-byte slot for document {@code d}. */

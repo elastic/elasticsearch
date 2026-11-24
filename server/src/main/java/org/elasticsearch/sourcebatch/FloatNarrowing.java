@@ -31,6 +31,11 @@ public final class FloatNarrowing {
      * {@code d} is exactly halfway between two adjacent floats. Callers then parse the text with {@link Float#parseFloat}.
      */
     public static boolean isFloatMidpoint(double d) {
+        // A float midpoint has at most 25 significant bits, so the low 28 bits of its double's significand are zero. This rejects
+        // nearly every double that is not one before any float arithmetic.
+        if ((Double.doubleToRawLongBits(d) & 0x0FFFFFFFL) != 0) {
+            return false;
+        }
         final float f = (float) d;
         if ((double) f == d || Double.isNaN(d) || Double.isInfinite(d)) {
             return false;
@@ -42,14 +47,5 @@ public final class FloatNarrowing {
         final double upValue = Float.isInfinite(up) ? Math.copySign(FLOAT_OVERFLOW, up) : up;
         // Exact: two adjacent floats need at most 25 significant bits, so their sum and its half are doubles.
         return d == (downValue + upValue) / 2;
-    }
-
-    /**
-     * Narrows {@code d} as the row path parses {@code text} to {@code float}. {@code text} must be the text {@code d} was parsed
-     * from, or any text whose nearest double is {@code d} and whose nearest float is the original one, such as the
-     * {@code Double.toString} rendering when the client wrote exactly that.
-     */
-    public static float narrow(double d, String text) {
-        return isFloatMidpoint(d) ? Float.parseFloat(text) : (float) d;
     }
 }

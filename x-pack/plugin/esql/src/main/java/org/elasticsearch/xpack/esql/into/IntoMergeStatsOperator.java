@@ -121,7 +121,8 @@ public final class IntoMergeStatsOperator implements Operator {
         if (failures.isEmpty()) {
             return new ElasticsearchException("[{}] shards failed to refresh", response.getFailedShards());
         }
-        Throwable cause = failures.getFirst().getCause();
+        // Broadcast replication wraps the failure of a shard in an exception that has no message of its own
+        Throwable cause = ExceptionsHelper.unwrapCause(failures.getFirst().getCause());
         return cause instanceof Exception e ? e : new ElasticsearchException(failures.getFirst().reason(), cause);
     }
 

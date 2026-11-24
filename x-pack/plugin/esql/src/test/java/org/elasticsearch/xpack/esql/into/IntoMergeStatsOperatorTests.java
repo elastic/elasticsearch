@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -168,7 +170,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         op.finish();
 
         IllegalStateException shardClosed = new IllegalStateException("shard is closed");
-        client.answerRefresh(new BroadcastResponse(2, 1, 1, List.of(new DefaultShardOperationFailedException(DEST, 0, shardClosed))));
+        client.answerRefresh(new BroadcastResponse(2, 1, 1, List.of(shardFailure(shardClosed))));
         assertFalse(driverContext.hasPendingAsyncActions());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
@@ -201,11 +203,23 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
         // The write index closed after the refresh had resolved its targets. A retry would skip it and refresh nothing.
         IndexClosedException closed = new IndexClosedException(new Index(DEST, "uuid"));
-        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(new DefaultShardOperationFailedException(DEST, 0, closed))));
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(closed))));
         assertThat(client.refreshes, empty());
         assertFalse(driverContext.hasPendingAsyncActions());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getCause(), instanceOf(IndexClosedException.class));
+    }
+
+    public void testShardFailureIsReportedWithItsUnderlyingCause() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        IndexClosedException closed = new IndexClosedException(new Index(DEST, "uuid"));
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(closed))));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.getMessage(), equalTo("INTO [" + DEST + "] wrote [1] documents but the refresh failed: closed"));
+        assertThat(e.getCause(), sameInstance(closed));
     }
 
     public void testRefreshIsOnlyRetriedForAClosedMember() {
@@ -261,6 +275,11 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, hasSize(1));
         client.answerRefresh();
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+    }
+
+    /** A shard failure as broadcast replication reports it: wrapped in an exception that has no message of its own. */
+    private static DefaultShardOperationFailedException shardFailure(Throwable cause) {
+        return new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(new ShardId(DEST, "uuid", 0), cause));
     }
 
     private IntoMergeStatsOperator operator(IntoOptions options, IntoPageWriter.Factory.Indexing indexing) {

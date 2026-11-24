@@ -80,6 +80,21 @@ import static org.hamcrest.Matchers.empty;
  * documented user-facing behaviour, see {@code docs/reference/elasticsearch/columnar/index.md}
  * ("{@code dynamic: false} and {@code enabled: false} are lossy").
  *
+ * <p>A second family is equally permanent: multi-value ordering. Columnar mode deliberately
+ * returns multi-value fields in source insertion order with duplicates preserved, for both
+ * synthetic source and ES|QL (the {@code <field>.offsets} companion field and the ArrayOrder
+ * block loaders, #149445 / #149646; "New multi-value semantics" in
+ * {@code docs/reference/elasticsearch/columnar/index.md}). Standard mode returns ascending
+ * doc-values order, and its sorted-set-backed types (keyword, ip, ...) discard duplicates and
+ * original order at write time, so the two modes cannot be reconciled without making columnar
+ * deliberately lossy. ES|QL's documented contract
+ * ({@code docs/reference/query-languages/esql/esql-multivalued-fields.md}) is that MV order is
+ * undefined. Consequently the ordering masks are accepted, not temporary: the
+ * {@code skip_columnar:} directives on order-sensitive MV function tests (MV_SLICE, MV_EXPAND,
+ * MV_CONCAT, MV_LAST, MV_ZIP) and {@link ColumnarStrategy#ignoreValueOrder} are the intended
+ * treatment, as are the order-sensitive gates in the cross-mode generative runner. Do not try to
+ * "fix" these by sorting in the loaders.
+ *
  * <h2>Mapping sanitisation</h2>
  *
  * <p>The {@link ColumnarStrategy} sanitises each mapping before creating the index: it removes

@@ -246,6 +246,62 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean nestedQueriesAllowed() {
+        for (SearchExecutionContext context : contexts) {
+            if (context.allowExpensiveQueries() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean nestedFieldHasDocValues(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).hasDocValues() == false) {
+                    return false;
+                }
+                mapped = true;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsSearchable(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).isSearchable() == false) {
+                    return false;
+                }
+                mapped = true;
+            } else if (context.nestedLookup().hasNestedParent(field.string())) {
+                return false;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsQueryable(FieldName field, DataType type) {
+        if (nestedFieldIsSearchable(field) == false || nestedFieldHasDocValues(field) == false) {
+            return false;
+        }
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType fieldType = context.getFieldType(field.string());
+            if (fieldType != null
+                && (dataType(fieldType) != type
+                    || fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.hasNormalizer())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public boolean readsKey(FieldName field) {
         for (SearchExecutionContext context : contexts) {
             if (context instanceof EsqlSearchExecutionContext esql && esql.readsKey(field.string())) {
@@ -609,7 +665,9 @@ public class SearchContextStats implements SearchStats {
         if (stat.singleValue == null) {
             // a missing field is trivially single-valued; otherwise every leaf must prove it
             stat.singleValue = stat.config.exists == false
-                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldName));
+                // Lucene only knows the concrete field, so read its metadata under the resolved name: an alias would find none and
+                // a missing skipper or points index is treated as "no values".
+                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldType.name()));
         }
         return stat.singleValue;
     }

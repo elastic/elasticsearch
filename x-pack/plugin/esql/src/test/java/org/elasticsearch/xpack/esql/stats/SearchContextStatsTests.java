@@ -605,6 +605,51 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * An alias to a multi-valued date field backed by a doc-values skipper must not be reported as single-valued either.
+     * Lucene only knows the concrete field, so reading the skipper under the alias name finds nothing, and a missing skipper
+     * must not be mistaken for proof that the field is single-valued: {@code ROUND_TO} pushdown into the block loader relies on
+     * this and the loader reads the concrete field.
+     */
+    public void testSkipperDateMultiValuedAliasIsNotDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": {
+                "d": { "type": "date", "index": false },
+                "d_alias": { "type": "alias", "path": "d" }
+            } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(SortedNumericDocValuesField.indexedField("d", 1000L), SortedNumericDocValuesField.indexedField("d", 2000L))
+            );
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 3000L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("d");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertTrue("one doc has 2 values, so maxValueCount must be > 1", skipper.maxValueCount() > 1);
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(
+                "the concrete multi-valued skipper date field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d"))
+            );
+            assertFalse(
+                "an alias to a multi-valued skipper date field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d_alias"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Keyword-field counterpart of {@link #testSkipperNumericSingleValuedIsDetectedAsSingleValued}:
      * a truly single-valued keyword field backed by a doc-values skipper must be reported as
      * single-valued so that {@code COUNT(kw)} can be pushed down to an exists-doc-count query.
@@ -1050,6 +1095,56 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("n")));
         } finally {
             IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    /**
+     * {@code isSingleValue} is decided once for all shards of a node: a single multivalued shard makes the field
+     * report as multivalued, regardless of whether it is searched before or after the single-valued shards. Callers such as
+     * the {@code ROUND_TO} block loader pushdown rely on this to take the same code path on every shard of the node.
+     */
+    public void testFieldMultiValuedInOneOfSeveralShardsIsNotSingleValued() throws IOException {
+        final MapperService singleValuedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+        final MapperService multiValuedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+
+        final Directory singleValuedDir = newDirectory();
+        final Directory multiValuedDir = newDirectory();
+        final DirectoryReader singleValuedReader;
+        final DirectoryReader multiValuedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), singleValuedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            singleValuedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), multiValuedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO), new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            multiValuedReader = writer.getReader();
+        }
+
+        try {
+            final SearchExecutionContext singleValued = createSearchExecutionContext(singleValuedService, newSearcher(singleValuedReader));
+            final SearchExecutionContext multiValued = createSearchExecutionContext(multiValuedService, newSearcher(multiValuedReader));
+            final FieldAttribute.FieldName field = new FieldAttribute.FieldName("n");
+
+            assertTrue(
+                "sanity check: the single-valued shard alone is single-valued",
+                SearchContextStats.from(List.of(singleValued)).isSingleValue(field)
+            );
+            assertFalse("the multivalued shard alone is multivalued", SearchContextStats.from(List.of(multiValued)).isSingleValue(field));
+            assertFalse(
+                "a multivalued shard searched after a single-valued shard makes the field multivalued",
+                SearchContextStats.from(List.of(singleValued, multiValued)).isSingleValue(field)
+            );
+            assertFalse(
+                "a multivalued shard searched before a single-valued shard makes the field multivalued",
+                SearchContextStats.from(List.of(multiValued, singleValued)).isSingleValue(field)
+            );
+        } finally {
+            IOUtils.close(singleValuedReader, multiValuedReader, singleValuedService, multiValuedService, singleValuedDir, multiValuedDir);
         }
     }
 
@@ -1631,6 +1726,92 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         assertTrue(SearchContextStats.from(List.of(mapped, without)).isQueryable(kw, DataType.KEYWORD, false));
         assertFalse(SearchContextStats.from(List.of(mapped, withoutDocValues)).isQueryable(kw, DataType.KEYWORD, false));
         assertFalse(SearchContextStats.from(List.of(without)).isQueryable(kw, DataType.KEYWORD, false));
+    }
+
+    /** Nested queries compare the child doc values, not a copy of all the children on the parent. */
+    public void testNestedChildQueryEligibility() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "price": { "type": "long" },
+              "sku": { "type": "keyword" },
+              "normalized": { "type": "keyword", "normalizer": "lowercase" },
+              "source_only": { "type": "long", "doc_values": false },
+              "note": { "type": "text" }
+            } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.sku"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.normalized"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.source_only"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.note"), DataType.TEXT));
+    }
+
+    public void testNestedQueriesAreAllowedOnlyWhenEveryShardAllowsExpensiveQueries() throws IOException {
+        SearchExecutionContext allowed = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": { "price": { "type": "long" } } } } } }""");
+        SearchExecutionContext refused = new SearchExecutionContext(allowed) {
+            @Override
+            public boolean allowExpensiveQueries() {
+                return false;
+            }
+        };
+
+        assertTrue(SearchContextStats.from(List.of(allowed)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(refused)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(allowed, refused)).nestedQueriesAllowed());
+    }
+
+    /** A runtime field under a nested path is read from the parent document, so a query on the child cannot match what is read. */
+    public void testNestedRuntimeChildIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.calc"), DataType.LONG));
+    }
+
+    public void testNestedChildThatIsARuntimeFieldOnOneShardIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "calc": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext runtime = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        var field = new FieldAttribute.FieldName("items.calc");
+        assertTrue(SearchContextStats.from(List.of(mapped)).nestedFieldIsQueryable(field, DataType.LONG));
+        assertFalse(SearchContextStats.from(List.of(mapped, runtime)).nestedFieldIsQueryable(field, DataType.LONG));
+    }
+
+    /** One incompatible shard must prevent a node-wide prefilter; an entirely unmapped collection is harmless. */
+    public void testNestedChildQueryEligibilityAcrossShards() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "sku": { "type": "keyword" }
+            } } } } }""");
+        SearchExecutionContext normalized = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "sku": { "type": "keyword", "normalizer": "lowercase" }
+            } } } } }""");
+        SearchExecutionContext missingField = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "other": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext unmapped = statsContext("""
+            { "doc": { "properties": { "id": { "type": "keyword" } } } }""");
+        var field = new FieldAttribute.FieldName("items.sku");
+        assertTrue(SearchContextStats.from(List.of(mapped, unmapped)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(mapped, normalized)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(mapped, missingField)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(unmapped)).nestedFieldIsQueryable(field, DataType.KEYWORD));
     }
 
     private static boolean isQueryable(SearchExecutionContext context, String field, DataType type) {

@@ -53,6 +53,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BinaryFieldMapper extends FieldMapper {
 
@@ -393,7 +394,7 @@ public class BinaryFieldMapper extends FieldMapper {
      * Only single-valued doc values are mapped in batch: they hold the raw bytes, so the source column is indexed as it is.
      */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return fieldType().columnarFormat() == BinaryDocValuesFormat.PLAIN
             && docValues.onFailure() != DocValuesParameter.Values.OnFailure.IGNORE;
     }

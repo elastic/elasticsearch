@@ -32,6 +32,39 @@ public interface SearchStats {
     boolean hasDocValues(FieldName field);
 
     /**
+     * Whether {@code field}, a child of a nested object, has doc values on every shard here that maps it, and at least one
+     * shard maps it. {@link #hasDocValues} answers {@code false} for these, since ES|QL does not extract them as columns.
+     */
+    default boolean nestedFieldHasDocValues(FieldName field) {
+        return false;
+    }
+
+    /**
+     * Whether every shard here accepts {@code nested} queries. Lucene's nested query is refused where
+     * {@code search.allow_expensive_queries} is {@code false}, so a predicate may only become one when this holds.
+     */
+    default boolean nestedQueriesAllowed() {
+        return false;
+    }
+
+    /**
+     * Whether every shard here that maps the nested child {@code field} can query it, and every shard that maps its nested
+     * object maps it too. At least one must map it. Where the object is mapped but the field is not, its children hold null
+     * for it in memory, which a query on the field cannot match the way a predicate on null would.
+     */
+    default boolean nestedFieldIsSearchable(FieldName field) {
+        return false;
+    }
+
+    /**
+     * Whether Lucene can compare this nested child's values exactly as its block loader reads them, as {@code type},
+     * on every applicable shard. Requires searchable doc values and excludes normalizers that also change query literals.
+     */
+    default boolean nestedFieldIsQueryable(FieldName field, DataType type) {
+        return false;
+    }
+
+    /**
      * Whether every shard here can query {@code field}, read as {@code type}: see
      * {@link SearchContextStats#isQueryable(SearchExecutionContext, String, DataType, boolean)}. At least one must hold the field.
      */

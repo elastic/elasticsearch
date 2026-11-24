@@ -236,7 +236,34 @@ public class SplitFilterClassifierTests extends ESTestCase {
         int scoreCol = builder.addColumn("score", 0L, 1.5, 9.5, -1);
         builder.valueCount(scoreCol, 100); // single-valued (one value per row) — required for comparison MATCH
         SplitStats stats = builder.build();
-        assertEquals(MATCH, classify(greaterThanOf(score, of(0.5)), stats));
+        // min/max omit NaN, so a DOUBLE MATCH would over-count; MISS is still sound.
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(0.5)), stats));
+        assertEquals(MISS, classify(greaterThanOf(score, of(10.0)), stats));
+    }
+
+    /**
+     * File-format min/max omit IEEE NaN. Conservative DOUBLE/FLOAT classification: ordered/eq/IN
+     * MATCH is forbidden (NaN fails those comparisons), {@code !=} MISS is forbidden (NaN != lit
+     * is true). INTEGER fixtures above are unchanged.
+     */
+    public void testFloatingStatsMayHideNaN() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats constFive = colStats("score", 5.0, 5.0, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(score, of(5.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(score, of(4.0)), constFive));
+        assertEquals(MISS, classify(lessThanOf(score, of(4.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(not(greaterThanOf(score, of(4.0))), constFive));
+        // != MATCH stays valid: a hidden NaN also satisfies != 4.
+        assertEquals(MATCH, classify(notEqualsOf(score, of(4.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(equalsOf(score, of(5.0)), constFive));
+        assertEquals(AMBIGUOUS, classify(in(score, of(5.0)), constFive));
+
+        ReferenceAttribute f = referenceAttribute("f", DataType.FLOAT);
+        SplitStats floatFive = colStats("f", 5.0f, 5.0f, 100L, 0L);
+        assertEquals(AMBIGUOUS, classify(greaterThanOf(f, of(4.0f)), floatFive));
+        assertEquals(MISS, classify(lessThanOf(f, of(4.0f)), floatFive));
+        assertEquals(AMBIGUOUS, classify(notEqualsOf(f, of(5.0f)), floatFive));
+        assertEquals(MATCH, classify(notEqualsOf(f, of(4.0f)), floatFive));
     }
 
     public void testStringStats() {
@@ -485,8 +512,9 @@ public class SplitFilterClassifierTests extends ESTestCase {
     public void testEqualsKeepsOppositeSignZero() {
         ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
         SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
-        assertEquals(MATCH, classify(equalsOf(score, of(0.0)), negZero));
-        assertEquals(MATCH, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
+        // DOUBLE MATCH is withheld (NaN may hide); opposite-sign zeros still MISS for > 0.0.
+        assertEquals(AMBIGUOUS, classify(equalsOf(score, of(0.0)), negZero));
+        assertEquals(AMBIGUOUS, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
         assertEquals(MISS, classify(greaterThanOf(score, of(0.0)), negZero));
     }
 
@@ -494,7 +522,8 @@ public class SplitFilterClassifierTests extends ESTestCase {
         ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
         SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
         assertEquals(AMBIGUOUS, classify(in(score, of(0.0)), negZero));
-        assertEquals(MATCH, classify(in(score, of(-0.0)), negZero));
+        // Same-sign IN would MATCH without NaN; DOUBLE MATCH is withheld.
+        assertEquals(AMBIGUOUS, classify(in(score, of(-0.0)), negZero));
     }
 
     public void testCompareValuesNull() {

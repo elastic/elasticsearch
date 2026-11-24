@@ -42,6 +42,10 @@ import java.util.List;
  * drop splits whose min/max cannot overlap a WHERE (or request-filter) predicate. MATCH and
  * MISS are exact; AMBIGUOUS keeps the split and the engine still filters rows.
  * <p>
+ * File-format min/max omit IEEE NaN. A {@code Double} or {@code Float} extrema pair may therefore
+ * hide NaN rows: ordered / {@code ==} / {@code IN} MATCH is withheld (NaN fails those comparisons),
+ * and {@code !=} MISS is withheld (NaN != lit is true). Ordered MISS and {@code !=} MATCH stay valid.
+ * <p>
  * Supports AND, OR, and NOT logical operators, IS NULL / IS NOT NULL null checks, IN lists,
  * {@code mv_in_range}, and leaf comparisons (field op literal). Unsupported leaf expressions
  * (function calls, etc.) conservatively return AMBIGUOUS.
@@ -383,7 +387,7 @@ public final class SplitFilterClassifier {
         if (minMaxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minMaxCmp == 0) {
+        if (minMaxCmp == 0 && statsMayHideNaN(min, max) == false) {
             for (Object lit : literalValues) {
                 if (compareValues(min, lit) == 0 && matchableColumn(columnName, splitStats)) {
                     return SplitMatch.MATCH;
@@ -447,7 +451,7 @@ public final class SplitFilterClassifier {
         }
         boolean minInside = includeLower ? minVsLower >= 0 : minVsLower > 0;
         boolean maxInside = includeUpper ? maxVsUpper <= 0 : maxVsUpper < 0;
-        if (minInside && maxInside && matchableColumn(columnName, splitStats)) {
+        if (minInside && maxInside && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -473,7 +477,7 @@ public final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp > 0 && matchableColumn(columnName, splitStats)) {
+        if (minCmp > 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -499,7 +503,7 @@ public final class SplitFilterClassifier {
         if (minCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minCmp >= 0 && matchableColumn(columnName, splitStats)) {
+        if (minCmp >= 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -525,7 +529,7 @@ public final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp < 0 && matchableColumn(columnName, splitStats)) {
+        if (maxCmp < 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -551,7 +555,7 @@ public final class SplitFilterClassifier {
         if (maxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (maxCmp <= 0 && matchableColumn(columnName, splitStats)) {
+        if (maxCmp <= 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -574,7 +578,7 @@ public final class SplitFilterClassifier {
         if (minCmp < 0 || maxCmp > 0) {
             return SplitMatch.MISS;
         }
-        if (minCmp == 0 && maxCmp == 0 && matchableColumn(columnName, splitStats)) {
+        if (minCmp == 0 && maxCmp == 0 && statsMayHideNaN(min, max) == false && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
@@ -598,13 +602,26 @@ public final class SplitFilterClassifier {
         if (minMaxCmp == Integer.MIN_VALUE) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (minMaxCmp == 0 && minCmp == 0) {
+        if (minMaxCmp == 0 && minCmp == 0 && statsMayHideNaN(min, max) == false) {
             return SplitMatch.MISS;
         }
         if (minMaxCmp == 0 && minCmp != 0 && matchableColumn(columnName, splitStats)) {
             return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * Parquet/ORC min/max omit NaN. Any {@link Double} or {@link Float} extrema pair may therefore
+     * hide NaN rows, even when {@code min == max} looks constant. Not folded into
+     * {@link #matchableColumn}: {@code !=} MATCH stays sound with a hidden NaN (NaN != lit is true).
+     */
+    private static boolean statsMayHideNaN(Object min, Object max) {
+        return isFloatingStat(min) || isFloatingStat(max);
+    }
+
+    private static boolean isFloatingStat(Object value) {
+        return value instanceof Double || value instanceof Float;
     }
 
     /**

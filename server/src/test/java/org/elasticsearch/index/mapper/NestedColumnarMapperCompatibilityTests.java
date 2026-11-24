@@ -531,6 +531,17 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         assertRefusedInAllModes(hostAndN(), Map.of(), RowPath.ASSERTS, mode -> new String[] { src(mode, "\"n.k\":\"a\"") });
     }
 
+    /** A dotted key across the boundary of a nested field under a plain object: {@code comments.text} in {@code meta}. */
+    public void testDottedKeyUnderObjectAcrossBoundaryFallsBack() throws IOException {
+        assertRefusedInAllModes(b -> {
+            b.startObject("meta").startObject("properties");
+            b.startObject("comments").field("type", "nested").startObject("properties");
+            b.startObject("text").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.endObject().endObject();
+        }, Map.of(), RowPath.ASSERTS, mode -> new String[] { src(mode, "\"meta\":{\"comments.text\":\"a\"}") });
+    }
+
     /** The object spelling with a deeper object: the leaf {@code n.o.x} sits under the non-leaf {@code o}, not directly under {@code n}. */
     public void testDeeperObjectUnderObjectSpellingFallsBack() throws IOException {
         assertRefusedInAllModes(b -> {

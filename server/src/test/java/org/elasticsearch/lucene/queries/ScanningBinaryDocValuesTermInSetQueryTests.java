@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
     public void testArrayOrderInlineNull() throws Exception {
@@ -51,6 +53,16 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testToStringWithTermsThatAreNotUtf8() {
+        BytesRef notUtf8 = new BytesRef(new byte[] { (byte) 0xff, 0x00, (byte) 0xfe, 0x01 });
+        Query query = new ScanningBinaryDocValuesTermInSetQuery(
+            "field",
+            List.of(notUtf8, new BytesRef("ascii")),
+            BinaryDocValuesFormat.SEPARATE_COUNT
+        );
+        assertThat(query.toString("field"), containsString("ScanningBinaryDocValuesTermInSetQuery(fieldName=field"));
     }
 
     public void testBasics() throws Exception {

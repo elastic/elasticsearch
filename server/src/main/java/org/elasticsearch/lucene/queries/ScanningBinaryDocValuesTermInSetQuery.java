@@ -120,7 +120,7 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
             if (first == false) {
                 sb.append(",");
             }
-            sb.append(term.utf8ToString());
+            sb.append(term.toString());
             first = false;
         }
         sb.append("])");

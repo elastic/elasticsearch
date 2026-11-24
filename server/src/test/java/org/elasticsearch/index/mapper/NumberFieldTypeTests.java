@@ -118,6 +118,46 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    public void testDocValuesOnlyIntegralTermsQuery() {
+        for (NumberType type : List.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)) {
+            MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", type, false, true);
+            assertEquals(
+                SortedNumericDocValuesField.newSlowSetQuery("field", 1, 3),
+                ft.termsQuery(Arrays.asList(1, 3.0, 2.1), MOCK_CONTEXT)
+            );
+            assertEquals(SortedNumericDocValuesField.newSlowSetQuery("field", 1, 3), ft.termsQuery(Arrays.asList("1", 3L), MOCK_CONTEXT));
+            assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+            assertTrue(ft.termsQuery(List.of(), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        }
+        MappedFieldType byteFt = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE, false, true);
+        assertEquals(SortedNumericDocValuesField.newSlowSetQuery("field", 1), byteFt.termsQuery(Arrays.asList(1, 1000), MOCK_CONTEXT));
+        assertTrue(byteFt.termsQuery(List.of(1000), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        MappedFieldType longFt = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG, false, true);
+        assertEquals(
+            SortedNumericDocValuesField.newSlowSetQuery("field", Long.MIN_VALUE, 9007199254740993L, Long.MAX_VALUE),
+            longFt.termsQuery(Arrays.asList(Long.MAX_VALUE, 9007199254740993L, Long.MIN_VALUE), MOCK_CONTEXT)
+        );
+    }
+
+    public void testDocValuesOnlyIntegralTermsQueryMatchesDocuments() throws IOException {
+        for (NumberType type : List.of(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG)) {
+            MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", type, false, true);
+            try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField("field", i % 50));
+                    w.addDocument(doc);
+                }
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(6, searcher.count(ft.termsQuery(Arrays.asList(1, 2.0, "3", 1000, 2.5), MOCK_CONTEXT)));
+                    assertEquals(2, searcher.count(ft.termsQuery(Arrays.asList(7, 7), MOCK_CONTEXT)));
+                    assertEquals(0, searcher.count(ft.termsQuery(Arrays.asList(60, 70), MOCK_CONTEXT)));
+                }
+            }
+        }
+    }
+
     public void testLongTermsQueryWithIntegralBoxedTypes() {
         MappedFieldType ft = new NumberFieldType("field", NumberType.LONG);
         List<Number> values = new ArrayList<>();

@@ -2003,6 +2003,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract Query termsQuery(String field, Collection<?> values);
 
+        boolean isIntegral() {
+            return this == BYTE || this == SHORT || this == INTEGER || this == LONG;
+        }
+
         /**
          * Maps a query value to the sortable-bytes term used by an {@code index_terms} field of
          * this type, or returns {@code null} if the value cannot match any document. A value with
@@ -2640,9 +2644,25 @@ public class NumberFieldMapper extends FieldMapper {
             }
             if (indexType.hasPoints()) {
                 return type.termsQuery(name(), values);
+            } else if (diskFormat == DocValuesDiskFormat.SORTED_NUMERIC && type.isIntegral()) {
+                return sortedNumericTermsQuery(values);
             } else {
                 return super.termsQuery(values, context);
             }
+        }
+
+        private Query sortedNumericTermsQuery(Collection<?> values) {
+            long[] v = new long[values.size()];
+            int upTo = 0;
+            for (Object value : values) {
+                if (NumberType.hasDecimalPart(value) == false && type.isOutOfRange(value) == false) {
+                    v[upTo++] = type.parse(value, true).longValue();
+                }
+            }
+            if (upTo == 0) {
+                return Queries.newMatchNoDocsQuery("No value can match a [" + type.typeName() + "] field");
+            }
+            return SortedNumericDocValuesField.newSlowSetQuery(name(), Arrays.copyOf(v, upTo));
         }
 
         /** Returns the numeric type of this field. */

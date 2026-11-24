@@ -69,7 +69,6 @@ setup:
             - dedup_command
             - highlight_v6
             - dense_vector_command
-            - fillnull
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -290,7 +289,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer, dedup_command ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer, dedup_command, fillnull ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
@@ -488,6 +487,19 @@ setup:
 
   - do: { xpack.usage: { } }
   - gt: { esql.features.dedup: $dedup_counter }
+
+  - set: { esql.features.fillnull: fillnull_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | fillnull "n/a" ON *
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.fillnull: $fillnull_counter }
 
 ---
 took:

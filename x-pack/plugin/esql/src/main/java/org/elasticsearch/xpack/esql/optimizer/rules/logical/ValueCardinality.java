@@ -64,24 +64,14 @@ enum ValueCardinality {
 
     /**
      * Whether {@code expression} is single-valued in the output of {@code plan}. The columns that {@code expression} reads must be
-     * outputs of {@code plan}.
+     * outputs of {@code plan}. The same column can have a different answer at different points of a pipeline. For {@code k} in
+     * {@code ... | EVAL k = ? | STATS COUNT(*) BY k}, if we want to know about {@code k} as the {@code STATS} reads it, the answer
+     * depends on the {@code EVAL}, so pass the {@code EVAL} node. If we want to know about {@code k} as the {@code STATS} outputs it,
+     * pass the {@code STATS} node.
      * <p>
-     * The same column can have a different answer at different points of a pipeline. For {@code k} in
-     * {@code ... | EVAL k = ? | STATS COUNT(*) BY k}:
-     * <ul>
-     *   <li>as the {@code STATS} reads it, the answer depends on the {@code EVAL}. Pass the child of the {@code STATS}. A rewrite that
-     *       recomputes values from the key needs this answer.</li>
-     *   <li>as the {@code STATS} outputs it, the answer is {@link #SINGLE}, since a group key has one value per group. Pass the
-     *       {@code STATS}.</li>
-     * </ul>
-     * Some expressions read columns that the child of their node does not output:
-     * <ul>
-     *   <li>an {@code EVAL} or {@code ROW} field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}.
-     *       Pass the node itself.</li>
-     *   <li>on a plan that is not optimized, an aggregate can read a grouping of the same {@code STATS}, as in
-     *       {@code STATS COUNT(k) BY k = x}. Pass an optimized plan, where {@code k = x} is in an {@code EVAL} below the
-     *       {@code STATS}.</li>
-     * </ul>
+     * There are a few exceptions: an {@code EVAL} or {@code ROW} field can read an earlier field of the same node, so pass the node
+     * itself. On a plan that is not optimized, an aggregate can read a grouping of the same {@code STATS}, as in
+     * {@code STATS COUNT(k) BY k = x}, so pass an optimized plan.
      */
     static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
         // Each step has at most one next step, so the walk needs no stack and no depth limit. It ends,

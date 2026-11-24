@@ -106,7 +106,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final EsqlDatafeedQueryValidator esqlQueryValidator = new EsqlDatafeedQueryValidator();
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -123,6 +123,40 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         AnomalyDetectionAuditor auditor,
         NamedXContentRegistry xContentRegistry,
         ProjectResolver projectResolver
+    ) {
+        this(
+            settings,
+            transportService,
+            threadPool,
+            clusterService,
+            licenseState,
+            persistentTasksService,
+            actionFilters,
+            client,
+            jobConfigProvider,
+            datafeedConfigProvider,
+            auditor,
+            xContentRegistry,
+            projectResolver,
+            new EsqlDatafeedQueryValidator()
+        );
+    }
+
+    TransportStartDatafeedAction(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        PersistentTasksService persistentTasksService,
+        ActionFilters actionFilters,
+        Client client,
+        JobConfigProvider jobConfigProvider,
+        DatafeedConfigProvider datafeedConfigProvider,
+        AnomalyDetectionAuditor auditor,
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver,
+        EsqlDatafeedQueryValidator esqlQueryValidator
     ) {
         super(
             StartDatafeedAction.NAME,
@@ -144,6 +178,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.esqlQueryValidator = esqlQueryValidator;
     }
 
     static void validate(

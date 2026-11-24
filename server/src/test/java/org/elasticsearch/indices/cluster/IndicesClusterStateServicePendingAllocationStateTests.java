@@ -617,6 +617,20 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             indicesClusterStateService.getLocalRecoveryRetryCounts(),
             equalTo(Map.of(ShardAllocationId.fromRouting(shardRouting), 1))
         );
+
+        // Once master catches up and the shard goes active, recoveryState's count must stop being reported --
+        // otherwise the fallback would keep flagging a perfectly healthy shard as retrying forever, since
+        // recoveryState never clears the count on its own.
+        ShardRouting started = TestShardRouting.shardRoutingBuilder(
+            shardRouting.shardId(),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.STARTED
+        ).withAllocationId(shardRouting.allocationId()).build();
+        applyState(stateWithShardRouting(started));
+        assertTrue(indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().active());
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCounts(), equalTo(Map.of()));
     }
 
     /// A shard that's never failed has an InFlight ticket with a zero retry count -- omitted, because

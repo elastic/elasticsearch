@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -40,6 +41,8 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,8 +91,10 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -369,7 +374,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BccBlob.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -439,7 +444,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+                    .filter(BccBlob::startsWithBlobPrefix)
                     .count()
             );
 
@@ -1739,6 +1744,68 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
+    }
+
+    public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {
+        final var blobStorePath = PathUtils.get(createTempDir().toString());
+        final var blobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
+        final long primaryTerm = randomLongBetween(1L, 100L);
+        final var bccGenerations = new HashSet<Long>();
+        for (int i = randomIntBetween(1, 5); i > 0; i--) {
+            bccGenerations.add(randomLongBetween(1L, 1000L));
+        }
+        for (long generation : bccGenerations) {
+            writeRandomBlob(blobContainer, BccBlob.blobNameFromGeneration(generation));
+        }
+        final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
+        // a merge blob must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName();
+        writeRandomBlob(blobContainer, mergeBlobName);
+        final String junkBlobName = randomAlphaOfLength(10);
+        writeRandomBlob(blobContainer, junkBlobName);
+
+        MockLog.assertThatLogger(() -> {
+            try {
+                final var blobs = ObjectStoreService.listBlobs(primaryTerm, blobContainer);
+                assertThat(blobs, aMapWithSize(bccGenerations.size()));
+                for (long generation : bccGenerations) {
+                    assertThat(blobs, hasKey(new PrimaryTermAndGeneration(primaryTerm, generation)));
+                }
+
+                final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
+                assertThat(latestBlob, notNullValue());
+                assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
+                assertThat(latestBlob.v2().name(), equalTo(BccBlob.blobNameFromGeneration(maxBccGeneration)));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        },
+            ObjectStoreService.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning for merge blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + mergeBlobName + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "warning for unknown blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + junkBlobName + "*"
+            )
+        );
+    }
+
+    private static void writeRandomBlob(BlobContainer blobContainer, String blobName) throws IOException {
+        blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
+    }
+
+    private static String randomMergeBlobName() {
+        return MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

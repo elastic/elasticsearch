@@ -11,7 +11,9 @@ import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -99,6 +101,7 @@ public abstract class SourceOperator implements Operator {
      *       process time it directly reported.</li>
      *   <li>Any remaining time is then distributed proportionally based on the
      *       number of rows emitted by each shard.</li>
+     *   <li>The CPU time of the driver's thread is split like the time.</li>
      * </ul>
      *
      * <p>This method assumes that {@link #shardLoadDelta(long)} returns a delta and
@@ -135,6 +138,9 @@ public abstract class SourceOperator implements Operator {
 
         final long rest = Math.max(0L, extraDriverNanos - totalProcess);
 
+        final List<ShardSearchStats> shards = new ArrayList<>(size);
+        final long[] nanos = new long[size];
+        long totalNanos = 0L;
         for (var load : delta) {
             long weightedExtra = load.processTimeNanos();
             if (rest > 0L && load.rowsEmitted() > 0L) {
@@ -142,8 +148,13 @@ public abstract class SourceOperator implements Operator {
                 weightedExtra += Math.round((double) rest * ((double) load.rowsEmitted() / (double) totalRows));
             }
             if (weightedExtra > 0L) {
-                TaskLoadAttribution.charge(load.context().stats().searchLoadTarget(), weightedExtra, now);
+                nanos[shards.size()] = weightedExtra;
+                shards.add(load.context().stats());
+                totalNanos += weightedExtra;
             }
+        }
+        if (totalNanos > 0L) {
+            TaskLoadAttribution.charge((n, cpu, finish) -> ShardSearchStats.charge(shards, nanos, n, cpu, finish), totalNanos, now);
         }
         return true;
     }

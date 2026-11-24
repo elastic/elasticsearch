@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166332
+summary: Don't keep the Lucene top-N collectors until the query ends
+type: enhancement

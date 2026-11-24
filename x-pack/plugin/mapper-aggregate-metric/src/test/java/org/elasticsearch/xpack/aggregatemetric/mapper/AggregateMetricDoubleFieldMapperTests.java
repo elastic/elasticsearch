@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
+import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricDoubleEscfSchema;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
@@ -49,6 +50,8 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.METRICS;
@@ -131,6 +134,19 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
+    }
+
+    /** {@link AggregateMetricDoubleEscfSchema} writes values without this mapper, so it must name exactly the metrics it parses. */
+    public void testEscfSchemaFieldNames() {
+        assertThat(
+            Set.of(
+                AggregateMetricDoubleEscfSchema.MIN_FIELD,
+                AggregateMetricDoubleEscfSchema.MAX_FIELD,
+                AggregateMetricDoubleEscfSchema.SUM_FIELD,
+                AggregateMetricDoubleEscfSchema.VALUE_COUNT_FIELD
+            ),
+            equalTo(EnumSet.allOf(Metric.class).stream().map(Metric::name).collect(Collectors.toSet()))
+        );
     }
 
     /**

@@ -12,7 +12,9 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -20,6 +22,8 @@ import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -176,6 +180,28 @@ public final class EscfBatchBuilder implements Releasable {
         ensureBuilder(colIdx).addBoolean(value);
     }
 
+    /** Writes a raw binary value. */
+    public void binaryField(String name, BytesRef value) {
+        int colIdx = addLeaf(name);
+        ensureBuilder(colIdx).addBinary(value);
+    }
+
+    /** Writes a raw binary value that {@code writer} writes into the column, without an intermediate copy. */
+    public void binaryField(String name, CheckedConsumer<StreamOutput, IOException> writer) {
+        int colIdx = addLeaf(name);
+        try {
+            ensureBuilder(colIdx).addBinary(writer);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Writes a packed KEY_VALUE object. */
+    public void keyValueField(String name, byte[] packed) {
+        int colIdx = addLeaf(name);
+        ensureBuilder(colIdx).addKeyValue(packed);
+    }
+
     /** Writes an explicit null. */
     public void nullField(String name) {
         int colIdx = addLeaf(name);
@@ -215,6 +241,21 @@ public final class EscfBatchBuilder implements Releasable {
         }
         builders.clear();
         return new EscfBatch(schema, docCount, columns, Releasables.wrap(columns));
+    }
+
+    /**
+     * The memory of the rows finished so far, heap and recycled pages. It is never less than what the batch built from them
+     * reports.
+     */
+    public long ramBytesUsed() {
+        if (builders.isEmpty()) {
+            return 0;
+        }
+        long bytes = EscfBatch.BASE_RAM_BYTES_USED;
+        for (EscfColumnBuilder builder : builders) {
+            bytes += builder.ramBytesUsed();
+        }
+        return bytes;
     }
 
     /** Discards all uncommitted column builders, releasing their recycler-backed buffers. */

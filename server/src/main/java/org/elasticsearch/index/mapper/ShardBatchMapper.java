@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
@@ -26,6 +27,8 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
@@ -48,9 +51,10 @@ import java.util.function.IntPredicate;
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
  *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, BatchMappingShardContext, int, int, BatchMapperResolution,
- *     Engine.Operation.Origin, Recycler)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
- *     column per batch-wide value (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles
- *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
+ *     Engine.Operation.Origin, Recycler, DocumentParsingProvider)} runs per chunk. It meters the chunk under the provider's
+ *     metering model, then invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
+ *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index}
+ *     operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
  * </ol>
  */
@@ -78,7 +82,10 @@ public final class ShardBatchMapper {
      * sequential path.
      */
     public static BatchMapperResolution resolveMappers(SourceBatch batch, MappingLookup lookup, IndexSettings indexSettings) {
-        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn);
+        ColumnSupport columnSupport = batch instanceof EscfBatch escf
+            ? (mapper, leaf) -> mapper.supportsColumnKind(escf.column(leaf).kind())
+            : (mapper, leaf) -> true;
+        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn, columnSupport);
     }
 
     /**
@@ -86,14 +93,23 @@ public final class ShardBatchMapper {
      * cannot be detected and any unmapped leaf under a dynamic parent causes the usual fallback.
      */
     public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
-        return resolveMappers(schema, lookup, indexSettings, leaf -> false);
+        return resolveMappers(schema, lookup, indexSettings, leaf -> false, (mapper, leaf) -> true);
+    }
+
+    /**
+     * Whether {@code mapper} takes the column of schema leaf {@code leaf}.
+     */
+    @FunctionalInterface
+    private interface ColumnSupport {
+        boolean test(FieldMapper mapper, int leaf);
     }
 
     private static BatchMapperResolution resolveMappers(
         SourceSchema schema,
         MappingLookup lookup,
         IndexSettings indexSettings,
-        IntPredicate isEmptyObjectColumn
+        IntPredicate isEmptyObjectColumn,
+        ColumnSupport columnSupport
     ) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
@@ -303,6 +319,10 @@ public final class ShardBatchMapper {
                 );
                 return null;
             }
+            if (columnSupport.test(fieldMapper, leaf) == false) {
+                logger.debug("columnar batch mapping disabled: mapper at [{}] does not take this batch's column kind", fullPath);
+                return null;
+            }
             // Two schema leaves can share a full path when a batch mixes the dotted and nested spellings of the same
             // field ({"a.b":1} and {"a":{"b":1}}); the encoder keeps them as separate columns. Per-leaf mappers are
             // dispatched one column at a time, so a document carrying both spellings would emit two independent
@@ -500,19 +520,30 @@ public final class ShardBatchMapper {
         int chunkEnd,
         BatchMapperResolution resolution,
         Engine.Operation.Origin origin,
-        Recycler<BytesRef> recycler
+        Recycler<BytesRef> recycler,
+        DocumentParsingProvider documentParsingProvider
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
+        final SourceBatch chunkSource = batch.slice(chunkStart, chunkEnd);
+        final long[] normalizedSizes;
+        try {
+            normalizedSizes = meterRows(documentParsingProvider, chunkSource);
+        } catch (Exception e) {
+            logger.warn("metering columnar batch failed on [{}], falling back", origin, e);
+            return null;
+        }
         final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
             items,
             chunkStart,
             chunkEnd,
-            batch.slice(chunkStart, chunkEnd),
+            chunkSource,
+            shard.indexSettings().getMode(),
             origin,
             shard.getOperationPrimaryTerm(),
-            shard.getRelativeTimeInNanos()
+            shard.getRelativeTimeInNanos(),
+            normalizedSizes
         );
         final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
@@ -582,6 +613,8 @@ public final class ShardBatchMapper {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.postColumnarParse(context);
             }
+            // the engine's DocumentSizeReporter sees the metered sizes while columns can still be attached; a no-op without a reporter
+            shard.onBatchParsingCompleted(context);
         } catch (Exception e) {
             logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
             context.close();
@@ -589,5 +622,17 @@ public final class ShardBatchMapper {
         }
 
         return new EngineBatch(indexBatch, context.columns(), context);
+    }
+
+    /**
+     * Meters every row of {@code chunkSource} the way {@link DocumentParser} meters a row-parsed document, in one sweep over the
+     * batch's columns under the provider's {@link MeteringModel}. The model charges values only and excludes whole root
+     * fields. Returns {@code null} when documents are not metered.
+     */
+    @Nullable
+    private static long[] meterRows(DocumentParsingProvider documentParsingProvider, SourceBatch chunkSource) {
+        assert chunkSource instanceof EscfBatch : "Only ESCF batches are supported for metering on batch indexing";
+        final MeteringModel model = documentParsingProvider.newMeteringModel();
+        return model == null ? null : chunkSource.meteredRowSizes(model);
     }
 }

@@ -171,9 +171,8 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
 
         List<Alias> renamesForEval = new ArrayList<>(aliasesForReplacedAttributesBuilder.build().values());
         Eval eval = new Eval(project.source(), project.child(), renamesForEval);
-        Join finalJoin = new Join(join.source(), eval, updatedJoin.right(), updatedJoin.config(), updatedJoin.executesOn());
-
-        return new Project(project.source(), finalJoin, finalProjections);
+        // replaceLeft keeps the join's own class, such as a JOIN on a subquery.
+        return new Project(project.source(), updatedJoin.replaceLeft(eval), finalProjections);
     }
 
     /**

@@ -29,7 +29,7 @@ The following fields identify the source that produced each row:
 | Metadata field | Type | Description |
 |---------------|------|-------------|
 | `_class` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index`, `view`, `subquery`, or `dataset`. |
-| `_name` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, `null` on a subquery, and the dataset name on a dataset. |
+| `_name` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, the name of a [`LET`](/reference/query-languages/esql/directives/let.md) named subquery {applies_to}`stack: ga 9.7+`, `null` on any other subquery, and the dataset name on a dataset. |
 
 ### Index metadata fields
 

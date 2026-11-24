@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 
 public class BlobFileWithLengthTests extends AbstractWireSerializingTestCase<BlobFileWithLength> {
@@ -33,15 +33,15 @@ public class BlobFileWithLengthTests extends AbstractWireSerializingTestCase<Blo
     protected BlobFileWithLength mutateInstance(BlobFileWithLength instance) throws IOException {
         if (randomBoolean()) {
             return new BlobFileWithLength(
-                randomValueOtherThan(instance.blobFile(), BlobFileWithLengthTests::randomBlobFile),
+                randomValueOtherThan(instance.bccBlob(), BlobFileWithLengthTests::randomBlobFile),
                 instance.length()
             );
         }
-        return new BlobFileWithLength(instance.blobFile(), randomValueOtherThan(instance.length(), () -> randomNonNegativeLong()));
+        return new BlobFileWithLength(instance.bccBlob(), randomValueOtherThan(instance.length(), () -> randomNonNegativeLong()));
     }
 
-    private static BlobFile randomBlobFile() {
+    private static BccBlob randomBlobFile() {
         var termAndGeneration = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonZeroPositiveLong());
-        return new BlobFile(blobNameFromGeneration(termAndGeneration.generation()), termAndGeneration);
+        return new BccBlob(blobNameFromGeneration(termAndGeneration.generation()), termAndGeneration);
     }
 }

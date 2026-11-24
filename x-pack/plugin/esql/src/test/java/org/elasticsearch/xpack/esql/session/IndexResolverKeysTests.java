@@ -105,7 +105,7 @@ public class IndexResolverKeysTests extends ESTestCase {
         return IndexResolver.mergedMappings(
             "*",
             false,
-            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, false, false, true, namedFields),
+            new IndexResolver.FieldsInfo(caps, minimumVersion, false, false, false, false, false, false, true, namedFields, false),
             false,
             IndexResolver.DO_NOT_GROUP
         ).get().mapping();

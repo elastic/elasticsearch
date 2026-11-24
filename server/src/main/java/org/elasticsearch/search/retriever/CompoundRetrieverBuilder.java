@@ -180,6 +180,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             }
                         } else {
                             assert item.getResponse() != null;
+                            ctx.addPhaseFailures(item.getResponse().getPhaseFailures());
                             // TODO: handle partial failures by passing them back up with the results
                             if (item.getResponse().getFailedShards() > 0 && ctx.allowPartialSearchResults() == false) {
                                 statusCode = handleShardFailures(item.getResponse(), statusCode, failures);
@@ -233,8 +234,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     int handleShardFailures(SearchResponse response, int statusCode, List<Exception> failures) {
-        ShardSearchFailure[] shardFailures = response.getShardFailures();
-        for (ShardSearchFailure shardFailure : shardFailures) {
+        for (ShardSearchFailure shardFailure : response.getShardFailures()) {
             if (shardFailure != null) {
                 int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();
                 failures.add(

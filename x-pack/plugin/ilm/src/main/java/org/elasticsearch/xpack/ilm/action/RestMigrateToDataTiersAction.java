@@ -17,14 +17,22 @@ import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMigrateToDataTiersAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "dry_run");
+
     @Override
     public String getName() {
         return "migrate_to_data_tiers_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

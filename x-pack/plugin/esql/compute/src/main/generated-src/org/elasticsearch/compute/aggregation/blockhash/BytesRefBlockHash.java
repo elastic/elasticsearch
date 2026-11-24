@@ -105,8 +105,11 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
             int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
             return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
         }
+        // Going through the dictionary only pays off when it is small relative to the page. A Parquet
+        // page reuses the whole row-group dictionary, which can be far larger than the page. This is
+        // a cost choice only: neither path adds a key the page does not contain.
         var ordinals = vector.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsVector(ordinals);
         }
         if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
@@ -156,8 +159,10 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
      * </p>
      */
     IntBlock add(BytesRefBlock block) {
+        // Same cost-only density gate as add(vector): walking a row-group dictionary once per page
+        // costs more than hashing the page's own values.
         var ordinals = block.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsBlock(ordinals);
         }
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hashAdd(blockFactory, hash);
@@ -181,29 +186,46 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         return ReleasableIterator.single(lookup(vector));
     }
 
+    /**
+     * Adds a dense, non-constant ordinals vector: each dictionary entry the vector references is hashed once and
+     * the positions are mapped through the result.
+     */
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
-            if (inputOrds.isConstant()) {
-                int ord = hashOrds.getInt(inputOrds.getInt(0));
-                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
+        BytesRefVector dictionary = inputBlock.getDictionaryVector();
+        int positions = inputOrds.getPositionCount();
+        boolean[] referenced = new boolean[dictionary.getPositionCount()];
+        for (int p = 0; p < positions; p++) {
+            referenced[inputOrds.getInt(p)] = true;
+        }
+        int[] groupIds = hashReferenced(dictionary, referenced);
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(p)));
             }
-            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
-                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                    int ord = hashOrds.getInt(inputOrds.getInt(p));
-                    builder.appendInt(ord);
-                }
-                return builder.build();
-            }
+            return builder.build();
         }
     }
 
+    /**
+     * Adds a dense ordinals block: each dictionary entry the block references is hashed once and the values are
+     * mapped through the result. Nulls get group id 0.
+     */
     private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        BytesRefVector dictionary = inputBlock.getDictionaryVector();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
-            IntVector hashOrds = add(inputBlock.getDictionaryVector())
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
         ) {
+            boolean[] referenced = new boolean[dictionary.getPositionCount()];
+            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                int firstIndex = inputOrds.getFirstValueIndex(p);
+                int end = firstIndex + inputOrds.getValueCount(p);
+                for (int i = firstIndex; i < end; i++) {
+                    referenced[inputOrds.getInt(i)] = true;
+                }
+            }
+            int[] groupIds = hashReferenced(dictionary, referenced);
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int valueCount = inputOrds.getValueCount(p);
                 int firstIndex = inputOrds.getFirstValueIndex(p);
@@ -212,17 +234,13 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
                         builder.appendInt(0);
                         seenNull = true;
                     }
-                    case 1 -> {
-                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
-                        builder.appendInt(ord);
-                    }
+                    case 1 -> builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(firstIndex)));
                     default -> {
                         int start = firstIndex;
                         int end = firstIndex + valueCount;
                         builder.beginPositionEntry();
                         for (int i = start; i < end; i++) {
-                            int ord = hashOrds.getInt(inputOrds.getInt(i));
-                            builder.appendInt(ord);
+                            builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(i)));
                         }
                         builder.endPositionEntry();
                     }
@@ -230,6 +248,52 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Hashes the dictionary entries flagged in {@code referenced} and returns their group ids, indexed by dictionary
+     * ordinal. Entries that are not flagged stay out of the hash: a dictionary can be shared with other pages (a
+     * slice, a Parquet row-group dictionary), and hashing all of it would turn values this page never contained
+     * into groups.
+     */
+    private int[] hashReferenced(BytesRefVector dictionary, boolean[] referenced) {
+        int[] groupIds = new int[referenced.length];
+        if (allReferenced(referenced)) {
+            // Nothing to leave out, so hash the dictionary as a plain vector and keep its prefetching.
+            try (IntVector dictionaryGroupIds = add(dictionary)) {
+                for (int ord = 0; ord < groupIds.length; ord++) {
+                    groupIds[ord] = dictionaryGroupIds.getInt(ord);
+                }
+            }
+            return groupIds;
+        }
+        BytesRef scratch = new BytesRef();
+        for (int ord = 0; ord < groupIds.length; ord++) {
+            if (referenced[ord]) {
+                BytesRef v = dictionary.getBytesRef(ord, scratch);
+                groupIds[ord] = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            }
+        }
+        return groupIds;
+    }
+
+    /**
+     * The group id {@link #hashReferenced} assigned to a dictionary ordinal. An ordinal it skipped still holds 0,
+     * the null group, so mapping one would silently file the value under null.
+     */
+    private static int referencedGroupId(int[] groupIds, int ord) {
+        int groupId = groupIds[ord];
+        assert groupId > 0 : "ordinal [" + ord + "] was not hashed";
+        return groupId;
+    }
+
+    private static boolean allReferenced(boolean[] referenced) {
+        for (boolean r : referenced) {
+            if (r == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private IntBlock lookup(BytesRefVector vector) {

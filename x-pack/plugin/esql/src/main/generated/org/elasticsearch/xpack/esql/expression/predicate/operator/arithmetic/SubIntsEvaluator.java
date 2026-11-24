@@ -70,7 +70,7 @@ public final class SubIntsEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -110,7 +110,7 @@ public final class SubIntsEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int lhs = lhsVector.getInt(p);
         int rhs = rhsVector.getInt(p);

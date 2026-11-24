@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
@@ -18,6 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -40,11 +40,10 @@ public final class ExchangeSinkHandler {
     private final SubscribableListener<Void> completionFuture;
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
-    private final BlockFactory blockFactory;
+    private volatile Consumer<Page> onPageDiscarded = page -> {};
 
-    public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
-        this.blockFactory = blockFactory;
-        this.buffer = new ExchangeBuffer(maxBufferSize);
+    public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
+        this.buffer = new ExchangeBuffer(maxBufferSize, page -> onPageDiscarded.accept(page));
         this.completionFuture = SubscribableListener.newForked(buffer::addCompletionListener);
         this.nowInMillis = nowInMillis;
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
@@ -152,13 +151,22 @@ public final class ExchangeSinkHandler {
                 if (listener == null) {
                     continue;
                 }
-                response = new ExchangeResponse(blockFactory, buffer.pollPage(), buffer.isFinished());
+                response = new ExchangeResponse(buffer.pollPage(), buffer.isFinished());
             } finally {
                 promised.release();
             }
             onChanged();
             ActionListener.respondAndRelease(listener, response);
         }
+    }
+
+    /**
+     * Calls {@code onPageDiscarded} with each page that this handler drops instead of sending it: the pages it still buffers
+     * when its sources finish early or it fails, and the pages its sinks add after that. A data node learns from it which of
+     * its rows never left. Set it before a sink adds a page. It must not throw, and must not keep the page.
+     */
+    public void setOnPageDiscarded(Consumer<Page> onPageDiscarded) {
+        this.onPageDiscarded = onPageDiscarded;
     }
 
     /**

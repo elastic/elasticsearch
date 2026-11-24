@@ -461,6 +461,15 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         expectThrows(QlIllegalArgumentException.class, () -> new CompressionDelegatingFormatReader(inner, null));
     }
 
+    public void testCloseDoesNotCloseInnerReader() throws Exception {
+        CountingCloseReader inner = new CountingCloseReader();
+        FormatReader delegating = new CompressionDelegatingFormatReader(inner, mockCodec());
+        delegating.close();
+        assertEquals(0, inner.closes);
+        delegating.close();
+        assertEquals(0, inner.closes);
+    }
+
     public void testUnwrapReturnsInnerReader() {
         FormatReader inner = new CapturingFormatReader();
         DecompressionCodec codec = mockCodec();
@@ -601,6 +610,15 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         public void close() {}
     }
 
+    private static final class CountingCloseReader extends CapturingFormatReader {
+        int closes;
+
+        @Override
+        public void close() {
+            closes++;
+        }
+    }
+
     private static class BytesStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final StoragePath path;
@@ -662,11 +680,97 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         assertNotSame("a configured reader is a new instance, not the original wrapper", delegating, configured);
     }
 
+    public void testWithBlockFactoryReachesTheInnerReader() {
+        BlockFactoryRecordingFormatReader inner = new BlockFactoryRecordingFormatReader();
+        FormatReader delegating = new CompressionDelegatingFormatReader(inner, new BrotliDecompressionCodec());
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+
+        FormatReader configured = delegating.withBlockFactory(other);
+
+        assertNull("the original inner is not mutated; the copy carries the factory", inner.lastFactory);
+        assertThat(
+            "and the result must stay wrapped, or the decompression is lost",
+            configured,
+            instanceOf(CompressionDelegatingFormatReader.class)
+        );
+        assertNotSame("a bound reader is a new instance, not the original wrapper", delegating, configured);
+        FormatReader unwrapped = ((CompressionDelegatingFormatReader) configured).unwrap();
+        assertThat(unwrapped, instanceOf(BlockFactoryRecordingFormatReader.class));
+        assertSame(
+            "the wrapper must keep the inner copy, not re-wrap the original node reader",
+            other,
+            ((BlockFactoryRecordingFormatReader) unwrapped).lastFactory
+        );
+    }
+
+    public void testWithBlockFactoryIdentityReturnsTheSameWrapper() {
+        CsvFormatReader inner = new CsvFormatReader(blockFactory);
+        FormatReader delegating = new CompressionDelegatingFormatReader(inner, new BrotliDecompressionCodec());
+        assertSame(delegating, delegating.withBlockFactory(null));
+        assertSame(delegating, delegating.withBlockFactory(blockFactory));
+    }
+
     public void testSchemaSampleSizeIsForwardedByTheWrapper() {
         FormatReader configured = new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 800));
         FormatReader compressed = new CompressionDelegatingFormatReader(configured, new GzipDecompressionCodec());
 
         assertEquals(200, compressed.withSchemaSampleShare(4).schemaSampleSize());
+        assertEquals(
+            ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes() / 4,
+            compressed.withSchemaSampleShare(4).schemaSampleBytes()
+        );
+    }
+
+    /**
+     * Schema inference counts decoded bytes. A small decoded cap on a large .csv.gz must abort the
+     * compressed GET rather than inflate the whole object onto the coordinator.
+     */
+    public void testGzipCsvMetadataStopsAtDecodedByteCap() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",n_").append(i).append(',').append(i * 1.5).append('\n');
+        }
+        byte[] compressed = gzip(csv.toString().getBytes(StandardCharsets.UTF_8));
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(compressed, tracking, StoragePath.of("s3://bucket/data.csv.gz"));
+        FormatReader reader = new CompressionDelegatingFormatReader(
+            new CsvFormatReader(blockFactory).withSchemaSampleBytes(4096),
+            new GzipDecompressionCodec()
+        );
+
+        reader.metadata(object);
+        assertTrue("decoded-byte cap must abort the gzip GET", tracking.aborted.get());
+        assertThat(
+            "decoded-byte cap must not drain the gzip GET; consumed " + tracking.bytesConsumed.get() + " of " + compressed.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
+    }
+
+    /**
+     * Same decoded-byte bound through gzip NDJSON: the inner reader wraps the inflated stream, so
+     * the compressed GET stops once ~4 KiB have been decoded.
+     */
+    public void testGzipNdjsonMetadataStopsAtDecodedByteCap() throws IOException {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            ndjson.append("{\"id\":").append(i).append("}\n");
+        }
+        byte[] compressed = gzip(ndjson.toString().getBytes(StandardCharsets.UTF_8));
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(compressed, tracking, StoragePath.of("s3://bucket/data.ndjson.gz"));
+        FormatReader reader = new CompressionDelegatingFormatReader(
+            new NdJsonFormatReader(null, blockFactory, null).withSchemaSampleBytes(4096),
+            new GzipDecompressionCodec()
+        );
+
+        reader.metadata(object);
+        assertTrue("decoded-byte cap must abort the gzip GET", tracking.aborted.get());
+        assertThat(
+            "decoded-byte cap must not drain the gzip GET; consumed " + tracking.bytesConsumed.get() + " of " + compressed.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
     }
 
     /** Records what the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
@@ -683,6 +787,46 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
             ReadConfigRecordingFormatReader configured = new ReadConfigRecordingFormatReader();
             configured.lastReadConfig = readConfig;
             this.lastReadConfig = readConfig;
+            return configured;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return new SimpleSourceMetadata(List.of(), "csv", object.path().toString());
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("not used by this test");
+        }
+
+        @Override
+        public String formatName() {
+            return "csv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /** Records the factory the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
+    private static class BlockFactoryRecordingFormatReader implements NoConfigFormatReader {
+        BlockFactory lastFactory;
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public FormatReader withBlockFactory(BlockFactory blockFactory) {
+            BlockFactoryRecordingFormatReader configured = new BlockFactoryRecordingFormatReader();
+            configured.lastFactory = blockFactory;
             return configured;
         }
 

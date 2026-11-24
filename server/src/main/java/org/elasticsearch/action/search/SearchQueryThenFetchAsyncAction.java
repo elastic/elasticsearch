@@ -52,6 +52,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -748,33 +749,42 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final CancellableTask cancellableTask = (CancellableTask) task;
                 final int shardCount = request.shards.size();
                 int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
-                final var state = new QueryPerNodeState(
-                    new QueryPhaseResultConsumer(
-                        request.searchRequest,
-                        dependencies.executor,
-                        searchService.getCircuitBreaker(),
-                        searchPhaseController,
-                        cancellableTask::isCancelled,
-                        SearchProgressListener.NOOP,
-                        shardCount,
-                        e -> {
-                            if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
-                                logger.debug("failed to merge on data node", e);
-                            } else {
-                                logger.error("failed to merge on data node", e);
+                // the shards and the reduce of their results charge the query's breaker
+                final QueryScheduler.QueryPart part = searchService.queryPart(task);
+                final QueryPerNodeState state;
+                try {
+                    state = new QueryPerNodeState(
+                        new QueryPhaseResultConsumer(
+                            request.searchRequest,
+                            dependencies.executor,
+                            part.breaker(),
+                            searchPhaseController,
+                            cancellableTask::isCancelled,
+                            SearchProgressListener.NOOP,
+                            shardCount,
+                            e -> {
+                                if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
+                                    logger.debug("failed to merge on data node", e);
+                                } else {
+                                    logger.error("failed to merge on data node", e);
+                                }
                             }
-                        }
-                    ),
-                    request,
-                    cancellableTask,
-                    channel,
-                    dependencies,
-                    namedWriteableRegistry
-                );
-                // merging the results of the shards of the request is work for them, by the docs each matched
-                List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
-                var consumer = state.queryPhaseResultConsumer;
-                consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
+                        ),
+                        part,
+                        request,
+                        cancellableTask,
+                        channel,
+                        dependencies,
+                        namedWriteableRegistry
+                    );
+                    // merging the results of the shards of the request is work for them, by the docs each matched
+                    List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
+                    var consumer = state.queryPhaseResultConsumer;
+                    consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
+                } catch (Exception e) {
+                    part.close();
+                    throw e;
+                }
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -942,6 +952,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         private final AtomicInteger currentShardIndex = new AtomicInteger();
         private final QueryPhaseResultConsumer queryPhaseResultConsumer;
+        private final QueryScheduler.QueryPart part;
         private final NodeQueryRequest searchRequest;
         private final CancellableTask task;
         private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
@@ -956,6 +967,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         private QueryPerNodeState(
             QueryPhaseResultConsumer queryPhaseResultConsumer,
+            QueryScheduler.QueryPart part,
             NodeQueryRequest searchRequest,
             CancellableTask task,
             TransportChannel channel,
@@ -963,6 +975,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             NamedWriteableRegistry namedWriteableRegistry
         ) {
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
+            this.part = part;
             this.searchRequest = searchRequest;
             this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
             this.topDocsSize = getTopDocsSize(searchRequest.searchRequest);
@@ -977,9 +990,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             if (countDown.countDown() == false) {
                 return;
             }
-            ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
+            ActionListener<BytesTransportResponse> channelListener = ActionListener.releaseBefore(
+                part,
+                new ChannelActionListener<>(channel)
+            );
             final BytesTransportResponse response;
-            long startNanos = System.nanoTime();
+            long startNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();
             } catch (Exception e) {

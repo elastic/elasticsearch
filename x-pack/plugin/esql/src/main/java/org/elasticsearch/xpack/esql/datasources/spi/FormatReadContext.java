@@ -82,6 +82,11 @@ import java.util.function.Consumer;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param statsStripeSink  where this chunk hands its pieces of the stripes it overlapped, so the pieces of one
+ *                         stripe become a single contribution instead of one per chunk (see
+ *                         {@link StripeStatsSink}). {@code null} — a reader driven outside a parallel read, in a
+ *                         test or a benchmark — makes each chunk publish its own pieces directly. Ignored when
+ *                         {@code statsStripeSize <= 0}, which disables stripe addressing altogether.
  * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
  *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
  *                         leaves sink-only informational warnings disabled; {@link SkipWarnings}-based
@@ -119,6 +124,7 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
+    @Nullable StripeStatsSink statsStripeSink,
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
     @Nullable CircuitBreaker breaker,
@@ -168,6 +174,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -195,6 +202,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -222,6 +230,7 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
+            statsStripeSink,
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
@@ -255,6 +264,8 @@ public record FormatReadContext(
         private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        @Nullable
+        private StripeStatsSink statsStripeSink = null;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
         @Nullable
@@ -346,6 +357,16 @@ public record FormatReadContext(
         }
 
         /**
+         * Where this chunk hands its pieces of the stripes it overlapped (see
+         * {@link FormatReadContext#statsStripeSink()}). {@code null} makes the chunk publish them itself, one per
+         * stripe it touched. Orthogonal to {@link #stats}, which decides the grid.
+         */
+        public Builder statsStripeSink(@Nullable StripeStatsSink statsStripeSink) {
+            this.statsStripeSink = statsStripeSink;
+            return this;
+        }
+
+        /**
          * See {@link FormatReadContext#informationalWarningSink()}; {@code null} disables sink-only
          * warnings and retains legacy direct-header behavior for {@link SkipWarnings}-based paths.
          */
@@ -407,6 +428,7 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
+                statsStripeSink,
                 informationalWarningSink,
                 fileHeaderColumns,
                 breaker,

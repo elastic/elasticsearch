@@ -28,9 +28,16 @@ import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_EMP
 @ServerlessScope(Scope.INTERNAL)
 public class RestDeleteDesiredBalanceAction extends BaseRestHandler {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+
     @Override
     public String getName() {
         return "delete_desired_balance";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

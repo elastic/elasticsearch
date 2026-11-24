@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -29,10 +30,10 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes;
@@ -47,6 +49,7 @@ import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class FieldNameUtilsTests extends ESTestCase {
@@ -86,6 +89,34 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testBasicEvalAndDrop() {
         assertFieldNames("from test | eval x = 1 | drop x", ALL_FIELDS);
+    }
+
+    public void testNestedPredicateAsksForItsFieldsAndTheParentFields() {
+        String query = "from test | where nested_any(items.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items.price", "items.price.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateIsRecognizedInAnyCase() {
+        String query = "from test | where NESTED_ANY(items.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items.price", "items.price.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateOverACollectionAsksForTheCollection() {
+        String query = "from test | where nested_any(items, true) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testAQueryWithoutNestedPredicatesIsNotNestedScoped() {
+        assertThat(nestedScope("from test | where id > 1 | keep id"), is(false));
+    }
+
+    public void testNestedWithoutNarrowingAsksForAllFields() {
+        String query = "from test | where nested_any(items.price > 1)";
+        assertFieldNames(query, ALL_FIELDS);
+        assertThat(nestedScope(query), is(true));
     }
 
     public void testSimple1() {
@@ -3786,6 +3817,49 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM idx | HIGHLIGHT MATCH(title, \"foo\") AND NOT MATCH(body, \"bar\") | KEEP highlight_title", ALL_FIELDS);
     }
 
+    // JOIN on a subquery tests
+
+    public void testLeftOuterJoinSubquery() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames(
+            """
+                FROM employees
+                | LEFT OUTER JOIN (FROM languages | KEEP language_id, language_name) ON language_id
+                | KEEP emp_no, language_name""",
+            Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*")
+        );
+    }
+
+    public void testLeftOuterJoinSubqueryWithoutKeepNeedsAllFields() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no
+            | LEFT OUTER JOIN (FROM languages) ON language_id
+            | KEEP emp_no, language_name""", ALL_FIELDS);
+    }
+
+    public void testLeftOuterJoinSubqueryWithStatsNeedsAllFields() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames(
+            "FROM employees | LEFT OUTER JOIN (FROM languages | STATS c = COUNT(*) BY language_id) ON language_id",
+            ALL_FIELDS
+        );
+    }
+
+    public void testLeftOuterJoinSubqueryNestedInSubqueryKeepDoesNotNarrow() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, language_id
+            | LEFT OUTER JOIN (FROM languages | WHERE language_id IN (FROM other | KEEP language_id)) ON language_id
+            | KEEP emp_no""", ALL_FIELDS);
+    }
+
+    private static void assumeSubqueryJoinGrammar() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+    }
+
     // IN subquery tests
 
     public void testInSubquery() {
@@ -3851,6 +3925,15 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP emp_no, first_name""",
             Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*")
         );
+    }
+
+    public void testNestedInSubqueryKeepDoesNotNarrowEnclosingSubquery() {
+        // The KEEP narrows only the innermost subquery. The enclosing subquery has no KEEP of its own and returns every column, so
+        // field_caps must not be narrowed to the fields the queries reference.
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no))
+            | KEEP emp_no""", ALL_FIELDS);
     }
 
     public void testInSubqueryFieldShadowedByMainQueryStatsAlias() {
@@ -4836,7 +4919,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             List.of(new UnresolvedAttribute(Source.EMPTY, "a"))
         );
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
-        branches.put("v", new NamedSubquery(Source.EMPTY, viewBody, "v"));
+        branches.put("v", new ViewSubquery(Source.EMPTY, viewBody, "v"));
         branches.put("v#shadow", new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v"));
         BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("v", BranchIdentity.view("v")), List.of());
         assertThat(FieldNameUtils.resolveFieldNames(plan, false, includePrefixFields).fieldNames(), equalTo(ALL_FIELDS));
@@ -4887,6 +4970,11 @@ public class FieldNameUtilsTests extends ESTestCase {
         var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields);
         assertThat("Parent paths", preAnalysisResult.parentPaths(), equalTo(expected));
         assertThat("Parent paths are requested", preAnalysisResult.fieldNames().containsAll(expected), equalTo(true));
+    }
+
+    private boolean nestedScope(String query) {
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        return FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields).nestedScope();
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

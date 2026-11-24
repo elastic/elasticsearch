@@ -15,8 +15,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -32,6 +34,17 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutMappingAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        RestUtils.REST_TIMEOUT_PARAM,
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "write_index_only"
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     private static final String REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD = "reject_runtime_field_shadowing_sort_field";
 
@@ -65,6 +78,16 @@ public class RestPutMappingAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         return Set.of(REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD);
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

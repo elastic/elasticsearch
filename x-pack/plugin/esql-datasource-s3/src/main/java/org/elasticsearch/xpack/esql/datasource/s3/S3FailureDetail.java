@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.s3.model.ArchiveStatus;
 import software.amazon.awssdk.services.s3.model.IntelligentTieringAccessTier;
 import software.amazon.awssdk.services.s3.model.InvalidObjectStateException;
@@ -108,6 +109,19 @@ final class S3FailureDetail {
     static boolean isCredentialsRejected(S3Exception s3) {
         String code = errorCode(s3);
         return s3.statusCode() == 403 && code != null && CREDENTIALS_REJECTED_CODES.contains(code);
+    }
+
+    /**
+     * True when S3 refused the request because the access key is unknown. IAM is not strongly
+     * consistent, so a freshly minted key can land here until it propagates.
+     * {@code SignatureDoesNotMatch} is not this: that is an HMAC mismatch, not IAM lag. Top-level
+     * only — the SDK's {@code retryOnException} does not unwrap.
+     */
+    static boolean isInvalidAccessKeyIdException(Throwable e) {
+        if (e instanceof AwsServiceException ase && ase.awsErrorDetails() != null) {
+            return ase.statusCode() == 403 && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
+        }
+        return false;
     }
 
     /**

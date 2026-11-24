@@ -54,6 +54,7 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         .user("test-admin", PASSWORD, "test-admin", true)
         .user("into_writer", PASSWORD, "into_write_only", false)
         .user("into_maintainer", PASSWORD, "into_write_and_maintenance", false)
+        .user("into_maintainer_elsewhere", PASSWORD, "into_write_and_maintenance_elsewhere", false)
         .build();
 
     @Override
@@ -88,6 +89,19 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertThat(errorReason(e), containsString("use \"refresh\": false to skip it"));
 
         // The failed refresh does not undo the write.
+        refreshDestination();
+        assertThat(countDestination(), equalTo(2L));
+    }
+
+    /**
+     * The refresh action is allowed for this user, on an index that is not the destination, so the action-level check passes. The
+     * destination must then be refused, not silently dropped from the refresh with the rows left unsearchable.
+     */
+    public void testMaintenanceOnAnotherIndexDoesNotRefreshTheDestination() throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, () -> runInto("into_maintainer_elsewhere", ""));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(errorReason(e), containsString("INTO [into-dest] wrote [2] documents but the refresh failed"));
+
         refreshDestination();
         assertThat(countDestination(), equalTo(2L));
     }

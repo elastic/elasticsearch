@@ -649,3 +649,12 @@ into_write_and_maintenance:
       privileges: [ 'write', 'maintenance' ]
     - names: [ 'into-unrelated' ]
       privileges: [ 'read' ]
+
+# May refresh an index, but not the destination: the action itself is allowed, the destination is not.
+into_write_and_maintenance_elsewhere:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read', 'maintenance' ]

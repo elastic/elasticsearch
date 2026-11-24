@@ -18,7 +18,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -171,6 +173,35 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
         assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+    }
+
+    public void testClosedMemberOfAnAliasIsSkippedOnARetry() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+        assertFalse(
+            "the first refresh is strict, so a destination the caller may not refresh is refused, not dropped",
+            client.refreshes.getFirst().indicesOptions().ignoreUnavailable()
+        );
+
+        client.failRefresh(new IndexClosedException(new Index("older", "uuid")));
+        assertThat("retried once", client.refreshes, hasSize(1));
+        assertTrue(client.refreshes.getFirst().indicesOptions().ignoreUnavailable());
+        assertTrue("the driver still waits for the retry", driverContext.hasPendingAsyncActions());
+
+        client.answerRefresh();
+        assertFalse(driverContext.hasPendingAsyncActions());
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+    }
+
+    public void testRefreshIsOnlyRetriedForAClosedMember() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        client.failRefresh(new IndexNotFoundException(DEST));
+        assertThat(client.refreshes, empty());
+        expectThrows(ElasticsearchStatusException.class, op::getOutput);
     }
 
     public void testRefreshThatReachedNoShardFails() {

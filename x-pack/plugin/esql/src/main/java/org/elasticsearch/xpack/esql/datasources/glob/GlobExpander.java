@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.WalkLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -991,7 +992,8 @@ public final class GlobExpander {
         // filesystem throws and object stores return empty. A bound cannot invent an IOException, so when it was
         // the only narrowing the error is the storage's own and is surfaced rather than retried. TEMPLATE already
         // mapped a missing prefix to empty above; any other throw is the storage's own and is surfaced.
-        if (failure != null && (rewritten == false || keepExactTemplatePrefix(partitionConfig))) {
+        // Hive may retry a missing rewritten folder (padded sibling). A store failure is not a miss.
+        if (failure != null && (rewritten == false || keepExactTemplatePrefix(partitionConfig) || isMissingPrefix(failure) == false)) {
             throw failure;
         }
 
@@ -1058,9 +1060,10 @@ public final class GlobExpander {
     }
 
     /**
-     * One glob-matching file under the parent of an empty exact-string TEMPLATE prefix. The leftover is a
-     * schema-inference anchor, not a flatten of the original glob. {@code null} when the parent cannot be
-     * listed or holds no glob match — then the empty prefix listing stands.
+     * One glob-matching file under the parent of the last spliced TEMPLATE folder. The leftover is a
+     * schema-inference anchor, not a flatten of the original glob. Never lists above the original
+     * pattern prefix. {@code null} when the parent cannot be listed or holds no glob match — then the
+     * empty prefix listing stands.
      */
     @Nullable
     private static FileList exactPrefixInferenceAnchor(
@@ -1079,15 +1082,16 @@ public final class GlobExpander {
         if (keepExactTemplatePrefix(partitionConfig) == false || maxDiscoveredFiles <= 0 || effective.equals(pattern)) {
             return null;
         }
-        StoragePath emptyPrefix = StoragePath.of(effective).patternPrefix();
-        StoragePath parent = emptyPrefix.parentDirectory();
-        if (emptyPrefix.path().endsWith("/") && parent != null) {
-            parent = parent.parentDirectory();
-        }
+        StoragePath original = StoragePath.of(pattern);
+        StoragePath parent = inferenceAnchorParent(pattern, effective);
         if (parent == null) {
             return null;
         }
-        StoragePath original = StoragePath.of(pattern);
+        WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            original.patternPrefix(),
+            original.globPart(),
+            partitionConfig.pathTemplate()
+        );
         StorageEntry found = findAnchor(
             provider,
             List.of(parent),
@@ -1097,7 +1101,8 @@ public final class GlobExpander {
             FileMetadataFilter.resolve(hints),
             Set.of(),
             cancelled,
-            maxListedObjects
+            maxListedObjects,
+            layout
         );
         if (found == null) {
             return null;
@@ -1109,6 +1114,80 @@ public final class GlobExpander {
         PartitionMetadata meta = detectPartitions(kept, partitionConfig, notices::add);
         reserveRetained(memory, 1, 0, true);
         return inferenceAnchorListing(kept, pattern, meta, notices);
+    }
+
+    /**
+     * Directory to probe for one schema-inference file after an empty exact-string TEMPLATE prefix.
+     * Parent of the last rewritten folder, never above {@code pattern}'s listing prefix, and never a
+     * glob (a wildcard before the splice clamps to that dataset prefix).
+     */
+    @Nullable
+    static StoragePath inferenceAnchorParent(String pattern, String effective) {
+        StoragePath original = StoragePath.of(pattern);
+        StoragePath datasetPrefix = original.patternPrefix();
+        String[] origSegs = pathSegments(original.path());
+        String[] effSegs = pathSegments(StoragePath.of(effective).path());
+        int n = Math.min(origSegs.length, effSegs.length);
+        int lastSplice = -1;
+        for (int i = 0; i < n; i++) {
+            if (origSegs[i].equals(effSegs[i]) == false) {
+                lastSplice = i;
+            }
+        }
+        if (lastSplice < 0) {
+            return null;
+        }
+        String loc = original.toString();
+        String origPath = original.path();
+        String root = origPath.isEmpty() == false && loc.endsWith(origPath) ? loc.substring(0, loc.length() - origPath.length()) : loc;
+        StringBuilder parentPath = new StringBuilder(root);
+        for (int i = 0; i < lastSplice; i++) {
+            parentPath.append('/').append(effSegs[i]);
+        }
+        parentPath.append('/');
+        StoragePath parent = StoragePath.of(parentPath.toString());
+        if (parent.isPattern()) {
+            return datasetPrefix;
+        }
+        String parentLoc = parent.toString();
+        String datasetLoc = datasetPrefix.toString();
+        if (datasetLoc.startsWith(parentLoc) && parentLoc.equals(datasetLoc) == false) {
+            return datasetPrefix;
+        }
+        return parent;
+    }
+
+    private static String[] pathSegments(String path) {
+        if (path == null || path.isEmpty()) {
+            return new String[0];
+        }
+        List<String> segs = new ArrayList<>();
+        for (String segment : path.split("/")) {
+            if (segment.isEmpty() == false) {
+                segs.add(segment);
+            }
+        }
+        return segs.toArray(String[]::new);
+    }
+
+    /** {@code true} when every TEMPLATE literal glob-directory on {@code entry} matches {@code layout}. */
+    private static boolean matchesTemplateLiterals(WalkLayout layout, StoragePath datasetPrefix, StorageEntry entry) {
+        if (layout == null) {
+            return true;
+        }
+        String[] prefixDirs = pathSegments(datasetPrefix.path());
+        String[] entryDirs = pathSegments(entry.path().path());
+        if (entryDirs.length <= prefixDirs.length) {
+            return false;
+        }
+        int globDirs = entryDirs.length - prefixDirs.length - 1;
+        for (int i = 0; i < globDirs && i < layout.depth(); i++) {
+            WalkLayout.Level level = layout.level(i);
+            if (level.isLiteral() && level.literal().equals(entryDirs[prefixDirs.length + i]) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -1579,7 +1658,8 @@ public final class GlobExpander {
                         fileHints,
                         walk.columnFullTypes().keySet(),
                         cancelled,
-                        maxListedObjects
+                        maxListedObjects,
+                        null
                     );
                     if (anchor != null) {
                         List<String> walkNotices = new ArrayList<>();
@@ -2047,7 +2127,7 @@ public final class GlobExpander {
                 // Only the rewrite can throw spuriously (a folder that does not exist on a local filesystem).
                 // A bound cannot invent an IOException from a path that exists, so when it was the only narrowing
                 // the error is the storage's own and is surfaced rather than retried.
-                if (finalRewritten == false || keepExactPrefix) {
+                if (finalRewritten == false || keepExactPrefix || isMissingPrefix(narrowFailure) == false) {
                     listener.onFailure(narrowFailure);
                     return;
                 }
@@ -2969,8 +3049,9 @@ public final class GlobExpander {
     /**
      * First glob-matching file under a pruned directory that binds every walk-seen partition key. Directory
      * placeholders, exclusion-policy hits, and files missing a walk-listed key (a stray) are skipped. A
-     * {@code _file.*} reject is still the one-file stash. Provider failures on one dir try the next; cancel
-     * aborts. Stops at the first keep rather than draining the subtree.
+     * {@code _file.*} reject is still the one-file stash. Provider failures on one dir try the next; a
+     * failure on the last dir is surfaced so a single-directory probe cannot turn a 503 into a glob miss.
+     * Cancel aborts. Stops at the first keep rather than draining the subtree.
      */
     @Nullable
     private static StorageEntry findAnchor(
@@ -2982,15 +3063,17 @@ public final class GlobExpander {
         FileMetadataFilter fileHints,
         Set<String> requiredKeys,
         BooleanSupplier cancelled,
-        int maxListedObjects
-    ) {
+        int maxListedObjects,
+        @Nullable WalkLayout layout
+    ) throws IOException {
         if (prunedDirs.isEmpty()) {
             return null;
         }
         String prefixStr = listingPrefix.toString();
         boolean recursive = matcher.needsRecursion();
         int listed = 0;
-        for (StoragePath dir : prunedDirs) {
+        for (int d = 0; d < prunedDirs.size(); d++) {
+            StoragePath dir = prunedDirs.get(d);
             throwIfCancelled(cancelled);
             StorageEntry found = null;
             try (StorageIterator iterator = provider.listObjects(dir, recursive)) {
@@ -3015,6 +3098,9 @@ public final class GlobExpander {
                     if (requiredKeys.isEmpty() == false && bindsWalkKeys(entry, requiredKeys) == false) {
                         continue;
                     }
+                    if (matchesTemplateLiterals(layout, listingPrefix, entry) == false) {
+                        continue;
+                    }
                     List<StorageEntry> kept = new ArrayList<>(1);
                     StorageEntry stash = addOrStashAnchor(entry, fileHints, kept, null, Integer.MAX_VALUE);
                     found = kept.isEmpty() == false ? kept.get(0) : stash;
@@ -3023,6 +3109,19 @@ public final class GlobExpander {
             } catch (IOException | UncheckedIOException | ExternalUnavailableException e) {
                 if (found != null) {
                     return found;
+                }
+                Throwable t = e instanceof UncheckedIOException u ? u.getCause() : e;
+                if (d == prunedDirs.size() - 1) {
+                    if (isMissingPrefix(t)) {
+                        return null;
+                    }
+                    if (t instanceof ExternalUnavailableException ex) {
+                        throw ex;
+                    }
+                    if (t instanceof IOException io) {
+                        throw io;
+                    }
+                    throw e;
                 }
                 logger.debug(() -> "Anchor probe of pruned dir [" + dir + "] failed; trying next", e);
                 continue;

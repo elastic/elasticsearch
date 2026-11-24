@@ -2763,6 +2763,98 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Region-only splice on the AWS template leaves {@code *} before the rewritten folder. The probe parent
+     * clamps to {@code AWSLogs/} and must not list the bucket root.
+     */
+    public void testTemplateRegionOnlyMissDoesNotListBucketRoot() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(awsVpcTree());
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "no-such-region"));
+
+        FileList result = GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+        assertThat(provider.listedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
+    }
+
+    /**
+     * Account-only miss: trailing {@code vpcflowlogs/} after the spliced folder must not pin the probe inside
+     * the missing account. Parent is {@code AWSLogs/}.
+     */
+    public void testTemplateAccountOnlyMissProbesDatasetPrefix() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(awsVpcTree());
+        var hints = List.of(hint("account", PartitionFilterHintExtractor.Operator.EQUALS, "000000000000"));
+
+        FileList result = GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertThat(provider.listedPrefixes(), hasItem("s3://bucket/AWSLogs/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+    }
+
+    /**
+     * TEMPLATE literal {@code events} must win over an earlier glob-matching {@code archive} sibling.
+     */
+    public void testTemplateAnchorKeepsLiteralFolder() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                ListingWalkHarness.entry("s3://bucket/logs/us/2026/archive/a.parquet"),
+                ListingWalkHarness.entry("s3://bucket/logs/us/2026/events/b.parquet")
+            )
+        );
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu"));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}/{year}/events");
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals("s3://bucket/logs/us/2026/events/b.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A 503 listing the inference-anchor parent is a store failure, not “matched no files”.
+     */
+    public void testTemplateAnchorParentUnavailableFailsClosed() {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/logs/eu-west-1/", List.of()));
+        provider.throwOnUnknownPrefix = true;
+        provider.unknownPrefixFailure = new IOException("connection reset");
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu-west-1"));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}");
+
+        IOException thrown = expectThrows(
+            IOException.class,
+            () -> GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX)
+        );
+        assertThat(thrown.getMessage(), containsString("connection reset"));
+    }
+
+    /**
+     * Hive rewrite of {@code region=us} that hits store IO must not retry the original glob and flatten
+     * {@code logs/}.
+     */
+    public void testHiveRewrittenWalkFailureDoesNotFlattenOriginalGlob() {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/logs/",
+                List.of(entry("s3://bucket/logs/region=us/a.parquet", 1), entry("s3://bucket/logs/region=eu/b.parquet", 1))
+            )
+        );
+        provider.throwOnUnknownPrefix = true;
+        provider.unknownPrefixFailure = new IOException("connection reset");
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us"));
+
+        IOException thrown = expectThrows(
+            IOException.class,
+            () -> GlobExpander.expand("s3://bucket/logs/region=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX)
+        );
+        assertThat(thrown.getMessage(), containsString("connection reset"));
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/logs/")));
+    }
+
+    /**
      * Local filesystem throws {@link NoSuchFileException} on a missing directory where S3 lists empty. TEMPLATE
      * maps that throw to an inference-anchor probe of the parent prefix and still does not list {@code AWSLogs/}.
      */
@@ -2775,6 +2867,8 @@ public class GlobExpanderTests extends ESTestCase {
                 "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/",
                 sibling,
                 "s3://bucket/AWSLogs/012345678901/vpcflowlogs",
+                sibling,
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/",
                 sibling
             )
         );
@@ -2925,6 +3019,8 @@ public class GlobExpanderTests extends ESTestCase {
                 "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/",
                 sibling,
                 "s3://bucket/AWSLogs/012345678901/vpcflowlogs",
+                sibling,
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/",
                 sibling
             )
         );

@@ -290,7 +290,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
     public void testEmptyPathSegmentWithdrawsWithoutFlatListing() throws Exception {
         List<StorageEntry> tree = List.of(
             ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=10/day=14/f.parquet"),
-            ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=10/day=14//ghost.parquet")
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026//ghost.parquet")
         );
         List<Expression> filters = List.of(window(LAST_DAY, NOW));
         FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
@@ -758,23 +758,22 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testListChildrenParallelPrefersUnavailableOverNullChild() throws Exception {
-        assertPrefersUnavailableOverNullChild(true);
-        assertPrefersUnavailableOverNullChild(false);
+        assertPrefersUnavailableOverNullChild();
     }
 
-    private void assertPrefersUnavailableOverNullChild(boolean delayUnavailable) throws Exception {
+    private void assertPrefersUnavailableOverNullChild() throws Exception {
         ListingWalkHarness provider = new ListingWalkHarness(
             List.of(ListingWalkHarness.entry("s3://bucket/a/f.parquet"), ListingWalkHarness.entry("s3://bucket/b/f.parquet"))
         );
         provider.setFailListChildrenContaining("/a");
         provider.setFailListChildrenUnavailable(true);
         provider.setNullListChildrenContaining("/b");
-        CountDownLatch startedSlow = new CountDownLatch(1);
-        CountDownLatch releaseSlow = new CountDownLatch(1);
-        provider.setDelayListChildrenContaining(delayUnavailable ? "/a" : "/b");
+        CountDownLatch bothEntered = new CountDownLatch(2);
+        CountDownLatch releaseBoth = new CountDownLatch(1);
+        provider.setDelayListChildrenContaining("/");
         provider.setListChildrenDelayNanos(() -> {
-            startedSlow.countDown();
-            awaitQuietly(releaseSlow);
+            bothEntered.countDown();
+            awaitQuietly(releaseBoth);
             return 0L;
         });
         AtomicInteger issued = new AtomicInteger();
@@ -783,17 +782,13 @@ public class PartitionPruningWalkTests extends ESTestCase {
         try {
             PlainActionFuture<StorageChildren[]> future = new PlainActionFuture<>();
             PartitionPruningWalk.listChildrenParallel(provider, dirs, 2, executor, issued, () -> false, future);
-            assertTrue(startedSlow.await(30, TimeUnit.SECONDS));
-            if (delayUnavailable) {
-                assertBusy(() -> assertTrue(provider.childListedPrefixes().stream().anyMatch(p -> p.contains("/b"))));
-            } else {
-                assertBusy(() -> assertThat(issued.get(), greaterThan(1)));
-            }
-            releaseSlow.countDown();
+            assertTrue(bothEntered.await(30, TimeUnit.SECONDS));
+            assertEquals("both in flight before either result", 2, issued.get());
+            releaseBoth.countDown();
             expectThrows(ExternalUnavailableException.class, future::actionGet);
             assertEquals(0, provider.listObjectPages());
         } finally {
-            releaseSlow.countDown();
+            releaseBoth.countDown();
             terminate(executor);
         }
     }

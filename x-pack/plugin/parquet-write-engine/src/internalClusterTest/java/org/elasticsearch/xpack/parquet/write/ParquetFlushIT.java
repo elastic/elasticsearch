@@ -57,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -210,6 +211,49 @@ public class ParquetFlushIT extends ESIntegTestCase {
 
     private IndexShard shard(int shard) {
         return internalCluster().getDataNodeInstance(IndicesService.class).indexServiceSafe(resolveIndex(INDEX)).getShard(shard);
+    }
+
+    /**
+     * With a threshold of the flush above the limit of the local size (or after a flush that failed) nothing else starts a flush, and the
+     * bulks that are refused with a 429 would wait until the shard has been idle for 5 minutes. The refusal starts the flush itself.
+     */
+    public void testAFullLocalSizeStartsAFlushAndTheBulksAreAcceptedAgain() throws Exception {
+        registerRepository();
+        createIndex(
+            1,
+            Settings.builder()
+                .put("index.parquet.flush_threshold_size", "100gb")
+                .put("index.parquet.flush_threshold_age", "1h")
+                .put("index.parquet.max_local_size", "1kb")
+        );
+        assertFalse("the files are empty, so the first bulk is accepted", bulk(0, 100).hasFailures());
+        assertBusy(
+            () -> assertFalse(
+                "a bulk is accepted after the flush that the refusal of the bulks before it started",
+                bulk(100, 200).hasFailures()
+            ),
+            30,
+            java.util.concurrent.TimeUnit.SECONDS
+        );
+        // the flush that freed the space created the table, so it can be opened now
+        assertBusy(() -> assertThat(table(0).uploadedThroughSeqNo(), greaterThanOrEqualTo(99L)), 30, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /**
+     * The engine starts its periodic flush itself after a batch (the shard does not: its flush has the same {@code wait_if_ongoing} as the
+     * {@code _flush} API, and the engine has to answer that only when every row is in the table, while its own flush does not wait for the
+     * last upload). The files are uploaded after the bulk, and a {@code _flush} that follows returns with everything in the table.
+     */
+    public void testTheEngineStartsThePeriodicFlushAndAFlushRequestWaitsForEverything() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.flush_threshold_size", "1b").put("index.parquet.flush_threshold_age", "1h"));
+        assertFalse(bulk(0, 100).hasFailures());
+        // the local files are deleted after the table lists their rows, so no local file means that the engine's flush has finished
+        assertBusy(() -> assertThat(localFilesOf(INDEX), equalTo(0L)), 30, java.util.concurrent.TimeUnit.SECONDS);
+        assertFalse(bulk(100, 200).hasFailures());
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        assertThat("a flush request returns when the last upload has finished", localFilesOf(INDEX), equalTo(0L));
+        assertThat("and the rows are in the table", table(0).uploadedThroughSeqNo(), equalTo(199L));
     }
 
     private long localFilesOf(String index) throws IOException {

@@ -233,6 +233,7 @@ public class ParquetWriteEngine extends Engine {
         if (acceptedCount > 0) {
             final EsRejectedExecutionException rejection = rejectionWhenLocalFilesAreFull();
             if (rejection != null) {
+                requestFlushAfterRefusal();
                 return failedBatch(operations, accepted, rejection);
             }
             // The sequence numbers are taken before the write, so that bulks write their files in parallel. A bulk that fails to write
@@ -261,6 +262,7 @@ public class ParquetWriteEngine extends Engine {
                 results.add(new IndexResult(explicitIdFailure(), 1L, operations.id(i)));
             }
         }
+        requestFlushIfDue();
         return results;
     }
 
@@ -635,9 +637,20 @@ public class ParquetWriteEngine extends Engine {
     @Override
     public void writeIndexingBuffer() {}
 
-    /** True when the local files have reached the size or the age at which they are uploaded. */
+    /**
+     * Always false: the shard does not start the periodic flush of this engine, the engine starts it itself (see
+     * {@link #requestFlushIfDue}).
+     * The flush that the shard starts is a request with {@code wait_if_ongoing} true, which is also what the {@code _flush} API sends, so
+     * the engine cannot tell the two apart, and it has to answer a {@code _flush} request only when every row is in the table. A flush that
+     * the engine starts itself does not wait for its last upload, so the next flush can merge while that upload goes on.
+     */
     @Override
     public boolean shouldPeriodicallyFlush() {
+        return false;
+    }
+
+    /** True when the local files that no flush has taken have reached the size or the age at which they are uploaded. */
+    private boolean flushDue() {
         // the run that is uploading in the background is on the disk, and it is not data that waits for a flush
         final ParquetFlusher current = flusher;
         final long bytes = localBytes.get() - (current == null ? 0 : current.uploadingLocalBytes());
@@ -650,6 +663,55 @@ public class ParquetWriteEngine extends Engine {
         }
         final long oldest = oldestLocalNanos;
         return oldest != 0 && System.nanoTime() - oldest >= ParquetFormatSettings.FLUSH_THRESHOLD_AGE.get(settings).nanos();
+    }
+
+    /** One flush that the engine started is waiting or running at a time. */
+    private final AtomicBoolean flushRequested = new AtomicBoolean();
+
+    /** The time of the last flush that a refused batch asked for, so that clients that retry do not ask again and again. */
+    private volatile long lastRefusalFlushNanos = System.nanoTime() - REFUSAL_FLUSH_SPACING_NANOS;
+
+    private static final long REFUSAL_FLUSH_SPACING_NANOS = TimeValue.timeValueSeconds(2).nanos();
+
+    /**
+     * Starts a flush when the local files have reached the threshold of size or age. It is called after a batch, which is also when the
+     * shard decided about its periodic flush. The flush does not wait for its last upload (the next call may start the next flush while it
+     * runs), and it is skipped when another flush is running.
+     */
+    private void requestFlushIfDue() {
+        if (flushDue()) {
+            requestFlush();
+        }
+    }
+
+    /**
+     * Starts a flush when a batch is refused because the local files reached {@code max_local_size}. Without it nothing starts a flush
+     * when the threshold of the flush is higher than the limit, or when the flush that was running failed, and the bulks wait until the
+     * shard has been idle for 5 minutes.
+     */
+    private void requestFlushAfterRefusal() {
+        final long now = System.nanoTime();
+        if (now - lastRefusalFlushNanos >= REFUSAL_FLUSH_SPACING_NANOS) {
+            lastRefusalFlushNanos = now;
+            requestFlush();
+        }
+    }
+
+    private void requestFlush() {
+        if (activeFlushes.get() > 0 || flushRequested.compareAndSet(false, true) == false) {
+            return;
+        }
+        try {
+            flush(false, false, ActionListener.wrap(result -> flushRequested.set(false), e -> {
+                flushRequested.set(false);
+                if (isClosed.get() == false) {
+                    logger.warn("failed to flush the local Parquet files of shard [" + shardId + "]", e);
+                }
+            }));
+        } catch (RuntimeException e) {
+            flushRequested.set(false); // the engine is closing
+            logger.debug("could not start a flush", e);
+        }
     }
 
     @Override

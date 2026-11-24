@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167264
+summary: Return `null` with a warning when the result of `CONCAT` is over 1MB instead of failing the query
+type: enhancement

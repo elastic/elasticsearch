@@ -59,6 +59,16 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Whether this node serves reads from the external-source cache. With it off, a read planned while it is off
+     * neither reads the cache nor collects statistics for it in the formats that harvest them, and planning pays
+     * more: the schema and file-metadata loaders run on every resolve, not only on a miss. A scan already
+     * running keeps the scope it was built with, so turning this off does not stop its collection.
+     * <p>
+     * Off also clears the cache, so switching it back on leaves the node cold. Node-scoped, so a node left off
+     * harvests nothing and the coordinator never warms for its files. The Parquet and ORC footer caches are
+     * separate, with their own budgets: this setting neither clears nor bypasses them.
+     */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",
         CACHE_ENABLED_OLD,

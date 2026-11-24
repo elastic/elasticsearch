@@ -115,7 +115,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
@@ -739,31 +738,8 @@ public class DatafeedManagerTests extends ESTestCase {
             .setProjectRouting("_alias:_origin");
     }
 
-    public void testPutEsqlDatafeedWithRemoteClusterSourceShouldRejectBeforeAnyValidation() {
-        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM remote:logs-*")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
-
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        harness.manager()
-            .putDatafeed(
-                new PutDatafeedAction.Request(datafeed),
-                mockClusterStateWithNoTasks(),
-                mockSecurityContextWithUser("df-user"),
-                harness.threadPool(),
-                ActionListener.wrap(r -> fail("expected failure"), failure::set)
-            );
-
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources"));
-        verifyNoInteractions(harness.datafeedConfigProvider(), harness.jobConfigProvider(), harness.client());
-    }
-
     /**
-     * The ES|QL {@code LIMIT 0} probe runs inside {@code validateDatafeedJobAndEsqlQuery} and must see the caller's security headers;
+     * The ES|QL {@code DESCRIBE} probe runs inside {@code validateDatafeedJobAndEsqlQuery} and must see the caller's security headers;
      * a failing validation must stop the put before anything is persisted or a credential is minted.
      */
     @SuppressWarnings("unchecked")
@@ -1039,38 +1015,6 @@ public class DatafeedManagerTests extends ESTestCase {
         );
         verify(fixture.jobConfigProvider, never()).validateDatafeedJob(any(), any());
         verify(fixture.jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
-    }
-
-    public void testPutEsqlDatafeedWhenCpsOnAndMlFlagOffShouldRejectRemoteSource() {
-        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM remote:logs-*")
-            .setSourceTimeField("@timestamp")
-            .setGroupingInterval(TimeValue.timeValueHours(1))
-            .build();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        newDatafeedManager(
-            mock(DatafeedConfigProvider.class),
-            mock(JobConfigProvider.class),
-            settings,
-            mock(Client.class),
-            mock(MachineLearningExtension.class),
-            mockAuditor(),
-            mock(AnnotationPersister.class),
-            threadPool,
-            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
-        ).putDatafeed(
-            new PutDatafeedAction.Request(datafeed),
-            mockClusterStateWithNoTasks(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> fail("expected failure"), failure::set)
-        );
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources"));
     }
 
     /** A manager over a cloud-authenticated caller whose own thread context carries a header that must never reach the probe. */

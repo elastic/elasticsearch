@@ -257,6 +257,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         }));
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
+        BooleanSupplier isPartialSoFar = partialSoFar(executionInfo, completedWork);
         // The metrics of the query are reported once, with the first outcome that is decided for it.
         AtomicBoolean metricsCollected = new AtomicBoolean();
 
@@ -315,7 +316,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             columns,
                             nullColumns,
                             QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
-                            executionInfo::isPartial
+                            isPartialSoFar
                         );
                         if (startFailure != null) {
                             resultListener.onFailure(startFailure);
@@ -421,7 +422,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         columns,
                         request.dropNullColumns() ? new boolean[columns.size()] : null,
                         QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
-                        executionInfo::isPartial
+                        isPartialSoFar
                     );
                     if (startFailure != null) {
                         // The compute completed and nobody reads the result: its work is still reported.
@@ -644,6 +645,14 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             return executionInfo.overallTook().millis();
         }
         return executionInfo.queryProfile().total().timeSinceStarted().millis();
+    }
+
+    /**
+     * A live view of whether the query is partial so far: the execution info's flag, or work already completed by an earlier
+     * phase. This is the same condition {@link #failureFooter} reports, so a response that ends at a limit agrees with one that fails.
+     */
+    static BooleanSupplier partialSoFar(EsqlExecutionInfo executionInfo, DriverCompletionInfo.AtomicAccumulator completedWork) {
+        return () -> executionInfo.isPartial() || completedWork.partial();
     }
 
     static PageStreamPublisher.StreamFooter failureFooter(

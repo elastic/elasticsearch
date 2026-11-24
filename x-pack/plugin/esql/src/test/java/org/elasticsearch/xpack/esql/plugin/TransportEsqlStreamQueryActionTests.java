@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -767,6 +768,26 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         );
 
         assertTrue("is_partial must be true when completedWork.partial() is true", footer.isPartial());
+    }
+
+    public void testPartialSoFarReflectsAccumulatedPartialBeforeExecutionInfo() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
+        BooleanSupplier supplier = TransportEsqlStreamQueryAction.partialSoFar(executionInfo, completedWork);
+        assertFalse(supplier.getAsBoolean());
+
+        completedWork.accumulate(new DriverCompletionInfo(0, 0, 0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), true, false, Set.of()));
+
+        assertFalse(executionInfo.isPartial());
+        assertTrue("an intermediate phase's partial work must be visible before the query ends", supplier.getAsBoolean());
+    }
+
+    public void testPartialSoFarReflectsExecutionInfo() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        BooleanSupplier supplier = TransportEsqlStreamQueryAction.partialSoFar(executionInfo, new DriverCompletionInfo.AtomicAccumulator());
+        assertFalse(supplier.getAsBoolean());
+        executionInfo.markPartial();
+        assertTrue(supplier.getAsBoolean());
     }
 
     private static DriverCompletionInfo usageWithBytesRead(long bytesRead) {

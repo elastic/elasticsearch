@@ -3145,6 +3145,89 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Items of a pre-built batch that fail before they are routed (here, an {@code index} operation on a data stream, which only
+     * accepts {@code create}) leave rows in the batch that no item holds. Those rows are dropped, only the items that failed are
+     * reported as failed, and the rows of the other items reach their shards unchanged.
+     */
+    public void testPreBuiltBatchWithItemsThatFailBeforeRouting() throws Exception {
+        String dataStream = "logs-prebuilt-dropped-rows";
+        putBatchDataStreamTemplate(dataStream, 3);
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream)
+            )
+        );
+        ensureGreen(dataStream);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 30);
+        Instant baseTime = Instant.parse("2025-01-15T10:00:00.000Z");
+
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("@timestamp", baseTime.plusSeconds(i).toString());
+                doc.field("host", "host-" + (i % 4));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        // Every third item is an index operation, which a data stream rejects before the item is routed.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(dataStream).opType(
+                i % 3 == 0 ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE
+            );
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(dataStream, batch));
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+
+        assertTrue(bulkResponse.hasFailures());
+        int expectedDocs = 0;
+        for (int i = 0; i < numDocs; i++) {
+            BulkItemResponse item = bulkResponse.getItems()[i];
+            if (i % 3 == 0) {
+                assertTrue("item " + i + " must fail", item.isFailed());
+                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+                assertThat(
+                    item.getFailureMessage(),
+                    containsString("only write ops with an op_type of create are allowed in data streams")
+                );
+            } else {
+                assertFalse("item " + i + " must succeed: " + item.getFailureMessage(), item.isFailed());
+                expectedDocs++;
+            }
+        }
+
+        refresh(dataStream);
+        int finalExpectedDocs = expectedDocs;
+        assertResponse(prepareSearch(dataStream).setTrackTotalHits(true).setSize(numDocs).addSort("value", SortOrder.ASC), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) finalExpectedDocs));
+            SearchHit[] hits = response.getHits().getHits();
+            int hit = 0;
+            for (int i = 0; i < numDocs; i++) {
+                if (i % 3 == 0) {
+                    continue;
+                }
+                Map<String, Object> source = hits[hit++].getSourceAsMap();
+                assertThat("value mismatch at doc " + i, source.get("value"), equalTo(i));
+                assertThat("host mismatch at doc " + i, source.get("host"), equalTo("host-" + (i % 4)));
+            }
+        });
+    }
+
     public void testPreBuiltBatchTargetsAliasName() throws IOException {
         String index = "test-prebuilt-alias-backed";
         String alias = "test-prebuilt-alias";

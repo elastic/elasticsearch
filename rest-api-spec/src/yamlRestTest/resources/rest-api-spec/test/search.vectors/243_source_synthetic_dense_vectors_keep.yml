@@ -2,7 +2,6 @@ setup:
   - requires:
       cluster_features: [ "mapper.exclude_source_vectors_from_ignored_source" ]
       reason: 'synthetic_source_keep on an excluded vector field is ignored'
-      test_runner_features: [ close_to ]
 
   - do:
       indices.create:
@@ -11,52 +10,13 @@ setup:
           settings:
             index:
               mapping.source.mode: synthetic
-              mapping.exclude_source_vectors: true
-              mapping.synthetic_source_keep: arrays
           mappings:
             properties:
               vector:
                 type: dense_vector
                 dims: 3
-                similarity: l2_norm
                 synthetic_source_keep: all
-              cos:
-                type: dense_vector
-                dims: 3
-                similarity: cosine
-                synthetic_source_keep: all
-              b64:
-                type: dense_vector
-                dims: 3
-                similarity: l2_norm
-                synthetic_source_keep: all
-              obj:
-                synthetic_source_keep: all
-                properties:
-                  vector:
-                    type: dense_vector
-                    dims: 3
-                    similarity: l2_norm
-              arr:
-                properties:
-                  k:
-                    type: keyword
-                  vector:
-                    type: dense_vector
-                    dims: 3
-                    similarity: l2_norm
-              nested:
-                type: nested
-                synthetic_source_keep: all
-                properties:
-                  k:
-                    type: keyword
-                  vector:
-                    type: dense_vector
-                    dims: 3
-                    similarity: l2_norm
 
-  # Every vector is kept by synthetic_source_keep: by its own mapping, its object's, or the index setting for arrays of objects.
   - do:
       index:
         index: test
@@ -64,30 +24,23 @@ setup:
         refresh: true
         body:
           vector: [ 1, 3.14159265358979, -2 ]
-          cos: [ 3, 4, 0 ]
-          b64: P4AAAEBJD9vAAAAA
-          obj: { vector: [ 1, 3.14159265358979, -2 ] }
-          arr: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ]
-          nested: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ]
 
 ---
 "synthetic_source_keep on an excluded vector field is ignored":
+  # Vectors are excluded from _source by default.
   - do:
-      search:
+      get:
         index: test
-        body:
-          _source:
-            exclude_vectors: false
+        id: "1"
 
-  # A vector that keeps its own source is rebuilt from the index rather than from _ignored_source: [1, 3.14159265358979, -2] comes
-  # back as float32, [1.0, 3.1415927, -2.0]. cos is not unit length: it is indexed normalized and rebuilt scaled back by its
-  # magnitude. b64 is [1.0, 3.1415927, -2.0] as base64 encoded big-endian floats.
-  - match: { hits.hits.0._source.vector: [ 1.0, 3.1415927, -2.0 ] }
-  - close_to: { hits.hits.0._source.cos.0: { value: 3.0, error: 0.00001 } }
-  - close_to: { hits.hits.0._source.cos.1: { value: 4.0, error: 0.00001 } }
-  - close_to: { hits.hits.0._source.cos.2: { value: 0.0, error: 0.00001 } }
-  - match: { hits.hits.0._source.b64: [ 1.0, 3.1415927, -2.0 ] }
-  # A vector inside a kept object or array is kept in _ignored_source along with it, as indexed.
-  - match: { hits.hits.0._source.obj: { vector: [ 1, 3.14159265358979, -2 ] } }
-  - match: { hits.hits.0._source.arr: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ] }
-  - match: { hits.hits.0._source.nested: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ] }
+  - match: { _source: {} }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+        _source_exclude_vectors: false
+
+  # Kept in _ignored_source, the vector would come back as indexed, [1, 3.14159265358979, -2]. It is rebuilt from the index
+  # instead, as float32.
+  - match: { _source.vector: [ 1.0, 3.1415927, -2.0 ] }

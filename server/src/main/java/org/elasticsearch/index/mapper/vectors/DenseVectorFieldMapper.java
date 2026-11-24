@@ -4724,19 +4724,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * With synthetic source and {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING}, {@code synthetic_source_keep} on
-     * the vector field itself would store the vector's text in {@code _ignored_source} although its own synthetic loader already
-     * rebuilds it in place, so the vector would be stored twice. A vector inside an object or array kept by
-     * {@code synthetic_source_keep} is still kept along with it: rebuilding such an object without the vector text would mean
-     * patching every vector back in on read. Indices created before {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE}
-     * keep the text as they always have.
+     * Returns {@code NONE}, whatever the mapping sets, for a synthetic source index with
+     * {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING}: the vector is rebuilt from the index, so storing its text in
+     * {@code _ignored_source} would only duplicate it.
      */
     @Override
-    public boolean ignoresSyntheticSourceKeep() {
-        return excludeSourceVectorsSetting
-            && excludeSourceVectors == false
+    public Optional<SourceKeepMode> sourceKeepMode() {
+        if (excludeSourceVectorsSetting
             && fieldType().isSyntheticSource
-            && indexCreatedVersion.onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE);
+            && indexCreatedVersion.onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE)) {
+            return Optional.of(SourceKeepMode.NONE);
+        }
+        return super.sourceKeepMode();
     }
 
     @Override

@@ -853,16 +853,6 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether {@code synthetic_source_keep} set on this field, or inherited from the index, is ignored, so that the field's own values
-     * are never copied to {@code _ignored_source}. This is for a field whose synthetic source loader already rebuilds its values in
-     * place and whose text would otherwise be stored a second time. An enclosing object or array kept by {@code synthetic_source_keep}
-     * still keeps the field's text along with the rest of its source.
-     */
-    public boolean ignoresSyntheticSourceKeep() {
-        return false;
-    }
-
-    /**
      * <p>
      * Specifies the mode of synthetic source support by the mapper.
      * <br>

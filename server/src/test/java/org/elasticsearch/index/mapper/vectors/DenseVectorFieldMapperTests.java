@@ -3277,8 +3277,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     /**
      * Indices created before {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE} keep the text of a vector in
-     * {@code _ignored_source} even with {@code index.mapping.exclude_source_vectors}. Newer ones are covered by
-     * {@code search.vectors/243_source_synthetic_dense_vectors_keep.yml}.
+     * {@code _ignored_source} even with {@code index.mapping.exclude_source_vectors}, which is on by default from
+     * {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_DEFAULT}.
      */
     public void testSyntheticSourceKeepAllBeforeExcludingVectorsFromIgnoredSource() throws IOException {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
@@ -3287,7 +3287,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
-            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
             .build();
         DocumentMapper mapper = createMapperService(
             version,
@@ -3301,15 +3300,19 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     /**
-     * With {@code index.mapping.exclude_source_vectors}, {@code synthetic_source_keep} on a vector field itself is ignored, as the
-     * vector is rebuilt from the index. A vector inside a kept object or nested object stays in {@code _ignored_source} with it.
+     * With {@code index.mapping.exclude_source_vectors}, on by default, {@code synthetic_source_keep} on a vector field itself is
+     * ignored, as the vector is rebuilt from the index. A vector inside a kept object or nested object stays in
+     * {@code _ignored_source} with it.
      */
     public void testSyntheticSourceKeepOnExcludedVectorField() throws IOException {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE,
+            IndexVersion.current()
+        );
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
-            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
             .build();
-        DocumentMapper mapper = createMapperService(IndexVersion.current(), settings, mapping(b -> {
+        DocumentMapper mapper = createMapperService(version, settings, mapping(b -> {
             b.startObject("vector").field("type", "dense_vector").field("dims", 3).field("synthetic_source_keep", "all").endObject();
             b.startObject("obj").field("synthetic_source_keep", "all").startObject("properties");
             b.startObject("k").field("type", "keyword").endObject();

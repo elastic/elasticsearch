@@ -97,7 +97,7 @@ public final class FallbackPostMapper {
 
         /** Builds a {@link FieldContext} for the regular field parse path ({@code parseObjectOrField}). */
         public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper) {
-            Mapper.SourceKeepMode mode = effectiveKeepMode(ctx, mapper);
+            Mapper.SourceKeepMode mode = effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
             return new FieldContext(
                 ctx.canAddIgnoredField(),
                 false,
@@ -130,7 +130,7 @@ public final class FallbackPostMapper {
                     mode = Mapper.SourceKeepMode.NONE;
                 }
             } else if (mapper instanceof FieldMapper fieldMapper) {
-                mode = effectiveKeepMode(ctx, fieldMapper);
+                mode = effectiveKeepMode(fieldMapper.sourceKeepMode(), ctx.indexSettings());
                 syntheticFallback = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             }
             return new FieldContext(
@@ -184,16 +184,6 @@ public final class FallbackPostMapper {
      */
     static Mapper.SourceKeepMode effectiveKeepMode(Optional<Mapper.SourceKeepMode> own, IndexSettings indexSettings) {
         return own.orElse(indexSettings.sourceKeepMode());
-    }
-
-    /**
-     * Like {@link #effectiveKeepMode(Optional, IndexSettings)} for a field, except that a field that
-     * {@link FieldMapper#ignoresSyntheticSourceKeep() ignores synthetic_source_keep} keeps none of its source, whatever it is set to.
-     */
-    static Mapper.SourceKeepMode effectiveKeepMode(DocumentParserContext ctx, FieldMapper mapper) {
-        return mapper.ignoresSyntheticSourceKeep()
-            ? Mapper.SourceKeepMode.NONE
-            : effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
     }
 
     /**

@@ -547,7 +547,14 @@ public record TranslationContext(
             Expression value = column == null ? new Literal(source, null, DataType.KEYWORD)
                 : DataType.isString(column.dataType()) ? column
                 : new ToString(source, column, configuration());
-            labels = new TimeSeriesMetadataSet(source, labels, Literal.keyword(source, label), value, labelPath(label));
+            labels = new TimeSeriesMetadataSet(
+                source,
+                labels,
+                Literal.keyword(source, labelName(label)),
+                value,
+                labelPath(label),
+                passthroughPaths
+            );
         }
         return labels;
     }
@@ -560,17 +567,18 @@ public record TranslationContext(
      * A label no dimension holds, as a relabel writes one, is a field of its own name.
      */
     public List<String> labelPath(String label) {
+        String name = labelName(label);
         String field = null;
         for (Attribute attribute : cmd.child().output()) {
             if (attribute instanceof FieldAttribute dimension
                 && dimension.isDimension()
-                && PromqlLabels.labelName(dimension).equals(label)
+                && labelName(dimension.fieldName().string()).equals(name)
                 && (field == null || dimension.fieldName().string().length() > field.length())) {
                 field = dimension.fieldName().string();
             }
         }
         if (field == null) {
-            return List.of(label);
+            return List.of(name);
         }
         List<String> keys = List.of(field.split("\\."));
         for (IndexResolution resolution : analyzer.indexResolution().values()) {
@@ -617,7 +625,13 @@ public record TranslationContext(
             columns.add(new Alias(source, mapOpen(skip), unset(labels, skip.stream())));
         }
         for (String label : wanted.labels()) {
-            columns.add(new Alias(source, label, new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, label))));
+            columns.add(
+                new Alias(
+                    source,
+                    label,
+                    new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, labelName(label)), passthroughPaths)
+                )
+            );
         }
         LogicalPlan table = columns.isEmpty() ? plan : new Eval(source, plan, columns);
         return new IntermediateResult(

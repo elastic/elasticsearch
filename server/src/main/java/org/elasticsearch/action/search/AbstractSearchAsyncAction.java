@@ -107,6 +107,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
+    protected final List<SearchPhaseFailure> phaseFailures = Collections.synchronizedList(new ArrayList<>());
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
     protected final SearchTimeProvider timeProvider;
@@ -470,6 +471,14 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         }
     }
 
+    /**
+     * Records a coordinator-side failure that is not bound to a shard and did not stop results from being returned.
+     * It is reported in the {@code phase_failures} section of the search response.
+     */
+    void addPhaseFailure(String phase, Exception cause) {
+        phaseFailures.add(new SearchPhaseFailure(phase, cause));
+    }
+
     protected List<ShardSearchFailure> buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         return shardFailures == null ? List.of() : List.copyOf(shardFailures.asList());
@@ -713,6 +722,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             skippedCount,
             buildTookInMillis(),
             failures,
+            phaseFailures,
             clusters,
             searchContextId,
             request.source(),

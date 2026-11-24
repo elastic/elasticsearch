@@ -32,6 +32,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -46,6 +47,26 @@ public class FillNullTests extends ESTestCase {
 
     private static LocalRelation childWith(List<Attribute> output) {
         return new LocalRelation(Source.EMPTY, output, EmptyLocalSupplier.EMPTY);
+    }
+
+    /** A union of one branch, as the child that makes the attributes of {@code output} the ones a union produces. */
+    private static UnionAll unionWith(List<Attribute> output) {
+        return new UnionAll(Source.EMPTY, List.of(childWith(output)), output);
+    }
+
+    /** A union of the given branches, whose output is the reference attributes {@code output} that a union turns its columns into. */
+    private static UnionAll unionOf(List<Attribute> output, LogicalPlan... branches) {
+        return new UnionAll(Source.EMPTY, List.of(branches), output);
+    }
+
+    /** A branch with a column that holds nothing but nulls, as the alignment of a union makes it, or as {@code EVAL x = null} does. */
+    private static Eval withNullColumn(LogicalPlan branch, String name) {
+        return new Eval(Source.EMPTY, branch, List.of(new Alias(Source.EMPTY, name, new Literal(Source.EMPTY, null, DataType.KEYWORD))));
+    }
+
+    /** A branch with a column that the query computes from another one, so it is not known to be null. */
+    private static Eval withComputedColumn(LogicalPlan branch, String name, Attribute from) {
+        return new Eval(Source.EMPTY, branch, List.of(new Alias(Source.EMPTY, name, from)));
     }
 
     private static FillNull allFields(List<Attribute> childOutput) {
@@ -120,6 +141,179 @@ public class FillNullTests extends ESTestCase {
 
         assertEquals("only the numeric and string columns should be filled", Set.of("i", "s"), filledNames(materialized));
         assertTrue("the fill alias wraps a COALESCE", aliasFor(materialized, "i").child() instanceof Coalesce);
+    }
+
+    /**
+     * A union turns a metadata column into a reference attribute, which is not internal, so for an attribute that a union produces
+     * the branches decide whether a {@code *} leaves it alone: the metadata of a branch, and a column that the branches only hold
+     * as nulls, which is how the outer {@code METADATA _index} reaches the branches of a union, are left alone.
+     */
+    public void testAllColumnsLeaveAReferenceWithAMetadataNameThatABranchHoldsAsMetadataOrNullsAlone() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute metadata = new MetadataAttribute(Source.EMPTY, name, DataType.KEYWORD, false);
+            Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+            Attribute merged = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            List<Attribute> output = List.of(merged, k);
+
+            LogicalPlan live = childWith(List.of(metadata, k));
+            LogicalPlan nulls = withNullColumn(childWith(List.of(k)), name);
+            for (UnionAll union : List.of(unionOf(output, live), unionOf(output, nulls), unionOf(output, live, nulls))) {
+                FillNull defaults = allFields(output).replaceChild(union).withConfiguration(TEST_CFG);
+                assertEquals(Set.of("k"), filledNames(defaults));
+                assertEquals("a column left alone is not reported either", Set.of(), unfillableNames(defaults));
+
+                FillNull value = new FillNull(Source.EMPTY, union, keyword("x"), List.of()).withConfiguration(TEST_CFG);
+                assertEquals(Set.of("k"), filledNames(value));
+            }
+        }
+    }
+
+    /**
+     * A column that the query made with a metadata name, as in {@code EVAL _score = gender | FORK ...}, is an ordinary one also after
+     * a merge: it is not known to be null in a branch, so the branches do not hold it as metadata, whatever else a sibling holds.
+     */
+    public void testAllColumnsFillAReferenceWithAMetadataNameThatABranchComputes() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute metadata = new MetadataAttribute(Source.EMPTY, name, DataType.KEYWORD, false);
+            Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+            Attribute merged = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            List<Attribute> output = List.of(merged, k);
+            LogicalPlan computed = withComputedColumn(childWith(List.of(k)), name, k);
+
+            for (UnionAll union : List.of(
+                unionOf(output, computed),
+                unionOf(output, computed, computed),
+                unionOf(output, computed, withNullColumn(childWith(List.of(k)), name)),
+                unionOf(output, computed, childWith(List.of(metadata, k)))
+            )) {
+                FillNull fill = allFields(output).replaceChild(union).withConfiguration(TEST_CFG);
+                assertEquals(name + " made by the query is filled", Set.of(name, "k"), filledNames(fill));
+            }
+        }
+    }
+
+    /** What a column is does not change with how deep the unions are nested: the metadata or a computed column at the bottom decides. */
+    public void testAllColumnsDecideAMetadataNameThroughDeeplyNestedMerges() {
+        Attribute metadata = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        for (boolean computed : new boolean[] { false, true }) {
+            LogicalPlan plan = computed ? withComputedColumn(childWith(List.of(k)), "_index", k) : childWith(List.of(metadata, k));
+            Attribute merged = null;
+            for (int depth = 0; depth < 40; depth++) {
+                merged = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+                plan = unionOf(List.of(merged, k), plan, withNullColumn(childWith(List.of(k)), "_index"));
+            }
+            FillNull fill = allFields(List.of(merged, k)).replaceChild(plan).withConfiguration(TEST_CFG);
+            assertEquals(computed ? Set.of("_index", "k") : Set.of("k"), filledNames(fill));
+        }
+    }
+
+    /** A column that a nested merge passes on as metadata, next to a branch that holds it as nulls, is still not the query's own. */
+    public void testAllColumnsLeaveAMetadataNameAloneThatANestedMergePassesOn() {
+        Attribute metadata = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        Attribute inner = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute outer = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        UnionAll nested = unionOf(List.of(inner, k), childWith(List.of(metadata, k)), withNullColumn(childWith(List.of(k)), "_index"));
+        UnionAll union = unionOf(List.of(outer, k), nested, withNullColumn(childWith(List.of(k)), "_index"));
+
+        FillNull fill = allFields(List.of(outer, k)).replaceChild(union).withConfiguration(TEST_CFG);
+        assertEquals(Set.of("k"), filledNames(fill));
+    }
+
+    /** A column that the query creates with a metadata name, such as {@code EVAL _score = ROUND(_score, 4)}, is an ordinary one. */
+    public void testAllColumnsFillAReferenceWithAMetadataNameThatNoUnionProduces() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute created = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+            List<Attribute> output = List.of(created, other);
+
+            FillNull materialized = materialize(allFields(output), output, TEST_CFG);
+            assertEquals(Set.of(name, "k"), filledNames(materialized));
+        }
+    }
+
+    public void testNamedReferenceWithAMetadataNameIsFilled() {
+        Attribute metadata = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+        List<Attribute> output = List.of(metadata, other);
+        for (List<NamedExpression> targets : List.of(List.<NamedExpression>of(metadata), List.<NamedExpression>of(other, metadata))) {
+            FillNull fillNull = new FillNull(Source.EMPTY, unionWith(output), keyword("x"), targets).withConfiguration(TEST_CFG);
+            assertTrue("naming _index fills it", filledNames(fillNull).contains("_index"));
+        }
+    }
+
+    /**
+     * Types that have no default and that no value converts into, not even a string that would cast: ES|QL converts a string only to
+     * datetime, date_nanos, ip, version and boolean. Both forms leave the column unchanged and report it.
+     */
+    private static final List<DataType> UNFILLABLE_TYPES = List.of(
+        DataType.GEO_POINT,
+        DataType.GEO_SHAPE,
+        DataType.CARTESIAN_POINT,
+        DataType.CARTESIAN_SHAPE,
+        DataType.GEOHASH,
+        DataType.GEOTILE,
+        DataType.GEOHEX,
+        DataType.DENSE_VECTOR,
+        DataType.AGGREGATE_METRIC_DOUBLE,
+        DataType.DATE_RANGE,
+        DataType.DOUBLE_RANGE,
+        DataType.HISTOGRAM,
+        DataType.EXPONENTIAL_HISTOGRAM,
+        DataType.TDIGEST,
+        DataType.COUNTER_LONG,
+        DataType.COUNTER_INTEGER,
+        DataType.COUNTER_DOUBLE
+    );
+
+    /** Strings that parse as a value of a type that FILLNULL still does not convert a string into. */
+    private static final Map<DataType, List<String>> VALID_STRINGS = Map.of(
+        DataType.GEOTILE,
+        List.of("4/8/5"),
+        DataType.GEOHEX,
+        List.of("841f059ffffffff")
+    );
+
+    public void testDefaultFillLeavesTypesWithoutADefaultUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            FillNull materialized = materialize(allFields(List.of(column)), List.of(column), TEST_CFG);
+            assertTrue("DEFAULT has no value for " + type, materialized.fillAliases().isEmpty());
+            assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+        }
+    }
+
+    public void testStringFillLeavesTypesThatCannotTakeItUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            List<String> values = new ArrayList<>(List.of("POINT(1 2)", "0", "{}"));
+            // A string that is valid for the type, so that it is the type that refuses it and not a value that does not parse.
+            values.addAll(VALID_STRINGS.getOrDefault(type, List.of()));
+            for (String value : values) {
+                FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), keyword(value), List.of(column));
+                FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
+                assertTrue("[" + value + "] is not converted into " + type, materialized.fillAliases().isEmpty());
+                assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+            }
+        }
+    }
+
+    public void testNumericFillLeavesTypesThatCannotTakeItUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            List<Literal> fills = List.of(
+                new Literal(Source.EMPTY, 0, DataType.INTEGER),
+                new Literal(Source.EMPTY, 0L, DataType.LONG),
+                new Literal(Source.EMPTY, 0.0, DataType.DOUBLE)
+            );
+            for (Literal fill : fills) {
+                FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), fill, List.of(column));
+                FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
+                assertTrue(fill + " is not converted into " + type, materialized.fillAliases().isEmpty());
+                assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+            }
+        }
     }
 
     public void testOutputKeepsTheChildIdsAndTurnsFilledColumnsIntoReferences() {

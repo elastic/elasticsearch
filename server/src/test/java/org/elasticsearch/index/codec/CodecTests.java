@@ -59,11 +59,23 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
+
+    public void testCodecUniqueness() {
+        Map<String, Codec> codecs = new HashMap<>();
+        for (var it = ServiceLoader.load(Codec.class, null).iterator(); it.hasNext();) {
+            Codec codec = it.next();
+            Codec existing;
+            if ((existing = codecs.putIfAbsent(codec.getName(), codec)) != null) {
+                fail("Codecs " + codec.getClass() + " and " + existing.getClass() + " have the same name: " + codec.getName());
+            }
+        }
+    }
 
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();

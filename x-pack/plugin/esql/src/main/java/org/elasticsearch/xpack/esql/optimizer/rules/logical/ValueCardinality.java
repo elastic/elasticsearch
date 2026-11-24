@@ -71,7 +71,7 @@ enum ValueCardinality {
      * <p>
      * There are a few exceptions: an {@code EVAL} or {@code ROW} field can read an earlier field of the same node, so pass the node
      * itself. On a plan that is not optimized, an aggregate can read a grouping of the same {@code STATS}, as in
-     * {@code STATS COUNT(k) BY k = x}, so pass an optimized plan.
+     * {@code STATS COUNT(k) BY k = x}, so pass the child of the {@code STATS} in an optimized plan.
      */
     static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
         // Each step has at most one next step, so the walk needs no stack and no depth limit. It ends,

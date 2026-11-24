@@ -11,11 +11,12 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * A join whose right side is a separate query. That query runs on its own, before the main query, and only its result reaches the
- * join. None of its sources, aggregations, limits, sorts or fields feed the main query's rows, so plan walks that reason about the
- * main query must not descend into it. The right side is always child {@link #SUBQUERY_CHILD_INDEX}.
+ * join. Its sources, aggregations, limits and sorts do not apply to the main query, which sees only that result, so plan walks that
+ * reason about the main query must not descend into it. The right side is always child {@link #SUBQUERY_CHILD_INDEX}.
  */
 public interface IndependentSubqueryJoin {
 
@@ -40,5 +41,20 @@ public interface IndependentSubqueryJoin {
      */
     static boolean isSubqueryBranch(LogicalPlan parent, int childIndex) {
         return parent instanceof IndependentSubqueryJoin && parent instanceof BinaryPlan && childIndex == SUBQUERY_CHILD_INDEX;
+    }
+
+    /**
+     * Like {@code Node#anyMatch}, but does not descend into the right side of an {@link IndependentSubqueryJoin}.
+     */
+    static boolean anyMatchInMainScope(LogicalPlan plan, Predicate<? super LogicalPlan> predicate) {
+        if (predicate.test(plan)) {
+            return true;
+        }
+        for (LogicalPlan child : mainScopeChildren(plan)) {
+            if (anyMatchInMainScope(child, predicate)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

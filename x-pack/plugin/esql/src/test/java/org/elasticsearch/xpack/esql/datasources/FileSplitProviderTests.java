@@ -5691,13 +5691,12 @@ public class FileSplitProviderTests extends ESTestCase {
                     public int read() throws IOException {
                         throw new IOException("connection reset");
                     }
-                };
-            }
 
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                abortCalls.incrementAndGet();
-                stream.close();
+                    @Override
+                    public void close() {
+                        abortCalls.incrementAndGet();
+                    }
+                };
             }
 
             @Override

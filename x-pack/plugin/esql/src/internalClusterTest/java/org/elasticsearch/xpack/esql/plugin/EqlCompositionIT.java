@@ -236,6 +236,38 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testUnionWithAnEqlSequenceStaysWithinTheDefaultSize() {
+        String pairs = "eql_pairs";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(pairs)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.max_result_window", 24))
+                .setMapping("@timestamp", "type=date", "event.category", "type=keyword", "pid", "type=long")
+        );
+        var bulk = client().prepareBulk();
+        for (int pair = 1; pair <= 16; pair++) {
+            bulk.add(
+                new IndexRequest(pairs).id("p" + pair)
+                    .source("@timestamp", 1_000L * (2 * pair - 1), "event.category", "process", "pid", pair)
+            );
+            bulk.add(
+                new IndexRequest(pairs).id("n" + pair).source("@timestamp", 1_000L * (2 * pair), "event.category", "network", "pid", pair)
+            );
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        String union = "FROM "
+            + pairs
+            + ", (EQL "
+            + pairs
+            + " \"sequence by pid [process where true] [network where true]\" WITH {\"fetch_size\": 20})"
+            + " | STATS c = COUNT(*)";
+        try (EsqlQueryResponse resp = run(union)) {
+            assertEquals(List.of(List.of(32L + 20L)), getValuesList(resp));
+        }
+    }
+
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final String EQL_VIEW = "eql_process_view";
     private static final String EQL_SEQUENCE_VIEW = "eql_sequence_view";
@@ -329,20 +361,22 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    public void testRequestFilterOnEqlViewAppliesAfterTheTruncationCap() {
-        createEqlView();
+    public void testRequestFilterOnEqlViewAppliesAfterTheEqlResultSize() {
+        createView(EQL_VIEW, "EQL " + INDEX + " \"process where true\" WITH {\"size\": 1}");
         QueryBuilder beforeLastEvent = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:01Z");
-        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
-        try {
-            assertProcessNames(
-                "EQL " + INDEX + " \"process where true\" | WHERE process.pid > 0 | KEEP process.name",
-                beforeLastEvent,
-                List.of("cmd.exe")
-            );
-            assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", beforeLastEvent, List.of());
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
-        }
+        assertProcessNames(
+            "EQL " + INDEX + " \"process where true\" WITH {\"size\": 1} | KEEP process.name",
+            beforeLastEvent,
+            List.of("cmd.exe")
+        );
+        assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", beforeLastEvent, List.of());
+    }
+
+    public void testHeadLimitOnEqlViewAppliesAfterTheRequestFilter() {
+        createView(EQL_VIEW, "EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"}");
+        String query = "FROM " + EQL_VIEW + " | LIMIT 1 | KEEP process.name";
+        assertProcessNames(query, new MatchAllQueryBuilder(), List.of("cmd.exe"));
+        assertProcessNames(query, AFTER_FIRST_EVENT, List.of("powershell.exe"));
     }
 
     public void testRequestFilterOnEqlSequenceViewKeepsPartialMatch() {

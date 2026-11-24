@@ -33,6 +33,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Mapper for the {@code _ts_routing_hash} field.
@@ -150,7 +151,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType TS_ROUTING_HASH_DV_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // Support only the modern path where the routing hash is coordinator-computed and stored
         // in IndexRequest#routing() (i.e. on or after TIME_SERIES_ROUTING_HASH_IN_ID). Older
         // indices reconstruct the hash from the id, which is not yet derived on the columnar path.

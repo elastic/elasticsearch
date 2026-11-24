@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,6 +32,14 @@ import java.util.TreeMap;
 public final class NestedScopeField extends EsField {
     public static final String NAMESPACE = "$$nested_scope";
     public static final String PREFIX = NAMESPACE + ".";
+
+    /**
+     * Whether {@code attribute} reads a child of a nested object. Inside {@code NESTED_ANY} such an attribute, and a cast of it,
+     * carries the name of the private schema attribute it reads as its parent name, which is where this finds the prefix.
+     */
+    public static boolean readsChild(FieldAttribute attribute) {
+        return attribute.parentName() != null && attribute.parentName().startsWith(PREFIX);
+    }
 
     /**
      * How a field in this namespace relates to the nested collection that owns its documents. Ordinary resolution, scope

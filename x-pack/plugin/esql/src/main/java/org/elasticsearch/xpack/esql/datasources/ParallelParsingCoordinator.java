@@ -903,7 +903,7 @@ public final class ParallelParsingCoordinator {
          * Live file-level GETs. Key is the inner {@code newStream()} instance (not the unregister
          * filter the reader holds) so provider abort (S3 {@code Abortable}) still matches. Value is
          * always the iterator's file-level {@code storageObject}, never the range view — storing
-         * {@code this} would re-enter {@link RegisteringRangeStorageObject#abortStream}.
+         * {@code this} would re-enter the range wrapper's close.
          */
         private final ConcurrentMap<InputStream, StorageObject> liveStreams = new ConcurrentHashMap<>();
         /** Counts segments still running. Reaches 0 when every worker has finished (success or failure). */
@@ -1346,6 +1346,11 @@ public final class ParallelParsingCoordinator {
             // Abort leftover GETs before waiting for workers. Skip on a clean drain — those streams
             // already unregistered from close(). Otherwise LIMIT/cancel sits on allDone.await(60s).
             if (cleanCompletion == false) {
+                try {
+                    storageObject.close();
+                } catch (IOException e) {
+                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                }
                 abortLiveStreams();
             }
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
@@ -1419,9 +1424,8 @@ public final class ParallelParsingCoordinator {
         }
 
         private void abortRegistered(InputStream inner) throws IOException {
-            StorageObject owner = liveStreams.remove(inner);
-            if (owner != null) {
-                owner.abortStream(inner);
+            if (liveStreams.remove(inner) != null) {
+                inner.close();
             }
         }
 
@@ -1442,15 +1446,6 @@ public final class ParallelParsingCoordinator {
             @Override
             public InputStream newStream(long position, long rangeLength) throws IOException {
                 return registerLiveStream(super.newStream(position, rangeLength));
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                if (stream instanceof LiveStream live) {
-                    abortRegistered(live.inner());
-                    return;
-                }
-                super.abortStream(stream);
             }
 
             @Override

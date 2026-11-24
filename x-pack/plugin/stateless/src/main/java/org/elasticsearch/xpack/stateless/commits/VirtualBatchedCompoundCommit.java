@@ -195,7 +195,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.bccBlob = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.bccBlob = new BccBlob(primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;

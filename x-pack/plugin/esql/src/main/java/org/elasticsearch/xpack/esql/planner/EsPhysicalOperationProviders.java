@@ -620,7 +620,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
-        int taskConcurrency = context.queryPragmas().taskConcurrency();
+        int taskConcurrency = context.queryPragmas().taskConcurrency(context.settings());
         if (context.timeSeries()) {
             // Time-series aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
             taskConcurrency = Math.min(taskConcurrency, Math.max(EsExecutors.allocatedProcessors(context.settings()), 2));
@@ -851,7 +851,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             queryFunction,
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             LuceneOperator.SMALL_INDEX_BOUNDARY,
-            context.queryPragmas().taskConcurrency(),
+            context.queryPragmas().taskConcurrency(context.settings()),
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
             directoryBytesRead,
@@ -943,6 +943,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /** The context this shard resolves field names with. */
         public SearchExecutionContext executionContext() {
             return ctx;
+        }
+
+        /**
+         * Whether queries on this shard are restricted by an index alias filter. The filter is added when a query is built, so the
+         * segments of {@link #executionContext()} still hold the documents it hides.
+         */
+        public boolean hasAliasFilter() {
+            return aliasFilter != AliasFilter.EMPTY;
         }
 
         /** Whether this shard reads the field {@code name} from {@code _source}, as it maps no field and keeps no key of that name. */

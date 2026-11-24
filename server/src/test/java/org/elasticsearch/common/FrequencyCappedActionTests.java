@@ -12,6 +12,8 @@ package org.elasticsearch.common;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -48,5 +50,44 @@ public class FrequencyCappedActionTests extends ESTestCase {
         currentTime.addAndGet(randomLongBetween(minInterval.millis(), Long.MAX_VALUE));
         action.maybeExecute(executions::incrementAndGet);
         assertThat(executions.get(), equalTo(2L));
+    }
+
+    public void testMinIntervalFromConstructor() {
+        var executions = new AtomicLong(0);
+        var currentTime = new AtomicLong();
+        var minInterval = TimeValue.timeValueMinutes(1);
+        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO, minInterval);
+
+        action.maybeExecute(executions::incrementAndGet);
+        assertThat(executions.get(), equalTo(1L));
+
+        currentTime.set(minInterval.millis() - 1);
+        action.maybeExecute(executions::incrementAndGet);
+        assertThat(executions.get(), equalTo(1L));
+
+        currentTime.set(minInterval.millis());
+        action.maybeExecute(executions::incrementAndGet);
+        assertThat(executions.get(), equalTo(2L));
+    }
+
+    public void testConcurrentCallersExecuteOncePerInterval() {
+        final int threads = between(2, 10);
+        var executions = new AtomicLong(0);
+        var currentTime = new AtomicLong();
+        var barrier = new CyclicBarrier(threads);
+        // The interval is only read once a caller has found the action to be due, so blocking here makes every caller pass the due
+        // check before any of them can claim the execution
+        var minInterval = new TimeValue(1, TimeUnit.MINUTES) {
+            @Override
+            public long millis() {
+                safeAwait(barrier);
+                return super.millis();
+            }
+        };
+        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO, minInterval);
+
+        startInParallel(threads, i -> action.maybeExecute(executions::incrementAndGet));
+
+        assertThat(executions.get(), equalTo(1L));
     }
 }

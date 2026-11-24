@@ -3799,26 +3799,18 @@ public class EsqlSession {
         ProjectMetadata project,
         ActionListener<LogicalPlan> listener
     ) {
-        if (parsed.anyMatch(Into.class::isInstance) == false) {
+        if (parsed.noneMatch(Into.class::isInstance)) {
             listener.onResponse(parsed);
             return;
         }
+        // The parser and the verifier allow at most one INTO, as the last command
         LogicalPlan resolved = parsed.transformDown(
             Into.class,
-            into -> new Into(
-                into.source(),
-                into.child(),
-                IndexNameExpressionResolver.resolveDateMathExpression(into.destination()),
-                into.output()
-            )
+            into -> into.withDestination(IndexNameExpressionResolver.resolveDateMathExpression(into.destination()))
         );
-        SubscribableListener<Void> chain = SubscribableListener.newSucceeded(null);
-        for (Into into : resolved.collect(Into.class)) {
-            String target = into.destination();
-            boolean exists = project.getIndicesLookup().containsKey(target);
-            chain = chain.andThen(l -> authorizer.authorize(target, exists, l));
-        }
-        chain.addListener(listener.map(ignored -> resolved));
+        String target = resolved.collect(Into.class).getFirst().destination();
+        boolean exists = project.getIndicesLookup().containsKey(target);
+        authorizer.authorize(target, exists, listener.map(ignored -> resolved));
     }
 
     /**

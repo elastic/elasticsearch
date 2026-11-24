@@ -1,4 +1,3 @@
-# Roles for EsqlSecurityIntoIT, kept apart from roles.yml so that suite and its cluster are untouched.
 test-admin:
   cluster:
     - all
@@ -8,7 +7,6 @@ test-admin:
   run_as:
     - '*'
 
-# Holds read on the destination but cannot write to it
 into_read_only:
   cluster:
     - cluster:monitor/main

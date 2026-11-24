@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.into;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -45,8 +46,6 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
     // The action a bulk is denied on when it has to create the missing index
     private static final String AUTO_CREATE_ACTION = "indices:admin/auto_create";
 
-    /** Asks security which of the requested privileges the caller holds. */
-    @FunctionalInterface
     public interface PrivilegeChecker {
         void check(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener);
     }
@@ -56,11 +55,9 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
     private final Executor executor;
 
     /**
-     * @param principal the user the request runs as, or {@code null} when there is none
-     * @param checker   how privileges are asked for
-     * @param executor  where the decision is delivered. The reply arrives on whichever thread security answers on, and planning
-     *                  continues from the decision, so it has to be moved to the thread pool planning expects. The move is forced,
-     *                  as the caller was on that pool already.
+     * @param principal supplies the name of the authenticated user, or {@code null} if the request has no authentication, in which
+     *                  case {@link #authorize} fails with an {@link IllegalStateException}
+     * @param executor  where the decision is delivered
      */
     public HasPrivilegesIntoDestinationAuthorizer(Supplier<String> principal, PrivilegeChecker checker, Executor executor) {
         this.principal = principal;
@@ -70,12 +67,12 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
 
     @Override
     public void authorize(String destination, boolean destinationExists, ActionListener<Void> listener) {
-        if (isConcreteName(destination) == false) {
-            // Security would read the name as a pattern, and so authorize something other than the one index the write targets.
-            // This is about the name alone, so it says nothing about any destination.
-            listener.onFailure(
-                new ElasticsearchStatusException("INTO destination [{}] is not a concrete index name", RestStatus.BAD_REQUEST, destination)
-            );
+        try {
+            // Security would read a pattern as more than the one index the write targets. This is about the name alone, so it says
+            // nothing about any destination.
+            MetadataCreateIndexService.validateIndexOrAliasName(destination, InvalidIndexNameException::new);
+        } catch (InvalidIndexNameException e) {
+            listener.onFailure(e);
             return;
         }
         String user = principal.get();
@@ -93,6 +90,8 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
                 .privileges(destinationExists ? new String[] { WRITE } : new String[] { WRITE, CREATE_INDEX, AUTO_CONFIGURE })
                 .build()
         );
+        // The reply arrives on whichever thread security answers on, and planning continues from the decision, so it is moved to the
+        // thread pool planning expects. The move is forced, as the caller was on that pool already.
         ActionListener<HasPrivilegesResponse> onDecision = new ThreadedActionListener<>(
             executor,
             true,
@@ -101,34 +100,19 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
                 if (deniedAction == null) {
                     l.onResponse(null);
                 } else {
-                    l.onFailure(
-                        Exceptions.authorizationError(
-                            "action [{}] is unauthorized for user [{}] on indices [{}]",
-                            deniedAction,
-                            user,
-                            destination
-                        )
-                    );
+                    l.onFailure(denial(deniedAction, user, destination));
                 }
             })
         );
         checker.check(request, onDecision);
     }
 
-    /**
-     * Whether the name is one that security reads literally: not a wildcard, not a regular expression ({@code /.../}), not an exclusion, not a list,
-     * and without a remote or selector part.
-     */
-    private static boolean isConcreteName(String name) {
-        return name.isEmpty() == false
-            && name.charAt(0) != '/'
-            && name.charAt(0) != '-'
-            && name.indexOf(',') < 0
-            && name.indexOf(':') < 0
-            && Regex.isSimpleMatchPattern(name) == false;
+    private static ElasticsearchSecurityException denial(String action, String user, String destination) {
+        return Exceptions.authorizationError("action [{}] is unauthorized for user [{}] on indices [{}]", action, user, destination);
     }
 
     /** The action to report as denied, or {@code null} when the caller may write. */
+    @Nullable
     private static String deniedAction(HasPrivilegesResponse response, String destination, boolean destinationExists) {
         for (ResourcePrivileges resource : response.getIndexPrivileges()) {
             if (resource.getResource().equals(destination) == false) {

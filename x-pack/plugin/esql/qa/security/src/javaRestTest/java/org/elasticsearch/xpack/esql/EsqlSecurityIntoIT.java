@@ -20,6 +20,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -48,6 +49,14 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         .user("into_writer_user", "x-pack-test-password", "into_writer", false)
         .build();
 
+    @Before
+    public void requiresSnapshot() {
+        assumeTrue(
+            "INTO needs a snapshot build",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName()))
+        );
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
@@ -60,14 +69,10 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     }
 
     /**
-     * A ROW source needs no index privilege, so before the destination was authorized any caller could probe a destination with
-     * {@code ROW | INTO}. A caller who may only read it must be denied, and the denial must not tell an existing destination from a
-     * missing one. Read access to the destination does not count, since {@code INTO} only writes. The existing destination has an
-     * ingest pipeline, which INTO refuses for a writer, so a denied caller who is told about that has been told about the
-     * destination.
+     * A ROW source needs no index privilege, so INTO authorizes the destination itself: a read-only caller gets a 403 that is the
+     * same for an existing and a missing destination.
      */
     public void testDestinationDeniedWithoutWriteAccess() throws IOException {
-        assumeIntoSupported();
         createDestinationWithPipeline();
 
         ResponseException existing = expectThrows(ResponseException.class, () -> into("into_read_only_user", "into-existing"));
@@ -86,7 +91,6 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
      * them: that the pipeline of the destination cannot be used. A missing destination that the writer may create is written.
      */
     public void testWriterWithoutReadAccessIsAuthorized() throws IOException {
-        assumeIntoSupported();
         createDestinationWithPipeline();
 
         ResponseException refusal = expectThrows(ResponseException.class, () -> into("into_writer_user", "into-existing"));
@@ -97,13 +101,6 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         assertThat(into("into_writer_user", "into-missing").getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    private void assumeIntoSupported() throws IOException {
-        assumeTrue(
-            "INTO needs a snapshot build",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName()))
-        );
-    }
-
     private void createDestinationWithPipeline() throws IOException {
         Request pipeline = new Request("PUT", "_ingest/pipeline/into-pipeline");
         pipeline.setJsonEntity("{\"processors\": []}");
@@ -111,10 +108,9 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         createIndex(adminClient(), "into-existing", Settings.builder().put("index.default_pipeline", "into-pipeline").build());
     }
 
-    /** The LIMIT keeps the query from getting one appended after the INTO, which must be the last command. */
     private Response into(String user, String destination) throws IOException {
         Request request = new Request("POST", "_query");
-        request.setJsonEntity("{\"query\": \"ROW x = 1 | LIMIT 1 | INTO " + destination + "\"}");
+        request.setJsonEntity("{\"query\": \"ROW x = 1 | INTO " + destination + "\"}");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
         request.addParameter("error_trace", "true");
         return client().performRequest(request);

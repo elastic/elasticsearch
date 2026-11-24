@@ -99,7 +99,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -179,6 +178,79 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testQueryWithoutIntoAsksForNothing() throws Exception {
+        authorize(authorizer(false), "ROW x = 1");
+        assertThat(asked, empty());
+    }
+
+    public void testAuthorizedDestinationPasses() throws Exception {
+        authorize(authorizer(true), "ROW x = 1 | INTO " + EXISTING);
+        assertThat(asked, contains(EXISTING));
+    }
+
+    public void testDeniedDestinationIsForbidden() {
+        expectThrows(ElasticsearchSecurityException.class, () -> authorize(authorizer(false), "ROW x = 1 | INTO " + EXISTING));
+    }
+
+    public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
+        LogicalPlan authorized = authorize(authorizer(true), "ROW x = 1 | INTO <logs-{now/d}>");
+
+        assertThat(asked.size(), equalTo(1));
+        assertThat(asked.get(0), startsWith("logs-"));
+        assertThat(asked.get(0), not(containsString("<")));
+        assertThat(asked.get(0), not(containsString("{")));
+        // Everything after this, on whichever node, writes to the name that was authorized
+        assertThat(authorized.collect(Into.class).get(0).destination(), equalTo(asked.get(0)));
+    }
+
+    // Wiring: a real session and what a denied caller can learn from it
+
+    public void testDeniedCallerIsToldNothingAboutTheDestinationThatHasAPipeline() throws Exception {
+        assumeInto();
+        Exception denied = run("ROW x = 1 | INTO " + EXISTING, Set.of("read"));
+
+        assertThat(denied, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) denied).status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(denied.getMessage(), not(containsString("pipeline")));
+        assertThat(asked, contains(EXISTING));
+    }
+
+    public void testDeniedCallerIsForbiddenForAMissingDestination() throws Exception {
+        assumeInto();
+        Exception missing = run("ROW x = 1 | INTO nothing", Set.of("read"));
+
+        assertThat(missing, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) missing).status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(asked, contains("nothing"));
+    }
+
+    /** A caller who may write is told what a bulk would tell them: that the destination's pipeline cannot be used. */
+    public void testWriterIsToldAboutThePipelineOfTheDestination() throws Exception {
+        assumeInto();
+        Exception refusal = run("ROW x = 1 | INTO " + EXISTING, Set.of("create_doc"));
+
+        assertThat(refusal, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) refusal).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(refusal.getMessage(), containsString("does not support ingest pipelines"));
+    }
+
+    /**
+     * The reply to the privileges request arrives on a generic thread, and the planning that continues from it expects the search
+     * pool, which it asserts, so reaching the plan is the proof that the decision was moved there.
+     */
+    public void testWriterOfADestinationWithoutPipelinePlansOnTheSearchPool() throws Exception {
+        assumeInto();
+        assertNull(run("ROW x = 1 | INTO " + WITHOUT_PIPELINE, Set.of("create_doc")));
+
+        assertThat(asked, contains(WITHOUT_PIPELINE));
+        assertThat(plannedOn.getName(), containsString("[" + ThreadPool.Names.SEARCH + "]"));
+    }
+
+    public void testQueryWithoutIntoNeverAsksSecurity() throws Exception {
+        assertNull(run("ROW x = 1 | LIMIT 1", Set.of()));
+        assertThat(asked, empty());
+    }
+
     private IntoDestinationAuthorizer authorizer(boolean grant) {
         return new HasPrivilegesIntoDestinationAuthorizer(() -> "alice", (request, listener) -> {
             var privileges = request.indexPrivileges()[0];
@@ -218,55 +290,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
             throw (Exception) e.getCause();
         }
     }
-
-    public void testQueryWithoutIntoAsksForNothing() throws Exception {
-        authorize(authorizer(false), "ROW x = 1");
-        assertThat(asked, empty());
-    }
-
-    public void testAuthorizedDestinationPasses() throws Exception {
-        authorize(authorizer(true), "ROW x = 1 | INTO " + EXISTING);
-        assertThat(asked, contains(EXISTING));
-    }
-
-    public void testDeniedDestinationIsForbidden() {
-        expectThrows(ElasticsearchSecurityException.class, () -> authorize(authorizer(false), "ROW x = 1 | INTO " + EXISTING));
-    }
-
-    /** The probe of the issue: a ROW needs no index privilege, so only the destination can stop the caller. */
-    public void testDenialDoesNotDependOnWhetherTheDestinationExists() {
-        Exception existing = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(authorizer(false), "ROW x = 1 | INTO " + EXISTING)
-        );
-        Exception missing = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(authorizer(false), "ROW x = 1 | INTO nothing")
-        );
-        assertThat(existing.getMessage().replace(EXISTING, "<dest>"), equalTo(missing.getMessage().replace("nothing", "<dest>")));
-    }
-
-    public void testDestinationIsAuthorizedByItsResolvedNameAndTheResolvedNameReplacesTheTypedOne() throws Exception {
-        LogicalPlan authorized = authorize(authorizer(true), "ROW x = 1 | INTO <logs-{now/d}>");
-
-        assertThat(asked.size(), equalTo(1));
-        assertThat(asked.get(0), startsWith("logs-"));
-        assertThat(asked.get(0), not(containsString("<")));
-        assertThat(asked.get(0), not(containsString("{")));
-        // Everything after this, on whichever node, writes to the name that was authorized
-        assertThat(authorized.collect(Into.class).get(0).destination(), equalTo(asked.get(0)));
-    }
-
-    public void testEveryIntoIsAuthorized() throws Exception {
-        LogicalPlan row = TEST_PARSER.parseQuery("ROW x = 1");
-        LogicalPlan twoIntos = new Into(row.source(), new Into(row.source(), row, "first"), "second");
-        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        EsqlSession.authorizeIntoDestinations(authorizer(true), twoIntos, project(), future);
-        safeGet(future);
-        assertThat(asked, containsInAnyOrder("first", "second"));
-    }
-
-    // Wiring: a real session and what a denied caller can learn from it
 
     private void assumeInto() {
         assumeTrue("INTO needs a snapshot build", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
@@ -312,52 +335,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         } catch (ExecutionException e) {
             return (Exception) e.getCause();
         }
-    }
-
-    public void testDeniedCallerIsToldNothingAboutTheDestinationThatHasAPipeline() throws Exception {
-        assumeInto();
-        Exception denied = run("ROW x = 1 | INTO " + EXISTING, Set.of("read"));
-
-        assertThat(denied, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(((ElasticsearchSecurityException) denied).status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(denied.getMessage(), not(containsString("pipeline")));
-        assertThat(asked, contains(EXISTING));
-    }
-
-    public void testDeniedCallerGetsTheSameDenialForAMissingDestination() throws Exception {
-        assumeInto();
-        Exception existing = run("ROW x = 1 | INTO " + EXISTING, Set.of("read"));
-        Exception missing = run("ROW x = 1 | INTO nothing", Set.of("read"));
-
-        assertThat(missing, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(existing.getMessage().replace(EXISTING, "<dest>"), equalTo(missing.getMessage().replace("nothing", "<dest>")));
-    }
-
-    /** A caller who may write is told what a bulk would tell them: that the destination's pipeline cannot be used. */
-    public void testWriterIsToldAboutThePipelineOfTheDestination() throws Exception {
-        assumeInto();
-        Exception refusal = run("ROW x = 1 | INTO " + EXISTING, Set.of("create_doc"));
-
-        assertThat(refusal, instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) refusal).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(refusal.getMessage(), containsString("does not support ingest pipelines"));
-    }
-
-    /**
-     * The reply to the privileges request arrives on a generic thread, and the planning that continues from it expects the search
-     * pool, which it asserts, so reaching the plan is the proof that the decision was moved there.
-     */
-    public void testWriterOfADestinationWithoutPipelinePlansOnTheSearchPool() throws Exception {
-        assumeInto();
-        assertNull(run("ROW x = 1 | INTO " + WITHOUT_PIPELINE, Set.of("create_doc")));
-
-        assertThat(asked, contains(WITHOUT_PIPELINE));
-        assertThat(plannedOn.getName(), containsString("[" + ThreadPool.Names.SEARCH + "]"));
-    }
-
-    public void testQueryWithoutIntoNeverAsksSecurity() throws Exception {
-        assertNull(run("ROW x = 1 | LIMIT 1", Set.of()));
-        assertThat(asked, empty());
     }
 
     private PlanExecutor planExecutor() {

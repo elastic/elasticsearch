@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -44,62 +45,6 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
     private static final String USER = "alice";
     private static final String CREATE_DOCUMENT_ACTION = "indices:data/write/index:op_type/create";
     private static final String AUTO_CREATE_ACTION = "indices:admin/auto_create";
-
-    /** Records the requests it receives and grants exactly the privileges it was given. */
-    private static final class FakeChecker implements HasPrivilegesIntoDestinationAuthorizer.PrivilegeChecker {
-        final List<HasPrivilegesRequest> requests = new ArrayList<>();
-        private final Set<String> granted;
-        private final Exception failure;
-
-        FakeChecker(String... granted) {
-            this.granted = Set.of(granted);
-            this.failure = null;
-        }
-
-        FakeChecker(Exception failure) {
-            this.granted = Set.of();
-            this.failure = failure;
-        }
-
-        @Override
-        public void check(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
-            requests.add(request);
-            if (failure != null) {
-                listener.onFailure(failure);
-                return;
-            }
-            var privileges = request.indexPrivileges()[0];
-            ResourcePrivileges.Builder resource = ResourcePrivileges.builder(privileges.getIndices()[0]);
-            for (String privilege : privileges.getPrivileges()) {
-                resource.addPrivilege(privilege, granted.contains(privilege));
-            }
-            boolean all = granted.containsAll(List.of(privileges.getPrivileges()));
-            listener.onResponse(new HasPrivilegesResponse(USER, all, Map.of(), List.of(resource.build()), Map.of()));
-        }
-    }
-
-    private static IntoDestinationAuthorizer authorizer(HasPrivilegesIntoDestinationAuthorizer.PrivilegeChecker checker) {
-        return new HasPrivilegesIntoDestinationAuthorizer(() -> USER, checker, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-    }
-
-    private static Exception authorize(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizer.authorize(destination, exists, future);
-        ExecutionException e = expectThrows(ExecutionException.class, future::get);
-        return (Exception) e.getCause();
-    }
-
-    private static void authorizeSucceeds(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizer.authorize(destination, exists, future);
-        safeGet(future);
-    }
-
-    private static void assertForbidden(Exception e, String action) {
-        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(((ElasticsearchSecurityException) e).status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), containsString("action [" + action + "] is unauthorized for user [" + USER + "]"));
-    }
 
     public void testAllowAllPassesWithoutAskingAnything() {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -190,8 +135,8 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         for (String name : List.of("/.*/", "/dest/", "dest*", "*", "-dest", "a,b", "remote:dest", "")) {
             FakeChecker checker = new FakeChecker("create_doc", "create_index", "auto_configure");
             Exception e = authorize(authorizer(checker), name, randomBoolean());
-            assertThat(name, e, instanceOf(ElasticsearchStatusException.class));
-            assertThat(name, ((ElasticsearchStatusException) e).status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(name, e, instanceOf(InvalidIndexNameException.class));
+            assertThat(name, ((InvalidIndexNameException) e).status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(name, checker.requests, empty());
         }
     }
@@ -222,5 +167,62 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /** Records the requests it receives and grants exactly the privileges it was given. */
+    private static final class FakeChecker implements HasPrivilegesIntoDestinationAuthorizer.PrivilegeChecker {
+        final List<HasPrivilegesRequest> requests = new ArrayList<>();
+        private final Set<String> granted;
+        @Nullable
+        private final Exception failure;
+
+        FakeChecker(String... granted) {
+            this.granted = Set.of(granted);
+            this.failure = null;
+        }
+
+        FakeChecker(Exception failure) {
+            this.granted = Set.of();
+            this.failure = failure;
+        }
+
+        @Override
+        public void check(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
+            requests.add(request);
+            if (failure != null) {
+                listener.onFailure(failure);
+                return;
+            }
+            var privileges = request.indexPrivileges()[0];
+            ResourcePrivileges.Builder resource = ResourcePrivileges.builder(privileges.getIndices()[0]);
+            for (String privilege : privileges.getPrivileges()) {
+                resource.addPrivilege(privilege, granted.contains(privilege));
+            }
+            boolean all = granted.containsAll(List.of(privileges.getPrivileges()));
+            listener.onResponse(new HasPrivilegesResponse(USER, all, Map.of(), List.of(resource.build()), Map.of()));
+        }
+    }
+
+    private static IntoDestinationAuthorizer authorizer(HasPrivilegesIntoDestinationAuthorizer.PrivilegeChecker checker) {
+        return new HasPrivilegesIntoDestinationAuthorizer(() -> USER, checker, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
+    private static Exception authorize(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        authorizer.authorize(destination, exists, future);
+        ExecutionException e = expectThrows(ExecutionException.class, future::get);
+        return (Exception) e.getCause();
+    }
+
+    private static void authorizeSucceeds(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        authorizer.authorize(destination, exists, future);
+        safeGet(future);
+    }
+
+    private static void assertForbidden(Exception e, String action) {
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(((ElasticsearchSecurityException) e).status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString("action [" + action + "] is unauthorized for user [" + USER + "]"));
     }
 }

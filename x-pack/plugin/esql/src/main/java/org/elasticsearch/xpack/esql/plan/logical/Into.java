@@ -107,6 +107,10 @@ public class Into extends UnaryPlan
         return true;
     }
 
+    public Into withDestination(String newDestination) {
+        return new Into(source(), child(), newDestination, output);
+    }
+
     @Override
     public Into replaceChild(LogicalPlan newChild) {
         return new Into(source(), newChild, destination, output);

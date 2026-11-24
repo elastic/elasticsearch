@@ -26,18 +26,15 @@ import java.util.concurrent.Executor;
  * privilege that would stop the caller first. Without this step a caller who may not write could learn about a destination (whether
  * it exists, its ingest pipeline, its routing) from the errors.
  */
-@FunctionalInterface
 public interface IntoDestinationAuthorizer {
 
     /**
-     * Completes with {@code null} when the caller may write to {@code destination}, and fails with a 403 otherwise.
+     * Fails with a 403 if the caller may not write to {@code destination}.
      *
-     * @param destination       the concrete name the write goes to, with date math already resolved
-     * @param destinationExists whether the destination exists now. A missing one has to be created by the write, which needs more.
+     * @param destination the concrete name the write goes to, with date math already resolved
      */
     void authorize(String destination, boolean destinationExists, ActionListener<Void> listener);
 
-    /** Passes every destination, for a node where security is not in effect. */
     static IntoDestinationAuthorizer allowAll() {
         return (destination, destinationExists, listener) -> listener.onResponse(null);
     }
@@ -63,10 +60,9 @@ public interface IntoDestinationAuthorizer {
             ),
             executor
         );
-        IntoDestinationAuthorizer unsecured = allowAll();
         return (destination, destinationExists, listener) -> {
             boolean securityInEffect = transportService.getRequestHandler(HasPrivilegesAction.NAME) != null;
-            (securityInEffect ? secured : unsecured).authorize(destination, destinationExists, listener);
+            (securityInEffect ? secured : allowAll()).authorize(destination, destinationExists, listener);
         };
     }
 }

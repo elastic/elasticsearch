@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.into.IntoStats;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class IntoSerializationTests extends AbstractLogicalPlanSerializationTests<Into> {
     @Override
     protected Into createTestInstance() {
@@ -37,5 +39,14 @@ public class IntoSerializationTests extends AbstractLogicalPlanSerializationTest
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    public void testWithDestinationKeepsEverythingElse() {
+        Into into = createTestInstance();
+        String destination = randomValueOtherThan(into.destination(), () -> randomAlphaOfLength(10));
+        Into renamed = into.withDestination(destination);
+        assertThat(renamed.destination(), equalTo(destination));
+        assertThat(renamed.child(), equalTo(into.child()));
+        assertThat(renamed.output(), equalTo(into.output()));
     }
 }

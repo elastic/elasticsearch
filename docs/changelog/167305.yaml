@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 167279
+pr: 167305
+summary: Expand dots when nested fields are mapped
+type: bug

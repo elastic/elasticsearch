@@ -151,3 +151,14 @@ setup:
             "query": { "kql": { "query": "integer_field:foo*", "case_insensitive": true } }
           }
   - match: { error.root_cause.0.type: "query_shard_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "foo*", "case_insensitive": true, "default_field": "integer_field" } }
+          }
+  - match: { error.root_cause.0.type: "query_shard_exception" }

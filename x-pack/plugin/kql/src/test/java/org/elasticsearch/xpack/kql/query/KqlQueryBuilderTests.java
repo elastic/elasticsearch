@@ -12,6 +12,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -187,10 +188,15 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        for (String defaultField : List.of("*", INT_FIELD_NAME, DOUBLE_FIELD_NAME)) {
+        // The * pattern makes query_string lenient, so the per-field clauses are lenient too
+        KqlQueryBuilder matchAllQuery = new KqlQueryBuilder("foo*").caseInsensitive(true).defaultField("*");
+        assertNotNull(rewriteQuery(matchAllQuery, queryRewriteContext, searchExecutionContext).toQuery(searchExecutionContext));
+
+        // An explicit default field keeps the index default, which is not lenient
+        for (String defaultField : List.of(INT_FIELD_NAME, DOUBLE_FIELD_NAME)) {
             KqlQueryBuilder kqlQuery = new KqlQueryBuilder("foo*").caseInsensitive(true).defaultField(defaultField);
             QueryBuilder rewrittenQuery = rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext);
-            assertNotNull(rewrittenQuery.toQuery(searchExecutionContext));
+            expectThrows(QueryShardException.class, () -> rewrittenQuery.toQuery(searchExecutionContext));
         }
     }
 

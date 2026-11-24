@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.QueryParserHelper;
 
 import java.time.ZoneId;
 import java.util.HashSet;
@@ -96,6 +98,21 @@ public class KqlParsingContext {
         });
 
         return fieldNames;
+    }
+
+    /**
+     * Whether the default fields include the {@code *} pattern. A {@code query_string} query is lenient by default
+     * in that case, so clauses built per default field need to be lenient too to behave the same way.
+     */
+    public boolean defaultFieldsMatchAll() {
+        if (defaultField != null) {
+            return Regex.isMatchAllPattern(defaultField);
+        }
+
+        assert queryRewriteContext.getIndexSettings() != null;
+
+        List<String> defaultFields = queryRewriteContext.getIndexSettings().getDefaultFields();
+        return defaultFields.isEmpty() || QueryParserHelper.hasAllFieldsWildcard(defaultFields);
     }
 
     public MappedFieldType fieldType(String fieldName) {

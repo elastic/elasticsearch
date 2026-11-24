@@ -197,7 +197,10 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                 .filter(Predicate.not(kqlParsingContext::isRangeField)) // Range fields do not support case insensitive
                 .collect(Collectors.toSet());
 
-            withFields(searchFields, fieldQueryApplier(queryText, hasWildcard, false, true, boolQueryBuilder::should));
+            withFields(
+                searchFields,
+                fieldQueryApplier(queryText, hasWildcard, false, kqlParsingContext.defaultFieldsMatchAll(), boolQueryBuilder::should)
+            );
             return rewriteDisjunctionQuery(boolQueryBuilder);
         }
 

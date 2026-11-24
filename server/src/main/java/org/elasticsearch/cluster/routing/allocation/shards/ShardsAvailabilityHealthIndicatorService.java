@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -36,7 +39,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -499,6 +501,12 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             if (!primary.active() && getInactivePrimaryHealth(primary, localRecoveryRetriesForPrimary > 0) == ClusterHealthStatus.YELLOW) {
                 return true;
             }
+            // A target shard replica doesn't start serving search requests until the target shard is in the SPLIT state
+            IndexReshardingMetadata resharding = state.metadata().getProject(projectId).index(routing.index()).getReshardingMetadata();
+            if (IndexReshardingMetadata.isSplitTarget(routing.shardId(), resharding)
+                && resharding.getSplit().targetStateAtLeast(routing.id(), IndexReshardingState.Split.TargetShardState.SPLIT) == false) {
+                return true;
+            }
         }
         // If this shard is inactive for unexceptional events and within the allowed grace period (aka buffer time) then it is considered
         // provisionally inactive:
@@ -526,7 +534,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
         return localRecoveryRetriesHealthInfoByNode.getOrDefault(routing.currentNodeId(), LocalRecoveryRetriesHealthInfo.EMPTY)
             .localRetries()
-            .getOrDefault(RecoveryKey.of(routing), 0);
+            .getOrDefault(ShardAllocationId.fromRouting(routing), 0);
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {

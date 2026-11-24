@@ -28,11 +28,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -122,6 +124,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         } else if (child instanceof MvExpand mvExpand) {
             Attribute attribute = mvExpand.expanded();
             return maybePushDownPastUnary(filter, mvExpand, attribute::semanticEquals, NO_OP);
+        } else if (child instanceof NestedExpand expand) {
+            AttributeSet expanded = AttributeSet.of(expand.expanded());
+            return maybePushDownPastUnary(filter, expand, expanded::contains, NO_OP);
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;
@@ -218,9 +223,15 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Join(left, Filter(LocalRelation)) which the mapper does not know how to lower to a
             // HashJoinExec, and a LocalRelation has fixed in-memory data so the pushdown's I/O
             // motivation does not apply. The duplicate filter above the join already enforces the
-            // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
+            // predicate. The only producer today is AbstractInSubqueryJoin.inlineAsHashJoin's sentinel filter
             // (which is a no-op against the constant-TRUE sentinel column anyway).
-            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
+            // Nor do we push into the subquery of an IndependentSubqueryJoin: the subquery's own rules move the pushed filter below
+            // its projections, so the right side would never be recognized as already filtered, and the filter would be pushed again
+            // on every pass.
+            if (scoped.rightFilters.isEmpty() == false
+                && join instanceof InlineJoin == false
+                && join instanceof IndependentSubqueryJoin == false
+                && right instanceof LocalRelation == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {

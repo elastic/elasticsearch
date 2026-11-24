@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 162639
-pr: 162700
-summary: Fix unfolded null errors on functions
-type: bug

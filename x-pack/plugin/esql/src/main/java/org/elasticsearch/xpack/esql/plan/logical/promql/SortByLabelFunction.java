@@ -51,8 +51,8 @@ public final class SortByLabelFunction extends PromqlFunctionCall implements Res
 
     private final List<Attribute> sortLabels;
     /** Both derive from the fixed child output and {@link #sortLabels}, and {@code output()} is read repeatedly. */
-    private List<Attribute> usableSortLabels;
-    private List<Attribute> output;
+    private volatile List<Attribute> usableSortLabels;
+    private volatile List<Attribute> output;
 
     public SortByLabelFunction(
         Source source,

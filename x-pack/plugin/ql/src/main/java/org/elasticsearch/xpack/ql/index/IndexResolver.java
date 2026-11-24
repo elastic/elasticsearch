@@ -435,6 +435,16 @@ public class IndexResolver {
         );
     }
 
+    /**
+     * Instance overload of {@link #mergedMappings(DataTypeRegistry, String, FieldCapabilitiesResponse)} that uses
+     * this resolver's own {@link DataTypeRegistry}. A caller reusing a pre-resolved {@link FieldCapabilitiesResponse}
+     * (e.g. the ES|QL {@code EQL} source) plans against the same type system as the resolver's own resolution path,
+     * without having to know or duplicate how this resolver was wired.
+     */
+    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse);
+    }
+
     public static IndexResolution mergedMappings(
         DataTypeRegistry typeRegistry,
         String indexPattern,

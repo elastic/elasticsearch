@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -682,7 +683,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
     /// Verifies that an unrelated cluster state update arriving after a started-recovery cancellation (while the
     /// master has not yet processed the resulting SHARD_FAILED) does not cause `failedAllocations` to be incorrectly
-    /// incremented. The data node resends the failure from `failedShardsCache` using a [RecoveryCancelledException].
+    /// incremented. The data node resends the failure from `pendingAllocationStates` using a [RecoveryCancelledException].
     public void testUnrelatedClusterStateUpdateAfterStartedCancellation() throws Exception {
         final var masterNode = internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
@@ -735,7 +736,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         safeAwait(firstCancellationFailureReceived);
 
         // Trigger an unrelated cluster state update. The data node sees shardId still INITIALIZING and resends
-        // the SHARD_FAILED from failedShardsCache using a RecoveryCancelledException.
+        // the SHARD_FAILED from pendingAllocationStates using a RecoveryCancelledException.
         assertAcked(
             clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
                 .setPersistentSettings(
@@ -842,7 +843,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         assertThat(
             "index2 recovery should be cancelled from the pending queue",
             cancellationResponse.cancelledInQueue(),
-            equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId2, allocationId2)))
+            equalTo(Set.of(new ShardAllocationId(shardId2, allocationId2)))
         );
 
         // Release index1's gate so it can complete recovery. The master publishes the resulting cluster state with
@@ -890,7 +891,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             clusterService.state().routingTable().shardRoutingTable(shardId2).primaryShard().initializing()
         );
 
-        // Wait for all 3 expected SHARD_FAILEDs: one from the enqueue rejection and two resends from failedShardsCache.
+        // Wait for all 3 expected SHARD_FAILEDs: one from the enqueue rejection and two resends from pendingAllocationStates.
         safeAwait(allCancellationFailuresReceived);
 
         // Release all blocked SHARD_FAILED messages.

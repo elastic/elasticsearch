@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
@@ -214,6 +214,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     }
 
     public void verify(Failures failures) {
+        checkCommandsBeforeAggregation(child(), failures);
         if (origin != Origin.PROMQL_COMMAND) {
             // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
             groupings().forEach(g -> {
@@ -314,7 +315,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        checkCommandsBeforeAggregation(child(), failures);
         if ((timestamp instanceof TypedAttribute) == false || timestamp.dataType().isDate() == false) {
             if (timestamp instanceof UnresolvedAttribute unresolvedAttr) {
                 failures.add(fail(unresolvedAttr, unresolvedAttr.unresolvedMessage()));
@@ -332,10 +332,27 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     /**
      * Pre-order walk applying the restrictions on commands between the time-series source and the first aggregation, skipping the
-     * right branch of any {@link AbstractSubqueryJoin}: a SORT/LIMIT/etc. inside an IN subquery only shapes the independently executed
+     * right branch of any {@link IndependentSubqueryJoin}: a SORT/LIMIT/etc. inside an IN subquery only shapes the independently executed
      * subquery result, not the time-series source feeding this aggregation.
+     * <p>
+     * This runs from {@link #verify} before the aggregation is translated, not from {@link #postAnalysisVerification}. The translation
+     * adds {@code _tsid} below a {@code FORK} but not to its output, which leaves the {@code FORK} unresolved, and the verifier does not
+     * check a plan over unresolved children.
      */
     private void checkCommandsBeforeAggregation(LogicalPlan p, Failures failures) {
+        // reject `TS metrics | FORK ... | STATS ...`: the aggregation groups by the _tsid of its source, which a FORK does not carry
+        if (p instanceof Fork fork) {
+            failures.add(
+                fail(
+                    fork,
+                    "fork [{}] in the time-series before the first aggregation [{}] is not supported",
+                    fork.sourceText(),
+                    this.sourceText()
+                )
+            );
+            // the branches are not the source of this aggregation, so do not report what they contain
+            return;
+        }
         // reject `TS metrics | SORT BY ... | STATS ...`
         if (p instanceof OrderBy orderBy) {
             failures.add(
@@ -403,8 +420,18 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 )
             );
         }
-        List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
-        for (LogicalPlan child : children) {
+        // reject `TS metrics | NESTED_EXPAND ... | STATS ...`
+        if (p instanceof NestedExpand nestedExpand) {
+            failures.add(
+                fail(
+                    nestedExpand,
+                    "nested_expand [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    nestedExpand.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(p)) {
             checkCommandsBeforeAggregation(child, failures);
         }
     }

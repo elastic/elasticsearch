@@ -3,7 +3,7 @@ navigation_title: "Amazon S3 costs"
 description: "Understand the AWS charges for querying Amazon S3 with ES|QL Data Federation, and learn how to estimate, monitor, and reduce them."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -138,7 +138,12 @@ This value doesn't include the object storage reads {{es}} made while planning t
 
 You can track S3 usage directly from {{es}} or from AWS.
 
+{applies_to}`serverless: preview` {{serverless-short}} projects don't expose the usage API, so use the AWS method.
+
 ### From {{es}} [s3-monitor-cluster]
+```{applies_to}
+stack: preview 9.6+
+```
 
 The [usage API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-usage) (`GET /_xpack/usage`) reports cumulative counters for Data Federation under `esql.datasources.storage`. The counters cover every query, including queries from {{kib}}, and add up all nodes since each node started.
 

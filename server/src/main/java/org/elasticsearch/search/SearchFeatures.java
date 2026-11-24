@@ -89,6 +89,11 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature RECENT_SEARCH_WAITING = new NodeFeature("search.stats.recent_search_waiting");
     /**
+     * Test-only gate for REST tests asserting {@code recent_search_cpu} in search stats; it depends on
+     * {@code TransportVersion} {@code search_query_cpu}, so nodes that do not have it report no value.
+     */
+    public static final NodeFeature RECENT_SEARCH_CPU = new NodeFeature("search.stats.recent_search_cpu");
+    /**
      * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
      * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
      */
@@ -150,6 +155,13 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature KNN_FILTER_NESTED_LEVELS = new NodeFeature("search.vectors.knn_filter_nested_levels");
 
+    /**
+     * Test-only gate for REST tests sorting on a field that is mapped in some of the searched indices only, with an
+     * {@code unmapped_type} that differs from the mapped type. Older nodes fail the search with an incompatible sort types error
+     * even though no doc of the indices that don't map the field can have a value for it.
+     */
+    public static final NodeFeature SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE = new NodeFeature("search.sort.unmapped_type_placeholder_merge");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -193,7 +205,9 @@ public final class SearchFeatures implements FeatureSpecification {
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
                 KNN_FILTER_NESTED_LEVELS,
                 PROFILE_RESCORE,
-                RECENT_SEARCH_WAITING
+                SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE,
+                RECENT_SEARCH_WAITING,
+                RECENT_SEARCH_CPU
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

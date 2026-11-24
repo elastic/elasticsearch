@@ -18,9 +18,8 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
@@ -42,7 +41,6 @@ import static org.hamcrest.Matchers.is;
 public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
-        .put("node.name", "NettySizeHeaderFrameDecoderTests")
         .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
         .put(TransportSettings.PORT.getKey(), "0")
         .build();
@@ -54,7 +52,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
 
     @Before
     public void startThreadPool() {
-        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new TestThreadPool("NettySizeHeaderFrameDecoderTests", settings);
         NetworkService networkService = new NetworkService(Collections.emptyList());
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         nettyTransport = new Netty4Transport(

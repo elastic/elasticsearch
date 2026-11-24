@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1430,7 +1429,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         builder.suggest(suggestBuilder);
         Suggest[] suggest = new Suggest[1];
         assertResponse(builder, response -> {
-            assertThat(Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(expectShardsFailed));
+            assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(expectShardsFailed));
             suggest[0] = response.getSuggest();
         });
         return suggest[0];

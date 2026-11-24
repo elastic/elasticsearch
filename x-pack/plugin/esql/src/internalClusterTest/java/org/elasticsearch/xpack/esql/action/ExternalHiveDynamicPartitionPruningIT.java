@@ -118,7 +118,7 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
 
     /**
      * Every right value is NULL. SEMI short-circuits to an empty {@code LocalRelation}
-     * ({@link org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin#buildShortCircuitPlan}),
+     * ({@link org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin#buildShortCircuitPlan}),
      * same observable as empty IN: no Hive scan.
      */
     public void testSemiNullRightIsEmpty() throws Exception {

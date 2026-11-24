@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -29,6 +30,8 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -46,6 +49,7 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesQueryCache;
+import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -59,6 +63,7 @@ import java.util.function.IntConsumer;
 import static org.elasticsearch.indices.IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DocPartitioningQueryCacheTests extends ComputeTestCase {
 
@@ -150,6 +155,218 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         assertThat(cacheStats.getCacheCount(), equalTo(1L));
         assertThat(collector1.found, equalTo(100));
         assertThat(collector2.found, equalTo(100));
+    }
+
+    /**
+     * Two queries over the same segment, each with its own {@link DocPartitioningQueryCache}. While the first one builds the cache
+     * entry, the second one must not build its own copy of it: it runs its range uncached, and none of its slices waits for the first
+     * query. Once the entry is built, the second query reads it from the cache.
+     */
+    public void testOtherQueryRunsUncachedWhileEntryIsBeingCached() throws Exception {
+        var dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
+        // Needs at least two DOC slices on the single segment. With MIN_DOCS_PER_SLICE the
+        // smallest segment that splits in two at taskConcurrency=2 is around 5*MIN.
+        final int numDocs = LuceneSliceQueue.MIN_DOCS_PER_SLICE * 5;
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        var searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            indicesQueryCache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+        CountDownLatch blockedOnFirstRange = new CountDownLatch(1);
+        final int blockingDocId = randomIntBetween(10, 90);
+        AtomicInteger visitedByFirst = new AtomicInteger();
+        var first = new BlockingQuery(docId -> {
+            if (docId == blockingDocId) {
+                safeAwait(blockedOnFirstRange, TimeValue.THIRTY_SECONDS);
+            }
+            visitedByFirst.incrementAndGet();
+        });
+        AtomicInteger visitedBySecond = new AtomicInteger();
+        var second = new BlockingQuery(docId -> visitedBySecond.incrementAndGet());
+        LuceneSlice firstSlice = docPartitionedQueue(searcher, first).nextSlice(null);
+        LeafReaderContext singleLeaf = firstSlice.getLeaf(0).leafReaderContext();
+        LuceneSliceQueue secondQueue = docPartitionedQueue(searcher, second);
+        LuceneSlice secondSlice1 = secondQueue.nextSlice(null);
+        LuceneSlice secondSlice2 = secondQueue.nextSlice(null);
+        assertThat(secondSlice2.numLeaves(), equalTo(1));
+
+        CountCollector firstCollector = new CountCollector();
+        Thread cachingThread = new Thread(() -> {
+            try {
+                BulkScorer scorer = firstSlice.weight().scorerSupplier(singleLeaf).bulkScorer();
+                scorer.score(firstCollector, null, 0, 100);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        cachingThread.start();
+        try {
+            // the first query has claimed the leaf and is building the entry
+            assertBusy(() -> assertNotNull(firstSlice.leafBlockedOnCaching(singleLeaf)));
+            CountCollector uncached = new CountCollector();
+            secondSlice1.weight().scorerSupplier(singleLeaf).bulkScorer().score(uncached, null, 100, 200);
+            assertThat(uncached.found, equalTo(100));
+            assertThat("the second query ran its range uncached", visitedBySecond.get(), lessThan(numDocs));
+            assertNull("the second query does not wait for the first one", secondSlice1.leafBlockedOnCaching(singleLeaf));
+            assertNull("the second query does not wait for the first one", secondSlice2.leafBlockedOnCaching(singleLeaf));
+        } finally {
+            blockedOnFirstRange.countDown();
+            safeJoin(cachingThread);
+        }
+        assertThat(firstCollector.found, equalTo(100));
+        assertThat("the first query built the entry from the full leaf", visitedByFirst.get(), equalTo(numDocs));
+
+        final int visitedBySecondBeforeHit = visitedBySecond.get();
+        CountCollector fromCache = new CountCollector();
+        secondSlice2.weight().scorerSupplier(singleLeaf).bulkScorer().score(fromCache, null, 200, 300);
+        assertThat(fromCache.found, equalTo(100));
+        assertThat("the second query read the entry the first one built", visitedBySecond.get(), equalTo(visitedBySecondBeforeHit));
+        reader.close();
+        dir.close();
+        QueryCacheStats cacheStats = indicesQueryCache.getStats(shard, () -> 0L);
+        assertThat(cacheStats.getCacheCount(), equalTo(1L));
+        assertThat(cacheStats.getMissCount(), equalTo(2L));
+        assertThat(cacheStats.getHitCount(), equalTo(1L));
+    }
+
+    private static LuceneSliceQueue docPartitionedQueue(ContextIndexSearcher searcher, Query query) {
+        return LuceneSliceQueue.create(
+            new IndexedByShardIdFromList<>(List.of(new LuceneSourceOperatorTests.MockShardContext(searcher, 0))),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            DataPartitioning.DOC,
+            (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            2,
+            s -> ScoreMode.COMPLETE_NO_SCORES
+        );
+    }
+
+    /**
+     * {@link ConstantScoreQuery} without scores hands the searcher its child's weight, which the searcher has already cached, so the
+     * searcher caches the same weight twice. {@link DocPartitioningQueryCache#doCache} keeps a single cache layer in that case by
+     * recognising its own wrapper. When the searcher has a circuit breaker it puts an accounting wrapper around the weight it caches,
+     * the already cached one included, which must not hide the wrapper from that check, or every clause would be looked up and built
+     * twice on each leaf.
+     */
+    public void testCachingAnAlreadyCachedWeightKeepsOneCacheLayer() throws Exception {
+        var dir = newDirectory();
+        var writer = new IndexWriter(dir, new IndexWriterConfig());
+        final int numDocs = between(10, 100);
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        try {
+            var shardSearcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                indicesQueryCache,
+                TrivialQueryCachingPolicy.ALWAYS,
+                false
+            );
+            // a breaker makes the searcher wrap the weights it caches, as DefaultSearchContext does for every search
+            shardSearcher.setCircuitBreaker(new NoopCircuitBreaker("request"));
+            // derived like LuceneSliceQueue derives the searcher of a doc-partitioned slice
+            var searcher = shardSearcher.withQueryCache(new DocPartitioningQueryCache(shardSearcher.getQueryCache()));
+            AtomicInteger visited = new AtomicInteger();
+            Query query = new ConstantScoreQuery(new BlockingQuery(docId -> visited.incrementAndGet()));
+            Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            CountCollector collector = new CountCollector();
+            weight.bulkScorer(leaf).score(collector, null, 0, DocIdSetIterator.NO_MORE_DOCS);
+            assertThat(collector.found, equalTo(numDocs));
+            assertThat("the cache iterates the leaf once to build the entry", visited.get(), equalTo(numDocs));
+
+            QueryCacheStats cacheStats = indicesQueryCache.getStats(shard, () -> 0L);
+            assertThat("a single cache layer looks the clause up once", cacheStats.getMissCount(), equalTo(1L));
+            assertThat(cacheStats.getHitCount(), equalTo(0L));
+            assertThat(cacheStats.getCacheCount(), equalTo(1L));
+        } finally {
+            IOUtils.close(reader, dir);
+        }
+    }
+
+    /**
+     * Building a cache entry for a doc-partitioned slice reserves the entry's heap on the circuit breaker of the shard's searcher,
+     * like any other search does. The accounting weight the searcher adds sits inside the doc-partitioning weight, and must still be
+     * charged: a refused reservation leaves the cache as it was while the slice still gets its hits, a granted one populates it.
+     */
+    public void testCachePopulationIsChargedToTheShardSearchersBreaker() throws Exception {
+        var dir = newDirectory();
+        var writer = new IndexWriter(dir, new IndexWriterConfig());
+        final int numDocs = between(10, 1000);
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        writer.forceMerge(1);
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        var shardSearcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            indicesQueryCache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+        try {
+            LeafReaderContext leaf = reader.leaves().get(0);
+            // BlockingQuery reports a cost of maxDoc, so the entry is dense
+            final long denseBytes = new QueryCacheEntryCostEstimator(numDocs, numDocs).estimate();
+
+            TrackingCircuitBreaker refusing = new TrackingCircuitBreaker(denseBytes - 1);
+            shardSearcher.setCircuitBreaker(refusing);
+            assertThat(countThroughDocPartitioningCache(shardSearcher, new BlockingQuery(0, docId -> {}), leaf), equalTo(numDocs));
+            assertThat("a refused reservation leaves the cache as it was", cacheCount(indicesQueryCache, shard), equalTo(0L));
+            assertThat("a refused reservation leaves nothing on the breaker", refusing.getUsed(), equalTo(0L));
+
+            TrackingCircuitBreaker granting = new TrackingCircuitBreaker(denseBytes);
+            shardSearcher.setCircuitBreaker(granting);
+            assertThat(countThroughDocPartitioningCache(shardSearcher, new BlockingQuery(1, docId -> {}), leaf), equalTo(numDocs));
+            assertThat(cacheCount(indicesQueryCache, shard), equalTo(1L));
+            assertThat("the entry is reserved at the size Lucene builds it", granting.peak(), equalTo(denseBytes));
+            shardSearcher.close();
+            assertThat("the reservation is released with the shard's searcher", granting.getUsed(), equalTo(0L));
+        } finally {
+            IOUtils.close(reader, dir);
+        }
+    }
+
+    private static int countThroughDocPartitioningCache(ContextIndexSearcher shardSearcher, Query query, LeafReaderContext leaf)
+        throws IOException {
+        // derived like LuceneSliceQueue derives the searcher of a doc-partitioned slice
+        var searcher = shardSearcher.withQueryCache(new DocPartitioningQueryCache(shardSearcher.getQueryCache()));
+        Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        CountCollector collector = new CountCollector();
+        weight.bulkScorer(leaf).score(collector, null, 0, DocIdSetIterator.NO_MORE_DOCS);
+        return collector.found;
+    }
+
+    private static long cacheCount(IndicesQueryCache cache, ShardId shard) {
+        return cache.getStats(shard, () -> 0L).getCacheCount();
     }
 
     static class CountCollector implements LeafCollector {
@@ -317,7 +534,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             false,
             () -> 0L,
             QueryWarnings.EMIT,
-            null
+            null,
+            false
         );
         var op2 = new LuceneSourceOperator(
             shardContexts,
@@ -329,7 +547,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             false,
             () -> 0L,
             QueryWarnings.EMIT,
-            null
+            null,
+            false
         );
         try {
             Thread thread1 = new Thread(() -> {

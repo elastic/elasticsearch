@@ -612,7 +612,7 @@ public final class MlAutoscalingResourceTracker {
     }
 
     /**
-     * Check if one node can be removed by placing the jobs of the least loaded node to others.
+     * Check if any one node can be removed, that is the jobs of every node fit on the other nodes.
      *
      * @param perNodeJobRequirements per Node lists of requirements
      * @param perNodeMemoryInBytes   total model memory available on every node
@@ -649,33 +649,27 @@ public final class MlAutoscalingResourceTracker {
             )
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
 
-        // we define least loaded exclusively on memory, not CPU load
-        Optional<Map.Entry<String, MlJobRequirements>> leastLoadedNodeAndMemoryUsage = perNodeMlJobRequirementSum.entrySet()
-            .stream()
-            .min(Comparator.comparingLong(entry -> entry.getValue().memory));
-
-        if (leastLoadedNodeAndMemoryUsage.isPresent() == false) {
-            return false;
+        // The autoscaler lowers the replica count and Kubernetes picks the pod to delete, so any node may go away.
+        // Removing a node whose jobs fit nowhere else strands them, and the scale-up check then adds a node again.
+        for (Map.Entry<String, List<MlJobRequirements>> candidate : perNodeJobRequirements.entrySet()) {
+            List<MlJobRequirements> candidateJobRequirements = candidate.getValue();
+            if (dummyAutoscalingEntity.memory > 0L || dummyAutoscalingEntity.processors > 0) {
+                candidateJobRequirements = new ArrayList<>(candidateJobRequirements);
+                candidateJobRequirements.add(MlJobRequirements.of(dummyAutoscalingEntity.memory, dummyAutoscalingEntity.processors));
+            }
+            Map<String, MlJobRequirements> otherNodes = new HashMap<>(perNodeMlJobRequirementSum);
+            otherNodes.remove(candidate.getKey());
+            if (checkIfJobsCanBeMovedInLeastEfficientWay(
+                candidateJobRequirements,
+                otherNodes,
+                perNodeMemoryInBytes,
+                perNodeProcessors,
+                maxOpenJobsPerNode
+            ) != 0L) {
+                return false;
+            }
         }
-
-        assert leastLoadedNodeAndMemoryUsage.get().getValue().memory >= 0L;
-
-        String candidateNode = leastLoadedNodeAndMemoryUsage.get().getKey();
-        List<MlJobRequirements> candidateJobRequirements = perNodeJobRequirements.get(candidateNode);
-        if (dummyAutoscalingEntity.memory > 0L || dummyAutoscalingEntity.processors > 0) {
-            candidateJobRequirements = new ArrayList<>(candidateJobRequirements);
-            candidateJobRequirements.add(MlJobRequirements.of(dummyAutoscalingEntity.memory, dummyAutoscalingEntity.processors));
-        }
-        perNodeMlJobRequirementSum.remove(candidateNode);
-
-        // if all jobs fit on other nodes, we can scale down one node
-        return checkIfJobsCanBeMovedInLeastEfficientWay(
-            candidateJobRequirements,
-            perNodeMlJobRequirementSum,
-            perNodeMemoryInBytes,
-            perNodeProcessors,
-            maxOpenJobsPerNode
-        ) == 0L;
+        return true;
     }
 
     /**

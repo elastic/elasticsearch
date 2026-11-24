@@ -937,8 +937,9 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
     }
 
     public void testCheckIfOneNodeCouldBeRemovedMemoryOnly() {
+        // node_a is full. The least efficient placement fills node_c first and then cannot place the 300 job, so node_a stays.
         assertEquals(
-            true,
+            false,
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Map.of(
                     "node_a",
@@ -1132,9 +1133,9 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
     }
 
     public void testCheckIfOneNodeCouldBeRemovedProcessorAndMemory() {
-        // plenty of processors and memory
+        // plenty of processors, but node_a is full and its jobs do not move in the least efficient placement
         assertEquals(
-            true,
+            false,
             MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
                 Map.of(
                     "node_a",
@@ -2142,6 +2143,88 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         );
     }
 
+    /**
+     * The controller scales ML down by one replica and Kubernetes deletes the newest pod, not the least loaded node.
+     * Capacity per node is 4686MiB: ml-1 holds 4 x 820MiB, ml-2 9 x 130MiB, ml-3 (newest) 1 x 3983MiB.
+     */
+    public void testNewestNodeWithUnmovableJobShouldNotBeScaledDown() throws InterruptedException {
+        List<String> executors = new ArrayList<>();
+        List<Long> memory = new ArrayList<>();
+        addJobs(executors, memory, 4, "ml-1", ByteSizeValue.ofMb(820).getBytes());
+        addJobs(executors, memory, 9, "ml-2", ByteSizeValue.ofMb(130).getBytes());
+        addJobs(executors, memory, 1, "ml-3", ByteSizeValue.ofMb(3983).getBytes());
+        int bigJob = executors.size() - 1;
+
+        // ml-2's small jobs fit on ml-1 and ml-3, but the big job on ml-3 fits on no other node.
+        assertStats(adJobs(executors), List.of("ml-1", "ml-2", "ml-3"), Set.of(), memory, stats -> {
+            assertEquals(1, stats.wantedMinNodes());
+            assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
+        });
+        // If ml-3 is lost anyway, the waiting big job asks for a third node.
+        executors.set(bigJob, null);
+        assertStats(adJobs(executors), List.of("ml-1", "ml-2"), Set.of(), memory, stats -> {
+            assertEquals(3, stats.wantedMinNodes());
+            assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
+        });
+    }
+
+    /**
+     * The controller does not choose which ML node goes away. When scale-down is recommended, the jobs of every node must fit
+     * on the other nodes, or removing that node strands a job and scales the tier up again.
+     */
+    public void testScaleDownRecommendationShouldHoldForAnyRemovedNode() {
+        for (int iteration = 0; iteration < 200; iteration++) {
+            long capacity = randomLongBetween(1000, 100_000);
+            int numNodes = randomIntBetween(2, 8);
+            int maxOpenJobs = randomIntBetween(2, 20);
+            Map<String, List<MlJobRequirements>> jobsByNode = new HashMap<>();
+            for (String node : mlNodeIds(numNodes)) {
+                List<MlJobRequirements> jobs = new ArrayList<>();
+                long used = 0;
+                int numJobs = randomIntBetween(1, maxOpenJobs - 1);
+                for (int j = 0; j < numJobs; j++) {
+                    long memory = randomLongBetween(1, capacity);
+                    if (used + memory <= capacity) {
+                        jobs.add(MlJobRequirements.of(memory, 0));
+                        used += memory;
+                    }
+                }
+                jobsByNode.put(node, jobs);
+            }
+            if (jobsByNode.values().stream().anyMatch(List::isEmpty)
+                || MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                    jobsByNode,
+                    capacity,
+                    0,
+                    maxOpenJobs,
+                    MlDummyAutoscalingEntity.of(0L, 0)
+                ) == false) {
+                continue;
+            }
+            for (String removed : jobsByNode.keySet()) {
+                Map<String, List<MlJobRequirements>> remaining = new HashMap<>(jobsByNode);
+                List<Long> waiting = remaining.remove(removed).stream().map(MlJobRequirements::memory).toList();
+                assertEquals(
+                    "removing [" + removed + "] from " + jobsByNode + " with capacity " + capacity + " strands jobs",
+                    0,
+                    MlAutoscalingResourceTracker.additionalNodesForWaitingJobs(
+                        remaining,
+                        remaining.keySet(),
+                        waiting,
+                        capacity,
+                        0,
+                        maxOpenJobs
+                    )
+                );
+            }
+        }
+    }
+
+    private static void addJobs(List<String> executors, List<Long> memory, int count, String node, long jobMemory) {
+        executors.addAll(Collections.nCopies(count, node));
+        memory.addAll(Collections.nCopies(count, jobMemory));
+    }
+
     private static List<String> mlNodeIds(int count) {
         return IntStream.rangeClosed(1, count).mapToObj(i -> "ml-" + i).toList();
     }
@@ -2172,8 +2255,21 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
         long jobMemory,
         Consumer<MlAutoscalingStats> furtherTests
     ) throws InterruptedException {
+        assertStats(context, nodes, shuttingDownNodes, Collections.nCopies(context.anomalyDetectionTasks.size(), jobMemory), furtherTests);
+    }
+
+    /** Like {@link #assertStats(MlAutoscalingContext, List, Set, long, Consumer)}, with the memory of job-i at index i. */
+    private void assertStats(
+        MlAutoscalingContext context,
+        List<String> nodes,
+        Set<String> shuttingDownNodes,
+        List<Long> jobMemory,
+        Consumer<MlAutoscalingStats> furtherTests
+    ) throws InterruptedException {
         MlMemoryTracker memoryTracker = mock(MlMemoryTracker.class);
-        when(memoryTracker.getAnomalyDetectorJobMemoryRequirement(anyString())).thenReturn(jobMemory);
+        when(memoryTracker.getAnomalyDetectorJobMemoryRequirement(anyString())).thenAnswer(
+            invocation -> jobMemory.get(Integer.parseInt(invocation.<String>getArgument(0).substring("job-".length())))
+        );
         Map<String, Long> nodeSizes = new HashMap<>();
         nodes.forEach(node -> nodeSizes.put(node, NODE_SIZE));
         this.<MlAutoscalingStats>assertAsync(

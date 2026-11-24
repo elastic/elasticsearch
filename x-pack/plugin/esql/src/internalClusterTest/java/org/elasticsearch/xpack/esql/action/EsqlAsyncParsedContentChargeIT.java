@@ -16,10 +16,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.BreakerTestUtil.parsedRequestHeldBytes;
 import static org.elasticsearch.test.BreakerTestUtil.parsedRequestMeasurements;
@@ -34,6 +37,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsync
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.getAsyncResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests that an async query holds the charge of its parsed request after the submit responds, until the query ends.
@@ -72,11 +76,13 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
 
     private void assertChargeIsHeldUntilTheQueryEnds(boolean delete) throws Exception {
         scriptPermits.drainPermits();
+        scriptWaits.drainPermits();
         try {
             Map<String, Object> body = submitThroughRest("1ms", "FROM test | STATS SUM(pause_me)");
             assertEquals(Boolean.TRUE, body.get("is_running"));
             String id = (String) body.get("id");
-            // The response is sent, but the query waits in pause_me.
+            // Wait until the query blocks in pause_me. A delete sent before then would stop it right away.
+            assertTrue("the query must reach pause_me", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
             assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
 
             if (delete) {
@@ -85,6 +91,17 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
                     TransportDeleteAsyncResultAction.TYPE,
                     new DeleteAsyncResultRequest(id)
                 );
+                // Check after the cancel is processed, so a charge dropped on cancel is caught.
+                assertBusy(() -> {
+                    List<TaskInfo> tasks = client().admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .setActions(EsqlQueryAction.NAME + AsyncTaskManagementService.ASYNC_ACTION_SUFFIX)
+                        .get()
+                        .getTasks();
+                    assertThat(tasks, hasSize(1));
+                    assertTrue(tasks.getFirst().cancelled());
+                });
                 assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
                 scriptPermits.release(numberOfDocs());
                 assertTrue(deleted.actionGet(TimeValue.timeValueSeconds(60)).isAcknowledged());
@@ -102,6 +119,7 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
             }
         } finally {
             scriptPermits.drainPermits();
+            scriptWaits.drainPermits();
         }
     }
 

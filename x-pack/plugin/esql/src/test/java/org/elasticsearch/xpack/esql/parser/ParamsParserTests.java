@@ -873,6 +873,12 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant(null, List.of("a*", "b*"))),
                 "Invalid pattern parameter type for like [?]: expected string, found list"
             );
+            // A list is not a valid pattern even if it has a single value.
+            expectError(
+                "row a = \"abc\" | where a like ?",
+                List.of(paramAsConstant(null, List.of("a*"))),
+                "Invalid pattern parameter type for like [?]: expected string, found list"
+            );
             expectError(
                 "row a = \"abc\" | where a like ?",
                 List.of(paramAsConstant(null, null)),

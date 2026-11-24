@@ -2100,6 +2100,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "from a | where foo rlike [\"geo.*\", \"ab.*\"]",
             "Invalid pattern for RLIKE [\"geo.*\",\"ab.*\"]: expected a scalar string, not a list"
         );
+        // A list is not a valid pattern even if it has a single value.
+        expectError("from a | where foo like [\"Geo*\"]", "Invalid pattern for LIKE [\"Geo*\"]: expected a scalar string, not a list");
+        expectError("from a | where foo rlike [\"geo.*\"]", "Invalid pattern for RLIKE [\"geo.*\"]: expected a scalar string, not a list");
     }
 
     public void testIdentifierPatternTooComplex() {
@@ -6231,6 +6234,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 
+    /**
+     * A list with one value is the same as that value, so a single property can be given as a list or as a string.
+     */
+    public void testUserAgentCommandWithSingleProperty() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        for (String properties : List.of("[\"name\"]", "\"name\"")) {
+            LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": " + properties + " }");
+            UserAgent ua = as(cmd, UserAgent.class);
+
+            List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+            assertEquals(List.of("ua.name"), actualFieldNames);
+        }
+    }
+
     public void testUserAgentCommandInvalidOption() {
         assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
         expectError(
@@ -6274,6 +6291,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }");
         UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
         assertEquals(List.of("city_name", "country_iso_code"), ip.properties());
+    }
+
+    /**
+     * A list with one value is the same as that value, so a single property can be given as a list or as a string.
+     */
+    public void testIpLocationCommandWithSingleProperty() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        for (String properties : List.of("[\"city_name\"]", "\"city_name\"")) {
+            LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": " + properties + " }");
+            UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+            assertEquals(List.of("city_name"), ip.properties());
+        }
     }
 
     public void testIpLocationCommandUnknownOption() {

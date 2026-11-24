@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -58,6 +60,27 @@ public class StartsWithStaticTests extends ESTestCase {
                 new EsField("prefix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
             ),
             Literal.keyword(Source.EMPTY, "a*b?c\\")
+        );
+
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+
+        var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "a\\*b\\?c\\\\*", false, true)));
+    }
+
+    /**
+     * A prefix written as a list with one value, like {@code ["a*b?c\\"]}, gives the same query as the plain value.
+     */
+    public void testLuceneQuery_OneElementListPrefix() {
+        var function = new StartsWith(
+            Source.EMPTY,
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("prefix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new Literal(Source.EMPTY, List.of(BytesRefs.toBytesRef("a*b?c\\")), DataType.KEYWORD)
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));

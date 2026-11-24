@@ -118,6 +118,24 @@ emp_no:integer | first_name:keyword  | f_S:boolean
 10010 | Duangkaew | false
 ;
 
+startsWithConstantOneElementList
+required_capability: one_element_list_literals_as_values
+
+from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, ["S"]) | keep emp_no, first_name, f_S;
+
+emp_no:integer | first_name:keyword  | f_S:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | true
+10010 | Duangkaew | false
+;
+
 startsWithField
 from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | keep emp_no, last_name, gender, f_l;
 ignoreOrder:true
@@ -1266,6 +1284,20 @@ startsWithLucenePushdown
 
 from hosts
 | where starts_with(host, "bet") and starts_with(host_group, "Kuber")
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLucenePushdownOneElementList
+required_capability: one_element_list_literals_as_values
+
+from hosts
+| where starts_with(host, ["bet"]) and starts_with(host_group, ["Kuber"])
 | keep host, host_group
 | sort host, host_group;
 

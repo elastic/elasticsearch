@@ -5067,6 +5067,13 @@ public class EsqlCapabilities {
          */
         FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
 
+        /**
+         * A list with one value in a query, like {@code ["a"]} or a list parameter, is treated as that value by the functions
+         * that read their constant arguments. {@code STARTS_WITH(f, ["a"])} or {@code CIDR_MATCH} pushdown used to fail or
+         * match nothing. See <a href="https://github.com/elastic/elasticsearch/issues/161157">#161157</a>.
+         */
+        ONE_ELEMENT_LIST_LITERALS_AS_VALUES,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -81,7 +81,7 @@ query returns the same rows but opens every file. `MONTH(ts) == 6` does not conv
 in every year: the query opens every file and filters rows after reading. A literal like
 `year == YEAR("2024-01-01")` folds to `year == 2024` and prunes the path key directly.
 
-## Account for a delivery date
+## Account for a delivery date [account-for-a-delivery-date]
 
 CloudTrail and VPC Flow Logs often land under a **delivery** date that lags the event time in the file. A
 filter on the event-time column can miss a folder that contains matching rows. Add
@@ -90,7 +90,10 @@ to extend it before the filter. For example, `lag(start, 15m)` keeps the next ho
 that Elasticsearch lists late-arriving rows. `lead` keeps the previous folder. Both functions only
 widen the window. They never skip a folder the filter would keep.
 
-### Configure Hive-compatible VPC Flow Logs
+For complete dataset definitions for VPC Flow Logs, CloudTrail, and Application Load Balancer logs, including how lag
+changes how much data a query reads, refer to [Query AWS logs](esql-data-federation-aws-logs.md).
+
+### Configure Hive-compatible VPC Flow Logs [configure-hive-compatible-vpc-flow-logs]
 
 The following example registers a Hive-compatible, hourly VPC Flow Logs dataset. The `start` and
 `end` fields contain Unix epoch seconds. Each partition in the resource path uses the `key=*` format.
@@ -141,7 +144,7 @@ PUT /_query/dataset/vpc_flow_text
     "header_row": false,
     "partition_detection": "template",
     "partition_path": "{account}/vpcflowlogs/{region}/{year}/{month}/{day}",
-    "partition_spec": "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second)"
+    "partition_spec": "year(start, epoch_second), month(start, epoch_second), day(start, epoch_second), lag(start, 20m)"
   },
   "mappings": {
     "properties": {
@@ -151,7 +154,7 @@ PUT /_query/dataset/vpc_flow_text
 }
 ```
 
-### Use mapped date fields
+### Use mapped date fields [use-mapped-date-fields]
 
 When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit because
 the column is already a date. If the mapping renames a source column with `path`, the partition spec
@@ -172,7 +175,7 @@ PUT /_query/dataset/vpc_flow_mapped
     "header_row": false,
     "partition_detection": "template",
     "partition_path": "{account}/vpcflowlogs/{region}/{year}/{month}/{day}",
-    "partition_spec": "year(@timestamp), month(@timestamp), day(@timestamp)"
+    "partition_spec": "year(@timestamp), month(@timestamp), day(@timestamp), lag(@timestamp, 20m)"
   },
   "mappings": {
     "properties": {

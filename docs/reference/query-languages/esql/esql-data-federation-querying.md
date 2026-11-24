@@ -41,7 +41,7 @@ A filter on a column inside the file can skip folders too, when the dataset sets
 
 Pruning applies when the partition filter comes before any `LIMIT`, `SORT`, or `STATS` in the query. If one of those commands sits between `FROM` and the `WHERE` on a partition column, pruning is silently skipped and every partition is read. Try to put partition filters first.
 
-For details on partition detection modes, refer to [`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection).
+For details on partition detection modes, refer to [`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection). AWS log folders use a delivery date; for VPC Flow Logs, CloudTrail, and Application Load Balancer recipes, refer to [Query AWS logs](esql-data-federation-aws-logs.md).
 
 ### Filter and limit pushdown
 
@@ -79,7 +79,7 @@ A dataset's resource path can use [glob patterns](esql-data-federation-patterns.
 - `esql.external.max_discovered_files` (default derived from node heap, minimum 25,000, maximum 10,000,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
-If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.
+If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details. For how these caps meet a wide AWS log bucket, refer to [Query AWS logs](esql-data-federation-aws-logs.md#scale).
 
 ## Query across datasets and indices
 

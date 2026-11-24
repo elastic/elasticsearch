@@ -190,6 +190,9 @@ Use the following pages to configure, query, and administer federated data:
 [Datasets](esql-data-federation-datasets.md)
 :   Design datasets, select which files to query, and make them available to {{esql}}.
 
+[AWS logs](esql-data-federation-aws-logs.md)
+:   Register a dataset over VPC Flow Logs, CloudTrail, or Application Load Balancer logs, including delivery lag.
+
 [Supported file formats](esql-data-federation-file-formats.md)
 :   Review supported extensions, compression codecs, and schema sources.
 

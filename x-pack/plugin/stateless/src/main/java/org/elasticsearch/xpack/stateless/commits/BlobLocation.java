@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /// @param fileLength the length of the embedded file
 public record BlobLocation(Blob blob, long offset, long fileLength) implements Writeable, ToXContentObject {
 
-    /// From this version, the blob is serialized on the transport layer with [Blob#writeTo] instead of a primary term followed by a
+    /// From this version onwards, the blob is serialized on the transport layer with [Blob#writeTo] instead of a primary term followed by a
     /// blob name, so that any type of blobs can be sent.
     static final TransportVersion BLOB_LOCATION_SERIALIZES_BLOB = TransportVersion.fromName("stateless_blob_location_serializes_blob");
 

@@ -46,9 +46,14 @@ echo "BEATS_BUILD_ID=$BEATS_BUILD_ID"
 ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
 echo "ML_CPP_BUILD_ID=$ML_CPP_BUILD_ID"
 
-# Fail here rather than after starting the build machine
-: "${BEATS_BUILD_ID:?could not resolve the beats build ID}"
-: "${ML_CPP_BUILD_ID:?could not resolve the ml-cpp build ID}"
+# Fail here rather than after starting the build machine. The resolver pipes
+# through jq -r, so a manifest without a build_id yields the string "null".
+for build_id in "$BEATS_BUILD_ID" "$ML_CPP_BUILD_ID"; do
+  if [[ -z "$build_id" || "$build_id" == "null" ]]; then
+    echo "Could not resolve the beats and ml-cpp build IDs (beats='$BEATS_BUILD_ID', ml-cpp='$ML_CPP_BUILD_ID')" >&2
+    exit 1
+  fi
+done
 
 echo --- Uploading DRA pipeline steps
 cat <<EOF | buildkite-agent pipeline upload

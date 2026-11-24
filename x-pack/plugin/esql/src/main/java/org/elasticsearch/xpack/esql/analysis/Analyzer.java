@@ -222,7 +222,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -271,6 +271,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -407,13 +408,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
-    }
-
-    /**
-     * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
-     */
-    public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
-        return replaceDescribe(execute(plan));
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -1880,9 +1874,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case NestedExpand p -> resolveNestedExpand(p, childrenOutput, context);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                // Left unresolved: the Verifier rejects JOIN on a subquery before any resolution of its keys matters.
-                case SubqueryJoin sj -> sj;
+                case AbstractInSubqueryJoin sj -> resolveInSubqueryJoin(sj);
+                case SubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -2478,6 +2471,51 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * Resolves the keys of a {@code JOIN} on a subquery by name, each against its own side.
+         * <p>
+         * When the subquery has no {@link Project} or {@link Aggregate} of its own, its output is pinned with a {@link Project}, as
+         * for an {@code IN} subquery: without one, a data node running the subquery can replace its fields with just {@code _doc}.
+         * The {@link Aggregate} of an {@link InlineStats} does not count, since its input columns pass through.
+         */
+        private SubqueryJoin resolveSubqueryJoin(SubqueryJoin join) {
+            JoinConfig config = join.config();
+            // A key that was not found carries a message that names its side. Resolving it again would name the side once more, so
+            // the plan would change on every pass and never reach a fixed point.
+            if (Stream.concat(config.leftFields().stream(), config.rightFields().stream())
+                .anyMatch(key -> key instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                return join;
+            }
+            List<Attribute> leftKeys = resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+            List<Attribute> rightKeys = resolveUsingColumns(config.rightFields(), join.right().output(), "right");
+
+            LogicalPlan right = join.right();
+            if (Resolvables.resolved(rightKeys) && hasOwnProjectOrAggregate(right) == false) {
+                right = new Project(join.source(), right, right.output());
+            }
+            return new SubqueryJoin(
+                join.source(),
+                join.left(),
+                right,
+                new JoinConfig(config.type(), leftKeys, rightKeys, config.joinOnConditions())
+            );
+        }
+
+        private static boolean hasOwnProjectOrAggregate(LogicalPlan plan) {
+            if (plan instanceof Project || plan instanceof Aggregate) {
+                return true;
+            }
+            List<LogicalPlan> children = plan instanceof InlineStats inlineStats
+                ? List.of(inlineStats.aggregate().child())
+                : IndependentSubqueryJoin.mainScopeChildren(plan);
+            for (LogicalPlan child : children) {
+                if (hasOwnProjectOrAggregate(child)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
          * Resolves both sides of a SEMI/ANTI join created by {@link InSubqueryResolver}:
          * <ul>
          *   <li>Left fields: resolved against the left child's output using standard attribute resolution.</li>
@@ -2494,7 +2532,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       output verifier.</li>
          * </ul>
          */
-        private AbstractSubqueryJoin resolveSubqueryJoin(AbstractSubqueryJoin subqueryJoin) {
+        private AbstractInSubqueryJoin resolveInSubqueryJoin(AbstractInSubqueryJoin subqueryJoin) {
             // Resolve left fields. Skip when every leftField is either already resolved or is an
             // UnresolvedAttribute that already carries a custom message: resolveUsingColumns
             // appends a " in left side of join" suffix on every call, and UnresolvedAttribute
@@ -2542,7 +2580,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new SemiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig);
         }
 
-        private static List<Attribute> resolveRightFields(AbstractSubqueryJoin semiJoin) {
+        private static List<Attribute> resolveRightFields(AbstractInSubqueryJoin semiJoin) {
             List<Attribute> rightFields = semiJoin.config().rightFields();
             if (rightFields.isEmpty() == false) {
                 // Bail out if rightFields already carries an analyzer-supplied custom error message
@@ -2595,7 +2633,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
          * unchanged.
          */
-        private static Attribute resolveSingleRightField(AbstractSubqueryJoin semiJoin, Attribute rightAttr) {
+        private static Attribute resolveSingleRightField(AbstractInSubqueryJoin semiJoin, Attribute rightAttr) {
             if (NO_FIELDS_NAME.equals(rightAttr.name())) {
                 return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
             }

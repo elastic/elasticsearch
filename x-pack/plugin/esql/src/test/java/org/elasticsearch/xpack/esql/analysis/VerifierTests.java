@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -51,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
@@ -692,7 +690,6 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testDescribeVerifiesItsInput() {
-        assumeTrue("requires DESCRIBE", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         defaultAnalyzer().error(
             "from test | where 1 | describe",
             equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")
@@ -2198,6 +2195,37 @@ public class VerifierTests extends AnalyzerTestCase {
                    (eval t = null | eval t = to_text(concat(title, body), {"analyzer": "english"}))
             | where match(t, "cat")
             """, containsString("conflicting values analyzers in FORK branches"));
+    }
+
+    /**
+     * A FORK branch that fills a null column with {@code FILLNULL} outputs a non-null value, so the column is no longer exempt
+     * from the branch agreement checks: it carries the standard analyzer and must disagree with a sibling's whitespace, in either
+     * branch order. Before #166532 the fill was missed - the column kept the id of the null assignment it came from, which the
+     * null-only walk had marked - so the conflict was reported in one branch order and silently accepted in the other.
+     */
+    public void testToTextAnalyzerThroughForkOutputWithFillNull() throws Exception {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // the filled column holds "CAT" under the standard analyzer, which conflicts with the sibling's whitespace
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null) | fillnull "CAT" on t)
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // ... and the same the other way round, so the outcome no longer depends on which branch supplied the column first
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(null) | fillnull "CAT" on t)
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // a FILLNULL that targets a different column leaves t null-only, so the exemption still holds and there is no conflict
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null) | fillnull "CAT" on title)
+            | where match(t, "cat")
+            """);
     }
 
     public void testToTextAnalyzerOptionOnFieldAcrossSubqueries() throws Exception {
@@ -5969,24 +5997,6 @@ public class VerifierTests extends AnalyzerTestCase {
             | STATS mc = max(network.cost) BY cluster, pod, region
             | STATS d = sum(mc) BY WITHOUT(region)
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
-    }
-
-    public void testSubqueryJoinNotSupported() {
-        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
-        // The unmapped_fields settings check that ResolveUnmapped neither rewrites nor rejects the unresolved keys first.
-        for (String setting : List.of("", "SET unmapped_fields=\"nullify\"; ", "SET unmapped_fields=\"load\"; ")) {
-            for (String key : List.of("language_code", "does_not_exist")) {
-                analyzer().addEmployees()
-                    .addLanguages()
-                    .statementError(
-                        setting + """
-                            FROM employees
-                            | EVAL language_code = languages
-                            | LEFT OUTER JOIN (FROM languages) ON\s""" + key,
-                        allOf(containsString("Found 1 problem"), containsString("line 3:3: JOIN on a subquery is not supported yet"))
-                    );
-            }
-        }
     }
 
     private TestAnalyzer defaultAnalyzer() {

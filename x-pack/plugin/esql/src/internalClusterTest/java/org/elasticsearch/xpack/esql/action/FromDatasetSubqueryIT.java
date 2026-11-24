@@ -1299,7 +1299,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
     /**
      * ANTI join with a NULL on the right: {@code x NOT IN (..., NULL, ...)} is never TRUE (FALSE for matches, NULL otherwise), so
-     * {@code AbstractSubqueryJoin#buildShortCircuitPlan} collapses the join to an empty LocalRelation and no dataset row survives. The
+     * {@code AbstractInSubqueryJoin#buildShortCircuitPlan} collapses the join to an empty LocalRelation and no dataset row survives. The
      * trailing STATS makes this the ANTI mirror of {@link #testEmptyInSubqueryThenStatsOnDataset}: with the former {@code Filter(FALSE)}
      * substitution this shape crashed external physical planning the same way.
      */

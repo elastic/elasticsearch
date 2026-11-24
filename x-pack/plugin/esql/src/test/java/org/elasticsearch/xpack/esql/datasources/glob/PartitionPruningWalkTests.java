@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -35,7 +36,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,7 +53,9 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.W
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expandAsync;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
@@ -502,7 +508,6 @@ public class PartitionPruningWalkTests extends ESTestCase {
         List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
         FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
         ListingWalkHarness provider = new ListingWalkHarness(wideHiveTree());
-        provider.setListChildrenDelayNanos(TimeUnit.MILLISECONDS.toNanos(5));
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             PartitionPruningWalk.WalkResult result = tryWalkAsync(
@@ -521,6 +526,165 @@ public class PartitionPruningWalkTests extends ESTestCase {
             assertEquals(0, provider.listObjectPages());
         } finally {
             terminate(threadPool);
+        }
+    }
+
+    public void testParallelPeekCeilingIssuesRemainingBudgetThenFailsClosed() throws Exception {
+        int ceiling = WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES - 1;
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
+
+        ListingWalkHarness sequential = new ListingWalkHarness(wideHiveSevenDayTree());
+        assertNull(tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false, Integer.MAX_VALUE, ceiling));
+        assertEquals(ceiling, sequential.listChildrenRequests());
+        assertEquals(WIDE_HIVE_PREFIXES - 1, julyDayPeekCount(sequential));
+        assertEquals(0, sequential.listObjectPages());
+
+        ListingWalkHarness parallel = new ListingWalkHarness(wideHiveSevenDayTree());
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            assertNull(tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 8, executor, Integer.MAX_VALUE, ceiling));
+            assertEquals(ceiling, parallel.listChildrenRequests());
+            assertEquals(WIDE_HIVE_PREFIXES - 1, julyDayPeekCount(parallel));
+            assertEquals(0, parallel.listObjectPages());
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testParallelPeeksInFlightNeverExceedsConcurrency() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveSevenDayTree());
+        provider.setDelayListChildrenContaining("/month=07/day=");
+        provider.setListChildrenDelayNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
+        int concurrency = 4;
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        try {
+            PartitionPruningWalk.WalkResult result = PartitionPruningWalk.withFinishMode(
+                PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                () -> tryWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, () -> false, concurrency, executor)
+            );
+            assertNotNull(result);
+            assertEquals(WIDE_HIVE_PREFIXES, julyDayPeekCount(provider));
+            assertThat(provider.maxListChildrenInFlight(), lessThanOrEqualTo(concurrency));
+            assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES, provider.listChildrenRequests());
+            assertEquals(0, provider.listChildrenInFlight());
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testParallelPeekCancelSkipsUnstarted() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(wideHiveSevenDayTree());
+        CountDownLatch firstPeek = new CountDownLatch(1);
+        CountDownLatch releasePeeks = new CountDownLatch(1);
+        provider.setDelayListChildrenContaining("/month=07/day=");
+        provider.setListChildrenDelayNanos(() -> {
+            firstPeek.countDown();
+            awaitQuietly(releasePeeks);
+            return 0L;
+        });
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        int concurrency = 4;
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        try {
+            PlainActionFuture<PartitionPruningWalk.WalkResult> future = new PlainActionFuture<>();
+            startWalkAsync(provider, WIDE_HIVE_GLOB, List.of(), pred, cancelled::get, concurrency, executor, future);
+            assertTrue("July day peek batch must start", firstPeek.await(30, TimeUnit.SECONDS));
+            assertThat(julyDayPeekCount(provider), greaterThan(0));
+            cancelled.set(true);
+            int issuedAtCancel = provider.listChildrenRequests();
+            releasePeeks.countDown();
+            expectThrows(TaskCancelledException.class, future::actionGet);
+            int issuedAtComplete = provider.listChildrenRequests();
+            assertThat(issuedAtComplete, lessThanOrEqualTo(issuedAtCancel + concurrency));
+            assertThat(issuedAtComplete, lessThan(WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES));
+            assertThat(julyDayPeekCount(provider), lessThan(WIDE_HIVE_PREFIXES));
+            assertEquals(0, provider.listObjectPages());
+            assertEquals(0, provider.listChildrenInFlight());
+        } finally {
+            releasePeeks.countDown();
+            terminate(executor);
+        }
+    }
+
+    public void testListChildrenParallelCancelAfterAllStartedDoesNotSucceed() throws Exception {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(ListingWalkHarness.entry("s3://bucket/a/f.parquet"), ListingWalkHarness.entry("s3://bucket/b/f.parquet"))
+        );
+        CountDownLatch bothStarted = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        provider.setListChildrenDelayNanos(() -> {
+            bothStarted.countDown();
+            awaitQuietly(release);
+            return 0L;
+        });
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicInteger issued = new AtomicInteger();
+        List<StoragePath> dirs = List.of(StoragePath.of("s3://bucket/a"), StoragePath.of("s3://bucket/b"));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            PlainActionFuture<StorageChildren[]> future = new PlainActionFuture<>();
+            PartitionPruningWalk.listChildrenParallel(provider, dirs, 2, executor, issued, cancelled::get, future);
+            assertTrue(bothStarted.await(30, TimeUnit.SECONDS));
+            cancelled.set(true);
+            release.countDown();
+            expectThrows(TaskCancelledException.class, future::actionGet);
+            assertEquals("both slots already in-flight; unstarted skip does not apply", 2, issued.get());
+            assertEquals(2, provider.listChildrenRequests());
+            assertEquals(0, provider.listChildrenInFlight());
+        } finally {
+            release.countDown();
+            terminate(executor);
+        }
+    }
+
+    public void testParallelPeekFailedChildFailsClosed() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
+        ListingWalkHarness sequential = new ListingWalkHarness(wideHiveSevenDayTree());
+        sequential.setFailListChildrenContaining("/month=07/day=");
+        assertNull(tryWalk(sequential, WIDE_HIVE_GLOB, List.of(), pred, () -> false));
+        assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, sequential.listChildrenRequests());
+        assertEquals(0, julyDayPeekCount(sequential));
+        assertEquals(0, sequential.listObjectPages());
+
+        ListingWalkHarness parallel = new ListingWalkHarness(wideHiveSevenDayTree());
+        parallel.setFailListChildrenContaining("/month=07/day=");
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            assertNull(tryWalkAsync(parallel, WIDE_HIVE_GLOB, List.of(), pred, () -> false, 4, executor));
+            assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_BEFORE_PEEKS, parallel.listChildrenRequests());
+            assertEquals(0, julyDayPeekCount(parallel));
+            assertEquals(0, parallel.listObjectPages());
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testParallelPeeksMatchSequentialUnderPeekJitter() throws Exception {
+        FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)), HOUR_SPEC);
+        ListingWalkHarness sequentialProvider = new ListingWalkHarness(wideHiveSevenDayTree());
+        PartitionPruningWalk.WalkResult sequential = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> tryWalk(sequentialProvider, WIDE_HIVE_GLOB, List.of(), pred, () -> false)
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            for (int i = 0; i < 5; i++) {
+                ListingWalkHarness parallelProvider = new ListingWalkHarness(wideHiveSevenDayTree());
+                parallelProvider.setDelayListChildrenContaining("/month=07/day=");
+                parallelProvider.setListChildrenDelayNanos(() -> TimeUnit.MILLISECONDS.toNanos(randomIntBetween(0, 2)));
+                int concurrency = randomIntBetween(2, 8);
+                PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
+                    PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+                    () -> tryWalkAsync(parallelProvider, WIDE_HIVE_GLOB, List.of(), pred, () -> false, concurrency, executor)
+                );
+                assertEquals(sequential, parallel);
+                assertEquals(WIDE_HIVE_PREFIXES, julyDayPeekCount(parallelProvider));
+                assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES, parallelProvider.listChildrenRequests());
+            }
+        } finally {
+            terminate(executor);
         }
     }
 
@@ -746,6 +910,27 @@ public class PartitionPruningWalkTests extends ESTestCase {
             executor,
             listener
         );
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            if (latch.await(30, TimeUnit.SECONDS) == false) {
+                throw new AssertionError("timed out waiting for peek latch");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted waiting for peek latch", e);
+        }
+    }
+
+    private static int julyDayPeekCount(ListingWalkHarness provider) {
+        int n = 0;
+        for (String prefix : provider.childListedPrefixes()) {
+            if (prefix.contains("/month=07/day=")) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static List<String> pathsOf(PartitionPruningWalk.WalkResult result) {

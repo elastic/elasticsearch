@@ -1,0 +1,6 @@
+area: Codec
+issues:
+ - 166699
+pr: 166831
+summary: Fix name of ES93Lucene104Codec
+type: bug

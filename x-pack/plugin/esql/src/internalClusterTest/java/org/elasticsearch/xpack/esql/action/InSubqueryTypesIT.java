@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
@@ -252,8 +252,8 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     );
 
     /**
-     * Types that the {@link AbstractSubqueryJoin}'s post-analysis verifier rejects these data types on an IN subquery. Derived from
-     * {@link Join#UNSUPPORTED_TYPES} and filtered through {@link AbstractSubqueryJoin#isSubqueryJoinUnsupported(DataType)} so the test
+     * Types that the {@link AbstractInSubqueryJoin}'s post-analysis verifier rejects these data types on an IN subquery. Derived from
+     * {@link Join#UNSUPPORTED_TYPES} and filtered through {@link AbstractInSubqueryJoin#isSubqueryJoinUnsupported(DataType)} so the test
      * automatically picks up any new unsupported type that comes with a regular REST mapping; the entries in
      * {@link #NOT_MAPPABLE_VIA_REST} are filtered out.
      */
@@ -261,7 +261,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     static {
         List<DataType> list = new ArrayList<>();
         for (DataType t : Join.UNSUPPORTED_TYPES) {
-            if (AbstractSubqueryJoin.isSubqueryJoinUnsupported(t) == false) {
+            if (AbstractInSubqueryJoin.isSubqueryJoinUnsupported(t) == false) {
                 continue; // TEXT and VERSION are allowed on the right side of an IN subquery even though Join rejects them
             }
             if (NOT_MAPPABLE_VIA_REST.contains(t)) {
@@ -406,7 +406,7 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
             for (DataType type : SUPPORTED) {
                 assertThat(
                     "Claiming supported for unsupported type: " + type,
-                    AbstractSubqueryJoin.isSubqueryJoinUnsupported(type),
+                    AbstractInSubqueryJoin.isSubqueryJoinUnsupported(type),
                     is(false)
                 );
                 if (existingPair(existing, type, type) == false) {

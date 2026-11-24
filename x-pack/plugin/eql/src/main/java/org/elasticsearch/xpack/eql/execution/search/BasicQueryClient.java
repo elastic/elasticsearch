@@ -46,6 +46,7 @@ public class BasicQueryClient implements QueryClient {
     private static final Logger log = RuntimeUtils.QUERY_LOG;
 
     final Consumer<DirectoryMetrics> directoryMetricsConsumer;
+    final Consumer<SearchResponse.Clusters> clustersConsumer;
     final EqlConfiguration cfg;
     final Client client;
     final String[] indices;
@@ -54,6 +55,7 @@ public class BasicQueryClient implements QueryClient {
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.directoryMetricsConsumer = eqlSession::accumulateDirectoryMetrics;
+        this.clustersConsumer = eqlSession::recordSkippedClusters;
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
@@ -86,6 +88,7 @@ public class BasicQueryClient implements QueryClient {
         }
         client.search(search, listener.delegateFailureAndWrap((delegate, response) -> {
             directoryMetricsConsumer.accept(response.getDirectoryMetrics());
+            clustersConsumer.accept(response.getClusters());
             delegate.onResponse(response);
         }));
     }
@@ -110,6 +113,11 @@ public class BasicQueryClient implements QueryClient {
         ActionListener<MultiSearchResponse> downstream = multiSearchLogListener(listener, allowPartialSearchResults, log);
         client.multiSearch(search, downstream.delegateFailureAndWrap((delegate, response) -> {
             directoryMetricsConsumer.accept(response.mergeDirectoryMetrics());
+            for (MultiSearchResponse.Item item : response.getResponses()) {
+                if (item.isFailure() == false) {
+                    clustersConsumer.accept(item.getResponse().getClusters());
+                }
+            }
             delegate.onResponse(response);
         }));
     }

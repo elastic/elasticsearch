@@ -18,6 +18,7 @@ import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,10 +35,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.containsString;
 
 public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
 
@@ -203,6 +206,37 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 assertEquals(bytesRead, deserialized.directoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
             } finally {
                 deserialized.decRef();
+            }
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testSkippedClustersSerialization() throws IOException {
+        Map<String, List<ShardSearchFailure>> skipped = Map.of(
+            "remote1",
+            List.of(new ShardSearchFailure(new IllegalStateException("remote1 lost"))),
+            "remote2",
+            List.of()
+        );
+        EqlSearchResponse response = createTestInstance();
+        response.setSkippedClusters(skipped);
+        try {
+            EqlSearchResponse current = copyWriteable(response, getNamedWriteableRegistry(), EqlSearchResponse::new);
+            try {
+                assertEquals(Set.of("remote1", "remote2"), current.skippedClusters().keySet());
+                assertEquals(1, current.skippedClusters().get("remote1").size());
+                assertThat(current.skippedClusters().get("remote1").get(0).reason(), containsString("remote1 lost"));
+                assertEquals(List.of(), current.skippedClusters().get("remote2"));
+            } finally {
+                current.decRef();
+            }
+            TransportVersion before = TransportVersionUtils.getPreviousVersion(EqlSearchResponse.EQL_SEARCH_RESPONSE_SKIPPED_CLUSTERS);
+            EqlSearchResponse older = copyWriteable(response, getNamedWriteableRegistry(), EqlSearchResponse::new, before);
+            try {
+                assertEquals(Map.of(), older.skippedClusters());
+            } finally {
+                older.decRef();
             }
         } finally {
             response.decRef();

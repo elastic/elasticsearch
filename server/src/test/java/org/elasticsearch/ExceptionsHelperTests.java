@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -27,6 +28,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -608,5 +612,30 @@ public class ExceptionsHelperTests extends ESTestCase {
                 expectedLogged.getMessage()
             )
         );
+    }
+
+    public void testRemoteUnavailableException() {
+        NoSuchRemoteClusterException noSuchCluster = new NoSuchRemoteClusterException("remote");
+        List<Exception> unavailable = List.of(
+            noSuchCluster,
+            new RemoteTransportException("remote", noSuchCluster),
+            new ConnectTransportException(DiscoveryNodeUtils.create("n1"), "unreachable"),
+            new NoSeedNodeLeftException("no seed node left"),
+            new IllegalStateException("Unable to open any connections to remote cluster [remote]"),
+            new IllegalArgumentException("unknown host [remote]")
+        );
+        for (Exception e : unavailable) {
+            assertTrue(e.toString(), ExceptionsHelper.isRemoteUnavailableException(e));
+            assertTrue(e.toString(), ExceptionsHelper.isTopLevelRemoteUnavailableException(e));
+        }
+
+        ElasticsearchException lostShard = new ElasticsearchException("lost a shard", noSuchCluster);
+        assertTrue(ExceptionsHelper.isRemoteUnavailableException(lostShard));
+        assertFalse(ExceptionsHelper.isTopLevelRemoteUnavailableException(lostShard));
+
+        for (Exception e : List.of(new IllegalStateException("something else"), new IllegalStateException((String) null))) {
+            assertFalse(e.toString(), ExceptionsHelper.isRemoteUnavailableException(e));
+            assertFalse(e.toString(), ExceptionsHelper.isTopLevelRemoteUnavailableException(e));
+        }
     }
 }

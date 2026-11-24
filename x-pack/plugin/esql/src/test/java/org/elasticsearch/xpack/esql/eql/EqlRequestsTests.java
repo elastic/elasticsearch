@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.eql;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -34,6 +37,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -44,6 +49,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class EqlRequestsTests extends ESTestCase {
 
+    private static final String LOCAL = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
     private static final List<Attribute> NO_SCHEMA = List.of();
     private static final EqlRequests.EnclosingQuery DEFAULT_ENCLOSING = new EqlRequests.EnclosingQuery(false, null, null);
 
@@ -65,6 +71,81 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining("logs-*"));
         assertThat(request.query(), equalTo("process where true"));
         assertThat(request.resultPosition(), equalTo("tail"));
+    }
+
+    public void testCrossClusterSearchIsNotHandedToTheRemoteCluster() {
+        EqlSearchRequest request = build("process where true", "remote1:logs", NO_SCHEMA, Map.of());
+        assertFalse(request.ccsMinimizeRoundtrips());
+    }
+
+    public void testClustersSkippedWhilePlanningAreExcluded() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1", "remote2", "remote3");
+        skip(executionInfo, "remote1");
+        skip(executionInfo, "remote3");
+        String[] indices = { "logs", "remote*:logs", "-remote3:*", "remote2:events" };
+        String[] searchable = EqlRequests.searchableIndices(indices, executionInfo, false);
+        assertThat(searchable, arrayContaining("logs", "remote*:logs", "-remote3:*", "remote2:events", "-remote1:*"));
+        EqlSearchRequest request = build("process where true", String.join(",", searchable), NO_SCHEMA, Map.of());
+        assertThat(request.originalIndices(), arrayContaining(searchable));
+        assertThat(EqlRequests.searchedClusters(searchable, executionInfo.clusterAliases(), false), equalTo(Set.of(LOCAL, "remote2")));
+    }
+
+    public void testIndicesAreKeptWhenNoClusterTheyReadWasSkipped() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1", "remote2");
+        skip(executionInfo, "remote2");
+        String[] indices = { "logs", "remote1:logs", "-remote1:old*" };
+        assertThat(EqlRequests.searchableIndices(indices, executionInfo, false), equalTo(indices));
+    }
+
+    public void testIndexExclusionOfASkippedClusterStillReadsIt() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1");
+        skip(executionInfo, "remote1");
+        String[] indices = { "logs", "-remote1:old*" };
+        assertThat(EqlRequests.searchableIndices(indices, executionInfo, false), arrayContaining("logs", "-remote1:old*", "-remote1:*"));
+    }
+
+    public void testNothingIsSearchableWhenEveryClusterWasSkipped() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1", "remote2");
+        skip(executionInfo, "remote1");
+        skip(executionInfo, "remote2");
+        assertThat(EqlRequests.searchableIndices(new String[] { "remote1:logs", "remote*:events" }, executionInfo, false), emptyArray());
+    }
+
+    public void testLocalClusterSkippedWhilePlanningIsStillSearched() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote1", "remote2");
+        skip(executionInfo, LOCAL);
+        skip(executionInfo, "remote2");
+        String[] searchable = EqlRequests.searchableIndices(new String[] { "remote*:ok*", "unavailable*" }, executionInfo, false);
+        assertThat(searchable, arrayContaining("remote*:ok*", "unavailable*", "-remote2:*"));
+        skip(executionInfo, "remote1");
+        assertThat(
+            EqlRequests.searchableIndices(new String[] { "remote*:ok*", "unavailable*" }, executionInfo, false),
+            arrayContaining("remote*:ok*", "unavailable*", "-remote1:*", "-remote2:*")
+        );
+    }
+
+    public void testCrossProjectSearchIsNotNarrowed() {
+        EsqlExecutionInfo executionInfo = executionInfo("p1", "p2");
+        skip(executionInfo, "p1");
+        String[] indices = { "*:logs" };
+        assertThat(EqlRequests.searchableIndices(indices, executionInfo, true), equalTo(indices));
+        assertThat(EqlRequests.searchedClusters(indices, executionInfo.clusterAliases(), true), empty());
+    }
+
+    private static EsqlExecutionInfo executionInfo(String... remotes) {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY);
+        executionInfo.initCluster(LOCAL, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "logs");
+        for (String remote : remotes) {
+            executionInfo.initCluster(remote, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "logs");
+        }
+        return executionInfo;
+    }
+
+    private static void skip(EsqlExecutionInfo executionInfo, String cluster) {
+        executionInfo.swapCluster(
+            cluster,
+            (alias, info) -> new EsqlExecutionInfo.Cluster.Builder(info).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
+        );
     }
 
     public void testCommaSeparatedIndicesAreSplit() {

@@ -2024,15 +2024,22 @@ public class ComputeService {
         boolean receivedResults,
         Exception e
     ) {
+        markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, receivedResults, List.of(new ShardSearchFailure(e)));
+    }
+
+    public static void markClusterAfterRuntimeBranchFailure(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        boolean receivedResults,
+        List<ShardSearchFailure> failures
+    ) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(executionInfo.queryProfile().total().timeSinceStarted())
                 .setTotalShards(zeroIfNull(v.getTotalShards()))
                 .setSuccessfulShards(zeroIfNull(v.getSuccessfulShards()))
                 .setSkippedShards(zeroIfNull(v.getSkippedShards()))
-                .setFailedShards(zeroIfNull(v.getFailedShards()));
-            if (e != null) {
-                builder.addFailures(List.of(new ShardSearchFailure(e)));
-            }
+                .setFailedShards(zeroIfNull(v.getFailedShards()))
+                .addFailures(failures);
             applyClusterStatusAfterBranch(builder, v, true, receivedResults);
             return builder.build();
         });

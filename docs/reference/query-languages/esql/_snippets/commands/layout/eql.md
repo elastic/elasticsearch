@@ -106,14 +106,21 @@ command as described above, the command uses the default size and the query retu
 The command honors the enclosing {{esql}} query's
 [`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting. When partial results are not
 allowed, a shard failure fails the query. When they are allowed and a shard fails, an event or `sample` query
-returns the events or samples it could, and a `sequence` query follows the
-`xpack.eql.default_allow_partial_sequence_results` cluster setting, the same as a standalone EQL search: for an
-index pattern that targets a single remote cluster, that is the remote cluster's setting. The setting defaults to
-`false`, which returns no sequences rather than the ones found on the remaining shards.
+returns the events or samples it could, and a `sequence` query follows the coordinating cluster's
+`xpack.eql.default_allow_partial_sequence_results` setting, also when the index pattern targets a remote cluster.
+The setting defaults to `false`, which returns no sequences rather than the ones found on the remaining shards.
 `WITH { "allow_partial_sequence_results": … }` overrides the setting for a single query; set it to `true` to
 prefer resilience over completeness. Whenever a shard fails and the query still returns, even with no sequences,
 the response sets `is_partial` to `true` and lists the failed shards under `_clusters`, on the cluster each
 belongs to. Each EQL search lists at most five failed shards per cluster, so the list can be incomplete.
+
+### Unavailable remote clusters
+
+A remote cluster that is unavailable follows its `skip_unavailable` setting. When the setting is `true`, the EQL
+search leaves the cluster out, or skips it if it becomes unavailable during the search, and returns the events of
+the other clusters. The response marks the cluster `skipped` under `_clusters`, with the failure, and sets
+`is_partial` to `true`. When the setting is `false`, the query fails. A remote cluster lost while a `sequence` or
+`sample` query is already searching it counts as failed shards instead (see [Partial results](#partial-results)).
 
 ### Unmapped fields
 
@@ -256,6 +263,9 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WIT
 * **No remote `ENRICH` after the command.** The EQL events arrive on the coordinating node even when the
   pattern targets a remote cluster, so `ENRICH _remote:` after an `EQL` source is rejected. `LOOKUP JOIN`
   and the other `ENRICH` modes use the lookup index or enrich policy of the coordinating cluster.
+* **No shard counts or per-cluster times from the EQL search.** The EQL search reports neither, so under
+  `_clusters` a cluster that only the command searches shows `0` shards and, as its `took`, the time since the
+  query started.
 * **Compute derived columns after the command, not inside it.** The EQL predicate matches against the index
   mapping; there is no way to define an {{esql}}-computed field for use inside it. Compute derived columns
   *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md).

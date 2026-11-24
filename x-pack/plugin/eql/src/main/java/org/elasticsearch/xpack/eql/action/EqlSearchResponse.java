@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -58,6 +59,8 @@ import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
+    static final TransportVersion EQL_SEARCH_RESPONSE_SKIPPED_CLUSTERS = TransportVersion.fromName("eql_search_response_skipped_clusters");
+
     private final Hits hits;
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
     private final long tookInMillis;
@@ -67,6 +70,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private final boolean isPartial;
     private final ShardSearchFailure[] shardFailures;
     private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
+    private Map<String, List<ShardSearchFailure>> skippedClusters = Map.of();
 
     private static final class Fields {
         static final String TOOK = "took";
@@ -138,6 +142,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         if (in.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
             directoryMetrics = new DirectoryMetrics(in);
         }
+        if (in.getTransportVersion().supports(EQL_SEARCH_RESPONSE_SKIPPED_CLUSTERS)) {
+            skippedClusters = in.readImmutableMap(i -> i.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure));
+        }
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -155,6 +162,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeArray(shardFailures);
         if (out.getTransportVersion().supports(SearchResponse.SEARCH_DIRECTORY_METRICS)) {
             directoryMetrics.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(EQL_SEARCH_RESPONSE_SKIPPED_CLUSTERS)) {
+            out.writeMap(skippedClusters, StreamOutput::writeCollection);
         }
     }
 
@@ -194,6 +204,14 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         this.directoryMetrics = directoryMetrics;
+    }
+
+    public Map<String, List<ShardSearchFailure>> skippedClusters() {
+        return skippedClusters;
+    }
+
+    public void setSkippedClusters(Map<String, List<ShardSearchFailure>> skippedClusters) {
+        this.skippedClusters = skippedClusters;
     }
 
     public boolean isTimeout() {

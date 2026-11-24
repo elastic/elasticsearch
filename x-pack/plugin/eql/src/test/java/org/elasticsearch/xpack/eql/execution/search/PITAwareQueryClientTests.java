@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,9 +29,11 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -61,7 +64,9 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -74,6 +79,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PITAwareQueryClientTests extends ESTestCase {
 
@@ -83,12 +89,48 @@ public class PITAwareQueryClientTests extends ESTestCase {
         termQuery("tier", "hot"),
         idsQuery().addIds("1", "2", "3") };
     private static final String[] INDICES = new String[] { "test1", "test2", "test3" };
+    private static final SearchResponse.Cluster.Status SUCCESSFUL = SearchResponse.Cluster.Status.SUCCESSFUL;
 
     public void testQueryFilterUsedInPitAndSearches() {
+        runSequence(frequently() ? randomFrom(FILTERS) : null, SearchResponse.Clusters.EMPTY, SearchResponse.Clusters.EMPTY);
+    }
+
+    public void testRemoteClustersSkippedByThePitOrASearchAreRecorded() {
+        ShardSearchFailure openFailure = new ShardSearchFailure(new IllegalStateException("remote1 lost"));
+        ShardSearchFailure searchFailure = new ShardSearchFailure(new IllegalStateException("remote2 lost"));
+        ShardSearchFailure shardFailure = new ShardSearchFailure(new IllegalStateException("remote3 shard lost"));
+        ShardSearchFailure everyShardLost = new ShardSearchFailure(
+            new IllegalStateException("remote4 shard lost"),
+            new SearchShardTarget("n1", new ShardId("test1", "_na_", 0), "remote4")
+        );
+        EqlSession eqlSession = runSequence(
+            null,
+            clusters(cluster("remote1", SearchResponse.Cluster.Status.SKIPPED, openFailure), cluster("remote2", SUCCESSFUL)),
+            clusters(
+                cluster("remote2", SearchResponse.Cluster.Status.SKIPPED, searchFailure),
+                cluster("remote3", SearchResponse.Cluster.Status.PARTIAL, shardFailure),
+                cluster("remote4", SearchResponse.Cluster.Status.SKIPPED, everyShardLost)
+            )
+        );
+        assertThat(eqlSession.skippedClusters(), equalTo(Map.of("remote1", List.of(openFailure), "remote2", List.of(searchFailure))));
+    }
+
+    private static SearchResponse.Clusters clusters(SearchResponse.Cluster... clusters) {
+        Map<String, SearchResponse.Cluster> byAlias = new HashMap<>();
+        for (SearchResponse.Cluster cluster : clusters) {
+            byAlias.put(cluster.getClusterAlias(), cluster);
+        }
+        return new SearchResponse.Clusters(byAlias);
+    }
+
+    private static SearchResponse.Cluster cluster(String alias, SearchResponse.Cluster.Status status, ShardSearchFailure... failures) {
+        return new SearchResponse.Cluster(alias, "test1", true, status, 1, 0, 0, 0, List.of(failures), null, false, null);
+    }
+
+    private EqlSession runSequence(QueryBuilder filter, SearchResponse.Clusters pitClusters, SearchResponse.Clusters searchClusters) {
         try (var threadPool = createThreadPool()) {
-            final var filter = frequently() ? randomFrom(FILTERS) : null;
             int stages = randomIntBetween(2, 5);
-            final var esClient = new ESMockClient(threadPool, filter, stages);
+            final var esClient = new ESMockClient(threadPool, filter, stages, pitClusters, searchClusters);
 
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 INDICES,
@@ -183,6 +225,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
             window.execute(wrap(response -> {
                 // do nothing, we don't care about the query results
             }, ex -> { fail("Shouldn't have failed"); }));
+            return eqlSession;
         }
     }
 
@@ -193,13 +236,23 @@ public class PITAwareQueryClientTests extends ESTestCase {
     private class ESMockClient extends NoOpClient {
         private final QueryBuilder filter;
         private final BytesReference pitId = new BytesArray("test_pit_id");
+        private final SearchResponse.Clusters pitClusters;
+        private final SearchResponse.Clusters searchClusters;
         private boolean openedPIT = false;
         private int searchRequestsRemainingCount;
 
-        ESMockClient(ThreadPool threadPool, QueryBuilder filter, int stages) {
+        ESMockClient(
+            ThreadPool threadPool,
+            QueryBuilder filter,
+            int stages,
+            SearchResponse.Clusters pitClusters,
+            SearchResponse.Clusters searchClusters
+        ) {
             super(threadPool);
             this.filter = filter;
             this.searchRequestsRemainingCount = stages;
+            this.pitClusters = pitClusters;
+            this.searchClusters = searchClusters;
         }
 
         @SuppressWarnings("unchecked")
@@ -215,7 +268,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 assertArrayEquals(INDICES, openPIT.indices()); // indices for opening pit should be the same as for the eql query itself
 
                 openedPIT = true;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, pitClusters);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest closePIT) {
                 assertTrue(openedPIT);
@@ -270,7 +323,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 List.of(),
                 List.of(),
-                SearchResponse.Clusters.EMPTY,
+                searchClusters,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,
                 null

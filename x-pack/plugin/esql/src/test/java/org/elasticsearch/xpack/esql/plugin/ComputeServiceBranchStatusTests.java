@@ -147,6 +147,26 @@ public class ComputeServiceBranchStatusTests extends ESTestCase {
         assertThat(executionInfo.getCluster(REMOTE).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
     }
 
+    public void testBranchFailuresAreRecordedAsGiven() {
+        ShardSearchFailure listed = new ShardSearchFailure(new IllegalStateException("listed before"));
+        EsqlExecutionInfo executionInfo = executionInfoWith(
+            cluster(EsqlExecutionInfo.Cluster.Status.RUNNING, null, null, null, List.of(listed))
+        );
+        List<ShardSearchFailure> failures = List.of(
+            new ShardSearchFailure(new IllegalStateException("first")),
+            new ShardSearchFailure(new IllegalStateException("second"))
+        );
+        ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, REMOTE, false, failures);
+        EsqlExecutionInfo.Cluster updated = executionInfo.getCluster(REMOTE);
+        assertThat(updated.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        assertThat(updated.getFailures(), equalTo(List.of(listed, failures.get(0), failures.get(1))));
+
+        EsqlExecutionInfo noFailures = executionInfoWith(cluster(EsqlExecutionInfo.Cluster.Status.RUNNING, null, null, null, List.of()));
+        ComputeService.markClusterAfterRuntimeBranchFailure(noFailures, REMOTE, false, List.of());
+        assertThat(noFailures.getCluster(REMOTE).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(noFailures.getCluster(REMOTE).getFailures(), empty());
+    }
+
     private static void assertStatusAfterBranch(
         EsqlExecutionInfo.Cluster.Status existingStatus,
         boolean failed,

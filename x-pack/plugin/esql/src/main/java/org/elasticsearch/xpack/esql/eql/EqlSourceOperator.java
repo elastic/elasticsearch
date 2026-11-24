@@ -12,12 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,7 +49,8 @@ public class EqlSourceOperator extends SourceOperator {
 
     public record Factory(
         Client client,
-        EqlSearchRequest request,
+        @Nullable EqlSearchRequest request,
+        Set<String> searchedClusters,
         EqlRelation.Mode mode,
         List<Attribute> schema,
         Source source,
@@ -57,20 +59,33 @@ public class EqlSourceOperator extends SourceOperator {
     ) implements SourceOperatorFactory {
         @Override
         public String describe() {
-            return "EqlSourceOperator[mode=" + mode + ", indices=" + String.join(",", request.indices()) + "]";
+            String indices = request == null ? "" : String.join(",", request.indices());
+            return "EqlSourceOperator[mode=" + mode + ", indices=" + indices + "]";
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new EqlSourceOperator(driverContext, client, request, mode, schema, source, warnOnDefaultSize, executionInfo);
+            return new EqlSourceOperator(
+                driverContext,
+                client,
+                request,
+                searchedClusters,
+                mode,
+                schema,
+                source,
+                warnOnDefaultSize,
+                executionInfo
+            );
         }
     }
 
     private static final int MAX_REPORTED_FAILURES = 5;
+    private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private final DriverContext driverContext;
     private final Client client;
     private final EqlSearchRequest request;
+    private final Set<String> searchedClusters;
     private final EqlRelation.Mode mode;
     private final List<Attribute> schema;
     private final Source source;
@@ -90,6 +105,7 @@ public class EqlSourceOperator extends SourceOperator {
         DriverContext driverContext,
         Client client,
         EqlSearchRequest request,
+        Set<String> searchedClusters,
         EqlRelation.Mode mode,
         List<Attribute> schema,
         Source source,
@@ -99,6 +115,7 @@ public class EqlSourceOperator extends SourceOperator {
         this.driverContext = driverContext;
         this.client = client;
         this.request = request;
+        this.searchedClusters = searchedClusters;
         this.mode = mode;
         this.schema = schema;
         this.source = source;
@@ -110,11 +127,12 @@ public class EqlSourceOperator extends SourceOperator {
         if (requested) {
             return;
         }
-        // A failure that names no cluster comes from the cluster that ran the search. Work it out before the request goes
-        // out: the EQL engine strips the cluster from the indices of a search it hands to a single remote cluster.
-        String searchedCluster = searchedCluster(request.indices(), executionInfo.clusterAliases());
         requested = true;
         blocked = new SubscribableListener<>();
+        if (request == null) {
+            blocked.onResponse(null);
+            return;
+        }
         driverContext.addAsyncAction();
         // client.execute delivers every outcome — including a synchronous registration failure such as a
         // TaskCancelledException when the parent task is already banned — through the listener, never by throwing
@@ -128,7 +146,8 @@ public class EqlSourceOperator extends SourceOperator {
                 // This callback runs on the EQL response thread, outside the driver run loop, so the blocks must come from
                 // the root factory: the driver's local breaker may only be touched by the driver thread.
                 // isPartial() only flags a still-running async response; a completed one reports lost shards in shardFailures().
-                recordPartialResults(response, searchedCluster);
+                recordPartialResults(response);
+                recordSkippedClusters(response);
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
                 synchronized (this) {
                     if (closed) {
@@ -146,9 +165,17 @@ public class EqlSourceOperator extends SourceOperator {
                 blocked.onResponse(null);
             }
         }, e -> {
-            failure = e;
-            driverContext.removeAsyncAction();
-            blocked.onResponse(null);
+            try {
+                if (skipUnavailableClusters(e) == false) {
+                    failure = e;
+                }
+            } catch (Exception skipFailure) {
+                e.addSuppressed(skipFailure);
+                failure = e;
+            } finally {
+                driverContext.removeAsyncAction();
+                blocked.onResponse(null);
+            }
         }));
         maybeWarnDefaultSize();
     }
@@ -170,13 +197,10 @@ public class EqlSourceOperator extends SourceOperator {
             failure = null;
             throw ExceptionsHelper.convertToRuntime(e);
         }
-        if (page != null) {
-            Page result = page;
-            page = null;
-            emitted = true;
-            return result;
-        }
-        return null;
+        Page result = page;
+        page = null;
+        emitted = true;
+        return result;
     }
 
     private void maybeWarnDefaultSize() {
@@ -188,7 +212,7 @@ public class EqlSourceOperator extends SourceOperator {
         }
     }
 
-    private void recordPartialResults(EqlSearchResponse response, String searchedCluster) {
+    private void recordPartialResults(EqlSearchResponse response) {
         if (response.isTimeout()) {
             executionInfo.markPartial();
         }
@@ -197,10 +221,11 @@ public class EqlSourceOperator extends SourceOperator {
             return;
         }
         executionInfo.markPartial();
+        String unnamedCluster = searchedClusters.size() == 1 ? searchedClusters.iterator().next() : LOCAL_CLUSTER;
         Map<String, List<ShardSearchFailure>> failuresByCluster = new HashMap<>();
         for (ShardSearchFailure failure : failures) {
             String cluster = failure.shard() == null || failure.shard().getClusterAlias() == null
-                ? searchedCluster
+                ? unnamedCluster
                 : failure.shard().getClusterAlias();
             failuresByCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
         }
@@ -243,21 +268,65 @@ public class EqlSourceOperator extends SourceOperator {
         return failure.shard() == null ? failure.reason() : failure.shard().getShardId().toString();
     }
 
-    private static String searchedCluster(String[] indices, Set<String> queryClusters) {
-        Set<String> clusters = new HashSet<>();
-        for (String index : indices) {
-            String cluster = RemoteClusterAware.splitIndexName(index).getClusterGroupingKey();
-            if (Regex.isSimpleMatchPattern(cluster) == false) {
-                clusters.add(cluster);
-                continue;
+    private void recordSkippedClusters(EqlSearchResponse response) {
+        if (response.skippedClusters().isEmpty()) {
+            return;
+        }
+        Set<String> clustersWithEvents = clustersWithEvents(response);
+        response.skippedClusters().forEach((cluster, failures) -> {
+            if (LOCAL_CLUSTER.equals(cluster)) {
+                return;
             }
-            for (String alias : queryClusters) {
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias) == false && Regex.simpleMatch(cluster, alias)) {
-                    clusters.add(alias);
-                }
+            executionInfo.markPartial();
+            if (executionInfo.getCluster(cluster) != null) {
+                List<ShardSearchFailure> listed = failures.subList(0, Math.min(failures.size(), MAX_REPORTED_FAILURES));
+                ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, cluster, clustersWithEvents.contains(cluster), listed);
+            }
+        });
+    }
+
+    // A sequence can hold events a remote cluster returned before a later search skipped it.
+    private static Set<String> clustersWithEvents(EqlSearchResponse response) {
+        List<EqlSearchResponse.Event> events = new ArrayList<>();
+        if (response.hits().events() != null) {
+            events.addAll(response.hits().events());
+        }
+        if (response.hits().sequences() != null) {
+            response.hits().sequences().forEach(sequence -> events.addAll(sequence.events()));
+        }
+        Set<String> clusters = new HashSet<>();
+        for (EqlSearchResponse.Event event : events) {
+            if (event.missing() == false && event.index() != null) {
+                clusters.add(RemoteClusterAware.splitIndexName(event.index()).getClusterGroupingKey());
             }
         }
-        return clusters.size() == 1 ? clusters.iterator().next() : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        return clusters;
+    }
+
+    private boolean skipUnavailableClusters(Exception e) {
+        // Not through causes: EQL fails a search that lost a shard with the shard's own failure as the cause.
+        if (ExceptionsHelper.isTopLevelRemoteUnavailableException(e) == false) {
+            return false;
+        }
+        List<String> remotes = new ArrayList<>();
+        for (String cluster : searchedClusters) {
+            EsqlExecutionInfo.Cluster info = executionInfo.getCluster(cluster);
+            if (LOCAL_CLUSTER.equals(cluster) && info != null && info.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                continue;
+            }
+            if (info == null || executionInfo.shouldSkipOnFailure(cluster) == false) {
+                return false;
+            }
+            remotes.add(cluster);
+        }
+        if (remotes.isEmpty()) {
+            return false;
+        }
+        List<ShardSearchFailure> failures = List.of(new ShardSearchFailure(e));
+        for (String cluster : remotes) {
+            ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, cluster, false, failures);
+        }
+        return true;
     }
 
     @Override

@@ -87,6 +87,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -124,6 +125,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
+import org.elasticsearch.xpack.esql.eql.EqlSourceOperator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -140,11 +142,13 @@ import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperato
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -188,8 +192,10 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -2319,7 +2325,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FetchOperatorProvider.UNSUPPORTED,
             LocalExecutionPlanner.ExternalComputeContext.NONE,
             extraNodeSettings,
-            config(queryPragmas)
+            config(queryPragmas),
+            null
         );
     }
 
@@ -2339,7 +2346,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FetchOperatorProvider.UNSUPPORTED,
             externalCompute,
             Settings.EMPTY,
-            config()
+            config(),
+            null
         );
     }
 
@@ -2377,7 +2385,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             fetchOperators,
             LocalExecutionPlanner.ExternalComputeContext.NONE,
             Settings.EMPTY,
-            config()
+            config(),
+            null
         );
     }
 
@@ -2390,7 +2399,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         FetchOperatorProvider fetchOperators,
         LocalExecutionPlanner.ExternalComputeContext externalCompute,
         Settings extraNodeSettings,
-        Configuration configuration
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo
     ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
@@ -2428,7 +2438,70 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             externalCompute,
             null, // escfBulkService - not needed for these tests
             () -> false,
-            null  // executionInfo - not needed for these tests
+            executionInfo
+        );
+    }
+
+    public void testEqlSourceLeavesOutTheRemoteClustersSkippedWhilePlanning() throws IOException {
+        EsqlExecutionInfo executionInfo = eqlExecutionInfo("remote1", "remote2");
+        skipCluster(executionInfo, "remote1");
+        EqlSourceOperator.Factory factory = planEqlSource("logs,remote*:logs", executionInfo, Settings.EMPTY);
+        assertThat(factory.request().indices(), arrayContaining("logs", "remote*:logs", "-remote1:*"));
+        assertThat(factory.request().originalIndices(), arrayContaining("logs", "remote*:logs", "-remote1:*"));
+        assertThat(factory.searchedClusters(), equalTo(Set.of("", "remote2")));
+
+        skipCluster(executionInfo, "remote2");
+        EqlSourceOperator.Factory nothingLeft = planEqlSource("remote*:logs", executionInfo, Settings.EMPTY);
+        assertThat(nothingLeft.request(), nullValue());
+        assertThat(nothingLeft.searchedClusters(), empty());
+
+        Settings crossProject = Settings.builder().put("serverless.cross_project.enabled", true).build();
+        EqlSourceOperator.Factory notNarrowed = planEqlSource("remote*:logs", executionInfo, crossProject);
+        assertThat(notNarrowed.request().indices(), arrayContaining("remote*:logs"));
+        assertThat(notNarrowed.searchedClusters(), empty());
+    }
+
+    private EqlSourceOperator.Factory planEqlSource(String indices, EsqlExecutionInfo executionInfo, Settings nodeSettings)
+        throws IOException {
+        EqlSourceExec eql = new EqlSourceExec(
+            Source.EMPTY,
+            "any where true",
+            indices,
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            List.of(),
+            null,
+            null,
+            null
+        );
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(
+            null,
+            true,
+            null,
+            true,
+            null,
+            FetchOperatorProvider.UNSUPPORTED,
+            LocalExecutionPlanner.ExternalComputeContext.NONE,
+            nodeSettings,
+            config(),
+            executionInfo
+        ).plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, eql, EmptyIndexedByShardId.instance(), randomBoolean());
+        return (EqlSourceOperator.Factory) plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+    }
+
+    private static EsqlExecutionInfo eqlExecutionInfo(String... remotes) {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY);
+        executionInfo.initCluster("", EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "logs");
+        for (String remote : remotes) {
+            executionInfo.initCluster(remote, EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION, "logs");
+        }
+        return executionInfo;
+    }
+
+    private static void skipCluster(EsqlExecutionInfo executionInfo, String cluster) {
+        executionInfo.swapCluster(
+            cluster,
+            (alias, info) -> new EsqlExecutionInfo.Cluster.Builder(info).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
         );
     }
 

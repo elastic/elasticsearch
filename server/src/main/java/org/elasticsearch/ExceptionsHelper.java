@@ -571,6 +571,12 @@ public final class ExceptionsHelper {
             || t instanceof org.elasticsearch.cluster.block.ClusterBlockException);
     }
 
+    private static final Class<?>[] REMOTE_UNAVAILABLE_EXCEPTIONS = {
+        ConnectTransportException.class,
+        NoSuchRemoteClusterException.class,
+        NoSeedNodeLeftException.class };
+    private static final Class<?>[] REMOTE_CONNECTION_FAILURES = { IllegalStateException.class, IllegalArgumentException.class };
+
     /**
      * Checks the exception against a known list of exceptions that indicate a remote cluster
      * cannot be connected to.
@@ -580,16 +586,38 @@ public final class ExceptionsHelper {
      *         is unavailable (cannot be connected to by the transport layer)
      */
     public static boolean isRemoteUnavailableException(Exception e) {
-        Throwable unwrap = unwrap(e, ConnectTransportException.class, NoSuchRemoteClusterException.class, NoSeedNodeLeftException.class);
+        Throwable unwrap = unwrap(e, REMOTE_UNAVAILABLE_EXCEPTIONS);
         if (unwrap != null) {
             return true;
         }
-        Throwable ill = unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
-        if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
+        Throwable ill = unwrap(e, REMOTE_CONNECTION_FAILURES);
+        if (isRemoteConnectionFailure(ill)) {
             return true;
         }
         // doesn't look like any of the known remote exceptions
         return false;
+    }
+
+    // Like isRemoteUnavailableException, but for the exception itself once wrapper exceptions are removed, not for its causes:
+    // an exception reporting another failure, such as a lost shard, can carry a disconnect as its cause.
+    public static boolean isTopLevelRemoteUnavailableException(Exception e) {
+        Throwable t = unwrapCause(e);
+        return isInstanceOfAny(t, REMOTE_UNAVAILABLE_EXCEPTIONS)
+            || (isInstanceOfAny(t, REMOTE_CONNECTION_FAILURES) && isRemoteConnectionFailure(t));
+    }
+
+    private static boolean isInstanceOfAny(Throwable t, Class<?>[] classes) {
+        for (Class<?> clazz : classes) {
+            if (clazz.isInstance(t)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRemoteConnectionFailure(@Nullable Throwable t) {
+        String message = t == null ? null : t.getMessage();
+        return message != null && (message.contains("Unable to open any connections") || message.contains("unknown host"));
     }
 
     /**

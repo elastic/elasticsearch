@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 
 import java.util.List;
+import java.util.Map;
 
 public class Results {
 
@@ -27,12 +28,17 @@ public class Results {
     private final Type type;
     private ShardSearchFailure[] shardFailures;
     private final DirectoryMetrics directoryMetrics;
+    private final Map<String, List<ShardSearchFailure>> skippedClusters;
 
     public static Results fromPayload(Payload payload) {
-        return fromPayload(payload, DirectoryMetrics.EMPTY);
+        return fromPayload(payload, DirectoryMetrics.EMPTY, Map.of());
     }
 
-    public static Results fromPayload(Payload payload, DirectoryMetrics directoryMetrics) {
+    public static Results fromPayload(
+        Payload payload,
+        DirectoryMetrics directoryMetrics,
+        Map<String, List<ShardSearchFailure>> skippedClusters
+    ) {
         List<?> values = payload.values();
         return new Results(
             new TotalHits(values.size(), Relation.EQUAL_TO),
@@ -41,7 +47,8 @@ public class Results {
             values,
             payload.resultType(),
             payload.shardFailures(),
-            directoryMetrics
+            directoryMetrics,
+            skippedClusters
         );
     }
 
@@ -52,7 +59,8 @@ public class Results {
         List<?> results,
         Type type,
         ShardSearchFailure[] shardFailures,
-        DirectoryMetrics directoryMetrics
+        DirectoryMetrics directoryMetrics,
+        Map<String, List<ShardSearchFailure>> skippedClusters
     ) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;
@@ -61,6 +69,7 @@ public class Results {
         this.type = type;
         this.shardFailures = shardFailures;
         this.directoryMetrics = directoryMetrics;
+        this.skippedClusters = skippedClusters;
     }
 
     public TotalHits totalHits() {
@@ -83,6 +92,10 @@ public class Results {
 
     public DirectoryMetrics directoryMetrics() {
         return directoryMetrics;
+    }
+
+    public Map<String, List<ShardSearchFailure>> skippedClusters() {
+        return skippedClusters;
     }
 
     public TimeValue tookTime() {

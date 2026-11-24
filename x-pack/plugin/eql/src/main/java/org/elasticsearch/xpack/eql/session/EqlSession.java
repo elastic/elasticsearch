@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -30,8 +32,10 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
@@ -51,6 +55,7 @@ public class EqlSession {
     private final CircuitBreaker circuitBreaker;
     // accumulates per-query directory read metrics across all sub-searches issued during this session's execution
     private final AtomicReference<DirectoryMetrics> directoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
+    private final Map<String, List<ShardSearchFailure>> skippedClusters = new ConcurrentHashMap<>();
 
     public EqlSession(
         Client client,
@@ -100,11 +105,30 @@ public class EqlSession {
         return directoryMetrics.get();
     }
 
+    public void recordSkippedClusters(SearchResponse.Clusters clusters) {
+        for (String clusterAlias : clusters.getClusterAliases()) {
+            SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            if (cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
+                // A cluster skipped because all its shards failed already reports them as shard failures of the search.
+                List<ShardSearchFailure> failures = cluster.getFailures().stream().filter(failure -> failure.shard() == null).toList();
+                if (failures.isEmpty() == false || cluster.getFailures().isEmpty()) {
+                    skippedClusters.putIfAbsent(clusterAlias, failures);
+                }
+            }
+        }
+    }
+
+    public Map<String, List<ShardSearchFailure>> skippedClusters() {
+        return Map.copyOf(skippedClusters);
+    }
+
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
         eqlExecutable(
             eql,
             params,
-            listener.delegateFailureAndWrap((l, e) -> e.execute(this, map(l, payload -> Results.fromPayload(payload, directoryMetrics()))))
+            listener.delegateFailureAndWrap(
+                (l, e) -> e.execute(this, map(l, payload -> Results.fromPayload(payload, directoryMetrics(), skippedClusters())))
+            )
         );
     }
 

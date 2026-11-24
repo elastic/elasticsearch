@@ -27,7 +27,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
 import org.elasticsearch.lucene.search.cost.FixedBitSetCost;
 import org.elasticsearch.test.ESTestCase;
@@ -52,11 +51,52 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
     private static final String XY_SHAPE = "xs";
 
     private Directory directory;
-    private DirectoryReader reader;
 
     @Before
-    public void indexRandomGeometries() throws IOException {
+    public void initDirectory() {
         directory = newDirectory();
+    }
+
+    @After
+    public void closeDirectory() throws IOException {
+        directory.close();
+    }
+
+    public void testChargeIsCeilingOnRetainedSet() throws IOException {
+        indexRandomGeometries();
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            for (int iter = 0; iter < 10; iter++) {
+                double lat = randomDoubleBetween(-12, 12, true);
+                double lon = randomDoubleBetween(-12, 12, true);
+                double halfSide = randomDoubleBetween(0.01, 15, true);
+                assertChargeIsCeilingOnRetainedSet(searcher, LatLonPoint.newDistanceQuery(GEO_POINT, lat, lon, halfSide * 111_000));
+                assertChargeIsCeilingOnRetainedSet(
+                    searcher,
+                    XYPointField.newPolygonQuery(XY_POINT, xySquare((float) lon, (float) lat, (float) halfSide))
+                );
+                for (QueryRelation relation : QueryRelation.values()) {
+                    if (relation != QueryRelation.CONTAINS) {
+                        assertChargeIsCeilingOnRetainedSet(
+                            searcher,
+                            LatLonPoint.newGeometryQuery(GEO_POINT, relation, square(lat, lon, halfSide))
+                        );
+                    }
+                    // A shape contains a point inside it, which keeps the CONTAINS results non-empty.
+                    Polygon polygon = relation == QueryRelation.CONTAINS ? square(lat, lon, 0.001) : square(lat, lon, halfSide);
+                    assertChargeIsCeilingOnRetainedSet(searcher, LatLonShape.newGeometryQuery(GEO_SHAPE, relation, polygon));
+                    assertChargeIsCeilingOnRetainedSet(
+                        searcher,
+                        XYShape.newGeometryQuery(XY_SHAPE, relation, xySquare((float) lon, (float) lat, 0.001f))
+                    );
+                }
+            }
+        }
+    }
+
+    /** Indexes random points, and a small square around each, into {@link #directory}: one per doc, or up to three if multivalued. */
+    private void indexRandomGeometries() throws IOException {
         boolean multiValued = randomBoolean();
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
             int numDocs = between(1000, 10_000);
@@ -81,42 +121,6 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
                 writer.forceMerge(1);
             }
         }
-        reader = DirectoryReader.open(directory);
-    }
-
-    @After
-    public void closeReader() throws IOException {
-        IOUtils.close(reader, directory);
-    }
-
-    public void testChargeIsCeilingOnRetainedSet() throws IOException {
-        IndexSearcher searcher = new IndexSearcher(reader);
-        searcher.setQueryCache(null);
-        for (int iter = 0; iter < 10; iter++) {
-            double lat = randomDoubleBetween(-12, 12, true);
-            double lon = randomDoubleBetween(-12, 12, true);
-            double halfSide = randomDoubleBetween(0.01, 15, true);
-            assertChargeIsCeilingOnRetainedSet(searcher, LatLonPoint.newDistanceQuery(GEO_POINT, lat, lon, halfSide * 111_000));
-            assertChargeIsCeilingOnRetainedSet(
-                searcher,
-                XYPointField.newPolygonQuery(XY_POINT, xySquare((float) lon, (float) lat, (float) halfSide))
-            );
-            for (QueryRelation relation : QueryRelation.values()) {
-                if (relation != QueryRelation.CONTAINS) {
-                    assertChargeIsCeilingOnRetainedSet(
-                        searcher,
-                        LatLonPoint.newGeometryQuery(GEO_POINT, relation, square(lat, lon, halfSide))
-                    );
-                }
-                // A shape contains a point inside it, which keeps the CONTAINS results non-empty.
-                Polygon polygon = relation == QueryRelation.CONTAINS ? square(lat, lon, 0.001) : square(lat, lon, halfSide);
-                assertChargeIsCeilingOnRetainedSet(searcher, LatLonShape.newGeometryQuery(GEO_SHAPE, relation, polygon));
-                assertChargeIsCeilingOnRetainedSet(
-                    searcher,
-                    XYShape.newGeometryQuery(XY_SHAPE, relation, xySquare((float) lon, (float) lat, 0.001f))
-                );
-            }
-        }
     }
 
     /** The reservation also covers the {@code DocIdSetBuilder} that the {@code INTERSECTS} and single-valued paths collect into. */
@@ -139,23 +143,21 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
 
     /** Every document has one point and the circle covers most of them, so the distance query builds the inverse bit set. */
     public void testDistanceChargesInverseBitSet() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null))) {
-                for (int docId = 0; docId < 2000; docId++) {
-                    Document doc = new Document();
-                    doc.add(new LatLonPoint(GEO_POINT, randomDoubleBetween(-1, 1, true), randomDoubleBetween(-1, 1, true)));
-                    writer.addDocument(doc);
-                }
-                writer.forceMerge(1);
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+            for (int docId = 0; docId < 2000; docId++) {
+                Document doc = new Document();
+                doc.add(new LatLonPoint(GEO_POINT, randomDoubleBetween(-1, 1, true), randomDoubleBetween(-1, 1, true)));
+                writer.addDocument(doc);
             }
-            try (DirectoryReader singleValued = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = new IndexSearcher(singleValued);
-                Query query = LatLonPoint.newDistanceQuery(GEO_POINT, 0, 0, 1_000_000);
-                Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                LeafReaderContext ctx = singleValued.leaves().getFirst();
-                long charged = ExecutionCharge.forQuery(query).estimator().bytesForLeaf(ctx, weight.scorerSupplier(ctx), Long.MAX_VALUE);
-                assertThat(charged, equalTo(FixedBitSetCost.scorerBytes(ctx.reader().maxDoc())));
-            }
+            writer.forceMerge(1);
+        }
+        try (DirectoryReader singleValued = DirectoryReader.open(directory)) {
+            IndexSearcher searcher = new IndexSearcher(singleValued);
+            Query query = LatLonPoint.newDistanceQuery(GEO_POINT, 0, 0, 1_000_000);
+            Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+            LeafReaderContext ctx = singleValued.leaves().getFirst();
+            long charged = ExecutionCharge.forQuery(query).estimator().bytesForLeaf(ctx, weight.scorerSupplier(ctx), Long.MAX_VALUE);
+            assertThat(charged, equalTo(FixedBitSetCost.scorerBytes(ctx.reader().maxDoc())));
         }
     }
 

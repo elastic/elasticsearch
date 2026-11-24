@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -94,14 +93,14 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         final var segmentName = segment.getSegmentName();
         final var segmentId = segmentId(segment.getSegmentInfo().info);
         final var merge = merges.get(segmentId);
-        final BooleanSupplier isAborted = merge != null ? merge::isAborted : () -> false;
+        assert merge != null : "no merge tracked for segment [" + segmentName + "]";
         // an aborted merge is discarded by the index writer, so there is nothing to tell the listener about
-        if (isAborted.getAsBoolean()) {
+        if (merge.isAborted()) {
             return;
         }
         try {
             final var future = new PlainActionFuture<Void>();
-            listener.onNewSegmentMerged(segment, isAborted, future);
+            listener.onNewSegmentMerged(segment, merge::isAborted, future);
             // TODO: bound the wait with a timeout
             future.get();
         } catch (ExecutionException e) {

@@ -16,6 +16,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -220,26 +221,34 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
                 writer.addDocument(new Document());
             }
             try (var reader = DirectoryReader.open(directory)) {
-                final var thrown = new AtomicReference<Exception>();
-                final var interrupted = new AtomicBoolean();
-                // plays the merge thread
-                final var mergeThread = new Thread(() -> {
-                    try {
-                        warmer.warm(reader.leaves().getFirst().reader());
-                    } catch (Exception e) {
-                        thrown.set(e);
-                    }
-                    interrupted.set(Thread.currentThread().isInterrupted());
-                });
-                mergeThread.start();
+                final var leaf = reader.leaves().getFirst().reader();
+                final var mergedSegment = Lucene.segmentReader(leaf).getSegmentInfo();
+                final var merge = new MergePolicy.OneMerge(List.of(mergedSegment));
+                warmer.onMergeStarted(mergedSegment, merge);
+                try {
+                    final var thrown = new AtomicReference<Exception>();
+                    final var interrupted = new AtomicBoolean();
+                    // plays the merge thread
+                    final var mergeThread = new Thread(() -> {
+                        try {
+                            warmer.warm(leaf);
+                        } catch (Exception e) {
+                            thrown.set(e);
+                        }
+                        interrupted.set(Thread.currentThread().isInterrupted());
+                    });
+                    mergeThread.start();
 
-                final var listener = safePoll(pendingListeners);
-                mergeThread.interrupt();
-                safeJoin(mergeThread);
+                    final var listener = safePoll(pendingListeners);
+                    mergeThread.interrupt();
+                    safeJoin(mergeThread);
 
-                assertThat(thrown.get(), instanceOf(MergePolicy.MergeAbortedException.class));
-                assertTrue(interrupted.get());
-                listener.onResponse(null);
+                    assertThat(thrown.get(), instanceOf(MergePolicy.MergeAbortedException.class));
+                    assertTrue(interrupted.get());
+                    listener.onResponse(null);
+                } finally {
+                    warmer.onMergeFinished(mergedSegment, merge);
+                }
             }
         }
     }

@@ -341,6 +341,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
+        return combineInnerRetrieverResults(rankResults, explain, () -> {});
+    }
+
+    @Override
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain, Runnable cancellationCheck) {
         if (rankResults.isEmpty()) {
             return new RankDoc[0];
         }
@@ -371,6 +376,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         diversificationContext.setFieldVectors(fieldVectors);
+        diversificationContext.setCancellationCheck(cancellationCheck);
 
         try {
             ResultDiversification<?> diversification = ResultDiversificationFactory.getDiversifier(

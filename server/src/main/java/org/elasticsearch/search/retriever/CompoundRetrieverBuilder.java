@@ -97,6 +97,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain);
 
     /**
+     * Same as {@link #combineInnerRetrieverResults(List, boolean)}, but also receives a {@code cancellationCheck} that
+     * throws if the search was cancelled. Implementations with a long-running combine step should override this and
+     * call the check periodically so that a cancelled search stops early.
+     */
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain, Runnable cancellationCheck) {
+        return combineInnerRetrieverResults(rankResults, explain);
+    }
+
+    /**
      * Returns the executor on which the inner retriever responses are processed and
      * {@link #combineInnerRetrieverResults} is called. By default this runs on the thread that delivered the
      * inner search responses, which may be a transport thread. Implementations with an expensive combine step must
@@ -220,7 +229,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             // the search may have been cancelled while the inner searches ran, so skip the combine step
                             ctx.getCancellationCheck().run();
                             boolean enrichResults = ctx.isExplain() || ctx.isProfile();
-                            results.set(combineInnerRetrieverResults(topDocs, enrichResults));
+                            results.set(combineInnerRetrieverResults(topDocs, enrichResults, ctx.getCancellationCheck()));
                             listener.onResponse(null);
                             return;
                         } catch (TaskCancelledException e) {

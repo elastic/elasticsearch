@@ -11,6 +11,7 @@ package org.elasticsearch.search.diversification.mmr;
 
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -74,6 +75,27 @@ public class MMRResultDiversificationTests extends ESTestCase {
         for (int i = 0; i < expectedDocIds.size(); i++) {
             assertEquals((int) expectedDocIds.get(i), diversifiedTopDocs[i].doc);
         }
+    }
+
+    public void testMMRDiversificationStopsWhenCancelled() {
+        MMRResultDiversificationContext diversificationContext = getFloatContext(new ArrayList<>());
+        diversificationContext.setCancellationCheck(() -> { throw new TaskCancelledException("cancelled"); });
+
+        RankDoc[] docs = new RankDoc[] {
+            new RankDoc(1, 2.0f, 1),
+            new RankDoc(2, 1.8f, 1),
+            new RankDoc(3, 1.8f, 1),
+            new RankDoc(4, 1.0f, 1),
+            new RankDoc(5, 0.8f, 1),
+            new RankDoc(6, 0.8f, 1) };
+
+        int rankIndex = 1;
+        for (RankDoc doc : docs) {
+            doc.rank = rankIndex++;
+        }
+
+        MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
+        expectThrows(TaskCancelledException.class, () -> resultDiversification.diversify(docs));
     }
 
     private MMRResultDiversificationContext getFloatContext(List<Integer> expectedDocIds) {

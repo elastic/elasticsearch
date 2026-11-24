@@ -475,6 +475,30 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         cleanDocsAndHits(docs, hits);
     }
 
+    public void testMmrResultDiversificationStopsWhenCancelled() {
+        var retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
+            null,
+            0.3f
+        );
+        retriever.doRewrite(getQueryRewriteContext());
+
+        List<ScoreDoc[]> docs = new ArrayList<>();
+        ScoreDoc[] hits = getTestSearchHits();
+        docs.add(hits);
+
+        expectThrows(TaskCancelledException.class, () -> retriever.combineInnerRetrieverResults(docs, false, () -> {
+            throw new TaskCancelledException("cancelled");
+        }));
+
+        cleanDocsAndHits(docs, hits);
+    }
+
     public void testThrowsExceptionOnBadFieldTypes() {
         var queryRewriteContext = getQueryRewriteContext();
         var retriever = new DiversifyRetrieverBuilder(

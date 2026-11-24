@@ -65,6 +65,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         Arrays.fill(maxSimilarityToSelected, Float.NEGATIVE_INFINITY);
 
         for (int x = 0; x < topDocsSize && selectedDocRanks.size() < topDocsSize && selectedDocRanks.size() < docs.length; x++) {
+            // each round compares every candidate, so stop early if the search was cancelled
+            context.ensureNotCancelled();
             int thisMaxMMRDocRank = -1;
             float thisMaxMMRScore = Float.NEGATIVE_INFINITY;
             for (RankDoc doc : docs) {

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -21,6 +22,7 @@ public abstract class ResultDiversificationContext {
     private final int size;
     private Supplier<VectorData> queryVector;
     private Map<Integer, VectorData> fieldVectors = null;
+    private Runnable cancellationCheck = () -> {};
 
     protected ResultDiversificationContext(String field, int size, @Nullable Supplier<VectorData> queryVector) {
         this.field = field;
@@ -59,5 +61,17 @@ public abstract class ResultDiversificationContext {
 
     public Set<Map.Entry<Integer, VectorData>> getFieldVectorsEntrySet() {
         return fieldVectors.entrySet();
+    }
+
+    /**
+     * Sets a check that throws if the search was cancelled. Diversification can compare many vectors,
+     * so implementations call {@link #ensureNotCancelled()} periodically to stop early.
+     */
+    public void setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = Objects.requireNonNull(cancellationCheck);
+    }
+
+    public void ensureNotCancelled() {
+        cancellationCheck.run();
     }
 }

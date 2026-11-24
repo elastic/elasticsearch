@@ -1353,9 +1353,9 @@ final class PartitionPruningWalk {
          * folder level are deferred until {@link #applyClassified} so a finish-survivors recursive
          * listing of the same parent does not double-count them. A glob-matching file at a folder
          * level breaks Hive detection; the caller's validation then rejects the walk. Unshaped dirs
-     * (junk, nested root) are descended untouched. An empty directory name (S3 {@code foo//})
-     * returns {@link ClassifiedLevel#withdrawn} so the walk withdraws rather than binding the next folder.
-     */
+        * (junk, nested root) are descended untouched. An empty directory name (S3 {@code foo//})
+        * returns {@link ClassifiedLevel#withdrawn} so the walk withdraws rather than binding the next folder.
+        */
         private ClassifiedLevel classifyListed(StorageChildren[] listed) {
             int listedDirs = dirs.size();
             List<StoragePath> shapedDirs = new ArrayList<>();

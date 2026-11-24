@@ -42,6 +42,12 @@ import java.util.List;
 class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
+    /**
+     * The most points a range query may return per series, as in Prometheus' {@code /api/v1/query_range}. Nothing else bounds the
+     * points of a series, and a single series of a small enough step over a long enough range builds a response body that does not
+     * fit in memory.
+     */
+    static final long MAX_POINTS_PER_SERIES = 11_000;
 
     /**
      * The statement to run and the Prometheus result type of its response. A string literal query has no statement: its
@@ -80,6 +86,11 @@ class PromqlQueryPlanBuilder {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseDuration(stepStr);
+        if (stepDuration.isPositive() && Duration.between(startInstant, endInstant).dividedBy(stepDuration) > MAX_POINTS_PER_SERIES) {
+            throw new IllegalArgumentException(
+                "exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)"
+            );
+        }
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);

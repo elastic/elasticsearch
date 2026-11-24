@@ -14,8 +14,9 @@ import java.util.Map;
 /**
  * Is this {@link Operator} blocked?
  * <p>
- *     If the {@link #listener}'s {@link SubscribableListener#isDone()} method
+ *     If the {@link #listener}'s {@link SubscribableListener#isSuccess()} method
  *     returns {@code true} then the {@linkplain Operator} is not blocked.
+ *     If the {@link #listener} is done but failed, the driver fails with that failure.
  * </p>
  * <p>
  *     If the {@linkplain Operator} is blocked then you can

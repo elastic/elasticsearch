@@ -179,7 +179,19 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
         Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, counted.label(keyName)), valueLabel.id());
         List<String> labels = new ArrayList<>(keys);
         labels.add(label);
-        return counted.with(new Eval(source, counted.plan(), List.of(formatted)), finite(labels), counted.value());
+        LogicalPlan plan = new Eval(source, counted.plan(), List.of(formatted));
+        if (keyName.equals(label) == false) {
+            // The key was only the grouping column: left in the output, a set operation would merge it by name with a label.
+            // The label is an unresolved attribute while the key is, which a set operation cannot align, so it is typed here.
+            List<Attribute> projections = new ArrayList<>();
+            for (Attribute attribute : plan.output()) {
+                if (attribute.name().equals(keyName) == false) {
+                    projections.add(attribute.name().equals(valueLabel.name()) ? valueLabel : attribute);
+                }
+            }
+            plan = new Project(source, plan, projections);
+        }
+        return counted.with(plan, finite(labels), counted.value());
     }
 
     /**

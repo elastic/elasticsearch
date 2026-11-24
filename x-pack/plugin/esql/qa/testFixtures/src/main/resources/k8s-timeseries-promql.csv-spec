@@ -3028,6 +3028,25 @@ result:double | step:datetime            | v:keyword
 1.0           | 2024-05-10T01:00:00.000Z | 1
 ;
 
+// The internal key of an absent metric's count_values never reaches the output, where a same-named label of an or branch would meet it.
+count_values_absent_metric_or_key_named_label
+required_capability: promql_command_v0
+required_capability: promql_count_values
+required_capability: fix_promql_count_values_absent_metric
+PROMQL index=k8s step=1h result=(count_values("v$key", network.bytes_in) or count_values("v", does_not_exist))
+| SORT `v$key`;
+
+result:double | step:datetime            | v$key:keyword | v:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 206           | null
+1.0           | 2024-05-10T01:00:00.000Z | 238           | null
+2.0           | 2024-05-10T01:00:00.000Z | 3             | null
+1.0           | 2024-05-10T01:00:00.000Z | 774           | null
+1.0           | 2024-05-10T01:00:00.000Z | 812           | null
+1.0           | 2024-05-10T01:00:00.000Z | 913           | null
+1.0           | 2024-05-10T01:00:00.000Z | 931           | null
+1.0           | 2024-05-10T01:00:00.000Z | 972           | null
+;
+
 // The last network.cost per series at step=1h: prod 7.875, 0.0, 10.75; qa 6.25, 10.875, 9.375; staging 4.625, 9.5, 1.75.
 count_values_fractional
 required_capability: promql_command_v0

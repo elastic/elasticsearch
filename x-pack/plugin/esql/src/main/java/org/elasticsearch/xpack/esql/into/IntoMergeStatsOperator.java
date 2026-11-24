@@ -190,21 +190,26 @@ public final class IntoMergeStatsOperator implements Operator {
 
     private void recordRefreshFailure(Exception cause) {
         // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, but does say which shard
-        // it was. That wrapper stays as the cause, and the message and status are those of what it wraps.
+        // it was. The message, the status and the cause are those of what it wraps, and the shard goes on the error itself: as the cause,
+        // the wrapper would also become the root cause of the response, in place of the error that says the documents were written.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
         RestStatus status = ExceptionsHelper.status(underlying);
         String hint = status == RestStatus.FORBIDDEN
             ? " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
             : "";
-        refreshFailure = new ElasticsearchStatusException(
+        ElasticsearchStatusException failure = new ElasticsearchStatusException(
             "INTO [{}] wrote [{}] documents but the refresh failed: {}{}",
             status,
-            cause,
+            underlying,
             refresher.destination(),
             createdSum,
             underlying.getMessage(),
             hint
         );
+        if (cause instanceof ElasticsearchException wrapper && wrapper.getShardId() != null) {
+            failure.setShard(wrapper.getShardId());
+        }
+        refreshFailure = failure;
     }
 
     private boolean refreshPending() {

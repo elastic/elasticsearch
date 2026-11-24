@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -27,9 +30,15 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.DISCARD;
@@ -220,10 +229,32 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(closed))));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getMessage(), equalTo("INTO [" + DEST + "] wrote [1] documents but the refresh failed: closed"));
-        // The wrapper stays as the cause, since it is what says which shard failed to refresh
-        BroadcastShardOperationFailedException wrapper = asInstanceOf(BroadcastShardOperationFailedException.class, e.getCause());
-        assertThat(wrapper.getShardId(), equalTo(new ShardId(DEST, "uuid", 0)));
-        assertThat(wrapper.getCause(), sameInstance(closed));
+        assertThat(e.getCause(), sameInstance(closed));
+        // The wrapper said which shard it was, and the error says so itself
+        assertThat(e.getShardId(), equalTo(new ShardId(DEST, "uuid", 0)));
+    }
+
+    /**
+     * A failure that has no index or shard of its own, such as the rejection of a replica, must still say which shard it was in the
+     * response, and its root cause must be the error that says the documents were written, not the empty wrapper around it.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSerializedShardFailureHasTheMessageAndTheShard() throws IOException {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(new IllegalStateException("replica rejected")))));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+
+        String message = "INTO [" + DEST + "] wrote [1] documents but the refresh failed: replica rejected";
+        Map<String, Object> error = errorBody(e);
+        assertThat(error.get("reason"), equalTo(message));
+        assertThat(error.get("index"), equalTo(DEST));
+        assertThat(error.get("shard"), equalTo("0"));
+        Map<String, Object> rootCause = ((List<Map<String, Object>>) error.get("root_cause")).getFirst();
+        assertThat(rootCause.get("reason"), equalTo(message));
+        assertThat(rootCause.get("shard"), equalTo("0"));
     }
 
     public void testRefreshIsOnlyRetriedForAClosedMember() {
@@ -279,6 +310,19 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, hasSize(1));
         client.answerRefresh();
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
+    }
+
+    /** The body of the error response, as the REST layer renders it. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> errorBody(Exception e) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            ElasticsearchException.generateFailureXContent(builder, ToXContent.EMPTY_PARAMS, e, true);
+            builder.endObject();
+            return (Map<String, Object>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON)
+                .v2()
+                .get("error");
+        }
     }
 
     /** A shard failure as broadcast replication reports it: wrapped in an exception that has no message of its own. */

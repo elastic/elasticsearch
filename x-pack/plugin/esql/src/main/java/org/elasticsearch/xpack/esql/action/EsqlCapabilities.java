@@ -2842,9 +2842,10 @@ public class EsqlCapabilities {
         /**
          * PromQL reads and rewrites labels in {@code _timeseries} with the label container functions, which every node of the
          * cluster must know: the shapes this admits, and the canonical {@code _timeseries} the command outputs. A cluster with a
-         * node that does not know them keeps rejecting those shapes. Gates test coverage of both.
+         * node that does not know them keeps rejecting those shapes. Snapshot only: a release build keeps translating as
+         * before. Gates test coverage of both.
          */
-        PROMQL_TIMESERIES_METADATA_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_TIMESERIES_METADATA_FUNCTIONS(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results

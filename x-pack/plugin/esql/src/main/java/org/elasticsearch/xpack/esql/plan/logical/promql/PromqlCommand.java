@@ -406,9 +406,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    /** Whether a translation may use the label container functions: only when every node, as of {@code minimumVersion}, knows them. */
+    /**
+     * Whether a translation may use the label container functions: only in a snapshot build, and only when every node, as of
+     * {@code minimumVersion}, knows them.
+     */
     public static boolean containerFunctions(TransportVersion minimumVersion) {
-        return minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS);
+        return EsqlCapabilities.Cap.PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()
+            && minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS);
     }
 
     public void verify(Failures failures, int maxBranches, String limitSource) {

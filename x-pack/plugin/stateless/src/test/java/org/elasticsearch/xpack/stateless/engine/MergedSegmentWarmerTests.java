@@ -151,7 +151,8 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
     public void testEngineCloseWaitsForAPendingListener() throws Exception {
         final var notifications = new LinkedBlockingQueue<Notification>();
         final var engine = newEngine(recordingTo(notifications));
-        final var closed = new PlainActionFuture<Void>();
+        // completed with whether the listener was completed by the time the engine was closed
+        final var closed = new PlainActionFuture<Boolean>();
         final var closeStarted = new AtomicBoolean();
         Notification notification = null;
         try {
@@ -164,8 +165,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
             final var listenerCompleted = new AtomicBoolean();
             new Thread(() -> ActionListener.run(closed, l -> {
                 engine.close();
-                assertTrue("the engine was closed before the listener was completed", listenerCompleted.get());
-                l.onResponse(null);
+                l.onResponse(listenerCompleted.get());
             })).start();
 
             // closing the engine aborts the merge, but the merge thread keeps waiting for the listener, so the close cannot complete
@@ -176,7 +176,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
             notification = null;
             listenerCompleted.set(true);
             pending.listener().onResponse(null);
-            safeGet(closed);
+            assertTrue("the engine was closed before the listener was completed", safeGet(closed));
         } finally {
             if (notification != null) {
                 notification.listener().onResponse(null);

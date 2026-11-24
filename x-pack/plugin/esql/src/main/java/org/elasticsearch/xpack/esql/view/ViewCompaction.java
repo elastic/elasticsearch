@@ -267,8 +267,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // whether a boundary must survive compaction is decided separately, from
         // preserveViewBoundaries, at the points that would collapse it.
         LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
-        // View and inlined keys are asserted unique rather than uniquified, so a LET binding's key, which may come first,
-        // must steer clear of them: a binding can share its name with a view at this level (LET low ...; FROM low, lo*).
+        // View and inlined keys are asserted unique rather than uniquified, so a LET named subquery's key, which may come first,
+        // must steer clear of them: a named subquery can share its name with a view at this level (LET low ...; FROM low, lo*).
         Set<String> assertedKeys = assertedKeys(unionAll.children());
         int unnamedCount = 0;
         for (LogicalPlan child : unionAll.children()) {
@@ -295,7 +295,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 subPlans.put(name, child);
                 identities.put(name, BranchIdentity.view(name));
             } else if (child instanceof NamedSubquery named) {
-                // A LET binding: a subquery the user named, so it is keyed by its name. Like a literal subquery, NOT a
+                // A LET named subquery: a subquery the user named, so it is keyed by its name. Like a literal subquery, NOT a
                 // view branch, even when its body resolved to a view union: the views keep their identities a level deeper.
                 String name = makeUniqueKey(subPlans, assertedKeys, named.name());
                 subPlans.put(name, preserveWrappers ? named : named.child());

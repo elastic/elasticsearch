@@ -254,6 +254,19 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(e.getMessage(), containsString("[index_terms] is not supported on legacy indices"));
     }
 
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "long");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(1L, context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
+    }
+
     private static Set<Integer> matchingDocIds(IndexSearcher searcher, Query query) throws IOException {
         TopDocs topDocs = searcher.search(query, searcher.getIndexReader().maxDoc());
         Set<Integer> docIds = new TreeSet<>();

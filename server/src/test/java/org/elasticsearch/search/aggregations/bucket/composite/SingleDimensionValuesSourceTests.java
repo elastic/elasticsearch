@@ -323,7 +323,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(longSource(indexTermsLong).createSortedDocsProducerOrNull(reader, null));
 
         // a legacy archived date exposes points metadata derived from doc values, but still has no BKD tree
-        MappedFieldType archivedDate = dateFieldType("@timestamp", IndexType.archivedPoints());
+        MappedFieldType archivedDate = dateFieldType("@timestamp", IndexType.archivedPoints(true));
         assertTrue(archivedDate.indexType().hasPointsMetadata());
         assertFalse(archivedDate.indexType().hasPoints());
         assertNull(longSource(archivedDate).createSortedDocsProducerOrNull(reader, null));

@@ -73,27 +73,27 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         );
         assertThat(
             "a positive range resolves to its arithmetic midpoint",
-            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 3000L)),
+            BlobFileRanges.midpointMillisOrUnknownForCache(new TimestampFieldValueRange(1000L, 3000L)),
             equalTo(2000L)
         );
         assertThat(
             "a single-point positive range resolves to that point",
-            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(1L, 1L)),
+            BlobFileRanges.midpointMillisOrUnknownForCache(new TimestampFieldValueRange(1L, 1L)),
             equalTo(1L)
         );
         assertThat(
             "a zero midpoint (content at the epoch) is floored to the minimal cache timestamp",
-            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(0L, 0L)),
+            BlobFileRanges.midpointMillisOrUnknownForCache(new TimestampFieldValueRange(0L, 0L)),
             equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat(
             "a negative midpoint (content before the epoch) is floored to the minimal cache timestamp",
-            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-3000L, -1000L)),
+            BlobFileRanges.midpointMillisOrUnknownForCache(new TimestampFieldValueRange(-3000L, -1000L)),
             equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
         assertThat(
             "a range whose midpoint would collide with the UNKNOWN_TIMESTAMP sentinel (-1) is floored, not treated as unknown",
-            BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-2L, 0L)),
+            BlobFileRanges.midpointMillisOrUnknownForCache(new TimestampFieldValueRange(-2L, 0L)),
             equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP)
         );
     }
@@ -114,8 +114,8 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
 
     public void testReconcileWithTimestamps() {
         final var location = createBlobLocation(1L, 1L, 0L, 100L);
-        final var olderRange = new StatelessCompoundCommit.TimestampFieldValueRange(100L, 200L); // midpoint 150
-        final var newerRange = new StatelessCompoundCommit.TimestampFieldValueRange(300L, 400L); // midpoint 350
+        final var olderRange = new TimestampFieldValueRange(100L, 200L); // midpoint 150
+        final var newerRange = new TimestampFieldValueRange(300L, 400L); // midpoint 350
 
         final var noTs = new BlobFileRanges(location);
         final var withOlderTs = new BlobFileRanges(location, olderRange);
@@ -137,7 +137,7 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         assertThat(withOlderTs.reconcileWith(withNewerTs).timestampRange(), equalTo(newerRange));
 
         // equal midpoints: existing wins (tie-break preserves existing object)
-        final var sameAsOlder = new BlobFileRanges(location, new StatelessCompoundCommit.TimestampFieldValueRange(100L, 200L));
+        final var sameAsOlder = new BlobFileRanges(location, new TimestampFieldValueRange(100L, 200L));
         assertThat(withOlderTs.reconcileWith(sameAsOlder).timestampRange(), sameInstance(olderRange));
     }
 

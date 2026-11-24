@@ -30,7 +30,6 @@ import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -758,43 +757,5 @@ public record StatelessCompoundCommit(
             previous = file;
         }
         return true;
-    }
-
-    record InternalFile(String name, long length) implements Writeable, ToXContentObject, Comparable<InternalFile> {
-
-        private static final ConstructingObjectParser<InternalFile, Void> PARSER = new ConstructingObjectParser<>(
-            "internal_file",
-            true,
-            args -> new InternalFile((String) args[0], (long) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("name"));
-            PARSER.declareLong(constructorArg(), new ParseField("length"));
-        }
-
-        private InternalFile(StreamInput streamInput) throws IOException {
-            this(streamInput.readString(), streamInput.readLong());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeLong(length);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("name", name).field("length", length).endObject();
-        }
-
-        @Override
-        public int compareTo(InternalFile o) {
-            int cmp = Long.compare(length, o.length);
-            if (cmp != 0) {
-                return cmp;
-            }
-            return name.compareTo(o.name);
-        }
     }
 }

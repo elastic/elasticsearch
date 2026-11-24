@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,12 +17,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,6 +35,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestHeldBytes;
+import static org.elasticsearch.test.BreakerTestUtil.parsedRequestMeasurements;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -154,10 +152,10 @@ public class AsyncSearchParsedContentChargeIT extends AsyncSearchIntegTestCase {
             assertEquals(Boolean.TRUE, body.get("is_running"));
             String id = (String) body.get("id");
             // The response is sent, but the search still runs.
-            assertThat(parsedRequestHeldBytes(), greaterThan(0L));
+            assertThat(parsedRequestHeldBytes(internalCluster()), greaterThan(0L));
 
             latch.close();
-            assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+            assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
             ensureTaskCompletion(id);
             deleteAsyncSearch(id);
         }
@@ -167,13 +165,13 @@ public class AsyncSearchParsedContentChargeIT extends AsyncSearchIntegTestCase {
         createIndex(INDEX, indexSettings(1, 0).build());
         indexRandom(true, prepareIndex(INDEX).setSource("f", "v"));
 
-        int measurementsBefore = parsedRequestMeasurements().size();
+        int measurementsBefore = parsedRequestMeasurements(internalCluster()).size();
         // Long enough for the search to end before the submit responds.
         Map<String, Object> body = submitThroughRest("30s", "{\"query\":{\"match_all\":{}}}");
         assertEquals(Boolean.FALSE, body.get("is_running"));
-        assertThat(parsedRequestMeasurements().size(), greaterThan(measurementsBefore));
+        assertThat(parsedRequestMeasurements(internalCluster()).size(), greaterThan(measurementsBefore));
         // The search can drop its hold just after the response is sent.
-        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(internalCluster()), equalTo(0L)));
     }
 
     private Map<String, Object> submitThroughRest(String waitForCompletionTimeout, String source) throws IOException {
@@ -184,30 +182,5 @@ public class AsyncSearchParsedContentChargeIT extends AsyncSearchIntegTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    /** The bytes the request breakers of all nodes hold for parsed requests, from the held memory metric. */
-    private long parsedRequestHeldBytes() {
-        return parsedRequestMeasurements().stream().mapToLong(Measurement::getLong).sum();
-    }
-
-    private List<Measurement> parsedRequestMeasurements() {
-        List<Measurement> measurements = new ArrayList<>();
-        for (String node : internalCluster().getNodeNames()) {
-            TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class, node)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
-            for (Measurement measurement : telemetry.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)) {
-                Map<String, Object> attributes = measurement.attributes();
-                if (CircuitBreaker.REQUEST.equals(attributes.get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
-                    && ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST.equals(
-                        attributes.get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
-                    )) {
-                    measurements.add(measurement);
-                }
-            }
-        }
-        return measurements;
     }
 }

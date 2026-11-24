@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Par
 import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.WalkLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -44,20 +46,24 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Hint-narrowed enumeration of a {@code **} glob over a Hive-partitioned tree: the tree is walked level by level via
- * {@link StorageProvider#listChildren}, and a {@code key=value} folder a partition hint excludes is never listed. On
- * a bare {@code **} glob the textual rewrite has nothing to act on, so this is the only listing-time pruning.
- * Folders are matched by typed value ({@link PartitionValueMatcher}, shared with the read layer), so e.g.
- * {@code month == 6} keeps a zero-padded {@code month=06} and a NULL partition is never pruned.
+ * Hint-narrowed enumeration of a partition tree: the tree is walked level by level via
+ * {@link StorageProvider#listChildren}, and a folder a partition hint excludes is never listed. Hive layouts
+ * match {@code key=value} names; TEMPLATE layouts with a fixed-depth glob match by position in
+ * {@code partition_path}. On a bare {@code **} glob the textual rewrite has nothing to act on, so this is
+ * the only listing-time pruning for Hive. TEMPLATE never walks {@code **}. Folders are matched by typed
+ * value ({@link PartitionValueMatcher}, shared with the read layer), so e.g. {@code month == 6} keeps a
+ * zero-padded {@code 06} (or {@code month=06}) and a NULL partition is never pruned.
  *
  * <p><b>Fail-closed.</b> Returning {@code null} means "use the flat listing", always correct since the walk is only
  * an optimisation. The walk declines when the provider cannot enumerate directories (or a directory exceeds
  * {@link #MAX_LISTED_CHILDREN}), when a listing fails mid-walk, and after one probe listing when no level matched a
  * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
  * is a deeper partition key or a data column is unknowable without listing every level in between, and
-     * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively
-     * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
-     * unhinted leading identity key when a hinted key of that glob is still pending.
+ * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively
+ * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
+ * unhinted leading identity key when a hinted key of that glob is still pending. A TEMPLATE layout has known
+ * depth, so leftover pending after the last glob-directory level finishes survivors instead of listing past
+ * the layout and withdrawing.
  * Survivors are finished with one recursive listing each, but only when something was pruned and
  * {@link #cheaperToFinish} says the remaining listings cost no more LIST pages than one flat listing of the
  * prefix (the first survivor is already listed); otherwise the walk returns {@code null} and the caller
@@ -284,6 +290,38 @@ final class PartitionPruningWalk {
         int maxDirectoryListings,
         BooleanSupplier cancelled
     ) {
+        return tryWalk(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            null
+        );
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        BooleanSupplier cancelled,
+        @Nullable String pathTemplate
+    ) {
         try {
             return walk(
                 provider,
@@ -292,12 +330,13 @@ final class PartitionPruningWalk {
                 nameFilter,
                 hints,
                 maxDiscoveredFiles,
-                keyedGlobKeys(glob),
+                glob,
                 folderRange,
                 fileKeep,
                 maxListedObjects,
                 maxDirectoryListings,
-                cancelled
+                cancelled,
+                pathTemplate
             );
         } catch (TaskCancelledException | ExternalUnavailableException e) {
             throw e;
@@ -333,6 +372,44 @@ final class PartitionPruningWalk {
         Executor executor,
         ActionListener<WalkResult> listener
     ) {
+        tryWalkAsync(
+            provider,
+            prefix,
+            matcher,
+            nameFilter,
+            hints,
+            maxDiscoveredFiles,
+            glob,
+            folderRange,
+            fileKeep,
+            maxListedObjects,
+            maxDirectoryListings,
+            cancelled,
+            concurrency,
+            executor,
+            listener,
+            null
+        );
+    }
+
+    static void tryWalkAsync(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects,
+        int maxDirectoryListings,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<WalkResult> listener,
+        @Nullable String pathTemplate
+    ) {
         WalkSession session;
         try {
             session = new WalkSession(
@@ -342,12 +419,13 @@ final class PartitionPruningWalk {
                 nameFilter,
                 hints,
                 maxDiscoveredFiles,
-                keyedGlobKeys(glob),
+                glob,
                 folderRange,
                 fileKeep,
                 maxListedObjects,
                 maxDirectoryListings,
-                cancelled
+                cancelled,
+                pathTemplate
             );
         } catch (RuntimeException e) {
             listener.onFailure(e);
@@ -389,12 +467,13 @@ final class PartitionPruningWalk {
         ExclusionConfig.NameFilter nameFilter,
         List<PartitionFilterHint> hints,
         int maxDiscoveredFiles,
-        Set<String> keyedGlobKeys,
+        String glob,
         @Nullable FolderRangePredicate folderRange,
         @Nullable Predicate<StorageEntry> fileKeep,
         int maxListedObjects,
         int maxDirectoryListings,
-        BooleanSupplier cancelled
+        BooleanSupplier cancelled,
+        @Nullable String pathTemplate
     ) throws IOException {
         return new WalkSession(
             provider,
@@ -403,12 +482,13 @@ final class PartitionPruningWalk {
             nameFilter,
             hints,
             maxDiscoveredFiles,
-            keyedGlobKeys,
+            glob,
             folderRange,
             fileKeep,
             maxListedObjects,
             maxDirectoryListings,
-            cancelled
+            cancelled,
+            pathTemplate
         ).runSequential();
     }
 
@@ -451,7 +531,9 @@ final class PartitionPruningWalk {
         Map<String, List<String>> seenValues,
         AtomicInteger listings,
         int maxDirectoryListings,
-        BooleanSupplier cancelled
+        BooleanSupplier cancelled,
+        @Nullable WalkLayout templateLayout,
+        int walkLevel
     ) throws IOException {
         if (cancelled.getAsBoolean()) {
             throw new TaskCancelledException("listing cancelled");
@@ -464,7 +546,7 @@ final class PartitionPruningWalk {
         if (listed == null) {
             return false;
         }
-        applyPeekResults(listed, seenValues);
+        applyPeekResults(listed, seenValues, templateLayout, walkLevel);
         return toPeek.size() == peeks.size();
     }
 
@@ -484,13 +566,34 @@ final class PartitionPruningWalk {
         return peeks;
     }
 
-    private static void applyPeekResults(StorageChildren[] listed, Map<String, List<String>> seenValues) {
+    private static void applyPeekResults(
+        StorageChildren[] listed,
+        Map<String, List<String>> seenValues,
+        @Nullable WalkLayout templateLayout,
+        int walkLevel
+    ) {
         for (StorageChildren children : listed) {
-            applyPeekChildren(children, seenValues);
+            applyPeekChildren(children, seenValues, templateLayout, walkLevel);
         }
     }
 
-    private static void applyPeekChildren(StorageChildren peekChildren, Map<String, List<String>> seenValues) {
+    private static void applyPeekChildren(
+        StorageChildren peekChildren,
+        Map<String, List<String>> seenValues,
+        @Nullable WalkLayout templateLayout,
+        int walkLevel
+    ) {
+        if (templateLayout != null) {
+            WalkLayout.Level role = templateLayout.level(walkLevel);
+            if (role.isPlaceholder() == false) {
+                return;
+            }
+            String key = role.name();
+            for (StoragePath sub : peekChildren.directories()) {
+                seenValues.computeIfAbsent(key, k -> new ArrayList<>()).add(role.decodedFolder(sub.objectName()));
+            }
+            return;
+        }
         for (StoragePath sub : peekChildren.directories()) {
             String key = PartitionValueMatcher.folderKey(sub.objectName());
             if (key != null) {
@@ -539,6 +642,21 @@ final class PartitionPruningWalk {
         List<StoragePath> prunedDirs,
         FinishMode mode
     ) throws IOException {
+        return finishSurvivors(collector, provider, dirs, prunedColumns, columnFullTypes, estimatedPrefixWidth, prunedDirs, mode, false);
+    }
+
+    @Nullable
+    private static WalkResult finishSurvivors(
+        Collector collector,
+        StorageProvider provider,
+        List<StoragePath> dirs,
+        Set<String> prunedColumns,
+        Map<String, DataType> columnFullTypes,
+        double estimatedPrefixWidth,
+        List<StoragePath> prunedDirs,
+        FinishMode mode,
+        boolean templateFrontier
+    ) throws IOException {
         if (prunedColumns.isEmpty()) {
             return null;
         }
@@ -548,7 +666,7 @@ final class PartitionPruningWalk {
         if (dirs.isEmpty()) {
             return collector.result(prunedColumns, columnFullTypes, prunedDirs);
         }
-        int measure = indexOfFirstShapedDir(dirs);
+        int measure = templateFrontier ? 0 : indexOfFirstShapedDir(dirs);
         List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
         if (mode == FinishMode.RULE && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth) == false) {
             return null;
@@ -806,12 +924,15 @@ final class PartitionPruningWalk {
         private final BooleanSupplier cancelled;
         private final FinishMode finishMode;
         private final Collector collector;
+        private final @Nullable WalkLayout templateLayout;
+        private final boolean declineWalk;
         private final Set<String> pending = new HashSet<>();
         private final Set<String> seenKeys = new HashSet<>();
         private final Set<String> prunedColumns = new HashSet<>();
         private final List<StoragePath> prunedDirs = new ArrayList<>();
         private final Map<String, List<String>> seenValues = new LinkedHashMap<>();
         private boolean anyLevelHinted;
+        private int walkLevel;
         private List<StoragePath> dirs;
         /** Issued {@code listChildren} from the walk AND from retroactive peeks into pruned dirs. */
         private final AtomicInteger listings = new AtomicInteger();
@@ -822,10 +943,12 @@ final class PartitionPruningWalk {
          */
         private double estimatedPrefixWidth = 1.0;
         /**
-         * Pruned dirs from the previous level, candidates for a one-level retroactive peek. A peek fires
+         * Pruned dirs from the last placeholder, candidates for a one-level retroactive peek. A peek fires
          * only when the current level introduces a new partition key (confirming a multi-level layout):
          * peeking into a pruned dir whose direct children are files (single-level layout) would pollute
-         * enumeration tracking without adding any partition-key information.
+         * enumeration tracking without adding any partition-key information. TEMPLATE identity levels
+         * between placeholders advance these dirs one folder deeper so {@code {year}/data/{month}} peeks
+         * month folders under a pruned year, not {@code data} itself as a month value.
          */
         private List<StoragePath> pendingPeeks = List.of();
 
@@ -836,36 +959,47 @@ final class PartitionPruningWalk {
             ExclusionConfig.NameFilter nameFilter,
             List<PartitionFilterHint> hints,
             int maxDiscoveredFiles,
-            Set<String> keyedGlobKeys,
+            String glob,
             @Nullable FolderRangePredicate folderRange,
             @Nullable Predicate<StorageEntry> fileKeep,
             int maxListedObjects,
             int maxDirectoryListings,
-            BooleanSupplier cancelled
+            BooleanSupplier cancelled,
+            @Nullable String pathTemplate
         ) {
             this.provider = provider;
             this.hints = hints;
-            this.keyedGlobKeys = keyedGlobKeys;
             this.folderRange = folderRange;
             this.maxDirectoryListings = maxDirectoryListings;
             this.cancelled = cancelled;
             this.finishMode = FINISH_MODE.get();
             this.collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles, fileKeep, maxListedObjects);
+            WalkLayout layout = pathTemplate == null ? null : TemplatePartitionDetector.walkLayout(prefix, glob, pathTemplate);
+            this.declineWalk = pathTemplate != null && layout == null;
+            this.templateLayout = layout;
+            this.keyedGlobKeys = layout != null ? layout.placeholderKeys() : keyedGlobKeys(glob);
             for (PartitionFilterHint hint : hints) {
                 pending.add(hint.columnName());
             }
             if (folderRange != null) {
                 pending.addAll(folderRange.bindKeys());
             }
-            // A key prunes only at its outermost occurrence: HivePartitionDetector binds the FIRST key=value
-            // segment of a path. The prefix's own segments count — under data/year=2024/ every file's year IS
-            // 2024, so a deeper year=X folder is just a name and pruning it against a year hint would drop
-            // matching rows.
-            for (String segment : prefix.path().split("/")) {
-                String prefixKey = PartitionValueMatcher.folderKey(segment);
-                if (prefixKey != null) {
-                    seenKeys.add(prefixKey);
-                    pending.remove(prefixKey);
+            if (layout != null) {
+                for (Map.Entry<String, String> binding : layout.prefixBindings().entrySet()) {
+                    seenKeys.add(binding.getKey());
+                    pending.remove(binding.getKey());
+                }
+            } else {
+                // A key prunes only at its outermost occurrence: HivePartitionDetector binds the FIRST key=value
+                // segment of a path. The prefix's own segments count — under data/year=2024/ every file's year IS
+                // 2024, so a deeper year=X folder is just a name and pruning it against a year hint would drop
+                // matching rows.
+                for (String segment : prefix.path().split("/")) {
+                    String prefixKey = PartitionValueMatcher.folderKey(segment);
+                    if (prefixKey != null) {
+                        seenKeys.add(prefixKey);
+                        pending.remove(prefixKey);
+                    }
                 }
             }
             this.dirs = List.of(prefix);
@@ -873,12 +1007,15 @@ final class PartitionPruningWalk {
 
         @Nullable
         WalkResult runSequential() throws IOException {
+            if (declineWalk) {
+                return null;
+            }
             while (dirs.isEmpty() == false) {
                 if (cancelled.getAsBoolean()) {
                     throw new TaskCancelledException("listing cancelled");
                 }
-                if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
-                    return finishSurvivors();
+                if (shouldList() == false) {
+                    return afterListingsStop();
                 }
                 StorageChildren[] listed = listChildrenSequential(provider, dirs, listings, cancelled);
                 if (listed == null) {
@@ -897,6 +1034,10 @@ final class PartitionPruningWalk {
         }
 
         void runAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
+            if (declineWalk) {
+                listener.onResponse(null);
+                return;
+            }
             advanceAsync(concurrency, executor, listener);
         }
 
@@ -906,7 +1047,7 @@ final class PartitionPruningWalk {
                 listener.onFailure(cancelledNow);
                 return;
             }
-            if (dirs.isEmpty() == false && pending.isEmpty() == false && listings.get() + dirs.size() <= maxDirectoryListings) {
+            if (shouldList()) {
                 listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
                     @Override
                     public void onResponse(StorageChildren[] listed) {
@@ -963,10 +1104,7 @@ final class PartitionPruningWalk {
                 });
                 return;
             }
-            ActionListener.completeWith(
-                listener,
-                () -> dirs.isEmpty() ? collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs) : finishSurvivors()
-            );
+            ActionListener.completeWith(listener, this::afterListingsStop);
         }
 
         /**
@@ -979,7 +1117,16 @@ final class PartitionPruningWalk {
          */
         private boolean applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
             if (level.newKeyLevel && pendingPeeks.isEmpty() == false) {
-                if (processPendingPeeks(provider, pendingPeeks, seenValues, listings, maxDirectoryListings, cancelled) == false) {
+                if (processPendingPeeks(
+                    provider,
+                    pendingPeeks,
+                    seenValues,
+                    listings,
+                    maxDirectoryListings,
+                    cancelled,
+                    templateLayout,
+                    walkLevel
+                ) == false) {
                     return false;
                 }
                 pendingPeeks = List.of();
@@ -1021,7 +1168,7 @@ final class PartitionPruningWalk {
                         if (listed == null) {
                             ok = false;
                         } else {
-                            applyPeekResults(listed, seenValues);
+                            applyPeekResults(listed, seenValues, templateLayout, walkLevel);
                             ok = truncated == false;
                             if (ok) {
                                 pendingPeeks = List.of();
@@ -1041,6 +1188,51 @@ final class PartitionPruningWalk {
             });
         }
 
+        /** True when a later glob-directory slot is a TEMPLATE placeholder that still needs a peek. */
+        private boolean laterPlaceholder() {
+            for (int i = walkLevel + 1; i < templateLayout.depth(); i++) {
+                if (templateLayout.level(i).isPlaceholder()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Walks each pending peek one identity folder deeper. Without this, a later placeholder would
+         * list the identity folder itself as if it were a partition value. Budget miss or a directory
+         * too wide to buffer fails closed (same as {@link #applyPeeksIfNeeded}). Stray siblings inside
+         * a pruned subtree are skipped — that layout is already untrusted for walking. Callers skip this
+         * when {@link #laterPlaceholder()} is false so a trailing literal does not list unused peeks.
+         */
+        private boolean advancePendingPeeks(WalkLayout.Level role) throws IOException {
+            if (pendingPeeks.isEmpty()) {
+                return true;
+            }
+            List<StoragePath> next = new ArrayList<>(pendingPeeks.size());
+            for (StoragePath pruned : pendingPeeks) {
+                if (cancelled.getAsBoolean()) {
+                    throw new TaskCancelledException("listing cancelled");
+                }
+                int issued = listings.get();
+                if (issued >= maxDirectoryListings) {
+                    return false;
+                }
+                listings.set(issued + 1);
+                StorageChildren children = provider.listChildren(pruned, MAX_LISTED_CHILDREN);
+                if (children == null) {
+                    return false;
+                }
+                for (StoragePath sub : children.directories()) {
+                    if (role.isLiteral() == false || role.literal().equals(sub.objectName())) {
+                        next.add(sub);
+                    }
+                }
+            }
+            pendingPeeks = next;
+            return true;
+        }
+
         private WalkResult finishSurvivors() throws IOException {
             return PartitionPruningWalk.finishSurvivors(
                 collector,
@@ -1050,8 +1242,33 @@ final class PartitionPruningWalk {
                 inferColumnTypes(seenValues),
                 estimatedPrefixWidth,
                 prunedDirs,
-                finishMode
+                finishMode,
+                templateLayout != null
             );
+        }
+
+        /**
+         * Remaining pending can be a data-column hint ({@code WHERE partition AND srcaddr=…}). Hive
+         * keeps listing because a deeper {@code key=value} might still appear; a TEMPLATE layout has
+         * no further glob-directory slots, so another list would be past {@link WalkLayout#depth()}.
+         * Stop before that list.
+         */
+        private boolean shouldList() {
+            if (dirs.isEmpty() || pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
+                return false;
+            }
+            return templateLayout == null || walkLevel < templateLayout.depth();
+        }
+
+        @Nullable
+        private WalkResult afterListingsStop() throws IOException {
+            if (dirs.isEmpty()) {
+                return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+            }
+            if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
+                return finishSurvivors();
+            }
+            return anyLevelHinted ? finishSurvivors() : null;
         }
 
         /**
@@ -1068,18 +1285,48 @@ final class PartitionPruningWalk {
             List<String> shapedValues = new ArrayList<>();
             List<StoragePath> next = new ArrayList<>();
             List<StorageEntry> levelFiles = new ArrayList<>();
-            for (StorageChildren children : listed) {
-                for (StorageEntry file : children.files()) {
-                    levelFiles.add(file);
+            boolean withdraw = false;
+            boolean identityLevel = false;
+            if (templateLayout != null) {
+                WalkLayout.Level role = templateLayout.level(walkLevel);
+                identityLevel = role.isPlaceholder() == false;
+                for (StorageChildren children : listed) {
+                    for (StorageEntry file : children.files()) {
+                        levelFiles.add(file);
+                    }
+                    for (StoragePath sub : children.directories()) {
+                        if (role.isPlaceholder()) {
+                            shapedDirs.add(sub);
+                            shapedKeys.add(role.name());
+                            shapedValues.add(role.decodedFolder(sub.objectName()));
+                        } else if (role.isLiteral()) {
+                            if (role.literal().equals(sub.objectName())) {
+                                next.add(sub);
+                            } else if (role.globSpelled() == false) {
+                                withdraw = true;
+                            }
+                        } else {
+                            next.add(sub);
+                        }
+                    }
                 }
-                for (StoragePath sub : children.directories()) {
-                    String key = PartitionValueMatcher.folderKey(sub.objectName());
-                    if (key == null) {
-                        next.add(sub);
-                    } else {
-                        shapedDirs.add(sub);
-                        shapedKeys.add(key);
-                        shapedValues.add(PartitionValueMatcher.folderValue(sub.objectName()));
+                if (withdraw) {
+                    return ClassifiedLevel.withdrawn(listedDirs, levelFiles);
+                }
+            } else {
+                for (StorageChildren children : listed) {
+                    for (StorageEntry file : children.files()) {
+                        levelFiles.add(file);
+                    }
+                    for (StoragePath sub : children.directories()) {
+                        String key = PartitionValueMatcher.folderKey(sub.objectName());
+                        if (key == null) {
+                            next.add(sub);
+                        } else {
+                            shapedDirs.add(sub);
+                            shapedKeys.add(key);
+                            shapedValues.add(PartitionValueMatcher.folderValue(sub.objectName()));
+                        }
                     }
                 }
             }
@@ -1125,14 +1372,27 @@ final class PartitionPruningWalk {
                     if (keep[i] == false) {
                         continue;
                     }
-                    Map<String, String> bindings = PartitionValueMatcher.pathBindings(shapedDirs.get(i).path());
+                    Map<String, String> bindings = templateLayout != null
+                        ? templateLayout.bindings(shapedDirs.get(i).path())
+                        : PartitionValueMatcher.pathBindings(shapedDirs.get(i).path());
                     if (folderRange.mayContain(bindings) == false) {
                         keep[i] = false;
                         prunedColumns.add(shapedKeys.get(i));
                     }
                 }
             }
-            return new ClassifiedLevel(listedDirs, shapedDirs, keep, next, levelFiles, byKey.keySet(), hintedLevel, newKeyLevel);
+            return new ClassifiedLevel(
+                listedDirs,
+                shapedDirs,
+                keep,
+                next,
+                levelFiles,
+                byKey.keySet(),
+                hintedLevel,
+                newKeyLevel,
+                false,
+                identityLevel
+            );
         }
 
         /**
@@ -1143,6 +1403,10 @@ final class PartitionPruningWalk {
          */
         @Nullable
         private WalkResult applyClassified(ClassifiedLevel level) throws IOException {
+            if (level.withdraw) {
+                dirs = List.of();
+                return null;
+            }
             List<StoragePath> newPeeks = null;
             for (int i = 0; i < level.keep.length; i++) {
                 if (level.keep[i]) {
@@ -1157,8 +1421,21 @@ final class PartitionPruningWalk {
                     }
                 }
             }
+            if (level.identityLevel) {
+                if (laterPlaceholder() && advancePendingPeeks(templateLayout.level(walkLevel)) == false) {
+                    level.continueWalk = false;
+                    return null;
+                }
+                for (StorageEntry file : level.levelFiles) {
+                    collector.add(file);
+                }
+                estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, Math.max(level.next.size(), 1));
+                dirs = level.next;
+                walkLevel++;
+                level.continueWalk = true;
+                return null;
+            }
             pendingPeeks = newPeeks != null ? newPeeks : List.of();
-
             if (level.hintedLevel == false) {
                 if (descendUnhintedKeyedLevel(level.levelKeys, pending, keyedGlobKeys)) {
                     for (StorageEntry file : level.levelFiles) {
@@ -1166,6 +1443,7 @@ final class PartitionPruningWalk {
                     }
                     estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
                     dirs = level.next;
+                    walkLevel++;
                     level.continueWalk = true;
                     return null;
                 }
@@ -1181,6 +1459,7 @@ final class PartitionPruningWalk {
             anyLevelHinted = true;
             estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, level.listedDirs, level.shapedDirs.size());
             dirs = level.next;
+            walkLevel++;
             level.continueWalk = true;
             return null;
         }
@@ -1195,7 +1474,24 @@ final class PartitionPruningWalk {
         final Set<String> levelKeys;
         final boolean hintedLevel;
         final boolean newKeyLevel;
+        final boolean withdraw;
+        final boolean identityLevel;
         boolean continueWalk;
+
+        static ClassifiedLevel withdrawn(int listedDirs, List<StorageEntry> levelFiles) {
+            return new ClassifiedLevel(
+                listedDirs,
+                List.of(),
+                new boolean[0],
+                new ArrayList<>(),
+                levelFiles,
+                Set.of(),
+                false,
+                false,
+                true,
+                false
+            );
+        }
 
         ClassifiedLevel(
             int listedDirs,
@@ -1205,7 +1501,9 @@ final class PartitionPruningWalk {
             List<StorageEntry> levelFiles,
             Set<String> levelKeys,
             boolean hintedLevel,
-            boolean newKeyLevel
+            boolean newKeyLevel,
+            boolean withdraw,
+            boolean identityLevel
         ) {
             this.listedDirs = listedDirs;
             this.shapedDirs = shapedDirs;
@@ -1215,6 +1513,8 @@ final class PartitionPruningWalk {
             this.levelKeys = levelKeys;
             this.hintedLevel = hintedLevel;
             this.newKeyLevel = newKeyLevel;
+            this.withdraw = withdraw;
+            this.identityLevel = identityLevel;
         }
     }
 

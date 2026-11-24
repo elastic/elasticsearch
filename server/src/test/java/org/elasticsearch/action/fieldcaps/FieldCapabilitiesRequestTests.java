@@ -63,6 +63,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             randomIndices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         request.fields(randomFields);
+        request.includeTimeSeriesStats(randomBoolean());
         request.indices(randomIndices);
         if (randomBoolean()) {
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());

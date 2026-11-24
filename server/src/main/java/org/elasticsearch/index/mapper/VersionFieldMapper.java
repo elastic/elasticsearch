@@ -28,6 +28,7 @@ import org.elasticsearch.script.field.VersionDocValuesField;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collections;
+import java.util.Set;
 
 /** Mapper for the _version field.
  *
@@ -125,7 +126,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }
 

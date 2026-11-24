@@ -167,6 +167,30 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         );
     }
 
+    public void testCompletedStatus() {
+        EsqlExecutionInfo.Cluster running = new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, REMOTE1_ALIAS, "logs*");
+        assertThat(EsqlCCSUtils.completedStatus(running), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+        EsqlExecutionInfo.Cluster noShardFailures = new EsqlExecutionInfo.Cluster.Builder(running).setTotalShards(3)
+            .setSuccessfulShards(3)
+            .setSkippedShards(0)
+            .setFailedShards(0)
+            .build();
+        assertThat(EsqlCCSUtils.completedStatus(noShardFailures), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+        EsqlExecutionInfo.Cluster failedShards = new EsqlExecutionInfo.Cluster.Builder(running).setTotalShards(3)
+            .setSuccessfulShards(2)
+            .setSkippedShards(0)
+            .setFailedShards(1)
+            .build();
+        assertThat(EsqlCCSUtils.completedStatus(failedShards), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+
+        EsqlExecutionInfo.Cluster failuresOnly = new EsqlExecutionInfo.Cluster.Builder(running).addFailures(
+            List.of(new ShardSearchFailure(new IllegalStateException("unavailable")))
+        ).build();
+        assertThat(EsqlCCSUtils.completedStatus(failuresOnly), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
     private static void assertIndexPattern(String indexPattern, Matcher<Iterable<? extends String>> matcher) {
         assertThat(Set.of(Strings.splitStringByCommaToArray(indexPattern)), matcher);
     }

@@ -542,4 +542,51 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         );
         assertThat(exception.getMessage(), containsString("malformed blob name [" + mergeBlob.blobName() + ']'));
     }
+
+    /// Commit headers written with xcontent encoding keep the type of the referenced blobs: locations in a [BccBlob] and in a [MergeBlob]
+    /// are read back as such from the store.
+    public void testWriteAndReadXContentHeaderWithBccAndMergeBlobLocations() throws IOException {
+        var bccLocation = new BlobLocation(
+            new BccBlob(BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000)), randomLongBetween(1, 10)),
+            randomLongBetween(0, 100),
+            randomLongBetween(1, 1000)
+        );
+        var mergeLocation = new BlobLocation(
+            new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), randomLongBetween(1, 10)),
+            randomLongBetween(0, 100),
+            randomLongBetween(1, 1000)
+        );
+        var commitFiles = Map.of("bcc_file", bccLocation, "merge_file", mergeLocation);
+        var shardId = randomShardId();
+        long generation = randomNonZeroPositiveLong();
+        long primaryTerm = randomNonZeroPositiveLong();
+        var nodeEphemeralId = randomNodeEphemeralId();
+
+        byte[] bytes;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            StatelessCompoundCommit.writeXContentHeader(
+                shardId,
+                generation,
+                primaryTerm,
+                nodeEphemeralId,
+                0,
+                randomTimestampFieldValueRange(),
+                commitFiles,
+                List.of(),
+                InternalFilesReplicatedRanges.EMPTY,
+                new OutputStreamStreamOutput(output),
+                randomBoolean(),
+                List.of()
+            );
+            bytes = BytesReference.toBytes(output.bytes());
+        }
+
+        try (StreamInput in = new ByteArrayStreamInput(bytes)) {
+            var copy = StatelessCompoundCommit.readFromStore(in);
+
+            assertThat(copy.commitFiles(), equalTo(commitFiles));
+            assertThat(copy.commitFiles().get("bcc_file").blob(), instanceOf(BccBlob.class));
+            assertThat(copy.commitFiles().get("merge_file").blob(), instanceOf(MergeBlob.class));
+        }
+    }
 }

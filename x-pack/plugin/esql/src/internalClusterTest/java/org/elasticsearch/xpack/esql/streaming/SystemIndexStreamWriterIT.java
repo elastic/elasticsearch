@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -49,7 +52,7 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
 
         TransportVersion transportVersion = TransportVersion.current();
-        var writer = new SystemIndexStreamWriter(client(), BytesRefRecycler.NON_RECYCLING_INSTANCE, transportVersion);
+        var writer = newWriter(transportVersion);
         TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
         Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
         List<ColumnInfo> columns = List.of(new ColumnInfoImpl("value", "integer", null));
@@ -72,13 +75,9 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         appendPages(writer, pages, 0, rows, complete);
         safeAwait(complete);
 
-        var response = client().prepareGet(INDEX, streamId).setRouting(streamId).get();
-        assertTrue(response.isExists());
-        assertThat(
-            StreamMetadataDocument.fromSource(response.getSourceAsMap()),
-            equalTo(
-                StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings).complete(false, 10, pages.length, rows)
-            )
+        assertMetadata(
+            streamId,
+            StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings).complete(false, 10, pages.length, rows)
         );
         for (PageSpec page : pages) {
             assertPage(streamId, page, transportVersion);
@@ -88,7 +87,7 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
     public void testFinalStatusIsNotOverwritten() throws Exception {
         updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
 
-        var writer = new SystemIndexStreamWriter(client(), BytesRefRecycler.NON_RECYCLING_INSTANCE, TransportVersion.current());
+        var writer = newWriter(TransportVersion.current());
         TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
         Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
         List<ColumnInfo> columns = List.of(new ColumnInfoImpl("value", "integer", null));
@@ -107,18 +106,17 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         }
         awaitCapacity(writer);
 
-        StreamMetadata expected = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings)
-            .complete(false, 10, 0, 0);
-        var response = client().prepareGet(INDEX, streamId).setRouting(streamId).get();
-        assertTrue(response.isExists());
-        assertThat(StreamMetadataDocument.fromSource(response.getSourceAsMap()), equalTo(expected));
+        assertMetadata(
+            streamId,
+            StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings).complete(false, 10, 0, 0)
+        );
         assertFalse(client().prepareGet(INDEX, streamId + "_1").setRouting(streamId).get().isExists());
     }
 
     public void testFinalStatusIsWrittenWithoutWaitingForCapacity() throws Exception {
         updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
 
-        var writer = new SystemIndexStreamWriter(client(), BytesRefRecycler.NON_RECYCLING_INSTANCE, TransportVersion.current());
+        var writer = newWriter(TransportVersion.current());
         TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
         Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
         List<ColumnInfo> columns = List.of(new ColumnInfoImpl("value", "integer", null));
@@ -129,10 +127,26 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         writer.markCanceled();
         awaitCapacity(writer);
 
-        StreamMetadata expected = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings).canceled();
-        var response = client().prepareGet(INDEX, streamId).setRouting(streamId).get();
-        assertTrue(response.isExists());
-        assertThat(StreamMetadataDocument.fromSource(response.getSourceAsMap()), equalTo(expected));
+        assertMetadata(streamId, StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings).canceled());
+    }
+
+    private SystemIndexStreamWriter newWriter(TransportVersion transportVersion) {
+        return new SystemIndexStreamWriter(
+            client(),
+            internalCluster().getInstance(EscfBulkService.class),
+            internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
+            transportVersion
+        );
+    }
+
+    private void assertMetadata(String streamId, StreamMetadata expected) throws Exception {
+        assertBusy(() -> assertTrue(indexExists(INDEX)));
+        ensureGreen(INDEX);
+        assertBusy(() -> {
+            GetResponse response = client().prepareGet(INDEX, streamId).setRouting(streamId).get();
+            assertTrue(response.isExists());
+            assertThat(StreamMetadataDocument.fromSource(response.getSourceAsMap()), equalTo(expected));
+        });
     }
 
     private static void awaitCapacity(SystemIndexStreamWriter writer) {

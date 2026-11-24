@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -68,14 +67,22 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     private final EsqlCapabilities capabilities;
 
-    private final BigArrays bigArrays;
-
     private final BooleanSupplier batchIndexingSupported;
 
-    public RestEsqlStreamQueryAction(EsqlCapabilities capabilities, BigArrays bigArrays, BooleanSupplier batchIndexingSupported) {
+    private final EscfBulkService escfBulkService;
+
+    private final CircuitBreaker breaker;
+
+    public RestEsqlStreamQueryAction(
+        EsqlCapabilities capabilities,
+        BooleanSupplier batchIndexingSupported,
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker
+    ) {
         this.capabilities = capabilities;
-        this.bigArrays = bigArrays;
         this.batchIndexingSupported = batchIndexingSupported;
+        this.escfBulkService = escfBulkService;
+        this.breaker = breaker;
     }
 
     @Override
@@ -103,7 +110,7 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         if (store != StreamOptions.Store.NONE && batchIndexingSupported.getAsBoolean() == false) {
             throw new IllegalArgumentException("[store] set to [" + store + "] requires batch indexing");
         }
-        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, bigArrays.bytesRefRecycler());
+        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, escfBulkService, breaker);
     }
 
     static RestChannelConsumer streamingChannelConsumer(
@@ -111,7 +118,8 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         StreamOptions options,
         RestRequest request,
         NodeClient client,
-        Recycler<BytesRef> recycler
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker
     ) {
         if (esqlRequest.columnar()) {
             throw new IllegalArgumentException("[columnar] cannot be used with [POST /_query/stream]");
@@ -131,8 +139,9 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
             EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(
                 channel,
                 client.threadPool().getThreadContext(),
-                recycler,
                 client,
+                escfBulkService,
+                breaker,
                 options
             );
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(

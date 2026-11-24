@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -397,8 +399,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
-    private final SetOnce<BigArrays> bigArrays = new SetOnce<>();
     private final SetOnce<BooleanSupplier> batchIndexingSupported = new SetOnce<>();
+    private final SetOnce<EscfBulkService> escfBulkService = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> storedStreamBreaker = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -415,7 +418,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        this.bigArrays.set(bigArrays);
+        this.escfBulkService.set(
+            new EscfBulkService(services.indexingPressure(), services.threadPool().generic(), services.bigArrays().bytesRefRecycler())
+        );
+        this.storedStreamBreaker.set(services.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST));
         BatchIndexingEnabled batchIndexingEnabled = new BatchIndexingEnabled(services.clusterService().getClusterSettings());
         this.batchIndexingSupported.set(() -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, services.clusterService()));
         var blockFactoryProvider = blockFactoryProvider(
@@ -911,7 +917,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
-            handlers.add(new RestEsqlStreamQueryAction(capabilities, bigArrays.get(), batchIndexingSupported.get()));
+            handlers.add(
+                new RestEsqlStreamQueryAction(capabilities, batchIndexingSupported.get(), escfBulkService.get(), storedStreamBreaker.get())
+            );
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the

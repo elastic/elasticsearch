@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestResponse;
@@ -223,8 +227,9 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
         var listener = new EsqlStreamResponseListener(
             channel,
             client().threadPool().getThreadContext(),
-            BigArrays.NON_RECYCLING_INSTANCE.bytesRefRecycler(),
             client(),
+            internalCluster().getInstance(EscfBulkService.class),
+            internalCluster().getInstance(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST),
             options
         );
         client().execute(
@@ -259,7 +264,12 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
     }
 
     private Map<String, Object> getMetadataDocument(String id) {
-        GetResponse response = client().prepareGet(INDEX, id).setRouting(id).get();
+        GetResponse response;
+        try {
+            response = client().prepareGet(INDEX, id).setRouting(id).get();
+        } catch (IndexNotFoundException | NoShardAvailableActionException e) {
+            throw new AssertionError("the results index is not ready yet", e);
+        }
         assertTrue("document [" + id + "] must exist", response.isExists());
         return response.getSourceAsMap();
     }

@@ -13,7 +13,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -109,8 +111,9 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     private final RestChannel channel;
     private final ThreadContext threadContext;
     private final Client client;
+    private final EscfBulkService escfBulkService;
+    private final CircuitBreaker breaker;
     private final StreamOptions options;
-    private final Recycler<BytesRef> recycler;
 
     private final long startNanos = System.nanoTime();
     private final AtomicBoolean terminalEmitted = new AtomicBoolean(false);
@@ -145,15 +148,17 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     EsqlStreamResponseListener(
         RestChannel channel,
         ThreadContext threadContext,
-        Recycler<BytesRef> recycler,
         Client client,
+        EscfBulkService escfBulkService,
+        CircuitBreaker breaker,
         StreamOptions options
     ) {
         this.channel = channel;
         this.threadContext = threadContext;
         this.client = client;
+        this.escfBulkService = escfBulkService;
+        this.breaker = breaker;
         this.options = options;
-        this.recycler = recycler;
     }
 
     /** Whether the rows and bytes written so far already fill {@code max_rows} or {@code max_bytes}. */
@@ -288,7 +293,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         assert zoneId != null : "ResultStream must carry the resolved query time zone";
         this.contextRestorer = threadContext.newRestorableContext(false);
         if (client != null && options.store() != StreamOptions.Store.NONE) {
-            writer = new SystemIndexStreamWriter(client, recycler, TransportVersion.current());
+            writer = new SystemIndexStreamWriter(client, escfBulkService, breaker, TransportVersion.current());
             streamId = writer.createStarted(resultStream.taskId(), null, List.copyOf(columns), Map.of(), List.of());
         }
         resultStream.publisher().subscribe(subscriber);

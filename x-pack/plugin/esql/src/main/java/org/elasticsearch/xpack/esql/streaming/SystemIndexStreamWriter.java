@@ -7,22 +7,18 @@
 
 package org.elasticsearch.xpack.esql.streaming;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
-import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.logging.LogManager;
@@ -30,7 +26,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.io.IOException;
@@ -40,7 +35,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
@@ -65,29 +60,36 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 
 /**
  * A {@link StoredStreamWriter} that keeps the stream in the system index defined by {@link EsqlStreamResultsIndexDescriptor}:
- * one metadata document and one document per page. Writes are batched into bulk requests. Use {@link #onCapacity} to wait for
- * the pending bulk requests to finish before producing more pages.
+ * one metadata document and one document per page. Everything goes through one {@link EscfBulkWriter} with one bulk in flight,
+ * so the rows are indexed in the order they are added. Each metadata row starts a new batch, so that a bulk never holds the same
+ * document twice. Failed items are logged and do not stop the stream. Use {@link #onCapacity} to wait until more pages may be
+ * appended.
  */
 public class SystemIndexStreamWriter implements StoredStreamWriter {
 
     private static final Logger logger = LogManager.getLogger(SystemIndexStreamWriter.class);
 
-    static final int PAGES_PER_BULK = 16;
-    static final long MAX_UNACKED_BYTES = ByteSizeValue.ofMb(4).getBytes();
-
-    private final Client client;
-    private final Recycler<BytesRef> recycler;
-    private final TransportVersion transportVersion;
-
-    private StreamMetadata metadata = null;
-    private Bulk currentBulk = null;
-    private int inFlightBulks = 0;
+    private final TransportVersion version;
+    private final EscfBulkWriter writer;
+    private final EscfBulkWriter.Producer producer;
     private final List<Runnable> waiting = new ArrayList<>();
 
-    public SystemIndexStreamWriter(Client client, Recycler<BytesRef> recycler, TransportVersion transportVersion) {
-        this.client = new OriginSettingClient(client, ESQL_ORIGIN);
-        this.recycler = recycler;
-        this.transportVersion = transportVersion;
+    private volatile StreamMetadata started;
+    private boolean terminated;
+
+    @SuppressWarnings("this-escape")
+    public SystemIndexStreamWriter(Client client, EscfBulkService bulks, CircuitBreaker breaker, TransportVersion version) {
+        this.version = version;
+        EscfBulkWriter.Policy defaultPolicy = bulks.defaultPolicy();
+        this.writer = bulks.newWriter(
+            new OriginSettingClient(client, ESQL_ORIGIN),
+            breaker,
+            INDEX,
+            new EscfBulkWriter.Policy(1, defaultPolicy.targetBulkBytes(), defaultPolicy.maxNodeBytes()),
+            SystemIndexStreamWriter::logFailedItems,
+            this::wake
+        );
+        this.producer = writer.newProducer();
     }
 
     @Override
@@ -99,45 +101,44 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         List<String> warnings
     ) {
         var streamId = StreamId.newStreamId(taskId).encoded();
-        addToCurrentBulk(true, false, bulk -> {
-            metadata = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings);
-            bulk.addMetadata(metadata);
-        });
+        synchronized (this) {
+            started = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings);
+            producer.add(new MetadataRow(started), true);
+        }
         return streamId;
     }
 
     @Override
     public void appendPage(int seq, long offset, Page page) {
-        addToCurrentBulk(false, false, bulk -> bulk.addPage(seq, offset, page));
+        synchronized (this) {
+            if (started == null || terminated) {
+                return;
+            }
+            producer.add(new PageRow(started.streamId(), seq, offset, page, version), false);
+        }
     }
 
     @Override
     public void markComplete(boolean partial, long tookMillis, long pages, long rows) {
-        addToCurrentBulk(true, true, bulk -> {
-            metadata = metadata.complete(partial, tookMillis, pages, rows);
-            bulk.addMetadata(metadata);
-        });
+        terminate(() -> started.complete(partial, tookMillis, pages, rows));
     }
 
     @Override
     public void markFailed(boolean partial, long tookMillis, Exception e) {
-        addToCurrentBulk(true, true, bulk -> {
-            metadata = metadata.failed(partial, tookMillis, e);
-            bulk.addMetadata(metadata);
-        });
+        terminate(() -> started.failed(partial, tookMillis, e));
     }
 
     @Override
     public void markCanceled() {
-        addToCurrentBulk(true, true, bulk -> {
-            metadata = metadata.canceled();
-            bulk.addMetadata(metadata);
-        });
+        terminate(() -> started.canceled());
     }
 
+    /**
+     * Runs {@code runnable} once more pages may be appended, right away if they may now.
+     */
     public void onCapacity(Runnable runnable) {
         synchronized (this) {
-            if (inFlightBulks > 0) {
+            if (producer.hasCapacity() == false) {
                 waiting.add(runnable);
                 return;
             }
@@ -145,11 +146,10 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         runnable.run();
     }
 
-    private void onBulkDone() {
+    private void wake() {
         List<Runnable> ready;
         synchronized (this) {
-            inFlightBulks--;
-            if (inFlightBulks > 0) {
+            if (waiting.isEmpty() || producer.hasCapacity() == false) {
                 return;
             }
             ready = List.copyOf(waiting);
@@ -160,63 +160,34 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         }
     }
 
-    private synchronized void addToCurrentBulk(boolean force, boolean refresh, Consumer<Bulk> consumer) {
-        if (metadata != null && metadata.status() != StreamMetadata.Status.RUNNING) {
-            return;
+    private void terminate(Supplier<StreamMetadata> finalStatus) {
+        synchronized (this) {
+            if (started == null || terminated) {
+                return;
+            }
+            terminated = true;
+            producer.add(new MetadataRow(finalStatus.get()), true);
+            producer.close();
         }
-        if (currentBulk == null) {
-            currentBulk = new Bulk();
-        }
-        consumer.accept(currentBulk);
-        if (force || currentBulk.hasCapacity() == false) {
-            flush(refresh);
-        }
+        writer.finish(ActionListener.wrap(ignored -> {}, e -> logger.warn("failed to store stream results", e)));
     }
 
-    private synchronized void flush(boolean refresh) {
-        Bulk bulk = currentBulk;
-        if (bulk == null) {
-            return;
+    private static Exception logFailedItems(BulkResponse response) {
+        if (response.hasFailures()) {
+            logger.warn("failed to store stream results: {}", response.buildFailureMessage());
         }
-        currentBulk = null;
-        BulkRequest request = bulk.toBulkRequest(refresh);
-        inFlightBulks++;
-        client.bulk(request, ActionListener.runAfter(ActionListener.wrap(response -> {
-            if (response.hasFailures()) {
-                logger.warn("failed to store stream results: {}", response.buildFailureMessage());
-            }
-        }, e -> logger.warn("failed to store stream results", e)), this::onBulkDone));
+        return null;
     }
 
-    private final class Bulk implements Releasable {
-        private final EscfBatchBuilder builder = new EscfBatchBuilder(recycler);
-        private final List<IndexRequest> requests = new ArrayList<>(PAGES_PER_BULK);
-        private long bytes;
+    private record MetadataRow(StreamMetadata metadata) implements EscfBulkWriter.Rows {
 
-        boolean hasCapacity() {
-            return currentBulk.requests.size() < PAGES_PER_BULK && currentBulk.bytes < MAX_UNACKED_BYTES;
+        @Override
+        public int count() {
+            return 1;
         }
 
-        BulkRequest toBulkRequest(boolean refresh) {
-            BulkRequest request = new BulkRequest().setRefreshPolicy(refresh ? RefreshPolicy.IMMEDIATE : RefreshPolicy.NONE);
-            EscfBatch batch = null;
-            try (builder) {
-                batch = builder.buildPartition(0);
-                for (int i = 0; i < requests.size(); i++) {
-                    IndexRequest indexRequest = requests.get(i);
-                    indexRequest.indexSource().setSourceRow(batch, i, XContentType.JSON);
-                    request.add(indexRequest);
-                }
-                request.setPreBuiltBatches(Map.of(INDEX, batch));
-                batch = null;
-                return request;
-            } catch (Exception e) {
-                Releasables.close(batch);
-                throw e;
-            }
-        }
-
-        void addMetadata(StreamMetadata metadata) {
+        @Override
+        public void append(EscfBatchBuilder builder) {
             String streamId = metadata.streamId();
             EscfRowBuffer row = builder.beginRow();
             stringField(row, STREAM_ID_FIELD, streamId);
@@ -262,28 +233,21 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             }
             row.finishRow();
             builder.commit(0);
-            OpType opType = metadata.status() == StreamMetadata.Status.RUNNING ? OpType.CREATE : OpType.INDEX;
-            requests.add(new IndexRequest(INDEX).id(streamId).routing(streamId).opType(opType));
         }
 
-        void addPage(int seq, long offset, Page page) {
-            String streamId = metadata.streamId();
-            byte[] streamIdBytes = streamId.getBytes(StandardCharsets.UTF_8);
-            EscfRowBuffer row = builder.beginRow();
-            row.stringField(STREAM_ID_FIELD, streamIdBytes, 0, streamIdBytes.length);
-            row.longField(PAGE_SEQ_FIELD, seq);
-            row.longField(PAGE_OFFSET_FIELD, offset);
-            row.longField(PAGE_SIZE_FIELD, page.getPositionCount());
-            row.longField(PAGE_TRANSPORT_VERSION_FIELD, transportVersion.id());
-            row.binaryField(PAGE_FIELD, out -> {
-                out.setTransportVersion(transportVersion);
-                long start = out.position();
-                page.writeTo(out);
-                bytes += out.position() - start;
-            });
-            row.finishRow();
-            builder.commit(0);
-            requests.add(new IndexRequest(INDEX).id(streamId + "_" + seq).routing(streamId).opType(OpType.CREATE));
+        @Override
+        public IndexRequest request(int row) {
+            OpType opType = isFinalStatus() ? OpType.INDEX : OpType.CREATE;
+            return new IndexRequest(INDEX).id(metadata.streamId()).routing(metadata.streamId()).opType(opType);
+        }
+
+        @Override
+        public boolean refresh() {
+            return isFinalStatus();
+        }
+
+        private boolean isFinalStatus() {
+            return metadata.status() != StreamMetadata.Status.RUNNING;
         }
 
         @FunctionalInterface
@@ -303,10 +267,35 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
             row.stringField(name, bytes, 0, bytes.length);
         }
+    }
+
+    private record PageRow(String streamId, int seq, long offset, Page page, TransportVersion version) implements EscfBulkWriter.Rows {
 
         @Override
-        public void close() {
-            builder.close();
+        public int count() {
+            return 1;
+        }
+
+        @Override
+        public void append(EscfBatchBuilder builder) {
+            byte[] streamIdBytes = streamId.getBytes(StandardCharsets.UTF_8);
+            EscfRowBuffer row = builder.beginRow();
+            row.stringField(STREAM_ID_FIELD, streamIdBytes, 0, streamIdBytes.length);
+            row.longField(PAGE_SEQ_FIELD, seq);
+            row.longField(PAGE_OFFSET_FIELD, offset);
+            row.longField(PAGE_SIZE_FIELD, page.getPositionCount());
+            row.longField(PAGE_TRANSPORT_VERSION_FIELD, version.id());
+            row.binaryField(PAGE_FIELD, out -> {
+                out.setTransportVersion(version);
+                page.writeTo(out);
+            });
+            row.finishRow();
+            builder.commit(0);
+        }
+
+        @Override
+        public IndexRequest request(int row) {
+            return new IndexRequest(INDEX).id(streamId + "_" + seq).routing(streamId).opType(OpType.CREATE);
         }
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -202,6 +203,28 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
             doc
         );
         assertEquals("other-destination", result.index());
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * Converting the prepared request to a delete must retain the slice provenance, or the destination slice would become ordinary
+     * routing on the redirected target.
+     */
+    public void testScriptDeletePreservesDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("source", "id", 0);
+
+        DeleteRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {
+            ctx.put("_index", "plain-destination");
+            ctx.put("op", "delete");
+        }, request, index, doc);
+        assertEquals("plain-destination", result.index());
         assertEquals("tenant-a", result.routing());
         assertTrue(result.isRoutingFromSlice());
     }

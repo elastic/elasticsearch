@@ -1329,6 +1329,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     delete.setVersion(request.getVersion());
                     delete.setVersionType(VersionType.INTERNAL);
                     delete.setRouting(request.getRouting());
+                    delete.setRoutingFromSlice(request.isRoutingFromSlice());
                     return delete;
                 }
                 case INDEX -> {

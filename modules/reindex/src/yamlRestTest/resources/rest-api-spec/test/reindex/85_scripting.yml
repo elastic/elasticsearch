@@ -330,6 +330,21 @@
             lang: painless
             source: ctx._index = "plain_twitter"
 
+  # Converting the request to a delete keeps the slice provenance, so the plain target still rejects it rather than treating the slice
+  # as ordinary routing.
+  - do:
+      catch: /\[_slice\].is.not.allowed.when.\[index.slice.enabled\].is.false/
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_twitter
+          dest:
+            index: new_twitter
+          script:
+            lang: painless
+            source: ctx._index = "plain_twitter"; ctx.op = "delete"
+
   # Clearing the routing in the script is an explicit write and lets the redirect through.
   - do:
       reindex:

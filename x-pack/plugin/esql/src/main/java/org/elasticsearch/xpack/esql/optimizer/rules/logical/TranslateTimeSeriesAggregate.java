@@ -243,7 +243,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
         List<Attribute> packDimensions = new ArrayList<>();
-        // packed dimension -> its unpacked attribute; a dimension grouped twice (BY cluster, c2 = cluster) is packed once
         Map<NameId, Attribute> unpackDimensions = new LinkedHashMap<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
@@ -405,11 +404,10 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             int groupPos = 0;
             for (Expression group : aggregate.groupings()) {
                 NamedExpression g = (NamedExpression) group;
-                Attribute unpacked = Alias.unwrap(g) instanceof Attribute a ? unpackDimensions.get(a.id()) : null;
-                if (unpacked == null) {
-                    projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
-                } else {
+                if (Alias.unwrap(g) instanceof Attribute a && unpackDimensions.get(a.id()) instanceof Attribute unpacked) {
                     projects.add(unpacked.id().equals(g.id()) ? unpacked : new Alias(g.source(), g.name(), unpacked, g.id()));
+                } else {
+                    projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
                 }
             }
             return new Project(newChild.source(), unpackDims, projects);

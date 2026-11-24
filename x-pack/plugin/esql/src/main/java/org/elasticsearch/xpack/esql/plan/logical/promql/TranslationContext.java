@@ -133,17 +133,6 @@ public record TranslationContext(
         return analyzer.configuration();
     }
 
-    /**
-     * The labels a {@code without (labels)} leaves out: the listed ones and, where the source stores it, the metric name,
-     * which Prometheus drops from every {@code without} grouping.
-     */
-    public List<String> withoutLabels(List<String> labels) {
-        if (cmd.storesMetricName() == false || labels.contains(LabelMatcher.NAME)) {
-            return labels;
-        }
-        return Stream.concat(labels.stream(), Stream.of(LabelMatcher.NAME)).toList();
-    }
-
     public Attribute stepAttr() {
         return stepBucketAlias != null ? stepBucketAlias.toAttribute() : cmd.stepAttribute();
     }

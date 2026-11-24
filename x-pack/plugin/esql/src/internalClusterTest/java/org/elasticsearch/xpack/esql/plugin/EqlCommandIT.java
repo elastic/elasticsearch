@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * End-to-end integration test for the {@code EQL <indexPattern> "<query>"} source command. Loads the EQL plugin
@@ -347,7 +349,40 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("no_such_ts"));
         // ES|QL passes timestamp_field through opaquely, so the error must originate in the EQL delegate, not ES|QL
         // analysis — pin that origin so a future change that resolves the field ES|QL-side does not silently pass here.
-        assertThat(e, not(instanceOf(VerificationException.class)));
+        assertThat(e.getMessage(), startsWith("line 1:1: EQL query failed: "));
+    }
+
+    public void testUnknownFieldInTheEqlQueryKeepsTheEngineHintAndBothPositions() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("EQL " + INDEX + " \"process where process.nam == \\\"cmd.exe\\\"\"").close()
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "line 1:1: EQL query failed: line 1:15 of the EQL query: "
+                    + "Unknown column [process.nam], did you mean any of [process.name, process.pid]?"
+            )
+        );
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testEqlQueryPositionIsRelativeToTheEqlText() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM (EQL " + INDEX + " \"process where\\n zzz == 1\")").close()
+        );
+        assertThat(e.getMessage(), equalTo("line 1:7: EQL query failed: line 2:2 of the EQL query: Unknown column [zzz]"));
+    }
+
+    public void testEqlFunctionErrorFoundAtRunTimeIsLocatedInTheEqlQuery() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("EQL " + INDEX + " \"process where between(process.name) == \\\"x\\\"\"").close()
+        );
+        assertThat(e.getMessage(), startsWith("line 1:1: EQL query failed: line 1:"));
+        assertThat(e.getMessage(), containsString(" of the EQL query: "));
+        assertThat(e.getMessage(), containsString("[between]"));
     }
 
     public void testEventQueryReportsALostShard() throws Exception {

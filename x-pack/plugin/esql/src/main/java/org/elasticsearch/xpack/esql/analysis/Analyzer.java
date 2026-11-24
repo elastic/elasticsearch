@@ -1211,10 +1211,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
             List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), plan.mode());
-            // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
-            // metadata column would produce two output columns of the same name. Values stay correct (the converter
-            // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
-            // loud here instead of emitting an ambiguous schema.
             Set<String> reserved = new HashSet<>();
             for (Attribute synthetic : synthetics) {
                 reserved.add(synthetic.name());
@@ -1222,18 +1218,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (NamedExpression metadata : plan.metadataFields()) {
                 reserved.add(metadata.name());
             }
-            for (Attribute attr : mapped) {
-                if (reserved.contains(attr.name())) {
-                    return unresolvedWith(
-                        plan,
-                        "mapped field [" + attr.name() + "] collides with the EQL command's reserved column of the same name"
-                    );
-                }
-            }
             List<Attribute> output = new ArrayList<>(mapped.size() + synthetics.size() + plan.metadataFields().size());
             output.addAll(synthetics);
             for (Attribute attr : mapped) {
-                output.add(gateUnconvertibleType(plan.source(), attr));
+                if (reserved.contains(attr.name())) {
+                    context.deferredHeaderWarnings().add(shadowedByEqlColumnWarning(plan.source(), attr.name()));
+                } else {
+                    output.add(gateUnconvertibleType(plan.source(), attr));
+                }
             }
             // Metadata columns come last (matching FROM) and must NOT pass through gateUnconvertibleType — _source is
             // DataType.SOURCE, which is not convertible, so gating would wrongly turn it into an unsupported column.
@@ -1273,6 +1265,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.metadataFields(),
                     message
                 );
+        }
+
+        private static String shadowedByEqlColumnWarning(Source source, String field) {
+            String location = source.viewName() == null
+                ? Strings.format("Line %s:%s: ", source.lineNumber(), source.columnNumber())
+                : Strings.format("Line %s:%s (in view [%s]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+            return Strings.format(
+                "%sMapped field [%s] is shadowed by the EQL command's column of the same name; "
+                    + "use JSON_EXTRACT on METADATA _source to read it",
+                location,
+                field
+            );
         }
 
         /**

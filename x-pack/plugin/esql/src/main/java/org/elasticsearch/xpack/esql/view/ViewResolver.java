@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -563,9 +565,39 @@ public class ViewResolver {
                         l.onResponse(result);
                     })
                 );
+                case UnresolvedEqlRelation eql -> rejectViewsInEqlTarget(eql, projectRouting, planListener);
                 default -> planListener.onResponse(p);
             }
         }, executor, listener);
+    }
+
+    private void rejectViewsInEqlTarget(UnresolvedEqlRelation eql, String projectRouting, ActionListener<LogicalPlan> listener) {
+        String[] patterns = Arrays.stream(eql.indexPattern().indexPattern().split(","))
+            .filter(p -> isLocalWildcard(p) == false)
+            .toArray(String[]::new);
+        Set<String> named = exactNames(Arrays.stream(patterns).filter(p -> patternIsExclusion(p) == false).toArray(String[]::new));
+        if (named.isEmpty()) {
+            listener.onResponse(eql);
+            return;
+        }
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, crossProjectModeDecider.crossProjectEnabled(), false);
+        req.setProjectRouting(projectRouting);
+        req.indices(patterns);
+        doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l, response) -> {
+            String views = Arrays.stream(response.views())
+                .map(View::name)
+                .filter(named::contains)
+                .distinct()
+                .collect(Collectors.joining(", "));
+            if (views.isEmpty() == false) {
+                throw new VerificationException(
+                    List.of(
+                        Failure.fail(eql, "Views are not supported in EQL command, found view(s) [{}]; use FROM {} instead", views, views)
+                    )
+                );
+            }
+            l.onResponse(eql);
+        }));
     }
 
     private void replaceViewsMergePlan(

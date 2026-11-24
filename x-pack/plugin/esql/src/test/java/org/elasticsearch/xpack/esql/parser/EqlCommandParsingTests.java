@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.eql.EqlClientException;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -30,6 +33,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for parsing the {@code EQL "<query>"} source command into an {@link UnresolvedEqlRelation}.
@@ -128,16 +132,56 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         expectError("EQL logs-* ?q", List.of(paramAsConstant("p", "process where true")), "Unknown query parameter [q]");
     }
 
-    public void testMalformedEqlQueryRejected() {
+    public void testMalformedEqlQueryReportsTheEqlParserError() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
-        expectError("EQL logs-* \"process where\"", "line 1:12: cannot parse EQL query [process where]: ");
-        ParsingException internalFailure = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where x like null\""));
-        assertThat(internalFailure.getErrorMessage(), equalTo("cannot parse EQL query [process where x like null]"));
+        String unfinished = expectedEqlParserError("process where");
+        assertThat(unfinished, containsString("]: line 1:14 of the EQL query: mismatched input '<EOF>'"));
+        expectError("EQL logs-* \"process where\"", unfinished);
+        String samplePipe = expectedEqlParserError("sample by c [a where true] [b where true] | head 2");
+        assertThat(samplePipe, containsString(" of the EQL query: Samples do not support pipes yet"));
+        expectError("EQL logs-* \"sample by c [a where true] [b where true] | head 2\"", samplePipe);
+    }
+
+    public void testEqlParserErrorWithoutAPositionIsReportedWithoutOne() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
         expectError(
-            "EQL logs-* \"sample by c [a where true] [b where true] | head 2\"",
-            "line 1:12: cannot parse EQL query [sample by c [a where true] [b where true] | head 2]"
+            "EQL logs-* \"sample by c [a where true] ![b where true]\"",
+            "line 1:12: cannot parse EQL query [sample by c [a where true] ![b where true]]: "
+                + "Missing events are supported only for sequences"
         );
+    }
+
+    public void testEqlParserErrorPositionIsRelativeToTheEqlQuery() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        String eql = "process where\nx ==";
+        String expected = expectedEqlParserError(eql);
+        assertThat(expected, containsString("]: line 2:5 of the EQL query: "));
+        expectError("EQL logs-* ?q", List.of(paramAsConstant("q", eql)), expected);
+    }
+
+    public void testEqlQueryFailingOutsideTheEqlParserReportsTheFailure() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        RuntimeException failure = expectThrows(RuntimeException.class, () -> EqlQueryIntrospection.inspect("process where x like null"));
+        assertThat(failure, not(instanceOf(EqlClientException.class)));
+        ParsingException e = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where x like null\""));
+        String reason = Objects.requireNonNullElse(failure.getMessage(), failure.toString());
+        assertThat(e.getErrorMessage(), equalTo("cannot parse EQL query [process where x like null]: " + reason));
+    }
+
+    private static String expectedEqlParserError(String eql) {
+        var e = expectThrows(org.elasticsearch.xpack.eql.parser.ParsingException.class, () -> EqlQueryIntrospection.inspect(eql));
+        return "line 1:12: cannot parse EQL query ["
+            + eql
+            + "]: line "
+            + e.getLineNumber()
+            + ":"
+            + e.getColumnNumber()
+            + " of the EQL query: "
+            + e.getErrorMessage();
     }
 
     public void testMultipleIndexPatterns() {

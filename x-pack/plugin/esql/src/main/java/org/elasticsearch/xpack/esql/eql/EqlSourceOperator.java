@@ -18,14 +18,19 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.ql.ParsingException;
+import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Coordinator-local source operator that delegates to the EQL engine: on first poll it issues a single
@@ -146,7 +152,7 @@ public class EqlSourceOperator extends SourceOperator {
                 blocked.onResponse(null);
             }
         }, e -> {
-            failure = e;
+            failure = located(e);
             driverContext.removeAsyncAction();
             blocked.onResponse(null);
         }));
@@ -177,6 +183,30 @@ public class EqlSourceOperator extends SourceOperator {
             return result;
         }
         return null;
+    }
+
+    private Exception located(Exception e) {
+        if (!(ExceptionsHelper.unwrapCause(e) instanceof QlClientException cause)) {
+            return e;
+        }
+        String reason = switch (cause) {
+            case EqlClientException eql when eql.problems().isEmpty() == false -> eql.problems()
+                .stream()
+                .map(problem -> inEqlQuery(problem.line(), problem.column(), problem.message()))
+                .collect(Collectors.joining("; "));
+            case ParsingException p -> inEqlQuery(p.getLineNumber(), p.getColumnNumber(), p.getErrorMessage());
+            case QlClientException other -> other.getMessage();
+        };
+        String location = source.viewName() == null
+            ? Strings.format("line %s:%s: ", source.lineNumber(), source.columnNumber())
+            : Strings.format("line %s:%s (in view [%s]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+        VerificationException locatedFailure = new VerificationException(location + "EQL query failed: " + reason);
+        locatedFailure.addSuppressed(cause);
+        return locatedFailure;
+    }
+
+    private static String inEqlQuery(int line, int column, String message) {
+        return line > 0 ? "line " + line + ":" + column + " of the EQL query: " + message : message;
     }
 
     private void maybeWarnDefaultSize() {

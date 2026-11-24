@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
-import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -1234,10 +1233,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         EqlQueryIntrospection.Shape shape;
         try {
             shape = EqlQueryIntrospection.inspect(query);
+        } catch (org.elasticsearch.xpack.eql.parser.ParsingException e) {
+            String position = e.getLineNumber() > 0 ? "line " + e.getLineNumber() + ":" + e.getColumnNumber() + " of the EQL query: " : "";
+            throw new ParsingException(
+                source(ctx.stringOrParameter()),
+                "cannot parse EQL query [{}]: {}{}",
+                query,
+                position,
+                e.getErrorMessage()
+            );
         } catch (RuntimeException e) {
             // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
-            String reason = e instanceof EqlClientException ? ": " + e.getMessage() : "";
-            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]{}", query, reason);
+            String reason = Objects.requireNonNullElse(e.getMessage(), e.toString());
+            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]: {}", query, reason);
         }
         EqlRelation.Mode mode = switch (shape.mode()) {
             case EVENT -> EqlRelation.Mode.EVENT;

@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -27,23 +28,30 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Hits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.ql.ParsingException;
+import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -58,11 +66,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link EqlSourceOperator}: the coordinator-local source operator that issues a single async
@@ -442,16 +452,123 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         );
         try {
             assertBlocked(operator);
-            client.capturedListener.onFailure(new ElasticsearchException("eql boom"));
+            ElasticsearchException failure = new ElasticsearchException("eql boom");
+            client.capturedListener.onFailure(failure);
 
             assertNotBlocked(operator);
             RuntimeException e = expectThrows(RuntimeException.class, operator::getOutput);
-            assertThat(e.getMessage(), containsString("eql boom"));
+            assertThat(e, sameInstance(failure));
         } finally {
             operator.close();
         }
         // No page was ever built on the failure path, so nothing to release.
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testEqlFailureIsLocatedInTheEsqlQueryAndItsPositionsInTheEqlQuery() {
+        assertLocatedFailure(
+            new Source(2, 4, "eqlq"),
+            new org.elasticsearch.xpack.eql.analysis.VerificationException(
+                List.of(eqlProblem(1, 14, "Unknown column [a]"), eqlProblem(3, 0, "Unknown column [b]"), eqlProblem(-1, -2, "no position"))
+            ),
+            "line 2:5: EQL query failed: line 1:15 of the EQL query: Unknown column [a]; line 3:1 of the EQL query: Unknown column [b]; "
+                + "no position"
+        );
+    }
+
+    public void testEqlFailureWithoutProblemsKeepsItsMessage() {
+        assertLocatedFailure(
+            new Source(1, 0, "eqlq"),
+            new EqlClientException("unsupported option [{}]", "x"),
+            "line 1:1: EQL query failed: unsupported option [x]"
+        );
+    }
+
+    public void testEqlEngineParsingFailureIsLocatedInTheEqlQuery() {
+        ParsingException parsingFailure = new ParsingException(
+            new org.elasticsearch.xpack.ql.tree.Source(1, 15, "between(a)"),
+            "error building [{}]: expects three or four arguments",
+            "between"
+        );
+        assertLocatedFailure(
+            new Source(1, 0, "eqlq"),
+            parsingFailure,
+            "line 1:1: EQL query failed: line "
+                + parsingFailure.getLineNumber()
+                + ":"
+                + parsingFailure.getColumnNumber()
+                + " of the EQL query: error building [between]: expects three or four arguments"
+        );
+    }
+
+    public void testEqlFailureWrappedInATransportExceptionIsLocated() {
+        EqlClientException eqlFailure = new EqlClientException("unsupported option [x]");
+        assertLocatedFailure(
+            new Source(1, 0, "eqlq"),
+            new RemoteTransportException("remote failure", eqlFailure),
+            eqlFailure,
+            "line 1:1: EQL query failed: unsupported option [x]"
+        );
+    }
+
+    public void testEqlFailureFromARemoteClusterIsPassedThrough() {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD))
+        );
+        try {
+            assertBlocked(operator);
+            RemoteTransportException remoteFailure = new RemoteTransportException(
+                "remote failure",
+                new NotSerializableExceptionWrapper(new EqlClientException("unsupported option [x]"))
+            );
+            client.capturedListener.onFailure(remoteFailure);
+            assertThat(expectThrows(RuntimeException.class, operator::getOutput), sameInstance(remoteFailure));
+        } finally {
+            operator.close();
+        }
+    }
+
+    private void assertLocatedFailure(Source source, Exception eqlFailure, String expectedMessage) {
+        assertLocatedFailure(source, eqlFailure, eqlFailure, expectedMessage);
+    }
+
+    private void assertLocatedFailure(Source source, Exception delivered, Exception eqlFailure, String expectedMessage) {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        SourceOperator operator = new EqlSourceOperator.Factory(
+            client,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            source,
+            false,
+            executionInfo(LOCAL)
+        ).get(driverContext);
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onFailure(delivered);
+            VerificationException e = expectThrows(VerificationException.class, operator::getOutput);
+            assertThat(e.getMessage(), equalTo(expectedMessage));
+            assertThat(e.getCause(), nullValue());
+            assertThat(e.getSuppressed(), arrayContaining(sameInstance(eqlFailure)));
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        } finally {
+            operator.close();
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static Failure eqlProblem(int line, int charPositionInLine, String message) {
+        return new Failure(
+            new UnresolvedAttribute(new org.elasticsearch.xpack.ql.tree.Source(line, charPositionInLine, "x"), "x"),
+            message
+        );
     }
 
     /**

@@ -45,10 +45,10 @@ import java.util.Set;
  * {@code LOAD} adds a keyword column fetched from {@code _source} via the fields API. Field references inside the
  * EQL query string itself are the EQL engine's concern (its {@code ?field} optional syntax), not this mechanism.
  *
- * <p>A mapped field literally named {@code _sequence}/{@code _sequence_stage}/{@code join_keys} (or a declared
- * metadata name) collides by name with a synthetic or metadata column and is rejected at analysis: even though
- * values would stay correct (the converter dispatches by attribute class), the output schema would carry two
- * columns of the same name and a downstream {@code KEEP}/{@code SORT} could not disambiguate them.
+ * <p>In a sequence or sample query, a mapped field literally named {@code _sequence}/{@code _sequence_stage}/
+ * {@code join_keys} is shadowed by the synthetic column of the same name, as is a field named like a declared metadata
+ * column in any mode: analysis drops it from the output, with a warning, so the output schema never carries two
+ * columns of the same name.
  */
 public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
 

@@ -230,64 +230,36 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * After these commands the aggregation runs on the coordinator, on rows that are no longer tied to their documents.
-     * MATCH is evaluated over the values of the field there, with the analyzer of its mapping, and returns what Lucene does.
-     * A function that can only run as a Lucene query is rejected instead of failing.
+     * The filter of an aggregate function is evaluated against the Lucene document of each row. When it is not shared by all
+     * the aggregate functions it stays in the aggregation, so the query has to be rejected when the aggregation runs on rows
+     * that are no longer tied to a document, instead of failing while it executes.
      */
     public void testMatchInStatsFilterAfterCommands() {
-        List<String> coordinator = List.of(
+        String stats = " | STATS c = count(*) WHERE match(content, \"fox\"), d = count(*)";
+
+        for (String commands : List.of(
             "LIMIT 10",
             "SORT id | LIMIT 10",
-            "STATS id = max(id) BY content",
+            "STATS m = max(id) BY content",
             "CHANGE_POINT id ON id",
             // the optimizer replaces the alias with the indexed field
             "RENAME content AS c2 | LIMIT 10 | EVAL content = c2"
-        );
+        )) {
+            var error = expectThrows(VerificationException.class, () -> run("FROM test | " + commands + stats));
+            assertThat(commands, error.getMessage(), containsString("[MATCH] function cannot be used after "));
+        }
+
         // these keep the rows tied to their documents
-        List<String> shards = new ArrayList<>(List.of("MV_EXPAND id", "EVAL x = id + 1", "KEEP content, id", "WHERE id > 0", "SORT id"));
+        List<String> allowed = new ArrayList<>(List.of("MV_EXPAND id", "EVAL x = id + 1", "KEEP content, id", "WHERE id > 0", "SORT id"));
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             // the optimized plan is the one to accept these, with the aggregation of INLINE STATS on the right of a join
-            shards.add("INLINE STATS m = max(id)");
-            shards.add("INLINE STATS m = max(id) BY id");
+            allowed.add("INLINE STATS m = max(id)");
+            allowed.add("INLINE STATS m = max(id) BY id");
         }
-        List<String> all = new ArrayList<>(coordinator);
-        all.addAll(shards);
-
-        Map<String, Long> textMatches = Map.of(
-            "match(content, \"fox\")",
-            2L,
-            "content : \"fox\"",
-            2L,
-            "match(content, \"FOX lazy\")",
-            2L,
-            "match(content, \"brown dog\", {\"operator\": \"AND\"})",
-            4L,
-            "match(content, \"fox\") OR id == 5",
-            3L
-        );
-        // a keyword is matched as a whole
-        Map<String, Long> keywordMatches = Map.of("match(content, \"This is a brown fox\")", 1L, "match(content, \"fox\")", 0L);
-        for (String commands : all) {
-            for (var match : textMatches.entrySet()) {
-                String query = "FROM test | " + commands + " | STATS c = count(*) WHERE " + match.getKey() + ", d = count(*)";
-                try (var resp = run(query)) {
-                    assertColumnNames(resp.columns(), List.of("c", "d"));
-                    assertThat(query, getValuesList(resp), equalTo(List.of(List.of(match.getValue(), 6L))));
-                }
-            }
-            for (var match : keywordMatches.entrySet()) {
-                String query = "FROM test_keyword | " + commands + " | STATS c = count(*) WHERE " + match.getKey() + ", d = count(*)";
-                try (var resp = run(query)) {
-                    assertThat(query, getValuesList(resp), equalTo(List.of(List.of(match.getValue(), 6L))));
-                }
-            }
-        }
-
-        for (String commands : coordinator) {
-            for (String function : List.of("qstr(\"content:fox\")", "match_phrase(content, \"brown fox\")")) {
-                String query = "FROM test | " + commands + " | STATS c = count(*) WHERE " + function + ", d = count(*)";
-                var error = expectThrows(VerificationException.class, () -> run(query).close());
-                assertThat(query, error.getMessage(), containsString(" function cannot be used after "));
+        for (String commands : allowed) {
+            try (var resp = run("FROM test | " + commands + stats)) {
+                assertColumnNames(resp.columns(), List.of("c", "d"));
+                assertValues(resp.values(), List.of(List.of(2L, 6L)));
             }
         }
     }

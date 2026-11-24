@@ -248,16 +248,6 @@ public abstract class FullTextFunction extends Function
     public abstract boolean supportsRuntimeSearch();
 
     /**
-     * Whether this search of an indexed field gives the same results when it is evaluated row by row, over the values of
-     * the field, as when Lucene runs it. A function that does is not tied to the node that holds the documents: where there
-     * are no shards, like on the coordinator after a {@code LIMIT}, it is evaluated like a {@link #isRuntimeSearch() runtime
-     * search} instead.
-     */
-    public boolean canSearchWithoutShards() {
-        return false;
-    }
-
-    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -474,8 +464,6 @@ public abstract class FullTextFunction extends Function
                     input,
                     filter,
                     FullTextFunction.class,
-                    // away from the documents, these are evaluated over the values of the field instead
-                    ftf -> ftf.isRuntimeSearch() || ftf.canSearchWithoutShards(),
                     lp -> readsLuceneDocuments(lp, inlineStatsAggregates) && executesOnCoordinator(lp) == false,
                     m -> "[" + m.functionName() + "] " + m.functionType(),
                     failures
@@ -520,40 +508,15 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
-        // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
-        // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
-        checkCommandsBeforeExpression(
-            plan,
-            commands,
-            condition,
-            typeToken,
-            exp -> exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch(),
-            commandCheck,
-            typeErrorMsgProvider,
-            failures
-        );
-    }
-
-    /**
-     * Same as above, for the expressions of the type that are not {@code unrestricted}: those can follow any command.
-     */
-    private static <E extends Expression> void checkCommandsBeforeExpression(
-        LogicalPlan plan,
-        LogicalPlan commands,
-        Expression condition,
-        Class<E> typeToken,
-        Predicate<E> unrestricted,
-        Predicate<LogicalPlan> commandCheck,
-        java.util.function.Function<E, String> typeErrorMsgProvider,
-        Failures failures
-    ) {
         Set<String> inheritedSourceTexts = new HashSet<>();
         plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
         // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
         // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
         inheritedSourceTexts.add(plan.sourceText());
         condition.forEachDown(typeToken, exp -> {
-            if (unrestricted.test(exp)) {
+            // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
+            // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
+            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
             forEachDownInMainScope(commands, lp -> {

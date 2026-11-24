@@ -44,7 +44,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -132,6 +134,24 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         boolean recentStartup,
         AssignmentState assignmentState
     ) {
+        return getDeploymentStatsResponse(
+            numAllocations,
+            inferenceCount,
+            latency,
+            Instant.now(),
+            recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
+            assignmentState
+        );
+    }
+
+    private GetDeploymentStatsAction.Response getDeploymentStatsResponse(
+        int numAllocations,
+        int inferenceCount,
+        double latency,
+        Instant lastAccess,
+        Instant startTime,
+        AssignmentState assignmentState
+    ) {
         return new GetDeploymentStatsAction.Response(
             List.of(),
             List.of(),
@@ -159,8 +179,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                                 0,
                                 0,
                                 0,
-                                Instant.now(),
-                                recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
+                                lastAccess,
+                                startTime,
                                 1,
                                 numAllocations,
                                 inferenceCount,
@@ -471,6 +491,107 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
 
+        service.stop();
+    }
+
+    public void test_scaleDownToZero_afterMasterFailover_whenAlreadyIdle() throws Exception {
+        // A newly elected master starts with a deployment with 1 allocation,
+        // which was started and last used a day ago, so it has been idle for longer than the scale-to-zero time.
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTED);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            1,
+            60,
+            60_000
+        );
+
+        Instant oneDayAgo = Instant.now().minus(1, ChronoUnit.DAYS);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(getDeploymentStatsResponse(1, 10, 10.0, oneDayAgo, oneDayAgo, AssignmentState.STARTED));
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+        service.start();
+
+        // Scale down to zero on the first evaluation, without waiting for the scale-to-zero time again.
+        var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
+        updateRequest.setNumberOfAllocations(0);
+        updateRequest.setIsInternal(true);
+        assertBusy(() -> verify(client, atLeastOnce()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
+
+        service.stop();
+    }
+
+    public void test_noEarlyScaleDownToZero_afterReelectedAsMaster() throws Exception {
+        // The deployment was just started and scales to zero after 6 seconds without requests.
+        // The scale-up cooldown is short, so it doesn't prevent scaling down.
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTED);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            1,
+            6,
+            2_000
+        );
+
+        Instant lastActivity = Instant.now();
+        AtomicInteger statsRequestCount = new AtomicInteger();
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            statsRequestCount.incrementAndGet();
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(getDeploymentStatsResponse(1, 10, 10.0, lastActivity, lastActivity, AssignmentState.STARTED));
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+
+        // This node is master and collects stats once, then stops being master.
+        service.start();
+        assertBusy(() -> assertThat(statsRequestCount.get(), greaterThanOrEqualTo(1)));
+        service.stop();
+
+        // Simulate some time not being the master node.
+        safeSleep(2_000);
+
+        // After re-election, the deployment has been idle for about 4 seconds at the first stats collection and
+        // about 5 seconds at the second one, so it should not scale down to zero yet.
+        int statsRequestCountBeforeReelection = statsRequestCount.get();
+        service.start();
+        assertBusy(() -> assertThat(statsRequestCount.get(), greaterThanOrEqualTo(statsRequestCountBeforeReelection + 2)));
+        verify(client, never()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+
+        // Once the deployment has been idle for more than 6 seconds, it scales down to zero.
+        var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
+        updateRequest.setNumberOfAllocations(0);
+        updateRequest.setIsInternal(true);
+        assertBusy(() -> verify(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
         service.stop();
     }
 

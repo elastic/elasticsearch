@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -37,6 +38,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -72,6 +74,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     );
 
     private static final Logger logger = LogManager.getLogger(TransportFetchSearchShardInformationAction.class);
+    static final TransportVersion ABSOLUTE_LAST_SEARCHER_ACQUIRED_TIME = TransportVersion.fromName("absolute_last_searcher_acquired_time");
     static final Response NO_OTHER_SHARDS_FOUND_RESPONSE = new Response(-1);
     static final Response SHARD_HAS_MOVED_RESPONSE = new Response(-2);
 
@@ -82,6 +85,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     private final String shardActionName;
     private final AtomicInteger seed = new AtomicInteger(0);
     private final LongSupplier nowSupplier;
+    private final LongSupplier relativeNowSupplier;
 
     @SuppressWarnings("this-escape")
     @Inject
@@ -100,11 +104,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         this.transportService = transportService;
         this.shardActionName = actionName + "[s]";
         this.nowSupplier = threadPool::absoluteTimeInMillis;
+        this.relativeNowSupplier = threadPool::relativeTimeInMillis;
         transportService.registerRequestHandler(
             shardActionName,
             threadPool.generic(),
             TransportFetchSearchShardInformationAction.Request::new,
-            (request, channel, task) -> shardOperation(request, new ChannelActionListener<>(channel))
+            (request, channel, task) -> shardOperation(request, channel.getVersion(), new ChannelActionListener<>(channel))
         );
     }
 
@@ -145,15 +150,27 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
         ShardRouting shardRouting = searchShard.get();
         DiscoveryNode node = clusterService.state().nodes().resolveNode(shardRouting.currentNodeId());
 
+        final Transport.Connection connection;
+        try {
+            connection = transportService.getConnection(node);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        final ActionListener<Response> responseListener = connection.getTransportVersion().supports(ABSOLUTE_LAST_SEARCHER_ACQUIRED_TIME)
+            ? listener
+            : listener.map(this::convertLegacyRelativeResponse);
+
         logger.trace("requesting shard information from shard {}", shardRouting);
         transportService.sendChildRequest(
-            node,
+            connection,
             shardActionName,
             request,
             task,
             TransportRequestOptions.timeout(TimeValue.THIRTY_SECONDS),
             new ActionListenerResponseHandler<>(
-                listener,
+                responseListener,
                 TransportFetchSearchShardInformationAction.Response::new,
                 TransportResponseHandler.TRANSPORT_WORKER
             )
@@ -161,7 +178,18 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     }
 
     // visible for testing
-    void shardOperation(Request request, ActionListener<Response> listener) {
+    Response convertLegacyRelativeResponse(Response response) {
+        long legacyRelativeTime = response.getLastSearcherAcquiredTime();
+        if (legacyRelativeTime <= 0L) {
+            return response;
+        }
+        // Convert from relative to absolute time.
+        long elapsedMillis = Math.max(0L, relativeNowSupplier.getAsLong() - legacyRelativeTime);
+        return new Response(Math.max(1L, nowSupplier.getAsLong() - elapsedMillis));
+    }
+
+    // visible for testing
+    void shardOperation(Request request, TransportVersion transportVersion, ActionListener<Response> listener) {
         ActionListener.completeWith(listener, () -> {
             IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
             if (indexShard == null) {
@@ -175,6 +203,12 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
                 return 0L;
             });
+
+            if (lastSearcherAcquired > 0L && transportVersion.supports(ABSOLUTE_LAST_SEARCHER_ACQUIRED_TIME) == false) {
+                // Convert from absolute time to relative time.
+                long elapsedMillis = Math.max(0L, nowSupplier.getAsLong() - lastSearcherAcquired);
+                lastSearcherAcquired = Math.max(0L, relativeNowSupplier.getAsLong() - elapsedMillis);
+            }
 
             return new Response(lastSearcherAcquired);
         });

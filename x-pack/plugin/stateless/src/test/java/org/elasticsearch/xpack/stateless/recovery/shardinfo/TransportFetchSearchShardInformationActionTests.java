@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
@@ -55,6 +58,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.ABSOLUTE_LAST_SEARCHER_ACQUIRED_TIME;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,17 +104,18 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         when(indicesService.getShardOrNull(shardId)).thenThrow(exc);
 
         TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
-        action.shardOperation(request, ActionListener.wrap(response -> fail("should not be here"), e -> { assertThat(e, equalTo(exc)); }));
+        action.shardOperation(request, TransportVersion.current(), ActionListener.wrap(response -> fail("should not be here"), e -> {
+            assertThat(e, equalTo(exc));
+        }));
     }
 
     public void testShardOperationShardMissingOnNode() {
         when(indicesService.getShardOrNull(shardId)).thenReturn(null);
 
         TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
-        action.shardOperation(
-            request,
-            ActionListener.wrap(response -> { assertThat(response, equalTo(SHARD_HAS_MOVED_RESPONSE)); }, e -> fail("should not happen"))
-        );
+        action.shardOperation(request, TransportVersion.current(), ActionListener.wrap(response -> {
+            assertThat(response, equalTo(SHARD_HAS_MOVED_RESPONSE));
+        }, e -> fail("should not happen")));
     }
 
     public void testShardOperation() {
@@ -121,7 +126,7 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
 
         TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
-        action.shardOperation(request, ActionListener.wrap(response -> {
+        action.shardOperation(request, TransportVersion.current(), ActionListener.wrap(response -> {
             assertThat(response.getLastSearcherAcquiredTime(), equalTo(lastSearcherTime));
         }, e -> fail("should not happen")));
 
@@ -133,6 +138,72 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         SearchEngine searchEngine = mock(SearchEngine.class);
         when(searchEngine.getLastSearcherAcquiredTime()).thenReturn(lastSearcherTime + 1);
         assertThat(functionCaptor.getValue().apply(searchEngine), equalTo(lastSearcherTime + 1));
+    }
+
+    public void testShardOperationLegacyTransportVersionConvertsToRelativeTime() {
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ABSOLUTE_LAST_SEARCHER_ACQUIRED_TIME);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
+        when(threadPool.absoluteTimeInMillis()).thenReturn(1_700_000_000_000L);
+        when(threadPool.relativeTimeInMillis()).thenReturn(50_000L);
+
+        TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
+
+        // Normal case: 10s elapsed -> relativeNow - 10s
+        when(indexShard.tryWithEngineOrNull(any())).thenReturn(1_700_000_000_000L - 10_000L);
+        PlainActionFuture<TransportFetchSearchShardInformationAction.Response> future = new PlainActionFuture<>();
+        action.shardOperation(request, oldVersion, future);
+        assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(40_000L));
+
+        // Elapsed exceeds host uptime -> clamped to 0
+        when(indexShard.tryWithEngineOrNull(any())).thenReturn(1_700_000_000_000L - 100_000L);
+        future = new PlainActionFuture<>();
+        action.shardOperation(request, oldVersion, future);
+        assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(0L));
+
+        // Small positive clock skew (lastAbs > absNow) -> elapsed clamped to 0 -> relativeNow
+        when(indexShard.tryWithEngineOrNull(any())).thenReturn(1_700_000_005_000L);
+        future = new PlainActionFuture<>();
+        action.shardOperation(request, oldVersion, future);
+        assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(50_000L));
+
+        // Never searched (0) passes through unchanged
+        when(indexShard.tryWithEngineOrNull(any())).thenReturn(0L);
+        future = new PlainActionFuture<>();
+        action.shardOperation(request, oldVersion, future);
+        assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(0L));
+
+        // Missing shard passes through SHARD_HAS_MOVED_RESPONSE unchanged
+        when(indicesService.getShardOrNull(shardId)).thenReturn(null);
+        future = new PlainActionFuture<>();
+        action.shardOperation(request, oldVersion, future);
+        assertThat(future.actionGet(), equalTo(SHARD_HAS_MOVED_RESPONSE));
+    }
+
+    public void testConvertLegacyRelativeResponse() {
+        when(threadPool.absoluteTimeInMillis()).thenReturn(1_700_000_000_000L);
+        when(threadPool.relativeTimeInMillis()).thenReturn(50_000L);
+
+        // 0 and negative sentinels pass through unchanged
+        assertThat(
+            action.convertLegacyRelativeResponse(new TransportFetchSearchShardInformationAction.Response(0L)).getLastSearcherAcquiredTime(),
+            equalTo(0L)
+        );
+        assertThat(action.convertLegacyRelativeResponse(SHARD_HAS_MOVED_RESPONSE), equalTo(SHARD_HAS_MOVED_RESPONSE));
+
+        // Positive relative timestamp converts using local clock offset
+        assertThat(
+            action.convertLegacyRelativeResponse(new TransportFetchSearchShardInformationAction.Response(40_000L))
+                .getLastSearcherAcquiredTime(),
+            equalTo(1_700_000_000_000L - 10_000L)
+        );
+
+        // Higher source uptime clamps elapsed to 0 (returns absNow)
+        assertThat(
+            action.convertLegacyRelativeResponse(new TransportFetchSearchShardInformationAction.Response(90_000L))
+                .getLastSearcherAcquiredTime(),
+            equalTo(1_700_000_000_000L)
+        );
     }
 
     public void testShardsEmpty() {

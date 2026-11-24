@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -406,7 +407,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
         assertFalse(
             "a dimension whose routing is extracted while mapping must not be columnar",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 
@@ -425,7 +426,7 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
         assertTrue(
             "TSDB ip dimensions now take the columnar path via SORTED_SET emission",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 
@@ -463,7 +464,11 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
                 b.endObject();
             }));
             final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-            assertEquals("keep all: " + keepAll, keepAll == false, mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+            assertEquals(
+                "keep all: " + keepAll,
+                keepAll == false,
+                mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
+            );
         }
     }
 

@@ -16,6 +16,7 @@ import org.objectweb.asm.Opcodes
 import spock.lang.Specification
 import spock.lang.TempDir
 
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.jar.JarEntry
@@ -39,12 +40,14 @@ class GenerateTestBuildInfoTaskSpec extends Specification {
         def visitor = new GenerateTestBuildInfoTask.RepresentativeClassVisitor(classes)
 
         when:
-        visitOrder.each {
+        def visitResults = visitOrder.collect {
             def path = writeFile(classes, it).toPath()
             visitor.visitFile(path, Files.readAttributes(path, BasicFileAttributes))
         }
 
         then:
+        // the visitor must keep walking after any match, otherwise Files.walkFileTree would stop at the first eligible class
+        visitResults.every { it == FileVisitResult.CONTINUE }
         visitor.result() == "n/b/First.class"
     }
 

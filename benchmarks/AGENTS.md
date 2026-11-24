@@ -33,10 +33,15 @@ dispatch to behave more like production.
 ## Shard indexing: row path vs columnar batch path
 
 `org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmark` measures the data-node shard
-stage of indexing on identical documents through four paths:
+stage of indexing on identical documents through five paths:
 
 - `column`: `ShardBatchMapper.mapColumnBatch` then `IndexWriter.addBatch`, chunked at
   `ShardBatchIndexer.BATCH_CHUNK_SIZE`. This is the columnar batch path.
+- `columnRowWrite`: the same mapping as `column`, but the Lucene write is one `addDocuments` per row, read back from the
+  columns with `MappedColumns.RowCursor`. It is how the engine writes a sub-batch that needs the row path
+  (`InternalEngine#indexColumnRowSubBatch`), and it is the write that a nested batch gets until Lucene can take blocks. Read
+  `column` / `columnRowWrite` / `rowBatch` together: `columnRowWrite` against `rowBatch` is the most that mapping column-major
+  gains while Lucene still runs `processDocument` per document, and `column` against `columnRowWrite` is what `addBatch` adds.
 - `rowBatch`: the production fallback when a batch cannot go columnar: `RowSource` over the batch
   row through `IndexShard.prepareIndex` and `addDocuments`.
 - `rowJson`: classic `_bulk`, JSON bytes through `prepareIndex`.
@@ -49,6 +54,8 @@ stage of indexing on identical documents through four paths:
   Allocation first, `-f 1 -wi 2 -w 1 -i 2 -r 1 -prof gc`, base vs branch; any B/doc delta beyond a
   few bytes is real. Then timing with the defaults; if the delta is under 5%, interleave base and
   branch forks (A B A B) and compare the median of per-fork means.
+- How much of the gain survives a per-row Lucene write: `ShardIndexingBenchmark\.(column|columnRowWrite|rowBatch)$`
+  on the same shape.
 - Is the columnar path worth it for a shape: `column` against `rowBatch` on the same shape, read
   the docs/s ratio and B/doc. `rowJson` is the classic `_bulk` reference, not the fallback.
 - Where did the cost go: `-prof async` on one shape in a separate run (see `README.md`); the
@@ -88,6 +95,13 @@ Facts about the code the catalog pins down:
   resolve-level fallback shape.
 - The JSON token kind, not the mapping type, selects the transform: integers into a `long` field
   alias the input column, doubles or numeric strings allocate.
+
+- `nested.comments` and `nested.unused` have a `nested` field (zero to four comments per document, and none). A nested mapping
+  sends every batch to the row path today, so both are `FALLBACK_RESOLVE`, run in `RowState` and `FallbackState`, and measure
+  the `rowBatch` baseline for nested documents. They flip to `COLUMN` when the batch path takes nested values.
+- Nested children are Lucene documents of their own. Throughput is per input document (`@OperationsPerInvocation`), but the
+  writer holds the children too, so `IndexingFixture#luceneDocs` counts them and `LuceneSink` checks that number; B/doc is per
+  input document and includes the children.
 
 Absent values and arrays both force the column off the dense fast path in `IndexingChain`, which
 is where most of their cost sits, not in the mapper.

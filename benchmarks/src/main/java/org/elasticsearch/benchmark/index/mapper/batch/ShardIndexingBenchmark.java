@@ -144,7 +144,7 @@ public class ShardIndexingBenchmark {
 
         @TearDown(Level.Invocation)
         public void afterInvocation() throws IOException {
-            sink.afterInvocation(DOCS_PER_INVOCATION);
+            sink.afterInvocation(fixture.luceneDocs());
         }
 
         @TearDown(Level.Iteration)
@@ -261,7 +261,9 @@ public class ShardIndexingBenchmark {
                 "integer.noindex",
                 "long.nullexplicit",
                 "scaled_float.dense",
-                "date.str" }
+                "date.str",
+                "nested.comments",
+                "nested.unused" }
         )
         public String shape;
 
@@ -303,7 +305,7 @@ public class ShardIndexingBenchmark {
     public static class FallbackState extends ShardFixtureState {
 
         @Param({ "long.nullexplicit", "scaled_float.dense" })
-        @ExtraParam({ "double.mv1to4", "float.mv1to4", "half_float.mv1to4" })
+        @ExtraParam({ "double.mv1to4", "float.mv1to4", "half_float.mv1to4", "nested.comments", "nested.unused" })
         public String shape;
 
         @Param({ "5000" })
@@ -350,6 +352,19 @@ public class ShardIndexingBenchmark {
     @Benchmark
     public long column(ColumnState s, PageCounters c) throws IOException {
         long docs = s.indexer.index(s.sink.writer(), s.stamper, s.fixture.requests());
+        c.pagesObtained += s.recycler.pagesObtained();
+        c.pagesFresh += s.recycler.pagesFresh();
+        s.recycler.reset();
+        return docs;
+    }
+
+    /**
+     * {@link #column} with the Lucene write swapped for one {@code addDocuments} per row read back from the columns: the upper bound of
+     * what mapping column-major gains over {@link #rowBatch} when Lucene still runs {@code processDocument} per document.
+     */
+    @Benchmark
+    public long columnRowWrite(ColumnState s, PageCounters c) throws IOException {
+        long docs = s.indexer.index(s.sink.writer(), s.stamper, s.fixture.requests(), ColumnIndexer.WriteMode.ROWS);
         c.pagesObtained += s.recycler.pagesObtained();
         c.pagesFresh += s.recycler.pagesFresh();
         s.recycler.reset();

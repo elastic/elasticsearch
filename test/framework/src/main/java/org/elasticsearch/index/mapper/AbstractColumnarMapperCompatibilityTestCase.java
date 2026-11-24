@@ -29,6 +29,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardBatch;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +43,10 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -58,6 +63,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -355,8 +361,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     mc.setVersion(i, docs.get(i).version());
                 }
 
-                // Materialize x-content descriptors up front.
-                final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
+                // Materialize the x-content blocks up front: for each input document, its nested children then its root.
+                final IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
+                final List<DocBlock> xcBlocks = new ArrayList<>(docCount);
                 for (int i = 0; i < docCount; i++) {
                     final Doc doc = docs.get(i);
                     // When the doc carries a coordinator-computed tsid (time-series path), pass it to
@@ -377,38 +384,40 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
                     pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
                     pd.version().setLongValue(doc.version());
-                    xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
+                    assertEquals(
+                        "Batch [" + scenario.name() + "] doc[" + i + "]: the root document must be the last of the parsed documents",
+                        pd.rootDoc(),
+                        pd.docs().getLast()
+                    );
+                    xcBlocks.add(toBlock(pd.docs(), indexVersionCreated));
                 }
 
-                // Materialize row-cursor descriptors.
-                final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+                // Materialize the blocks that the row cursor hands to the engine's row write, and compare them with x-content.
                 final MappedColumns.RowCursor rowCursor = mc.rowCursor();
                 for (int i = 0; i < docCount; i++) {
-                    rowCursor.advance();
-                    descsPerDoc.add(toDescriptors(rowCursor.fields()));
-                }
-
-                // Compare row-cursor against x-content.
-                for (int i = 0; i < docCount; i++) {
-                    assertFieldSetsEqual(
-                        xcDescsPerDoc.get(i),
-                        descsPerDoc.get(i),
-                        "Batch ["
-                            + scenario.name()
-                            + "] doc["
-                            + i
-                            + "] id=["
-                            + docs.get(i).id()
-                            + "]: x-content vs row-cursor field sets differ"
+                    assertBlocksEqual(
+                        xcBlocks.get(i),
+                        actualBlock(rowCursor),
+                        "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs row-cursor"
                     );
-                    descsPerDoc.get(i).clear();
                 }
 
-                // Populate the same per-doc lists with column-batch descriptors and compare.
+                // A column batch holds one Lucene document per row: it has no place for nested children yet, so a scenario whose
+                // documents have children is compared through the row cursor only. Phase 1 of elastic/elasticsearch#167077 writes
+                // such rows through the row path, and Phase 2 gives toColumnBatch() the block layout and removes this skip.
+                if (xcBlocks.stream().anyMatch(DocBlock::hasChildren)) {
+                    return;
+                }
+
+                // Populate per-doc lists with column-batch descriptors and compare them with the x-content roots.
+                final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+                for (int i = 0; i < docCount; i++) {
+                    descsPerDoc.add(new ArrayList<>());
+                }
                 populateColumnBatchDescriptors(mc, descsPerDoc);
                 for (int i = 0; i < docCount; i++) {
                     assertFieldSetsEqual(
-                        xcDescsPerDoc.get(i),
+                        xcBlocks.get(i).root(),
                         descsPerDoc.get(i),
                         "Batch ["
                             + scenario.name()
@@ -431,6 +440,129 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 escfEncoder.addDocument(source, XContentType.JSON, 0);
             }
             return escfEncoder.buildPartition(0);
+        }
+    }
+
+    /**
+     * Every Lucene document that one input document indexes, in the shape the engine writes them as one block: the nested children
+     * grouped by their {@code _nested_path}, each group in source order, and then the root document, which is always last.
+     *
+     * @param childrenByNestedPath the field sets of the children of each nested path; empty when the document has no children
+     * @param root the field set of the root document
+     */
+    private record DocBlock(Map<String, List<List<FieldDescriptor>>> childrenByNestedPath, List<FieldDescriptor> root) {
+
+        boolean hasChildren() {
+            return childrenByNestedPath.isEmpty() == false;
+        }
+    }
+
+    /**
+     * Groups the documents of a parsed document into a {@link DocBlock}. The last document is the root; every document before it is a
+     * child, and its {@code _nested_path} field names the group it belongs to.
+     */
+    private static DocBlock toBlock(List<LuceneDocument> documents, IndexVersion indexVersionCreated) {
+        final String nestedPathField = NestedPathFieldMapper.name(indexVersionCreated);
+        final Map<String, List<List<FieldDescriptor>>> children = new TreeMap<>();
+        for (LuceneDocument child : documents.subList(0, documents.size() - 1)) {
+            final List<FieldDescriptor> descriptors = toDescriptors(child.getFields());
+            final List<BytesRef> paths = descriptors.stream()
+                .filter(d -> d.name().equals(nestedPathField))
+                .map(d -> d.bytesValue())
+                .toList();
+            assertEquals("a nested child document must have exactly one [" + nestedPathField + "] field: " + descriptors, 1, paths.size());
+            children.computeIfAbsent(paths.getFirst().utf8ToString(), p -> new ArrayList<>()).add(descriptors);
+        }
+        return new DocBlock(children, toDescriptors(documents.getLast().getFields()));
+    }
+
+    /**
+     * Reads the next document of the batch the way the engine's row write does. Until the columnar path maps nested values, a batch
+     * hands over a root document only, so the block never has children. This is the one place that changes when
+     * {@code MappedColumns} gains a block cursor (Phase 1 of elastic/elasticsearch#167077).
+     */
+    private static DocBlock actualBlock(MappedColumns.RowCursor rowCursor) {
+        rowCursor.advance();
+        return new DocBlock(Map.of(), toDescriptors(rowCursor.fields()));
+    }
+
+    /**
+     * Asserts that two blocks hold the same documents: the same nested paths, the same number of children for each path, equal field
+     * sets child by child in source order, and an equal root. The order of the nested paths themselves is not compared.
+     */
+    private void assertBlocksEqual(DocBlock expected, DocBlock actual, String message) {
+        assertEquals(message + ": nested paths", expected.childrenByNestedPath().keySet(), actual.childrenByNestedPath().keySet());
+        for (Map.Entry<String, List<List<FieldDescriptor>>> entry : expected.childrenByNestedPath().entrySet()) {
+            final String path = entry.getKey();
+            final List<List<FieldDescriptor>> expectedChildren = entry.getValue();
+            final List<List<FieldDescriptor>> actualChildren = actual.childrenByNestedPath().get(path);
+            assertEquals(message + ": number of children of nested path [" + path + "]", expectedChildren.size(), actualChildren.size());
+            for (int c = 0; c < expectedChildren.size(); c++) {
+                assertFieldSetsEqual(
+                    expectedChildren.get(c),
+                    actualChildren.get(c),
+                    message + ": field sets of child [" + c + "] of nested path [" + path + "] differ"
+                );
+            }
+        }
+        assertFieldSetsEqual(expected.root(), actual.root(), message + ": root field sets differ");
+    }
+
+    /** The shard state that {@link ShardBatchMapper#mapColumnBatch} reads, without a live shard. */
+    private record TestShardContext(MapperService mapperService, IndexSettings indexSettings) implements BatchMappingShardContext {
+
+        @Override
+        public long getOperationPrimaryTerm() {
+            return 1L;
+        }
+
+        @Override
+        public long getRelativeTimeInNanos() {
+            return System.nanoTime();
+        }
+    }
+
+    /**
+     * Asserts that the batch path does not take these documents, so that production indexes them through the sequential path. The
+     * batch path can refuse in two places: {@code resolveMappers} refuses the mapping and schema, or {@code mapColumnBatch} returns
+     * {@code null} for the data. This helper accepts either, because a test that pins "falls back" must not also pin where; the
+     * place changes when nested values are mapped on the columnar path (Phase 1 of elastic/elasticsearch#167077).
+     */
+    protected final void assertBatchPathRefuses(MapperService mapperService, SourceEncoder encoder, String... sources) throws IOException {
+        final List<BytesReference> sourceBytes = Arrays.stream(sources)
+            .<BytesReference>map(s -> new BytesArray(s.getBytes(StandardCharsets.UTF_8)))
+            .toList();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (EscfBatch escfBatch = encode(sourceBytes, encoder)) {
+            final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
+                escfBatch,
+                mappingLookup,
+                indexSettings
+            );
+            if (resolution == null) {
+                return;
+            }
+            final BulkItemRequest[] items = new BulkItemRequest[sources.length];
+            for (int i = 0; i < items.length; i++) {
+                items[i] = new BulkItemRequest(i, new IndexRequest("test-index").id("d" + i).source(BytesArray.EMPTY, XContentType.JSON));
+            }
+            BulkShardBatch.attachBatchToItems(escfBatch, items);
+            final EngineBatch mapped = ShardBatchMapper.mapColumnBatch(
+                items,
+                escfBatch,
+                new TestShardContext(mapperService, indexSettings),
+                0,
+                items.length,
+                resolution,
+                Engine.Operation.Origin.PRIMARY,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
+                DocumentParsingProvider.EMPTY_INSTANCE
+            );
+            if (mapped != null) {
+                mapped.close();
+                fail("the batch path mapped documents that production must index through the sequential path: " + Arrays.toString(sources));
+            }
         }
     }
 

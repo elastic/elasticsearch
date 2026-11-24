@@ -134,6 +134,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.encryption.EncryptionPlugin;
@@ -175,6 +176,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -3616,11 +3618,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     // Test that when the source shard is relocated while cloning to the target shard, the clone task is cancelled
-    // and relocation completes promptly. The clone task holds a permit, so if it is not cancelled it will block relocation from
-    // acquiring all permits when it is about to hand off.
+    // when the source shard closes. The clone does not hold a primary operation permit, so relocation must not wait for it.
     public void testSourceRelocationCancelsClone() throws Exception {
         var copyStarted = new CountDownLatch(1);
         var copyBlock = new CountDownLatch(1);
+        var cancelReason = new AtomicReference<String>();
+        var blockedFirstCopy = new AtomicBoolean();
         var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
             @Override
             public void blobContainerCopyBlob(
@@ -3631,8 +3634,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 String blobName,
                 long blobSize
             ) throws IOException {
-                copyStarted.countDown();
-                safeAwait(copyBlock);
+                // Only block the copy from the split request, relocation flushes which will copy the new commit to the target shard
+                if (blockedFirstCopy.compareAndSet(false, true)) {
+                    copyStarted.countDown();
+                    safeAwait(copyBlock);
+                }
                 super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
             }
         };
@@ -3647,6 +3653,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
                 ((CancellableTask) task).addListener(() -> {
                     logger.info("split task cancelled, unblocking copy: {}", task);
+                    cancelReason.set(((CancellableTask) task).getReasonCancelled());
                     copyBlock.countDown();
                 });
                 handler.messageReceived(request, channel, task);
@@ -3669,7 +3676,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // allow placement on target node after shard 0 has been placed on source node
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", "null"));
 
-        // with one commit, copyShard won't throw, it will unblock on relocation and succeed the copy.
+        // with one commit, copyShard won't throw, it will unblock when the source shard closes and succeeds the copy.
         // With two it should throw. Test both cases.
         for (var i = 0; i < randomIntBetween(1, 2); i++) {
             indexDocs(indexName, 100);
@@ -3685,6 +3692,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
+        assertEquals("source shard closed", cancelReason.get());
     }
 
     public void testMismatchedSourceAndTargetPrimaryTerm() {
@@ -4049,13 +4057,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     public void testSourceRelocationAndTargetRestart() throws Exception {
-        Set<String> copiesInProgress = ConcurrentHashMap.newKeySet();
         var blobToBlock = new AtomicReference<String>();
         var blockedFirstCopy = new AtomicBoolean(false);
         var copyLatch = new CountDownLatch(1);
         var relocateLatch = new CountDownLatch(1);
         var testFailure = new AtomicReference<Throwable>();
-        var copyRaceCheckStrategy = new StatelessMockRepositoryStrategy() {
+        var blockCopyStrategy = new StatelessMockRepositoryStrategy() {
             @Override
             public void blobContainerCopyBlob(
                 CheckedRunnable<IOException> originalRunnable,
@@ -4065,17 +4072,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 String blobName,
                 long blobSize
             ) throws IOException {
-                if (copiesInProgress.add(blobName) == false) {
-                    // Copies from the old and new source shard have interfered
-                    testFailure.compareAndSet(null, new AssertionError("Copy still in progress: " + blobName));
-                }
                 // Block only the copy of latest blob from the old source shard
                 if (blobToBlock.get().equals(blobName) && blockedFirstCopy.getAndSet(true) == false) {
                     relocateLatch.countDown();
                     safeAwait(copyLatch);
                 }
                 super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
-                copiesInProgress.remove(blobName);
             }
         };
 
@@ -4085,7 +4087,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
         );
         for (String indexNode : indexNodes) {
-            setNodeRepositoryStrategy(indexNode, copyRaceCheckStrategy);
+            setNodeRepositoryStrategy(indexNode, blockCopyStrategy);
         }
         var searchNode = startSearchNode();
         ensureStableCluster(5);
@@ -4156,21 +4158,185 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         copyLatch.countDown();
 
         // This test simulates a scenario where the source shard gets stuck copying to the target. During this period, the source shard is
-        // scheduled for relocation, which gets blocked because copying takes a permit. The target shard node also restarts, and upon
-        // recovery it starts sending split requests to the new source shard, which rejects them since it hasn't started.
+        // relocated, which does not wait for the copy. The target shard node also restarts, and upon recovery it starts sending split
+        // requests to the new source shard, which rejects them since it hasn't started.
         //
-        // Once the old source shard instance finishes copying, it releases the permit, unblocking relocation. After relocation, the old
-        // source instance continues the initial split request and tries to acquire all primary permits in preparation for handoff but fails
-        // as it is no longer the primary. The new source shard instance, once started, will proceed with the split request.
+        // Once the old source shard instance finishes copying, it continues the initial split request and tries to acquire all primary
+        // permits in preparation for handoff but fails as it is no longer the primary. The new source shard instance, once started, will
+        // proceed with the split request.
         //
-        // This test checks that the old and new source shard instances don't copy concurrently. It also checks that the target shard routes
-        // split requests to the new source shard instance.
+        // This test checks that the target shard routes split requests to the new source shard instance and that the reshard completes
+        // with all the data.
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), numDocs);
         if (testFailure.get() != null) {
             fail(testFailure.get());
         }
+    }
+
+    // Block initial reshard copy, relocate source away and back, and restart target node to initiate a new split to test the original split
+    // doesn't remove ongoing split upon cleanup
+    public void testSplitCopyOutlivingSourceRelocationAwayAndBack() throws Exception {
+        final var blockOriginalCopy = new AtomicBoolean(true);
+        final var originalCopyStarted = new CountDownLatch(1);
+        final var originalCopyRelease = new CountDownLatch(1);
+        final var blockNextCommitUpload = new AtomicBoolean();
+        final var commitUploadStarted = new CountDownLatch(1);
+        final var commitUploadRelease = new CountDownLatch(1);
+        var blockingStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                if (blockOriginalCopy.compareAndSet(true, false)) {
+                    originalCopyStarted.countDown();
+                    safeAwait(originalCopyRelease);
+                }
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                long blobSize,
+                BlobContainer.BlobMultiPartInputStreamProvider provider,
+                boolean failIfAlreadyExists,
+                Executor executor
+            ) throws IOException {
+                maybeBlockCommitUpload(blobName);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
+            }
+
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                maybeBlockCommitUpload(blobName);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+
+            private void maybeBlockCommitUpload(String blobName) {
+                if (BccBlob.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
+                    commitUploadStarted.countDown();
+                    safeAwait(commitUploadRelease);
+                }
+            }
+        };
+
+        startMasterOnlyNode();
+        var indexNodes = startIndexNodes(
+            2,
+            Settings.builder()
+                .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+                // The split target's recovery waits on the held copy, so the source's relocation must not queue behind it
+                .put(unthrottledIncomingRecoveryNodeSettings())
+                .build()
+        );
+        for (String indexNode : indexNodes) {
+            setNodeRepositoryStrategy(indexNode, blockingStrategy);
+        }
+        startSearchNode();
+        ensureStableCluster(4);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        flush(indexName);
+
+        var index = resolveIndex(indexName);
+        var shardId = new ShardId(index, 0);
+        var sourceNode = findIndexNode(index, 0).getName();
+
+        try {
+            logger.info("starting reshard");
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            safeAwait(originalCopyStarted);
+            var taskManager = internalCluster().getInstance(TransportService.class, sourceNode).getTaskManager();
+            var originalTaskId = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(task -> task.getAction().equals(TransportReshardSplitAction.START_SPLIT_ACTION_NAME))
+                .findFirst()
+                .orElseThrow()
+                .getId();
+            var originalTaskDone = new CountDownLatch(1);
+            taskManager.registerRemovedTaskListener(task -> {
+                if (task.getId() == originalTaskId) {
+                    originalTaskDone.countDown();
+                }
+            });
+
+            // Relocate source away and back, target still waiting on blocked copy
+            var targetState = waitForClusterState(s -> s.routingTable().index(indexName).shard(1).primaryShard().currentNodeId() != null)
+                .actionGet(SAFE_AWAIT_TIMEOUT);
+            var targetNode = nodeIdsToNames().get(targetState.routingTable().index(indexName).shard(1).primaryShard().currentNodeId());
+            assertNotEquals(sourceNode, targetNode);
+            logger.info("relocating source shard from {} to {}", sourceNode, targetNode);
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
+            awaitClusterState(state -> {
+                var shard = state.routingTable().index(indexName).shard(0).primaryShard();
+                return shard.started() && targetNode.equals(nodeIdsToNames().get(shard.currentNodeId()));
+            });
+            logger.info("relocating source shard back from {} to {}", targetNode, sourceNode);
+            ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, targetNode, sourceNode));
+            awaitClusterState(state -> {
+                var shard = state.routingTable().index(indexName).shard(0).primaryShard();
+                return shard.started() && sourceNode.equals(nodeIdsToNames().get(shard.currentNodeId()));
+            });
+
+            int firstExtraDocs = 50;
+            indexDocs(indexName, firstExtraDocs);
+            numDocs += firstExtraDocs;
+            // Block flush after new copy
+            blockNextCommitUpload.set(true);
+
+            // Restart target node to initiate a new split request
+            internalCluster().restartNode(targetNode);
+            safeAwait(commitUploadStarted);
+            var splitSourceService = internalCluster().getInstance(SplitSourceService.class, sourceNode);
+            assertTrue(splitSourceService.isPreparingForHandoff(shardId));
+
+            // Resume original copy, it should fail
+            originalCopyRelease.countDown();
+            safeAwait(originalTaskDone);
+            assertTrue(
+                "the original copy failing must not clear the replacement's mark",
+                splitSourceService.isPreparingForHandoff(shardId)
+            );
+
+            int secondExtraDocs = 50;
+            indexDocs(indexName, secondExtraDocs);
+            numDocs += secondExtraDocs;
+            commitUploadRelease.countDown();
+        } finally {
+            originalCopyRelease.countDown();
+            commitUploadRelease.countDown();
+        }
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
     }
 
     public void testSplitStateNeedsToBeAppliedOnAllKnownNodes() throws Exception {

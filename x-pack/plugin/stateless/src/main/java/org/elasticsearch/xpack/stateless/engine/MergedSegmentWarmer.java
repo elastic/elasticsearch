@@ -111,6 +111,8 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             // the listener may still be pending, so the segment must not be committed as if it was completed
+            // and the listener must see that the merge is aborted
+            merge.setAborted();
             final var aborted = new MergePolicy.MergeAbortedException(
                 format("%s interrupted while waiting for the listener of the merged segment [%s]", shardId, segment.getSegmentName())
             );

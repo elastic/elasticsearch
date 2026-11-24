@@ -245,6 +245,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
 
                     assertThat(thrown.get(), instanceOf(MergePolicy.MergeAbortedException.class));
                     assertTrue(interrupted.get());
+                    assertTrue(merge.isAborted());
                     listener.onResponse(null);
                 } finally {
                     warmer.onMergeFinished(mergedSegment, merge);

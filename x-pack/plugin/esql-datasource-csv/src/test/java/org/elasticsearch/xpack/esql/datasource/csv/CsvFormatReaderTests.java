@@ -9659,6 +9659,44 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Every walker that keeps a padded row has to report it, and each one emits the notice from its own commit point:
+     * the batch arm and the zero-column {@code COUNT(*)} arm of the materialized path, the direct walkers' shared row
+     * finish, and the fused bracket walker. A walker that kept the row but lost the notice would invent nulls in
+     * silence, which is what the setting promises not to do, so each one is asserted on its own.
+     */
+    public void testEveryWalkerReportsTheRowItPads() throws Exception {
+        Map<String, Object> base = Map.of("header_row", true, "pad_short_rows", true);
+
+        record Walker(String name, String file, boolean directBlock, Map<String, Object> extra, List<String> projection) {}
+        List<Walker> walkers = List.of(
+            new Walker("batch/projected", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "NONE"), List.of("id", "tags")),
+            new Walker("batch/count-star", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "NONE"), List.of()),
+            new Walker("direct/plain", SHORT_ROW_CSV, true, Map.of("multi_value_syntax", "NONE", "mode", "plain"), List.of("id", "tags")),
+            new Walker(
+                "direct/quoted",
+                SHORT_ROW_QUOTED_CSV,
+                true,
+                Map.of("multi_value_syntax", "NONE", "mode", "quoted"),
+                List.of("id", "tags")
+            ),
+            new Walker("fused/bracket", SHORT_ROW_CSV, false, Map.of("multi_value_syntax", "BRACKETS"), List.of("id", "tags"))
+        );
+
+        for (Walker walker : walkers) {
+            Map<String, Object> config = new HashMap<>(base);
+            config.putAll(walker.extra());
+            CsvFormatReader reader = declaredReader(true, walker.directBlock(), config);
+            int rows = readRowCount(reader, createStorageObject(walker.file()), idTagsScore(), walker.projection());
+            List<String> warnings = drainWarnings();
+            assertEquals(walker.name() + " keeps the padded row", 2, rows);
+            assertTrue(
+                walker.name() + " must report the padded row, got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("missing trailing fields, read as null: [2] columns, the header has [3]"))
+            );
+        }
+    }
+
+    /**
      * A row the width rule drops must not decide a column's type. One short row in the sample would otherwise widen
      * a numeric column to {@code keyword} -- and then {@code AVG} over that column fails analysis for a file in
      * which no value the reader keeps is text. Padding keeps the row, so under it the row keeps its vote, and the

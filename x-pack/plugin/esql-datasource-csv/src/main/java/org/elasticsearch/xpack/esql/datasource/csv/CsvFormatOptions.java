@@ -73,7 +73,7 @@ import java.util.Locale;
  *                           before {@link #headerRow} is applied. Default {@code 0}. Must be
  *                           non-negative; the reader also caps the value at registration.
  * @param padShortRows       whether a row that stops before the file's width is read with its missing trailing
- *                           fields as null (each such row is reported by a warning), instead of being a row error
+ *                           fields as null (padded rows are reported by warnings, up to the warning cap), instead of being a row error
  *                           the {@code error_mode} decides the fate of. Default {@code false}: a row narrower than
  *                           the file's width is as structural a fault as a wider one, and a padded null cannot be
  *                           told from a null the file carries.

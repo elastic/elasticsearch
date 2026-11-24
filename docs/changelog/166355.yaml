@@ -16,5 +16,5 @@ highlight:
     nulls as data.
 
     To keep the old reading, set `pad_short_rows` on the dataset. Rows short of the header
-    are then padded with nulls and kept, and each padded row is reported.
+    are then padded with nulls and kept, and reported in warnings.
   notable: false

@@ -199,7 +199,7 @@ import java.util.regex.Pattern;
  *           string content only; typed columns tolerate padding regardless.</td></tr>
  *   <tr><td>{@code pad_short_rows}</td><td>{@code false}</td>
  *       <td>When {@code true}, a row that stops before the file's width is read with its missing trailing fields
- *           as {@code null}, and each such row is reported by a warning. Default {@code false}: such a row is a
+ *           as {@code null}, and padded rows are reported by warnings, up to the warning cap. Default {@code false}: such a row is a
  *           row error like a wider one, which {@code error_mode} then decides the fate of — a padded
  *           {@code null} cannot be told from one the file carries, so padding is the user's to ask for.</td></tr>
  * </table>
@@ -471,6 +471,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code multiline_fields: true} on one changes nothing: the file is still cut and read line by line. Worth a notice,
      * since the user likely expects multi-line values to come through and they will instead surface as extra rows.
      */
+    static final String PAD_SHORT_ROWS_HEADERLESS_MESSAGE =
+        "[pad_short_rows] [true] has no effect without a header row: a headerless file states no width, so no row of it is short";
+
     static final String MULTILINE_TRUE_WITH_PLAIN_MESSAGE =
         "[multiline_fields] [true] has no effect without quoting or escaping: no field of a plain file can span lines";
 
@@ -970,6 +973,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Check.clientError(skipRows >= 0, CONFIG_SKIP_ROWS + " must be non-negative, got: {}", skipRows);
         Check.clientError(skipRows <= SKIP_ROWS_MAX, CONFIG_SKIP_ROWS + " must be at most {}, got: {}", SKIP_ROWS_MAX, skipRows);
         boolean padShortRows = parseBooleanOption(CONFIG_PAD_SHORT_ROWS, config.get(CONFIG_PAD_SHORT_ROWS), baseline.padShortRows());
+        if (padShortRows && headerRow == false) {
+            // Inert rather than conflicting, like multiline_fields on a plain dialect: accepted, and reported so the
+            // user does not take it for what keeps a headerless file's missing columns null.
+            configWarnings.add(PAD_SHORT_ROWS_HEADERLESS_MESSAGE);
+        }
 
         CsvFormatOptions merged = new CsvFormatOptions(
             delimiter,
@@ -1280,15 +1288,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * How a pinned schema binds to ONE file by name: the raw field index per schema column ({@link #ABSENT_FIELD} where
-     * the file lacks it), and the widest row the file may carry.
+     * How a pinned schema binds to ONE file: by name, as the raw field index per schema column ({@link #ABSENT_FIELD}
+     * where the file lacks it), and the widest row the file may carry. {@link #fileWidthOnly} carries the width with no
+     * index at all, where the schema reads by position and only the file's width is known.
      *
      * <p>They travel together because a route that supplied the index without the width would silently disable
      * row-width validation — the defect this type exists to make unrepresentable.
      *
      * @param maxRowWidth a headered file's header width, or {@link #NO_FILE_WIDTH} for a headerless file
      */
-    private record HeaderBinding(int[] fieldIndex, int maxRowWidth) {
+    private record HeaderBinding(@Nullable int[] fieldIndex, int maxRowWidth) {
         /**
          * A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width at all -- neither
          * a bound on rows from above, nor one from below, see {@link CsvBatchIterator#fileStatedRowWidth}.
@@ -2756,9 +2765,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // nor from below -- a mapping over it declares which positions to read, not how many fields a row has.
                     headerBinding = HeaderBinding.withoutFileWidth(fieldIndexes(readSchema, null, object));
                 } else if (options.headerRow()) {
-                    // An inferred schema over a HEADERED file reads by position -- always for a headerless-style
-                    // positional read, and under headerBindingByProvenance for a headered one -- so no names bind. The
-                    // file's own header still states its width, which is the floor; the schema's width stays the limit.
+                    // An inferred schema over a HEADERED file binds by position under headerBindingByProvenance, so
+                    // no names bind. The file's own header still states its width, which is the floor; the schema's
+                    // width stays the limit.
                     List<String> fileHeader = context.firstSplit() ? leadingColumns : context.fileHeaderColumns();
                     if (fileHeader != null) {
                         headerBinding = HeaderBinding.fileWidthOnly(fileHeader.size());
@@ -6770,7 +6779,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * the file carries.
          *
          * <p>A short row is instead kept, null-padded, when the dataset sets {@code pad_short_rows}; this reports
-         * each such row on {@link #padWarnings}, so nothing is padded silently.
+         * each such row on {@link #padWarnings}, up to that collector's cap, after which one overflow line says more were
+         * suppressed; so padding is never silent, though past the cap it is no longer itemised.
          *
          * <p>It decides only that. A caller that gets a message still raises the error itself, because what a
          * rejection costs differs: the materialized path has nothing staged to discard and moves to the next row,

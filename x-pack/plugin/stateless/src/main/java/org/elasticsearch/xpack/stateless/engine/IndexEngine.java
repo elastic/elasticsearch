@@ -1092,8 +1092,10 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
-        // the index writer wraps the merges on full flush in merges that do not forward their abort, which the warmer would not see
-        assert iwc.getMaxFullFlushMergeWaitMillis() <= 0 : "merges on full flush are not supported";
+        if (iwc.getMergedSegmentWarmer() != null && iwc.getMaxFullFlushMergeWaitMillis() > 0) {
+            // the index writer wraps the merges on full flush in merges that do not forward their abort, which the warmer would not see
+            throw new IllegalStateException("merged segment warmer requires merges on full flush to be disabled");
+        }
         return super.createWriter(directory, iwc);
     }
 

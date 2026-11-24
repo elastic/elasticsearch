@@ -69,6 +69,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
@@ -670,7 +671,12 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         for (int batchSize : new int[] { 25, 5 }) {
             List<DocWithId> docs = new ArrayList<>();
             for (int i = 0; i < batchSize; i++) {
-                docs.add(doc("{\"@timestamp\":\"2025-01-01T13:00:%02d\",\"host.name\":\"foo\"}".formatted(docs.size() + i)));
+                String source = String.format(
+                    Locale.ROOT,
+                    "{\"@timestamp\":\"2025-01-01T13:00:%02d\",\"host.name\":\"foo\"}",
+                    docs.size() + i
+                );
+                docs.add(doc(source));
             }
             indexDocuments(dataStreamName, shuffledList(docs));
             client().admin().indices().prepareRefresh().execute().actionGet();

@@ -30,6 +30,24 @@ setup:
           }
 
 ---
+teardown:
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-feed
+        force: true
+        ignore: 404
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-wildcard-feed
+        force: true
+        ignore: 404
+  - do:
+      ml.delete_job:
+        job_id: esql-ccs-job
+        force: true
+        ignore: 404
+
+---
 "Test put and start ES|QL datafeed on a remote cluster index":
   - do:
       ml.put_datafeed:

@@ -86,14 +86,23 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     /**
-     * Exchange ids removed because the coordinator sent {@code sourcesFinished}, or because a fetch on them was cancelled
-     * with the query. A compute request that has not yet resolved its sink treats this as "do not start a driver" rather
-     * than a missing exchange. Entries expire so a node does not retain one id per early-finished query. The deadline is
-     * fixed, not the inactive-sink interval: tests shorten that interval to a few seconds, which is shorter than a
-     * data-node request can take to arrive.
+     * Exchange ids removed because the coordinator sent {@code sourcesFinished}. A compute request that has not yet
+     * resolved its sink treats this as "do not start a driver" rather than a missing exchange. Entries expire so a
+     * node does not retain one id per early-finished query. The deadline is fixed, not the inactive-sink interval:
+     * tests shorten that interval to a few seconds, which is shorter than a data-node request can take to arrive.
      */
     private final Map<String, Long> sourcesFinishedSinks = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Exchange ids removed because a fetch on them was cancelled. A compute request that has not yet resolved its sink
+     * fails as cancelled rather than with a missing exchange, which would replace the query's own error. It must not
+     * complete empty: a fetch can be cancelled without its query, and an empty compute would then drop this node's rows
+     * from a result that is not marked partial. Entries expire like {@link #sourcesFinishedSinks}.
+     */
+    private final Map<String, CancelledSink> cancelledSinks = ConcurrentCollections.newConcurrentMap();
     private static final long SOURCES_FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
+
+    private record CancelledSink(String reason, long expiresAtNanos) {}
+
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
     private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
     // Registry for bidirectional batch exchange servers, keyed by serverToClientId
@@ -202,12 +211,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     /**
      * The open sink for {@code exchangeId}, or {@code null} when the coordinator already finished it with
-     * {@code sourcesFinished}, or a fetch on it was cancelled with the query. {@code null} means the caller must complete
-     * its compute request successfully and must not start a driver: the coordinator has stopped reading, and failing
-     * here with {@link ResourceNotFoundException} would replace the original query error.
+     * {@code sourcesFinished}. {@code null} means the caller must complete its compute request successfully and
+     * must not start a driver: the coordinator has stopped reading, and failing here with
+     * {@link ResourceNotFoundException} would replace the original query error.
      * <p>
      * A sink that was never opened still throws {@link ResourceNotFoundException}. The marker is left in place
      * until it expires, so a transport retry of the same compute request also completes empty.
+     * <p>
+     * A sink removed because a fetch on it was cancelled throws {@link TaskCancelledException}, which the caller fails its
+     * compute request with. A cancellation cannot replace the query's own error, and an empty result would drop this
+     * node's rows when only the fetch, not the query, was cancelled.
      */
     @Nullable
     public ExchangeSinkHandler getSinkHandlerIfOpen(String exchangeId) {
@@ -217,6 +230,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
         if (sourcesFinishedSinks.containsKey(exchangeId)) {
             return null;
+        }
+        CancelledSink cancelled = cancelledSinks.get(exchangeId);
+        if (cancelled != null) {
+            throw new TaskCancelledException("exchange [" + exchangeId + "] was cancelled [" + cancelled.reason() + "]");
         }
         throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
     }
@@ -363,13 +380,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
                 task.addListener(() -> {
+                    // A compute on this node unregisters the sink when it ends, but there may be none: the ban refuses a compute
+                    // request that arrives after it, and the request may never have been sent. The coordinator does not close a
+                    // remote sink once a fetch has been answered as finished, so unregister the sink here. Leave the marker
+                    // first: onFailure runs the sink's completion listeners, which can unregister it, and a compute request that
+                    // registered before the ban may look the sink up only now.
+                    rememberCancelled(exchangeId, task.getReasonCancelled());
                     sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled()));
-                    // The fetch is cancelled with the query, or with the group of computes it belongs to. A compute on this node
-                    // unregisters the sink when it ends, but there may be none: the ban refuses a compute request that arrives
-                    // after it, and the request may never have been sent. The coordinator does not close a remote sink once a
-                    // fetch has been answered as finished, which onFailure just did, so unregister the sink here. Leave the
-                    // marker first: a compute request that registered before the ban may look the sink up only now.
-                    rememberSourcesFinished(exchangeId);
                     sinks.remove(exchangeId, sinkHandler);
                 });
                 // Remember the id before the fetch runs. fetchPageAsync(sourcesFinished) finishes the buffer and can
@@ -394,9 +411,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         sourcesFinishedSinks.put(exchangeId, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS);
     }
 
-    private void expireSourcesFinishedSinks() {
+    private void rememberCancelled(String exchangeId, String reason) {
+        cancelledSinks.put(exchangeId, new CancelledSink(reason, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS));
+    }
+
+    private void expireSinkMarkers() {
         long now = System.nanoTime();
         sourcesFinishedSinks.entrySet().removeIf(entry -> entry.getValue() <= now);
+        cancelledSinks.values().removeIf(cancelled -> cancelled.expiresAtNanos() <= now);
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
@@ -450,7 +472,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     );
                 }
             }
-            expireSourcesFinishedSinks();
+            expireSinkMarkers();
         }
     }
 

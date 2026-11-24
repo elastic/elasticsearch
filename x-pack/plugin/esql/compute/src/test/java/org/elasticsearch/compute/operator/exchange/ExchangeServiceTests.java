@@ -1086,7 +1086,9 @@ public class ExchangeServiceTests extends ESTestCase {
      * query fails before the target registered the compute request, the ban that cancels the query refuses that request, so no
      * compute on the target removes the sink. The ban also cancels the fetch waiting on the sink, which answers it as finished,
      * and a finished remote sink sends no close. The cancelled fetch must unregister the sink, or it stays on the target until
-     * the inactive-sinks reaper removes it minutes later.
+     * the inactive-sinks reaper removes it minutes later. The same holds when only the fetch is cancelled, as
+     * {@code _tasks/_cancel} does with a task it matches, and then the query still runs: a compute request that looks the sink
+     * up afterwards must fail as cancelled rather than complete empty and drop the node's rows.
      */
     public void testCancelledFetchUnregistersSinkWithoutCompute() throws Exception {
         MockTransportService node0 = newTransportService();
@@ -1096,6 +1098,13 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        AtomicInteger closesReceived = new AtomicInteger();
+        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            if (((ExchangeRequest) request).sourcesFinished()) {
+                closesReceived.incrementAndGet();
+            }
+            handler.messageReceived(request, channel, task);
+        });
         try (exchange0; exchange1; node0; node1) {
             String exchangeId = "exchange-" + randomAlphaOfLength(8);
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
@@ -1119,18 +1128,33 @@ public class ExchangeServiceTests extends ESTestCase {
                 ExchangeSinkHandler sink = exchange1.getSinkHandler(exchangeId);
                 assertBusy(() -> assertTrue("the fetch must wait on the sink", sink.hasListeners()));
 
+                boolean cancelQuery = randomBoolean();
                 PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
-                node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                if (cancelQuery) {
+                    node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                } else {
+                    CancellableTask fetchTask = node1.getTaskManager()
+                        .getCancellableTasks()
+                        .values()
+                        .stream()
+                        .filter(t -> t.getAction().equals(ExchangeService.EXCHANGE_ACTION_NAME))
+                        .findFirst()
+                        .orElseThrow();
+                    node1.getTaskManager().cancelTaskAndDescendants(fetchTask, "cancelled by user", false, cancelled);
+                }
                 cancelled.actionGet(10, TimeUnit.SECONDS);
                 assertTrue("the cancelled fetch is answered as finished", fetchedFinished.actionGet(10, TimeUnit.SECONDS));
+                assertThat(queryTask.isCancelled(), equalTo(cancelQuery));
 
-                // What the exchange source of the failed query does with each of its remote sinks.
+                // A close after the fetch was answered as finished, such as finishRemoteSinkIfNotSent sends, reaches nothing.
                 PlainActionFuture<Void> closed = new PlainActionFuture<>();
                 remoteSink.close(closed);
                 closed.actionGet(10, TimeUnit.SECONDS);
-                assertBusy(() -> assertTrue("the sink must not outlive the cancelled query", exchange1.isEmpty()));
-                // A compute request that registered before the ban completes empty instead of failing on a missing exchange.
-                assertNull(exchange1.getSinkHandlerIfOpen(exchangeId));
+                assertThat(closesReceived.get(), equalTo(0));
+                assertBusy(() -> assertTrue("the sink must not outlive the cancelled fetch", exchange1.isEmpty()));
+                // A compute request that looks the sink up only now fails as cancelled: not with a missing exchange, which
+                // would replace the query's own error, and not empty, which would drop the node's rows.
+                expectThrows(TaskCancelledException.class, () -> exchange1.getSinkHandlerIfOpen(exchangeId));
             } finally {
                 node0.getTaskManager().unregister(queryTask);
             }

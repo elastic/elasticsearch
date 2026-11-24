@@ -1806,13 +1806,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * Resolves the sink the coordinator opened before this request. When the coordinator has since finished
      * that exchange, completes {@code listener} with an empty result so a {@link ResourceNotFoundException}
-     * cannot replace the query's own error. Returns {@code null} when {@code listener} has already been completed.
+     * cannot replace the query's own error. When a fetch on it was cancelled, fails {@code listener} as cancelled.
+     * Returns {@code null} when {@code listener} has already been completed.
      */
     private ExchangeSinkHandler sinkToRun(String sessionId, ActionListener<DataNodeComputeResponse> listener) {
         final ExchangeSinkHandler sink;
         try {
             sink = exchangeService.getSinkHandlerIfOpen(sessionId);
-        } catch (ResourceNotFoundException e) {
+        } catch (ResourceNotFoundException | TaskCancelledException e) {
             listener.onFailure(e);
             return null;
         }

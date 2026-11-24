@@ -44,6 +44,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -1042,11 +1043,10 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(
-            synonymSetId,
-            preview,
-            reloadTargets(clusterService.state().metadata().getProject(), synonymSetId)
-        );
+        // Reloads do not resolve projects yet (TransportReloadAnalyzersAction), so with several projects only "*" is sent.
+        Metadata metadata = clusterService.state().metadata();
+        String[] targets = metadata.projects().size() == 1 ? reloadTargets(metadata.getProject(), synonymSetId) : new String[] { "*" };
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, targets);
         client.execute(
             TransportReloadAnalyzersAction.TYPE,
             reloadAnalyzersRequest,

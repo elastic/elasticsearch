@@ -4767,6 +4767,12 @@ public class VerifierTests extends AnalyzerTestCase {
                 equalTo("1:47: first argument of [EMBEDDING(text, ?)] must be a constant, received [text]"),
                 EMBEDDING_INFERENCE_ID
             );
+
+        defaultAnalyzer().error(
+            "row id = \"my-inference-id\" | EVAL embedding = EMBEDDING(?, id)",
+            equalTo("1:47: second argument of [EMBEDDING(?, id)] must be a constant, received [id]"),
+            "query text"
+        );
     }
 
     private void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {

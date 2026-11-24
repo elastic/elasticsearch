@@ -177,9 +177,8 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution textResolution = isNotNull(inputValue, sourceText(), FIRST).and(
-            isType(inputValue, DataType.KEYWORD::equals, sourceText(), FIRST, "string")
-        ).and(isFoldable(inputValue, sourceText(), FIRST));
+        TypeResolution textResolution = isNotNull(inputValue, sourceText(), FIRST).and(isFoldable(inputValue, sourceText(), FIRST))
+            .and(isType(inputValue, DataType.KEYWORD::equals, sourceText(), FIRST, "string"));
 
         if (textResolution.unresolved()) {
             return textResolution;

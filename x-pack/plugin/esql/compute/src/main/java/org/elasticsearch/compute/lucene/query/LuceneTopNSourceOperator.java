@@ -43,7 +43,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -121,15 +120,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     if (searchSort.isPresent() && Lucene.canEarlyTerminate(searchSort.get().sort, indexSort)) {
                         return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
                     }
-                }
-            }
-            // Match tail reads only the end of each segment, so there is nothing to split
-            if (LuceneSourceOperator.Factory.unwrapQuery(query) instanceof MatchAllDocsQuery) {
-                Optional<SortAndFormats> matchAllSort = ctx.buildSort(sorts, true);
-                if (matchAllSort.isPresent()
-                    && matchAllSort.get().sort.getSort()[0].getComparatorSource() instanceof LongValuesComparatorSource source
-                    && source.isMatchTailQuery()) {
-                    return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
                 }
             }
             // Past the sort short-circuits, share the AUTO decision with the source and count operators: a field sort must

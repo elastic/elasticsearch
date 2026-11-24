@@ -96,10 +96,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
-    public boolean isMatchTailQuery() {
-        return alwaysMatchTailQuery;
-    }
-
     /**
      * Enables the match tail optimization if {@code sort} is ascending on {@code @timestamp} and the index is sorted by
      * descending {@code @timestamp}. The caller must check that the query matches all documents and has no {@code search_after}.

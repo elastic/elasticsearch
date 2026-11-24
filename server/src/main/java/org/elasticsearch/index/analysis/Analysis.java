@@ -188,6 +188,14 @@ public class Analysis {
     }
 
     /**
+     * Wraps a stop set parsed with {@code ignoreCase} for a {@code sharingKey()}. With no stop words configured, parsing returns
+     * {@code defaultStopWords} as is, which stays case-sensitive whatever {@code ignoreCase} says.
+     */
+    public static StableCharArraySet stableStopWords(CharArraySet stopWords, CharArraySet defaultStopWords, boolean ignoreCase) {
+        return new StableCharArraySet(stopWords, ignoreCase && stopWords != defaultStopWords);
+    }
+
+    /**
      * A SHA-256 of {@code text}, as hex, to stand in for large text in a {@code sharingKey()}. Hashes UTF-16 code units, not an
      * encoding, so unpaired surrogates stay distinct.
      */

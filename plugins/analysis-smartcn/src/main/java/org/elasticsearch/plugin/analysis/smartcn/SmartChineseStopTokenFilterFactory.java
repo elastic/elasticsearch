@@ -48,7 +48,11 @@ public class SmartChineseStopTokenFilterFactory extends AbstractTokenFilterFacto
             NAMED_STOP_WORDS,
             ignoreCase
         );
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), ignoreCase, removeTrailing);
+        this.sharingKey = new Key(
+            Analysis.stableStopWords(stopWords, SmartChineseAnalyzer.getDefaultStopSet(), ignoreCase),
+            ignoreCase,
+            removeTrailing
+        );
     }
 
     @Override

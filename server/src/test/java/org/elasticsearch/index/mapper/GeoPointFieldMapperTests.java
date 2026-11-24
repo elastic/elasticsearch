@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -36,7 +37,9 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -52,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -728,6 +732,27 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         };
     }
 
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "geo_point");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ((GeoPointFieldMapper.GeoPointFieldType) ft).geoShapeQuery(
+                context,
+                "field",
+                ShapeRelation.INTERSECTS,
+                new org.apache.lucene.geo.Point(0, 0)
+            )
+        );
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
+    }
+
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
@@ -784,14 +809,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         final GeoPointFieldMapper mapperWithField = (GeoPointFieldMapper) withMultiField.mappingLookup().getMapper("field");
         assertFalse(
             "doSupportsColumnarParse must be false when [fields] is present",
-            mapperWithField.doSupportsColumnarParse(withMultiField.getIndexSettings())
+            mapperWithField.doSupportsColumnarParse(withMultiField.getIndexSettings(), Set.of())
         );
 
         final MapperService withoutMultiField = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "geo_point")));
         final GeoPointFieldMapper mapperWithoutField = (GeoPointFieldMapper) withoutMultiField.mappingLookup().getMapper("field");
         assertTrue(
             "doSupportsColumnarParse must be true when no [fields] are present",
-            mapperWithoutField.doSupportsColumnarParse(withoutMultiField.getIndexSettings())
+            mapperWithoutField.doSupportsColumnarParse(withoutMultiField.getIndexSettings(), Set.of())
         );
     }
 

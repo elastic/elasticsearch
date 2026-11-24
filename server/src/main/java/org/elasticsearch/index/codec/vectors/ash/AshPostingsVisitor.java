@@ -17,17 +17,20 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
@@ -143,6 +146,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param bitsPerDim bits per dimension for document codes
      * @param queryBitsPerDim bits per dimension for query quantization (0 for float path)
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
+     * @param transformCache the query's cache of transformed queries, to reuse the projected query of another
+     *                         segment with the same projection matrix, or {@link QueryTransformCache#NONE} to project it
+     *                         for this segment alone
      * @return a configured visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> create(
@@ -153,9 +159,20 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        CheckedIntFunction<float[], IOException> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader,
+        QueryTransformCache transformCache
     ) throws IOException {
-        return createVisitor(matrix, query, similarityFunction, indexInput, acceptDocs, bitsPerDim, queryBitsPerDim, centroidReader);
+        return createVisitor(
+            matrix,
+            query,
+            similarityFunction,
+            indexInput,
+            acceptDocs,
+            bitsPerDim,
+            queryBitsPerDim,
+            centroidReader,
+            transformCache
+        );
     }
 
     /**
@@ -174,6 +191,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param vectorValues vector values for ordinal-to-doc translation in the sliced path
      * @param startDoc inclusive start of the slice doc range
      * @param endDoc exclusive end of the slice doc range
+     * @param transformCache the query's cache of transformed queries, to reuse the projected query
+     *                         of another segment or named slice with the same projection matrix, or
+     *                         {@link QueryTransformCache#NONE} to project it for this named slice alone
      * @return a configured sliced visitor for the appropriate scoring path
      */
     public static AshPostingsVisitor<?> createSliced(
@@ -187,7 +207,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         CheckedIntFunction<float[], IOException> centroidReader,
         KnnVectorValues vectorValues,
         int startDoc,
-        int endDoc
+        int endDoc,
+        QueryTransformCache transformCache
     ) throws IOException {
         AshPostingsVisitor<?> base = createVisitor(
             matrix,
@@ -197,9 +218,36 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             acceptDocs,
             bitsPerDim,
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            transformCache
         );
         return new SlicedAshPostingsVisitor<>(base, vectorValues, startDoc, endDoc);
+    }
+
+    /**
+     * The query projected through W, and for the integer scoring path also quantized. It depends on nothing but the query,
+     * W, and the bits, so segments that share W can share it.
+     */
+    record ProjectedQuery(float[] projected, @Nullable QuantizedQuery quantized) {}
+
+    /**
+     * Key of a {@link ProjectedQuery} in a query's {@link QueryTransformCache}. It leaves out the query vector, as
+     * the cache holds those of a single vector: two segments whose matrices have the same id have the same W, so they
+     * project the query the same way. The document bits only matter to the quantized query, so the float path ignores them.
+     */
+    record ProjectedQueryKey(UUID matrixId, int queryBitsPerDim, int bitsPerDim) {
+        static ProjectedQueryKey of(UUID matrixId, int queryBitsPerDim, int bitsPerDim) {
+            return new ProjectedQueryKey(matrixId, queryBitsPerDim, queryBitsPerDim > 0 ? bitsPerDim : 0);
+        }
+    }
+
+    static ProjectedQuery projectQuery(AshProjectionMatrix matrix, float[] query, int queryBitsPerDim, int bitsPerDim) {
+        // queryTransformed = W^T @ query
+        float[] queryTransformed = matrix.projectQuery(query);
+        QuantizedQuery quantized = queryBitsPerDim > 0
+            ? quantizeQuery(queryTransformed, matrix.nDims(), queryBitsPerDim, bitsPerDim)
+            : null;
+        return new ProjectedQuery(queryTransformed, quantized);
     }
 
     private static AshPostingsVisitor<?> createVisitor(
@@ -210,13 +258,17 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        CheckedIntFunction<float[], IOException> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader,
+        QueryTransformCache transformCache
     ) throws IOException {
-        // Precompute query projection: queryTransformed = W^T @ query
-        float[] queryTransformed = matrix.projectQuery(query);
+        ProjectedQuery projectedQuery = transformCache.getSharedQuery(
+            ProjectedQueryKey.of(matrix.id(), queryBitsPerDim, bitsPerDim),
+            () -> projectQuery(matrix, query, queryBitsPerDim, bitsPerDim)
+        );
+        float[] queryTransformed = projectedQuery.projected();
 
         if (queryBitsPerDim > 0) {
-            QuantizedQuery qq = quantizeQuery(queryTransformed, matrix.nDims(), queryBitsPerDim, bitsPerDim);
+            QuantizedQuery qq = projectedQuery.quantized();
             AshScorer<ScoringQuery> scorer = ESVectorUtil.getAshIntegerVectorsScorer(
                 indexInput,
                 matrix.nDims(),

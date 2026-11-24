@@ -48,7 +48,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -88,23 +90,34 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
      * All rules plus the synonym set document are written regardless of whether the rule count
      * falls below or above the chunk size boundary.
      */
-    /** Hidden indices are reloaded by name only when open and an analyzer of theirs runs a filter naming the set. */
+    /**
+     * Hidden indices are reloaded by name only when open and an analyzer of theirs runs a filter naming the set, directly or
+     * wrapped in a multiplexer or condition filter.
+     */
     public void testReloadTargetsAddsOpenHiddenIndicesUsingTheSet() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .put(indexUsingSet("visible", false, IndexMetadata.State.OPEN, true), false)
-            .put(indexUsingSet("hidden", true, IndexMetadata.State.OPEN, true), false)
-            .put(indexUsingSet("hidden-unused-filter", true, IndexMetadata.State.OPEN, false), false)
-            .put(indexUsingSet("hidden-closed", true, IndexMetadata.State.CLOSE, true), false)
+            .put(indexUsingSet("visible", false, IndexMetadata.State.OPEN, "syn"), false)
+            .put(indexUsingSet("hidden", true, IndexMetadata.State.OPEN, "syn"), false)
+            .put(indexUsingSet("hidden-multiplexed", true, IndexMetadata.State.OPEN, "mux"), false)
+            .put(indexUsingSet("hidden-conditional", true, IndexMetadata.State.OPEN, "cond"), false)
+            .put(indexUsingSet("hidden-unused-filter", true, IndexMetadata.State.OPEN, "lowercase"), false)
+            .put(indexUsingSet("hidden-closed", true, IndexMetadata.State.CLOSE, "syn"), false)
             .build();
-        assertArrayEquals(new String[] { "*", "hidden" }, SynonymsManagementAPIService.reloadTargets(project, "s"));
+        String[] targets = SynonymsManagementAPIService.reloadTargets(project, "s");
+        assertEquals("*", targets[0]);
+        assertEquals(Set.of("hidden", "hidden-multiplexed", "hidden-conditional"), Set.of(Arrays.copyOfRange(targets, 1, targets.length)));
     }
 
-    private static IndexMetadata indexUsingSet(String name, boolean hidden, IndexMetadata.State state, boolean analyzerUsesFilter) {
+    private static IndexMetadata indexUsingSet(String name, boolean hidden, IndexMetadata.State state, String analyzerFilter) {
         Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_HIDDEN, hidden)
             .put("index.analysis.filter.syn.type", "synonym_graph")
             .putList("index.analysis.filter.syn.synonyms_set", "s")
+            .put("index.analysis.filter.mux.type", "multiplexer")
+            .putList("index.analysis.filter.mux.filters", "lowercase, syn")
+            .put("index.analysis.filter.cond.type", "condition")
+            .putList("index.analysis.filter.cond.filter", "mux")
             .put("index.analysis.analyzer.a.tokenizer", "standard")
-            .putList("index.analysis.analyzer.a.filter", analyzerUsesFilter ? "syn" : "lowercase");
+            .putList("index.analysis.analyzer.a.filter", analyzerFilter);
         return IndexMetadata.builder(name).settings(settings).state(state).build();
     }
 

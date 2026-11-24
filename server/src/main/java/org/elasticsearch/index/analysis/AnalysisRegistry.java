@@ -1452,7 +1452,7 @@ public final class AnalysisRegistry implements Closeable {
     /**
      * Returns components for {@code key}, building them outside the map lock if no live slot exists; concurrent callers join that
      * build. A failed build is removed and rethrown. A degraded build is never shared: it is removed for later loads, and a caller
-     * that joined it builds its own instead.
+     * that joined it retries.
      */
     private HeldComponents acquireComponents(AnalyzerKey key, Supplier<AnalyzerComponents> build) {
         boolean[] created = { false };
@@ -1490,8 +1490,9 @@ public final class AnalysisRegistry implements Closeable {
             throw e.getCause() instanceof RuntimeException r ? r : e;
         }
         if (isDegraded(joined)) {
+            // The degraded slot is already out of the cache, so retrying either joins a newer build or builds afresh.
             releaseComponents(key, entry);
-            return new HeldComponents(build.get(), null);
+            return acquireComponents(key, build);
         }
         return new HeldComponents(joined, () -> releaseComponents(key, entry));
     }

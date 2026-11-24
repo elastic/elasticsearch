@@ -91,6 +91,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -1052,11 +1053,14 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(
-            synonymSetId,
-            preview,
-            reloadTargets(projectResolver.getProjectMetadata(clusterService.state()), synonymSetId)
-        );
+        String[] targets;
+        try {
+            targets = reloadTargets(projectResolver.getProjectMetadata(clusterService.state()), synonymSetId);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, targets);
         // A hidden index named above may be deleted or closed before the reload resolves it; skip it rather than fail the reload.
         reloadAnalyzersRequest.indicesOptions(
             IndicesOptions.builder(reloadAnalyzersRequest.indicesOptions())
@@ -1083,17 +1087,36 @@ public class SynonymsManagementAPIService {
     }
 
     private static boolean usesSynonymsSet(Settings indexSettings, String synonymSetId) {
-        Set<String> filters = indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER)
-            .entrySet()
+        Map<String, Settings> allFilters = indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
+        Set<String> filters = allFilters.entrySet()
             .stream()
             .filter(filter -> filter.getValue().getAsList("synonyms_set").contains(synonymSetId))
             .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toCollection(HashSet::new));
+        // Add the multiplexer and condition filters that wrap one of them, until nothing changes.
+        boolean added = filters.isEmpty() == false;
+        while (added) {
+            added = false;
+            for (Map.Entry<String, Settings> filter : allFilters.entrySet()) {
+                if (filters.contains(filter.getKey()) == false && wrappedFilters(filter.getValue()).anyMatch(filters::contains)) {
+                    filters.add(filter.getKey());
+                    added = true;
+                }
+            }
+        }
         return filters.isEmpty() == false
             && indexSettings.getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER)
                 .values()
                 .stream()
                 .anyMatch(analyzer -> analyzer.getAsList("filter").stream().anyMatch(filters::contains));
+    }
+
+    /** Filters a {@code multiplexer} ({@code filters}, each a comma-separated chain) or {@code condition} ({@code filter}) wraps. */
+    private static Stream<String> wrappedFilters(Settings filter) {
+        return Stream.concat(
+            filter.getAsList("filters").stream().flatMap(chain -> Arrays.stream(chain.split(","))).map(String::trim),
+            filter.getAsList("filter").stream()
+        );
     }
 
     // Allows checking failures in tests

@@ -222,6 +222,11 @@ public final class DataNodeRecoveryThrottlingLimits {
     private final List<Consumer<IncomingRecoveryLimits>> incomingRecoveryLimitsConsumers = new CopyOnWriteArrayList<>();
     private final List<IntConsumer> outgoingRecoveryLimitConsumers = new CopyOnWriteArrayList<>();
 
+    /// Also used as the lock serializing consumer registration with updates. [ClusterSettings#applySettings] holds this
+    /// same monitor while running the update consumers, so locking on it (rather than on this instance) keeps a single
+    /// lock order and lets consumers call synchronized [ClusterSettings] methods.
+    private final ClusterSettings clusterSettings;
+
     /// Starts watching the throttle settings in `clusterSettings`.
     ///
     /// The heap-based incoming limit is skipped if `nodeSettings` give the node the search role (see the class documentation).
@@ -229,6 +234,7 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// If the throttle settings are not registered (see the class documentation), the limits stay unbounded, i.e.
     /// [IncomingRecoveryLimits#UNBOUNDED] and [Integer#MAX_VALUE].
     public DataNodeRecoveryThrottlingLimits(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
+        this.clusterSettings = clusterSettings;
         // TODO: remove the unregistered branch once the settings are also registered in stateful.
         final List<Setting<?>> registeredSettings = settings().stream().filter(s -> clusterSettings.isDynamicSetting(s.getKey())).toList();
         if (registeredSettings.size() == settings().size()) {
@@ -248,7 +254,7 @@ public final class DataNodeRecoveryThrottlingLimits {
                     maxHeap,
                     applyHeapBasedLimit
                 );
-                synchronized (this) {
+                synchronized (clusterSettings) { // already held by `ClusterSettings#applySettings`
                     this.incomingRecoveryLimits = limits;
                     incomingRecoveryLimitsConsumers.forEach(consumer -> consumer.accept(limits));
                 }
@@ -267,7 +273,7 @@ public final class DataNodeRecoveryThrottlingLimits {
                     maxHeap,
                     true
                 );
-                synchronized (this) {
+                synchronized (clusterSettings) { // already held by `ClusterSettings#applySettings`
                     this.outgoingRecoveryLimit = limit;
                     outgoingRecoveryLimitConsumers.forEach(consumer -> consumer.accept(limit));
                 }
@@ -303,9 +309,11 @@ public final class DataNodeRecoveryThrottlingLimits {
     ///
     /// If the throttle settings are not registered (see the class documentation), `consumer` is only called once, with
     /// [IncomingRecoveryLimits#UNBOUNDED].
-    public synchronized void addIncomingRecoveryLimitsConsumer(Consumer<IncomingRecoveryLimits> consumer) {
-        consumer.accept(incomingRecoveryLimits);
-        incomingRecoveryLimitsConsumers.add(consumer);
+    public void addIncomingRecoveryLimitsConsumer(Consumer<IncomingRecoveryLimits> consumer) {
+        synchronized (clusterSettings) { // serialized with updates, so that consumer cannot miss one
+            consumer.accept(incomingRecoveryLimits);
+            incomingRecoveryLimitsConsumers.add(consumer);
+        }
     }
 
     /// Calls `consumer` with the node's current [#outgoingRecoveryLimit()], then again whenever a cluster settings update
@@ -317,9 +325,11 @@ public final class DataNodeRecoveryThrottlingLimits {
     ///
     /// If the throttle settings are not registered (see the class documentation), `consumer` is only called once, with
     /// [Integer#MAX_VALUE].
-    public synchronized void addOutgoingRecoveryLimitConsumer(IntConsumer consumer) {
-        consumer.accept(outgoingRecoveryLimit);
-        outgoingRecoveryLimitConsumers.add(consumer);
+    public void addOutgoingRecoveryLimitConsumer(IntConsumer consumer) {
+        synchronized (clusterSettings) { // serialized with updates, so that consumer cannot miss one
+            consumer.accept(outgoingRecoveryLimit);
+            outgoingRecoveryLimitConsumers.add(consumer);
+        }
     }
 
     /// The heap-based incoming recovery limit does not apply to stateless search nodes. This matches master behavior which only

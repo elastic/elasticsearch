@@ -22,8 +22,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -306,40 +306,37 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
         assertThat(outgoingObserved, equalTo(Collections.nCopies(watcherCount, 7)));
     }
 
-    /// Consumers registered while settings updates are being applied must end up with the current limits, i.e. they must
-    /// not miss an update that lands between their initial call and their registration.
-    public void testConsumersRegisteredConcurrentlyWithUpdatesEndUpWithCurrentLimits() {
+    /// Test that a settings update applied while a consumer is being registered reaches that consumer.
+    public void testConsumersRegisteredDuringAnUpdateDoNotMissIt() {
         final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(Settings.EMPTY);
         final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);
-        final int consumerCount = between(1, 10);
-        final List<AtomicReference<IncomingRecoveryLimits>> incomingObserved = new ArrayList<>();
-        final List<AtomicInteger> outgoingObserved = new ArrayList<>();
-        for (int i = 0; i < consumerCount; i++) {
-            incomingObserved.add(new AtomicReference<>());
-            outgoingObserved.add(new AtomicInteger());
-        }
-        final int updateCount = between(10, 100);
-        runInParallel(consumerCount + 1, task -> {
-            if (task == consumerCount) {
-                for (int i = 1; i <= updateCount; i++) {
-                    clusterSettings.applySettings(
-                        Settings.builder()
-                            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), i)
-                            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), i)
-                            .build()
-                    );
-                }
-            } else {
-                limits.addIncomingRecoveryLimitsConsumer(incomingObserved.get(task)::set);
-                limits.addOutgoingRecoveryLimitConsumer(outgoingObserved.get(task)::set);
+        final List<IncomingRecoveryLimits> incomingObserved = new CopyOnWriteArrayList<>();
+        final List<Integer> outgoingObserved = new CopyOnWriteArrayList<>();
+        final var initialCallStarted = new CountDownLatch(1);
+        final var updateStarting = new CountDownLatch(1);
+
+        runInParallel(() -> {
+            safeAwait(initialCallStarted);
+            updateStarting.countDown();
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
+                    .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 3)
+                    .build()
+            );
+        }, () -> limits.addIncomingRecoveryLimitsConsumer(newLimits -> {
+            incomingObserved.add(newLimits);
+            if (incomingObserved.size() == 1) {
+                limits.addOutgoingRecoveryLimitConsumer(outgoingObserved::add);
+                clusterSettings.initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING, ignored -> {});
+                initialCallStarted.countDown();
+                safeAwait(updateStarting);
+                // Hold the lock to give the settings update time to be blocked on the registration
+                safeSleep(between(10, 100));
             }
-        });
-        assertThat(limits.incomingRecoveryLimits(), equalTo(new IncomingRecoveryLimits(updateCount, updateCount)));
-        assertThat(limits.outgoingRecoveryLimit(), equalTo(updateCount));
-        for (int i = 0; i < consumerCount; i++) {
-            assertThat(incomingObserved.get(i).get(), equalTo(limits.incomingRecoveryLimits()));
-            assertThat(outgoingObserved.get(i).get(), equalTo(limits.outgoingRecoveryLimit()));
-        }
+        }));
+        assertThat(incomingObserved, contains(IncomingRecoveryLimits.UNBOUNDED, new IncomingRecoveryLimits(3, 3)));
+        assertThat(outgoingObserved, contains(Integer.MAX_VALUE, 3));
     }
 
     public void testGettersWhenSettingsAreNotRegistered() {

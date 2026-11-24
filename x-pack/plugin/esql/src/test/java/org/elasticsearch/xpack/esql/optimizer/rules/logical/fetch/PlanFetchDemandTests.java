@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 
 import java.util.List;
 import java.util.Map;
@@ -154,7 +156,9 @@ public class PlanFetchDemandTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("idx", mapping(), Map.of("idx", IndexMode.STANDARD)))
             .minimumTransportVersion(TransportVersion.current())
             .buildAnalyzer();
-        return new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, analyzer).logicalPlan(query);
+        // the plan PlanFetch receives, so the rule itself must leave it eager
+        EsqlFlags eager = EsqlFlags.withFetchPhase(FetchPhaseMode.DISABLED);
+        return new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, analyzer, eager).logicalPlan(query);
     }
 
     private static Map<String, EsField> mapping() {

@@ -28,6 +28,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -89,6 +90,7 @@ public class IndicesServiceBuilder {
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
     MergeMetrics mergeMetrics;
+    FlushMetrics flushMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
     ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
@@ -208,6 +210,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder flushMetrics(FlushMetrics flushMetrics) {
+        this.flushMetrics = flushMetrics;
+        return this;
+    }
+
     public List<SearchOperationListener> searchOperationListeners() {
         return searchOperationListener;
     }
@@ -253,6 +260,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
         Objects.requireNonNull(mergeMetrics);
+        Objects.requireNonNull(flushMetrics);
         Objects.requireNonNull(searchOperationListener);
         Objects.requireNonNull(loggingFieldsProvider);
         Objects.requireNonNull(throttlingRecoveryService);

@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [capabilities, allowed_warnings]
+      test_runner_features: [capabilities, allowed_warnings, allowed_warnings_regex, warnings_regex]
       capabilities:
         - method: POST
           path: /_query
@@ -34,11 +34,81 @@ setup:
           - { "index": { "_id": "3" } }
           - { "@timestamp": "2024-01-01T00:00:03Z", "event": { "category": "network" }, "message": "connect" }
 
+  - do:
+      indices.create:
+        index: eql_pairs
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              event:
+                properties:
+                  category: { type: keyword }
+              pid: { type: long }
+
+  - do:
+      bulk:
+        index: eql_pairs
+        refresh: true
+        body:
+          - { "index": { "_id": "p1" } }
+          - { "@timestamp": "2024-01-01T00:00:01Z", "event": { "category": "process" }, "pid": 1 }
+          - { "index": { "_id": "n1" } }
+          - { "@timestamp": "2024-01-01T00:00:02Z", "event": { "category": "network" }, "pid": 1 }
+          - { "index": { "_id": "p2" } }
+          - { "@timestamp": "2024-01-01T00:00:03Z", "event": { "category": "process" }, "pid": 2 }
+          - { "index": { "_id": "n2" } }
+          - { "@timestamp": "2024-01-01T00:00:04Z", "event": { "category": "network" }, "pid": 2 }
+          - { "index": { "_id": "p3" } }
+          - { "@timestamp": "2024-01-01T00:00:05Z", "event": { "category": "process" }, "pid": 3 }
+          - { "index": { "_id": "n3" } }
+          - { "@timestamp": "2024-01-01T00:00:06Z", "event": { "category": "network" }, "pid": 3 }
+          - { "index": { "_id": "p4" } }
+          - { "@timestamp": "2024-01-01T00:00:07Z", "event": { "category": "process" }, "pid": 4 }
+          - { "index": { "_id": "n4" } }
+          - { "@timestamp": "2024-01-01T00:00:08Z", "event": { "category": "network" }, "pid": 4 }
+          - { "index": { "_id": "p5" } }
+          - { "@timestamp": "2024-01-01T00:00:09Z", "event": { "category": "process" }, "pid": 5 }
+          - { "index": { "_id": "n5" } }
+          - { "@timestamp": "2024-01-01T00:00:10Z", "event": { "category": "network" }, "pid": 5 }
+          - { "index": { "_id": "p6" } }
+          - { "@timestamp": "2024-01-01T00:00:11Z", "event": { "category": "process" }, "pid": 6 }
+          - { "index": { "_id": "n6" } }
+          - { "@timestamp": "2024-01-01T00:00:12Z", "event": { "category": "network" }, "pid": 6 }
+          - { "index": { "_id": "p7" } }
+          - { "@timestamp": "2024-01-01T00:00:13Z", "event": { "category": "process" }, "pid": 7 }
+          - { "index": { "_id": "n7" } }
+          - { "@timestamp": "2024-01-01T00:00:14Z", "event": { "category": "network" }, "pid": 7 }
+          - { "index": { "_id": "p8" } }
+          - { "@timestamp": "2024-01-01T00:00:15Z", "event": { "category": "process" }, "pid": 8 }
+          - { "index": { "_id": "n8" } }
+          - { "@timestamp": "2024-01-01T00:00:16Z", "event": { "category": "network" }, "pid": 8 }
+          - { "index": { "_id": "p9" } }
+          - { "@timestamp": "2024-01-01T00:00:17Z", "event": { "category": "process" }, "pid": 9 }
+          - { "index": { "_id": "n9" } }
+          - { "@timestamp": "2024-01-01T00:00:18Z", "event": { "category": "network" }, "pid": 9 }
+          - { "index": { "_id": "p10" } }
+          - { "@timestamp": "2024-01-01T00:00:19Z", "event": { "category": "process" }, "pid": 10 }
+          - { "index": { "_id": "n10" } }
+          - { "@timestamp": "2024-01-01T00:00:20Z", "event": { "category": "network" }, "pid": 10 }
+          - { "index": { "_id": "p11" } }
+          - { "@timestamp": "2024-01-01T00:00:21Z", "event": { "category": "process" }, "pid": 11 }
+          - { "index": { "_id": "n11" } }
+          - { "@timestamp": "2024-01-01T00:00:22Z", "event": { "category": "network" }, "pid": 11 }
+          - { "index": { "_id": "p12" } }
+          - { "@timestamp": "2024-01-01T00:00:23Z", "event": { "category": "process" }, "pid": 12 }
+          - { "index": { "_id": "n12" } }
+          - { "@timestamp": "2024-01-01T00:00:24Z", "event": { "category": "network" }, "pid": 12 }
+
 ---
 "Event query renders METADATA _source through the REST layer":
   - do:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
+      allowed_warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_events "process where true" METADATA _id, _source | KEEP _id, _source | SORT _id'
@@ -61,6 +131,8 @@ setup:
   - do:
       allowed_warnings:
         - "No limit defined, adding default limit of [1000]"
+      allowed_warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
       esql.query:
         body:
           query: 'EQL eql_events "sequence [process where message == \"start\"] [process where message == \"run\"]" | KEEP _sequence, _sequence_stage, join_keys'
@@ -75,3 +147,87 @@ setup:
   - match: { values.0.1: 0 }
   - match: { values.1.0: 0 }
   - match: { values.1.1: 1 }
+
+---
+"Sequence query returns at most the default size of matches":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_size_independent_of_limit]
+      reason: "the size comes only from WITH, defaulting to EQL's 10"
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
+      esql.query:
+        body:
+          query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)'
+  - match: { values: [[20, 10]] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" WITH {"size": 4} | STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)'
+  - match: { values: [[8, 4]] }
+
+---
+"Sequence LIMIT cuts a match part-way":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_size_independent_of_limit]
+      reason: "LIMIT only trims rows, so it keeps the first rows of the last 10 sequences"
+  - do:
+      warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
+      esql.query:
+        body:
+          query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" | LIMIT 3 | KEEP _sequence, _sequence_stage, join_keys'
+  - match: { values: [[0, 0, "3"], [0, 1, "3"], [1, 0, "4"]] }
+
+  - do:
+      warnings_regex:
+        - '.*EQL query used the default size of \[10\] matches.*'
+      esql.query:
+        body:
+          query: 'EQL eql_pairs "sequence by pid [process where true] [network where true]" WITH {"result_position": "head"} | LIMIT 3 | KEEP _sequence, _sequence_stage, join_keys'
+  - match: { values: [[0, 0, "1"], [0, 1, "1"], [1, 0, "2"]] }
+
+---
+"An EQL view that uses the default size warns with the view name":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/view
+          capabilities: [view_index_abstraction]
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [eql_command_size_independent_of_limit]
+      reason: "the default size warning of an EQL source inside a view names the view"
+  - do:
+      esql.put_view:
+        name: eql_process_view
+        body:
+          query: 'EQL eql_events "process where true"'
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      warnings_regex:
+        - 'Line 1:1 \(in view \[eql_process_view\]\): EQL query used the default size of \[10\] matches\..*'
+      esql.query:
+        body:
+          query: 'FROM eql_process_view | KEEP message | SORT message'
+  - match: { values: [["run"], ["start"]] }
+
+  - do:
+      esql.delete_view:
+        name: eql_process_view

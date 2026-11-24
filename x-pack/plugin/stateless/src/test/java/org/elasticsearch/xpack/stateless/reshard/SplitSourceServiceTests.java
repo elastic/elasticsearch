@@ -421,7 +421,7 @@ public class SplitSourceServiceTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 var task = new CancellableTask(i, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
                 var future = new PlainActionFuture<Void>();
-                service.awaitHandoffSlot(task, future, new ShardId(index, i), new ShardId(index, numShards + i));
+                service.awaitHandoffSlot(task, future, split.sourceShard(i), new ShardId(index, numShards + i));
                 futures.add(future);
             }
             var inHandoff = new ArrayDeque<Integer>();
@@ -478,12 +478,12 @@ public class SplitSourceServiceTests extends ESTestCase {
         try (var split = new ThrottleFixture(numShards, 12.5)) {
             var firstTask = new CancellableTask(0, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
             var firstFuture = new PlainActionFuture<Void>();
-            split.service.awaitHandoffSlot(firstTask, firstFuture, new ShardId(split.index, 0), new ShardId(split.index, numShards));
+            split.service.awaitHandoffSlot(firstTask, firstFuture, split.sourceShard(0), new ShardId(split.index, numShards));
             firstFuture.actionGet(SAFE_AWAIT_TIMEOUT);
 
             var secondTask = new CancellableTask(1, "test", "test", "split", TaskId.EMPTY_TASK_ID, Map.of());
             var secondFuture = new PlainActionFuture<Void>();
-            var secondSource = new ShardId(split.index, 1);
+            var secondSource = split.sourceShard(1);
             split.service.awaitHandoffSlot(secondTask, secondFuture, secondSource, new ShardId(split.index, numShards + 1));
             assertFalse("listener should be blocked while handoff slot is taken", secondFuture.isDone());
             TaskCancelHelper.cancel(secondTask, "test");
@@ -492,7 +492,7 @@ public class SplitSourceServiceTests extends ESTestCase {
             split.service.finishPreparingForHandoff(new ShardId(split.index, 0));
             split.transitionTarget(0, IndexReshardingState.Split.TargetShardState.HANDOFF);
             split.transitionTarget(0, IndexReshardingState.Split.TargetShardState.SPLIT);
-            assertFalse("cancelled handoff must not claim a slot", split.service.isPreparingForHandoff(secondSource));
+            assertFalse("cancelled handoff must not claim a slot", split.service.isPreparingForHandoff(secondSource.shardId()));
         }
     }
 
@@ -512,7 +512,7 @@ public class SplitSourceServiceTests extends ESTestCase {
             split.service.awaitHandoffSlot(
                 task,
                 handoffFuture,
-                new ShardId(split.index, initialShardsInHandoff),
+                split.sourceShard(initialShardsInHandoff),
                 new ShardId(split.index, numShards + initialShardsInHandoff)
             );
             for (int i = 0; i < initialShardsInHandoff - maxConcurrentHandoffs + 1; i++) {
@@ -555,6 +555,16 @@ public class SplitSourceServiceTests extends ESTestCase {
             index = initialIndexMetadata.getIndex();
             reshardingMetadata = initialIndexMetadata.getReshardingMetadata();
             publish();
+        }
+
+        /**
+         * The source shard of the given index. The throttle only uses its shard id and which instance it is, and a real IndexShard needs
+         * a full node, so a mock is used.
+         */
+        IndexShard sourceShard(int source) {
+            var shard = mock(IndexShard.class);
+            when(shard.shardId()).thenReturn(new ShardId(index, source));
+            return shard;
         }
 
         void transitionTarget(int source, IndexReshardingState.Split.TargetShardState state) {

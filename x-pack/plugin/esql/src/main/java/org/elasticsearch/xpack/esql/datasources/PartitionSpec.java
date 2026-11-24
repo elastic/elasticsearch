@@ -1790,14 +1790,19 @@ public final class PartitionSpec {
                     }
                 }
                 case IN -> {
+                    // A value that does not convert can still match rows, so it leaves the whole IN unrestricted, as it
+                    // does for EQUALS. Keeping only the values that convert would drop that value's folders.
                     Set<Long> next = new LinkedHashSet<>();
+                    boolean allConverted = true;
                     for (Object value : hint.values()) {
                         Long millis = toUtcMillisForProjection(value, unit);
-                        if (millis != null) {
-                            next.add(millis);
+                        if (millis == null) {
+                            allConverted = false;
+                            break;
                         }
+                        next.add(millis);
                     }
-                    if (next.isEmpty() == false) {
+                    if (allConverted && next.isEmpty() == false) {
                         inPoints = intersectSets(inPoints, next);
                     }
                 }
@@ -1825,8 +1830,8 @@ public final class PartitionSpec {
                         range = range.intersect(new InstantRange(null, increment(millis)));
                     }
                 }
-                case NOT_EQUALS -> {
-                    // A single excluded instant cannot drop a folder.
+                case NOT_EQUALS, LIKE -> {
+                    // A single excluded instant cannot drop a folder. LIKE is a file-name pattern, not a time bound.
                 }
             }
         }

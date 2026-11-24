@@ -13,18 +13,27 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,6 +49,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * A columnar index sorted by a field keeps its sort through every path that rebuilds or reopens its segments from disk: close and
@@ -110,6 +121,42 @@ public class ColumnarIndexSortPersistenceIT extends ESIntegTestCase {
             new FieldCase<>("long", () -> randomBoolean() ? randomLongBetween(-5, 5) : randomLong(), Comparator.<Long>naturalOrder()),
             false
         );
+    }
+
+    /**
+     * A {@code long} stored with the ColumNAR codec sorts the index with its own sort field, which segment info records through
+     * its own provider, so it has to read back on every path that opens segments from disk.
+     */
+    public void testLongWithBinaryNumericDocValues() throws Exception {
+        assumeTrue("the ColumNAR numeric codec is behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
+        assertSortSurvivesReopenRestoreRecoveryAndResize(
+            new FieldCase<>("long", () -> randomBoolean() ? randomLongBetween(-5, 5) : randomLong(), Comparator.<Long>naturalOrder()),
+            false,
+            Settings.builder().put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true).build()
+        );
+        // Without this the test would pass just as well on a SortedNumericSortField, if the setting didn't take.
+        for (String index : List.of(INDEX, INDEX + "-shrunk", INDEX + "-split", INDEX + "-cloned")) {
+            assertSegmentsSortedBy(index, ColumnarNumericSortField.class);
+        }
+    }
+
+    private void assertSegmentsSortedBy(String index, Class<? extends SortField> sortFieldClass) throws IOException {
+        int segments = 0;
+        for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            final IndexService indexService = indicesService.indexService(resolveIndex(index));
+            if (indexService == null) {
+                continue;
+            }
+            for (IndexShard shard : indexService) {
+                try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+                    for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                        assertThat(index, leaf.reader().getMetaData().sort().getSort()[0], instanceOf(sortFieldClass));
+                        segments++;
+                    }
+                }
+            }
+        }
+        assertThat(index, segments, greaterThan(0));
     }
 
     public void testInteger() throws Exception {
@@ -218,8 +265,15 @@ public class ColumnarIndexSortPersistenceIT extends ESIntegTestCase {
      * rather than the field doing so itself.
      */
     private <T> void assertSortSurvivesReopenRestoreRecoveryAndResize(FieldCase<T> field, boolean singleValued) throws Exception {
+        assertSortSurvivesReopenRestoreRecoveryAndResize(field, singleValued, Settings.EMPTY);
+    }
+
+    /** As above, with {@code extraSettings} added to the index's settings. */
+    private <T> void assertSortSurvivesReopenRestoreRecoveryAndResize(FieldCase<T> field, boolean singleValued, Settings extraSettings)
+        throws Exception {
         final Run<T> run = new Run<>(field, singleValued);
-        final Settings.Builder settings = indexSettings(2, 0).put(IndexSettings.MODE.getKey(), mode)
+        final Settings.Builder settings = indexSettings(2, 0).put(extraSettings)
+            .put(IndexSettings.MODE.getKey(), mode)
             .put("index.number_of_routing_shards", 4)
             .put("index.sort.field", FIELD)
             .put("index.sort.mode", run.max ? "max" : "min")

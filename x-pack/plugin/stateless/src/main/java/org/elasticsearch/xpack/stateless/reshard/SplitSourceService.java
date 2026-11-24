@@ -44,6 +44,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.HashMap;
@@ -54,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -128,7 +130,7 @@ public class SplitSourceService {
     private final ConcurrentHashMap<IndexShard, SourceShardStateMachine> activeSourceShards = new ConcurrentHashMap<>();
     // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
     // Also used to throttle handoffs
-    private final Set<ShardId> shardsPreparingForHandoff = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<ShardId, IndexShard> shardsPreparingForHandoff = new ConcurrentHashMap<>();
     // Used to make checking handoff slot availability and adding to shardsPreparingForHandoff in awaitHandoffSlot atomic
     private final Object handoffSlotLock = new Object();
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
@@ -140,7 +142,7 @@ public class SplitSourceService {
      * Used by ShouldSkipMerges to abort merges during this window so they don't block indexing while they upload.
      */
     public boolean isPreparingForHandoff(ShardId shardId) {
-        return shardsPreparingForHandoff.contains(shardId);
+        return shardsPreparingForHandoff.containsKey(shardId);
     }
 
     // for testing
@@ -334,13 +336,10 @@ public class SplitSourceService {
             throw new IllegalStateException(message);
         }
 
-        // If the shard has already been marked as relocating before we set up the state machine, then
-        // the watcher will not immediately trigger cancellation and clone will attempt to take a permit
-        // which could block relocation until it finishes.
-        if (sourceShard.routingEntry().relocating()) {
+        if (sourceShard.isRelocatedPrimary()) {
             String message = String.format(
                 Locale.ROOT,
-                "Split [%s -> %s]. Source shard is relocating when processing start split request. Failing the request.",
+                "Split [%s -> %s]. Source shard has been relocated when processing start split request. Failing the request.",
                 sourceShardId,
                 targetShardId
             );
@@ -349,35 +348,36 @@ public class SplitSourceService {
             throw new StaleSplitRequestException(message);
         }
 
-        SubscribableListener.newForked(l -> {
-            commitService.markSplitting(sourceShardId, targetShardId);
-            l.onResponse(null);
+        final var abortSplit = new AtomicReference<Runnable>();
+        SubscribableListener.<PrimaryTermAndGeneration>newForked(l -> {
+            abortSplit.set(commitService.markSplitting(sourceShardId, targetShardId));
+            // Prevent copying later commits uploaded by a relocated shard
+            final var latestUploadedBcc = commitService.getLatestUploadedBcc(sourceShardId);
+            // A started shard should have recovered or uploaded a commit
+            if (latestUploadedBcc == null) {
+                l.onFailure(new IllegalStateException("no uploaded commit for source shard " + sourceShardId));
+                return;
+            }
+            l.onResponse(latestUploadedBcc.primaryTermAndGeneration());
+        }).<Releasable>andThen(clusterService.threadPool().generic(), null, (l, latestCommitToCopy) -> {
+            objectStoreService.copyShard(task, sourceShardId, targetShardId, latestCommitToCopy);
+            task.ensureNotCancelled();
+            prepareForHandoff(l, sourceShard, targetShardId);
         })
-            .<Releasable>andThen(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
-            .<Releasable>andThen((l, permit) -> {
-                try (Releasable ignore = permit) {
-                    objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);
-                }
-                task.ensureNotCancelled();
-                prepareForHandoff(l, sourceShard, targetShardId);
-            })
             .addListener(
                 listener.<Releasable>safeMap(
                     permits -> new HandoffPreparation(sourceShardId, historyUuid(sourceShard.indexSettings().getIndexMetadata()), permits)
                 ).delegateResponse((l, e) -> {
-                    try {
-                        commitService.markSplitEnding(sourceShardId, targetShardId, true);
-                    } catch (AlreadyClosedException ignored) {
-                        // It's okay to not clean up the splitting flag since the shard is closed anyway
-                        // and there will be no new commits.
-                        // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
+                    final var abort = abortSplit.get();
+                    if (abort != null) {
+                        abort.run();
                     }
                     // We need to synchronize this with awaitHandoffSlot for the task cancellation check, otherwise there could be a race:
                     // - awaitHandoffSlot sees task isn't cancelled
                     // - task gets cancelled and this runs, removing nothing from shardsPreparingForHandoff
                     // - awaitHandoffSlot proceeds and adds the entry
                     synchronized (handoffSlotLock) {
-                        shardsPreparingForHandoff.remove(sourceShard.shardId());
+                        shardsPreparingForHandoff.remove(sourceShard.shardId(), sourceShard);
                     }
                     activeTargetRequests.remove(sourceShard);
                     l.onFailure(e);
@@ -426,7 +426,7 @@ public class SplitSourceService {
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
-            beginHandoff -> awaitHandoffSlot(currentSplit.task, beginHandoff, sourceShard.shardId(), targetShardId)
+            beginHandoff -> awaitHandoffSlot(currentSplit.task, beginHandoff, sourceShard, targetShardId)
         )
             .<Void>andThen(afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)).<
                 Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
@@ -480,7 +480,7 @@ public class SplitSourceService {
      * the split's target shards to be in or preparing for state HANDOFF. This is best-effort since {@link #shardsPreparingForHandoff} is
      * local to each node. Proceeds after a 1 hour timeout and fails if the task is cancelled.
      */
-    void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, ShardId sourceShardId, ShardId targetShardId) {
+    void awaitHandoffSlot(CancellableTask task, ActionListener<Void> listener, IndexShard sourceShard, ShardId targetShardId) {
         final var threadPool = clusterService.threadPool();
         final var waitDurationHistogram = reshardIndexService.getReshardMetrics().targetHandoffThrottleWaitDurationHistogram();
         final long startMillis = threadPool.relativeTimeInMillis();
@@ -504,7 +504,7 @@ public class SplitSourceService {
                 threadPool.generic().execute(() -> {
                     synchronized (handoffSlotLock) {
                         if (task.isCancelled() == false) {
-                            shardsPreparingForHandoff.add(sourceShardId);
+                            shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
                         }
                     }
                     beginHandoff.onResponse(null);
@@ -530,13 +530,14 @@ public class SplitSourceService {
                     return true;
                 }
                 long totalTargetShards = split.targetStates().count();
-                long preHandoffCount = shardsPreparingForHandoff.stream()
+                long preHandoffCount = shardsPreparingForHandoff.keySet()
+                    .stream()
                     .filter(shardId -> shardId.getIndex().equals(targetShardId.getIndex()))
                     .count();
                 long handoffCount = split.targetStates().filter(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF).count();
                 long maxConcurrentHandoffs = Math.max(1, (long) (totalTargetShards * maxConcurrentHandoffPercentage / 100.0));
                 if (preHandoffCount + handoffCount < maxConcurrentHandoffs) {
-                    shardsPreparingForHandoff.add(sourceShardId);
+                    shardsPreparingForHandoff.put(sourceShard.shardId(), sourceShard);
                     return true;
                 }
                 return false;
@@ -608,6 +609,9 @@ public class SplitSourceService {
 
         private final ShardId targetShardId;
         private final ShardId sourceShardId;
+        // The shard instance holding the handoff slot claim, so that a newer instance's claim isn't released if the shard relocated away
+        // and back
+        private final IndexShard claimedBy;
         private final long expectedTargetPrimaryTerm;
         private final long expectedSourcePrimaryTerm;
         private final String expectedHistoryUuid;
@@ -628,6 +632,7 @@ public class SplitSourceService {
         ) {
             this.targetShardId = targetShardId;
             this.sourceShardId = sourceShardId;
+            this.claimedBy = shardsPreparingForHandoff.get(sourceShardId);
             this.expectedTargetPrimaryTerm = expectedTargetPrimaryTerm;
             this.expectedSourcePrimaryTerm = expectedSourcePrimaryTerm;
             this.expectedHistoryUuid = expectedHistoryUuid;
@@ -647,7 +652,7 @@ public class SplitSourceService {
                         assert decision.outcome != null : "Predicate returned true without setting outcome";
 
                         shouldRetry.set(false);
-                        shardsPreparingForHandoff.remove(sourceShardId);
+                        shardsPreparingForHandoff.remove(sourceShardId, claimedBy);
                         permits.close();
 
                         switch (decision.outcome) {
@@ -694,7 +699,7 @@ public class SplitSourceService {
 
                     @Override
                     public void onClusterServiceClose() {
-                        shardsPreparingForHandoff.remove(sourceShardId);
+                        shardsPreparingForHandoff.remove(sourceShardId, claimedBy);
                         // TODO: Should we release permits here ? Does it matter ?
                         permits.close();
                         listener.onFailure(new NodeClosedException(clusterService.localNode()));
@@ -882,11 +887,15 @@ public class SplitSourceService {
     /// We rely on this fact in [#setupSourceShardStateMachine(IndexShard)] to handle the possible race
     /// of this function and adding a new state machine to the `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
+        // Cancel an ongoing split request if one is running.
         final var currentSplit = activeTargetRequests.remove(indexShard);
         if (currentSplit != null && currentSplit.setUncancellable()) {
+            logger.info("cancelling split from {} because the shard is closed", indexShard.shardId());
             taskManager.cancelTaskAndDescendants(currentSplit.task, "source shard closed", false, ActionListener.noop());
         }
-        shardsPreparingForHandoff.remove(indexShard.shardId());
+        // Only remove the original IndexShard instance, if the shard relocated from and back to the original node, then we risk removing
+        // the new ongoing entry.
+        shardsPreparingForHandoff.remove(indexShard.shardId(), indexShard);
         var stateMachine = activeSourceShards.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
@@ -898,7 +907,7 @@ public class SplitSourceService {
     Set<ShardId> getShardsWithActiveSplitState() {
         return Stream.concat(
             Stream.concat(activeSourceShards.keySet().stream(), activeTargetRequests.keySet().stream()).map(IndexShard::shardId),
-            shardsPreparingForHandoff.stream()
+            shardsPreparingForHandoff.keySet().stream()
         ).collect(Collectors.toSet());
     }
 
@@ -915,8 +924,8 @@ public class SplitSourceService {
     private class SplitRequestState {
         final long targetPrimaryTerm;
         final CancellableTask task;
-        // Once we have begun acquiring permits, we should not cancel on relocation because it is difficult to reason about whether
-        // we will need to wait for handoff before releasing them, e.g., if we've submitted a handoff request but then
+        // Once we have begun acquiring permits, we should not cancel when the shard closes because it is difficult to reason about
+        // whether we will need to wait for handoff before releasing them, e.g., if we've submitted a handoff request but then
         // relocation begins.
         // On permit acquisition or on task cancellation we set this to false if it is true, otherwise fail the operation.
         final AtomicBoolean cancellable = new AtomicBoolean(true);
@@ -1145,18 +1154,6 @@ public class SplitSourceService {
                     // We will want to move the state currently tracked by activeTargetShards into the state machine.
                     // Since we only split in half (rather than into thirds etc) there will only ever be one split
                     // request per state machine, and managing its lifecycle will be much easier if we combine them.
-                    // IN THE MEANTIME
-                    // if the source shard has been marked as relocating, cancel an ongoing split request if one
-                    // is running. We may find a stale request here if cluster state moves to relocating before
-                    // a retrying setupTargetShard has found the existing split, but in that case setupTargetShard
-                    // is going to fail the new split anyway.
-                    final var currentSplit = activeTargetRequests.get(indexShard);
-                    if (indexShard.routingEntry().relocating() && currentSplit != null && currentSplit.setUncancellable()) {
-                        logger.info("cancelling split from {} because it is relocating", indexShard.shardId());
-                        taskManager.cancelTaskAndDescendants(currentSplit.task, "source relocating", false, ActionListener.noop());
-                        cancel();
-                        return true;
-                    }
 
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.

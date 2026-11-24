@@ -37,7 +37,7 @@ import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -442,7 +442,7 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         private final AtomicBoolean blockNextCommitUpload = new AtomicBoolean(true);
 
         void maybeBlock(String blobName) {
-            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
+            if (BccBlob.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
                 blocked.countDown();
                 safeAwait(proceed, PARKED_OPERATION_TIMEOUT);
             }

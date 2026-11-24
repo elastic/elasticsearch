@@ -116,6 +116,7 @@ List projects = [
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
   'server',
+  'test:vintage-randomized-runner',
   'test:framework',
   'test:fixtures:aws-ec2-fixture',
   'test:fixtures:aws-fixture-utils',
@@ -182,8 +183,6 @@ addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
-
-project(":libs:native:libraries").name = "native-libraries"
 
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"

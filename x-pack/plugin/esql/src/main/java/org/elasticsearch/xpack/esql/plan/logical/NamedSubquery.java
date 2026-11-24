@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.Objects;
 
 /**
- * A {@link Subquery} that wraps a {@code LET} binding substituted by {@code LetResolver}, carrying the binding name so that
+ * A {@link Subquery} that wraps a {@code LET} named subquery substituted by {@code LetResolver}, carrying the subquery name so that
  * {@code METADATA _name} can answer it ({@code _class} answers {@link RelationClass#SUBQUERY}). The analyzer's metadata
  * freeze consumes the name. A plain {@code NamedSubquery} is not a view: {@link ViewSubquery} is the view subclass, and code
  * that means "a view" must test for that.

@@ -420,6 +420,34 @@ public class ShardSyncStateTests extends ESTestCase {
         assertStalePrimaryTerm(beyondListener);
     }
 
+    public void testDeletedIndexMakesPrimaryTermStale() {
+        final var shardId = new ShardId(new Index(randomIndexName(), UUIDs.randomBase64UUID()), between(0, 5));
+        final var primaryTerm = randomLongBetween(1, 20);
+        AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, currentPrimaryTerm::get, longsRef -> {});
+
+        final var queuedLocation = new Translog.Location(0, between(1, 100), 0);
+        shardSyncState.updateProcessedLocation(queuedLocation);
+        PlainActionFuture<Void> queuedListener = new PlainActionFuture<>();
+        assertFalse(shardSyncState.ensureSynced(queuedLocation, queuedListener));
+
+        // The primary term lookup returns Long.MIN_VALUE once the index is no longer in the cluster state
+        currentPrimaryTerm.set(Long.MIN_VALUE);
+        assertFalse(shardSyncState.markSyncFinished(new ShardSyncState.SyncMarker(primaryTerm, queuedLocation, longArrayListOf(0L))));
+        assertTrue(shardSyncState.isPrimaryTermStale());
+        shardSyncState.notifyListeners();
+        assertFalse(queuedListener.isDone());
+
+        final var laterLocation = new Translog.Location(0, queuedLocation.translogLocation() + between(1, 100), 0);
+        shardSyncState.updateProcessedLocation(laterLocation);
+        PlainActionFuture<Void> laterListener = new PlainActionFuture<>();
+        assertTrue(shardSyncState.ensureSynced(laterLocation, laterListener));
+        assertStalePrimaryTerm(laterListener);
+
+        shardSyncState.failPendingListeners(ShardSyncState.stalePrimaryTermException(shardId));
+        assertStalePrimaryTerm(queuedListener);
+    }
+
     private static void assertStalePrimaryTerm(PlainActionFuture<Void> listener) {
         assertTrue(listener.isDone());
         assertThat(expectThrows(AlreadyClosedException.class, listener::actionGet).getMessage(), containsString("primary term is stale"));

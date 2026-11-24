@@ -840,3 +840,8 @@ tests:
   - :x-pack:qa:runtime-fields:core-with-mapped:yamlRestTest
   method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
   issue: https://github.com/elastic/elasticsearch/issues/167319
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:prometheus-k8s-delta.delta_of_integer_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/167324

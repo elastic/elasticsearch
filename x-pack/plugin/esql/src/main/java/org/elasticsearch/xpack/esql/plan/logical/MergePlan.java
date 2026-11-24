@@ -406,6 +406,8 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * which covers {@code RENAME} and {@code EVAL x = y}, and a nested {@link MergePlan}'s output column is null-only
      * when that column is null-only in every one of its branches. A nested union whose branches all null-fill a column
      * outputs it as a fresh attribute that no alias defines, so without the latter it would look like a computed value.
+     * A {@link FillNull} clears the mark from a column it fills, which carries a non-null value from there on even though the
+     * command keeps the column's id until the optimizer expands it.
      * <p>
      * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
      */
@@ -442,6 +444,13 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                         }
                     }
                 }
+                case FillNull fillNull -> fillNull.child().output().forEach(attr -> {
+                    // FILLNULL replaces the nulls of a column with a non-null value, so a column it fills is no longer null-only.
+                    // The command keeps the column's id until the optimizer expands it, so the id marked below is the one to clear.
+                    if (fillNull.fills(attr)) {
+                        onlyNull.remove(attr.id());
+                    }
+                });
                 default -> {
                 }
             }

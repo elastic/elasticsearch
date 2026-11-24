@@ -21,6 +21,7 @@ import java.util.List;
  */
 public class ApproximationGoldenTests extends GoldenTestCase {
     private static final String ESQL_APPROXIMATION_LOOKUP_JOIN = "esql_approximation_lookup_join";
+    private static final String ESQL_SUM_LONG_AS_DOUBLE = "esql_sum_long_as_double";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -84,6 +85,19 @@ public class ApproximationGoldenTests extends GoldenTestCase {
               | STATS avg=AVG(plus_one)
               | EVAL avg_squared = avg*avg
             """, STAGES);
+    }
+
+    /**
+     * The sum of {@code AVG} of a {@code long} reads the long itself, see {@code Sum#sumsLongAsDouble}. Approximation has to
+     * scale it up by the sample probability, like any other sum.
+     */
+    public void testAvgOfLong() {
+        builder("""
+            SET approximation={"rows": 10000};
+            FROM many_numbers
+              | EVAL l = sv::long
+              | STATS AVG(l)
+            """).stages(STAGES).since(ESQL_SUM_LONG_AS_DOUBLE).run();
     }
 
     public void testGroupedStats() {

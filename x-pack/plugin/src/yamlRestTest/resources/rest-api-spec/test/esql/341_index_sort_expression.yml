@@ -15,11 +15,25 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            # The _doc order checks need every copy merged, but force merge fails on copies that are still recovering.
+            # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+            # keep a replica for stateless searches.
+            auto_expand_replicas: 0-1
             index.sort: "rank DESC"
+            # ensure no relocation as tests rely on segments.
+            routing.rebalance.enable: "none"
           mappings:
             properties:
               rank:
                 type: long
+
+  - do:
+      cluster.health:
+        index: sorted_index
+        # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_status: green
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
 
   - do:
       indices.get_settings:

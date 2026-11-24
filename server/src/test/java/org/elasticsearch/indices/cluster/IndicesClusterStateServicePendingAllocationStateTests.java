@@ -908,7 +908,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        // create failure path notifies master via failAndRemoveShard(sendShardFailure=true)
+        // create failure path notifies master via failAndRemoveShard
         verify(shardStateAction).localShardFailed(any(), anyString(), any(), any(), any());
         assertTrue(isFailureReported(shardRouting));
     }
@@ -1065,6 +1065,20 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertTrue(isFailureReported(shardRouting));
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testFailedShardHandlerNotifiesMasterWhenCauseIsNullAndShardRemovalThrows() {
+        final var shardRouting = applyInitializingPrimary();
+        final var onShardFailure = indicesService.lastOnShardFailure;
+        assertNotNull(onShardFailure);
+
+        // Looking up the index service is the first thing the removal does, so this makes it throw.
+        indicesService.failNextIndexServiceLookup = new IllegalStateException("simulated removal failure");
+        onShardFailure.accept(new IndexShard.ShardFailure(shardRouting, primaryTerm(shardRouting), "simulated engine failure", null));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 

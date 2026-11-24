@@ -283,8 +283,12 @@ public abstract class FieldMapper extends Mapper {
      *
      * @param indexSettings the settings of the index being mapped, for mappers whose columnar
      *                       support depends on index-level configuration
+     * @param relativeKeys   for a {@link #resolvesColumnGroup() group mapper}, the distinct relative keys of its leaves in one batch,
+     *                       as passed to {@link #mapColumnGroupBatch}, so that it can refuse keys its row parser would reject before
+     *                       any of the batch is mapped. Empty when only the mapping is checked, and always for other mappers.
      */
-    public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public final boolean supportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        assert relativeKeys.isEmpty() || resolvesColumnGroup() != ColumnGroup.NONE : "[" + fullPath() + "] is not a group mapper";
         // Cross-cutting pre-conditions that apply to every mapper, mirroring how parse() handles script
         // enforcement and copyTo before delegating to parseCreateField().
         if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
@@ -312,7 +316,7 @@ public abstract class FieldMapper extends Mapper {
                 return false;
             }
         }
-        if (doSupportsColumnarParse(indexSettings) == false) {
+        if (doSupportsColumnarParse(indexSettings, relativeKeys) == false) {
             return false;
         }
         if (resolvesColumnGroup() != ColumnGroup.NONE) {
@@ -324,14 +328,22 @@ public abstract class FieldMapper extends Mapper {
         }
         for (FieldMapper subMapper : builderParams.multiFields) {
             // The recursive call covers mul.
-            if (subMapper.resolvesColumnGroup() != ColumnGroup.NONE || subMapper.supportsColumnarParse(indexSettings) == false) {
+            if (subMapper.resolvesColumnGroup() != ColumnGroup.NONE || subMapper.supportsColumnarParse(indexSettings, Set.of()) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    /**
+     * The mapper-specific part of {@link #supportsColumnarParse(IndexSettings, Set)}.
+     *
+     * @param relativeKeys for a {@link #resolvesColumnGroup() group mapper}, the distinct relative keys of its leaves in one batch, or
+     *                     empty when only the mapping is checked; always empty for other mappers. Refusing a key here falls the batch
+     *                     back to the row path once, at resolution time, whereas a key rejected only in {@link #mapColumnGroupBatch}
+     *                     falls back per chunk, after other mappers have already mapped it.
+     */
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return false;
     }
 
@@ -387,7 +399,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Maps all documents in a batch for this field from the supplied ESCF source column, then hands the same column to each
      * multi-field sub-mapper. Called by the columnar bulk batch driver once per field per batch, only for mappers whose
-     * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting
+     * {@link #supportsColumnarParse(IndexSettings, Set)} returned {@code true}. Attaches the resulting
      * output columns to {@code ctx} via {@link BatchMappingContext#addColumn}.
      *
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
@@ -500,7 +512,7 @@ public abstract class FieldMapper extends Mapper {
      * paths. A mapper returning anything but {@link ColumnGroup#NONE} receives every such leaf in one call to {@link #mapColumnGroupBatch},
      * and those leaves are never handed to a leaf mapper.
      * <p>
-     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must also return {@code true} from it to
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings, Set)}: a group mapper must also return {@code true} from it to
      * participate in the columnar path.
      */
     public ColumnGroup resolvesColumnGroup() {

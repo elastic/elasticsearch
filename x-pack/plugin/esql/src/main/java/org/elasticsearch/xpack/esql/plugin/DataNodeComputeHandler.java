@@ -1335,6 +1335,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         sortBound,
                         null,
                         FetchOperatorProvider.UNSUPPORTED,
+                        null,
                         batchLoad
                     );
                     computeService.runCompute(
@@ -1566,6 +1567,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         null,
                         reduceLoad(request.shards(), searchContexts),
                         FetchOperatorProvider.UNSUPPORTED,
+                        null,
                         new QueryLoad()
                     ),
                     reductionPlan.nodeReducePlan(),

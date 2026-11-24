@@ -1570,7 +1570,12 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
-                false
+                false,
+                null,
+                null,
+                FetchOperatorProvider.UNSUPPORTED,
+                execInfo,
+                new QueryLoad()
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
@@ -1699,6 +1704,7 @@ public class ComputeService {
                             null,
                             null,
                             fetchOperators,
+                            execInfo,
                             new QueryLoad()
                         ),
                         coordinatorPlan,
@@ -1853,7 +1859,12 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
-                    false
+                    false,
+                    null,
+                    null,
+                    FetchOperatorProvider.UNSUPPORTED,
+                    execInfo,
+                    new QueryLoad()
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1915,7 +1926,8 @@ public class ComputeService {
                         builder.setTook(execInfo.queryProfile().total().timeSinceStarted());
                     }
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                        boolean failed = zeroIfNull(v.getFailedShards()) > 0 || v.getFailures().isEmpty() == false;
+                        builder.setStatus(failed ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                     }
                     return builder.build();
                 });
@@ -2202,7 +2214,8 @@ public class ComputeService {
                 taskClient,
                 externalCompute,
                 escfBulkService,
-                () -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService)
+                () -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
+                context.executionInfo()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

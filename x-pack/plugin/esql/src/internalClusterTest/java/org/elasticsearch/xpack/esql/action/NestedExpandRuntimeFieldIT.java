@@ -206,6 +206,61 @@ public class NestedExpandRuntimeFieldIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    private void indexWithoutChildValue(String index) {
+        client().prepareIndex(index)
+            .setId("2")
+            .setSource("{\"id\": \"b\", \"items\": [{\"qty\": 9}]}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+    }
+
+    private void createRuntimeAndChildIndices() {
+        createIndex("rt", RUNTIME_FROM_SOURCE, randomBoolean());
+        createIndex("mp", CHILD, false);
+        indexWithoutChildValue("rt");
+        indexWithoutChildValue("mp");
+    }
+
+    public void testPredicateBeforeTheExpansionOnlyMatchesTheIndexThatOwnsTheNameAsAParentField() {
+        createRuntimeAndChildIndices();
+        assertRows(
+            "FROM rt, mp METADATA _index | WHERE items.calc IS NOT NULL | KEEP _index, id | SORT _index, id",
+            List.of(List.of("rt", "a"))
+        );
+        assertRows(
+            "FROM rt, mp METADATA _index | WHERE items.calc IS NULL | KEEP _index, id | SORT _index, id",
+            List.of(List.of("mp", "a"), List.of("mp", "b"), List.of("rt", "b"))
+        );
+        assertRows(
+            "FROM rt, mp METADATA _index | WHERE MV_MAX(items.calc) > 3 | KEEP _index, id | SORT _index, id",
+            List.of(List.of("rt", "a"))
+        );
+    }
+
+    public void testPredicateAfterTheExpansionSeesEachIndexOwnValues() {
+        createRuntimeAndChildIndices();
+        assertRows(
+            "FROM rt, mp METADATA _index | NESTED_EXPAND items | WHERE items.calc IS NOT NULL "
+                + "| STATS n = COUNT(*) BY _index | SORT _index",
+            List.of(List.of(2L, "mp"), List.of(2L, "rt"))
+        );
+        assertRows(
+            "FROM rt, mp METADATA _index | NESTED_EXPAND items | WHERE items.calc IS NULL | STATS n = COUNT(*) BY _index | SORT _index",
+            List.of(List.of(1L, "mp"), List.of(1L, "rt"))
+        );
+        assertRows(
+            "FROM rt, mp METADATA _index | NESTED_EXPAND items | WHERE MV_MAX(items.calc) == 4 "
+                + "| STATS n = COUNT(*) BY _index | SORT _index",
+            List.of(List.of(1L, "mp"), List.of(2L, "rt"))
+        );
+    }
+
+    public void testPredicateOnTheRuntimeFieldBeforeAndAfterTheExpansionAgreeForTheIndexThatOwnsIt() {
+        createRuntimeAndChildIndices();
+        assertRows("FROM rt | WHERE items.calc IS NULL | NESTED_EXPAND items | STATS n = COUNT(*)", List.of(List.of(1L)));
+        assertRows("FROM rt | NESTED_EXPAND items | WHERE items.calc IS NULL | STATS n = COUNT(*)", List.of(List.of(1L)));
+    }
+
     public void testChildWithoutARuntimeFieldOfTheSameNameStillExpands() {
         createIndex("mp", CHILD, false);
         assertRows(

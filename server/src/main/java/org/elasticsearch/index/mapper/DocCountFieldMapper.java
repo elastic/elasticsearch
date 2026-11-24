@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -133,7 +134,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // No preParse/postParse override — nothing to port for the columnar path.
         return true;
     }

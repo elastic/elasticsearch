@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -564,8 +565,9 @@ public abstract class FullTextFunction extends Function
 
     /**
      * Applies {@code action} to {@code plan} and to the commands below it that feed its rows. The right side of an
-     * {@link IndependentSubqueryJoin}, like the subquery of {@code WHERE x IN (FROM ...)}, is not one of them: it runs as a
-     * query of its own, so a {@code LIMIT} or a {@code STATS} in it says nothing about where the rows of {@code plan} are.
+     * {@link IndependentSubqueryJoin}, like the subquery of {@code WHERE x IN (FROM ...)} or of a {@link SubqueryJoin}, is not
+     * one of them: it runs as a query of its own, so a {@code LIMIT} or a {@code STATS} in it says nothing about where the rows
+     * of {@code plan} are.
      */
     private static void forEachDownInMainScope(LogicalPlan plan, Consumer<LogicalPlan> action) {
         action.accept(plan);

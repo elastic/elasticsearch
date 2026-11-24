@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatchBuilder;
-import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -125,11 +124,10 @@ public class StatelessEscfBulkWriterIT extends AbstractStatelessPluginIntegTestC
             public void append(EscfBatchBuilder batch) {
                 for (int i = 0; i < count; i++) {
                     byte[] name = ("name-" + (first + i)).getBytes(StandardCharsets.UTF_8);
-                    EscfRowBuffer row = batch.beginRow();
-                    row.stringField("name", new XContentString.UTF8Bytes(name, 0, name.length));
-                    row.longField("value", first + i);
-                    row.finishRow();
-                    batch.commit(0);
+                    batch.beginRow();
+                    batch.stringField("name", new XContentString.UTF8Bytes(name, 0, name.length));
+                    batch.longField("value", first + i);
+                    batch.finishRow();
                 }
             }
 

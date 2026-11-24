@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatchBuilder;
-import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,7 +43,7 @@ import java.util.List;
 final class PageToEscfBatch {
     private PageToEscfBatch() { /* static class */ }
 
-    /** Appends the page to partition 0 of {@code batch}, one row at a time. */
+    /** Appends the page to {@code batch}, one row at a time. */
     static void append(EscfBatchBuilder batch, Page page, List<String> names, List<DataType> types) {
         boolean[] absent = new boolean[names.size()];
         for (int c = 0; c < names.size(); c++) {
@@ -52,7 +51,7 @@ final class PageToEscfBatch {
         }
         BytesRef scratch = new BytesRef();
         for (int row = 0; row < page.getPositionCount(); row++) {
-            EscfRowBuffer buffer = batch.beginRow();
+            batch.beginRow();
             for (int c = 0; c < names.size(); c++) {
                 if (absent[c]) {
                     continue;
@@ -61,14 +60,13 @@ final class PageToEscfBatch {
                 if (block.isNull(row)) {
                     continue;
                 }
-                writeRowValue(buffer, names.get(c), types.get(c), block, row, scratch);
+                writeRowValue(batch, names.get(c), types.get(c), block, row, scratch);
             }
-            buffer.finishRow();
-            batch.commit(0);
+            batch.finishRow();
         }
     }
 
-    private static void writeRowValue(EscfRowBuffer row, String name, DataType type, Block block, int position, BytesRef scratch) {
+    private static void writeRowValue(EscfBatchBuilder row, String name, DataType type, Block block, int position, BytesRef scratch) {
         int count = block.getValueCount(position);
         int start = block.getFirstValueIndex(position);
         if (count == 1) {
@@ -78,7 +76,7 @@ final class PageToEscfBatch {
         }
     }
 
-    private static void writeScalar(EscfRowBuffer row, String name, DataType type, Block block, int index, BytesRef scratch) {
+    private static void writeScalar(EscfBatchBuilder row, String name, DataType type, Block block, int index, BytesRef scratch) {
         switch (toKind(type)) {
             case LONG -> row.longField(name, ((LongBlock) block).getLong(index));
             case INT -> row.longField(name, ((IntBlock) block).getInt(index));
@@ -102,7 +100,7 @@ final class PageToEscfBatch {
         }
     }
 
-    private static void writeArray(EscfRowBuffer row, String name, DataType type, Block block, int start, int count, BytesRef scratch) {
+    private static void writeArray(EscfBatchBuilder row, String name, DataType type, Block block, int start, int count, BytesRef scratch) {
         long[] numeric = new long[count];
         Object[] vars = new Object[count];
         boolean mixed = false;

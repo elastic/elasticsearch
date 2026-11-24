@@ -35,60 +35,46 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
- * Coordinator for the {@link BatchModeRouter}s of one bulk. A bulk may carry pre-built {@link EscfBatch}es for
- * several index abstractions (data streams, plain indices, or aliases); each item is dispatched to the router
- * holding the batch of its abstraction, found by the name of the abstraction. A bulk without pre-built
- * batches is handled by a single x-content mode router, which this set passes every item to.
+ * Coordinator for the {@link BatchModeRouter}s of one bulk. A bulk may carry {@link EscfBatch}es for several index
+ * abstractions (data streams, plain indices, or aliases), supplied by a producer or encoded from the items by
+ * {@link BulkBatchEncoders#encode}; each item is dispatched to the router holding the batch of its abstraction, found
+ * by the {@link BatchModeRouter#batchKey} of the abstraction.
  *
  * <p>When the bulk has exactly one router, the common case, this class delegates to it directly and skips the
  * key lookup.
  */
 final class BatchRouterSet implements Releasable {
 
-    /** The only router of the bulk; non-null when the bulk has exactly one, or in x-content mode. */
+    /** The only router of the bulk; non-null when the bulk has exactly one. */
     @Nullable
     private final BatchModeRouter sole;
 
-    /** Whether {@link #sole} is an x-content mode router, which takes every item without a batch lookup. */
-    private final boolean xContent;
-
-    /** The routers by {@link BatchModeRouter#indexAbstractionName}; non-null only when the bulk has two or more pre-built batches. */
+    /** The routers by {@link BatchModeRouter#key}; non-null only when the bulk has two or more pre-built batches. */
     @Nullable
     private final Map<String, BatchModeRouter> routers;
 
     /**
-     * The router that routes to each concrete index, to reject a bulk with batches for two abstractions that write
-     * to the same index, as an alias and the index it points to. Non-null only together with {@link #routers}.
+     * The router of each batch, found by the batch itself, which is what an item's row points to, and not by a name. It
+     * compares batches by identity: the question is which batch an item's row is in.
      */
-    @Nullable
-    private final Map<Index, BatchModeRouter> routersByIndex;
-
-    /**
-     * The router of each pre-built batch, found by the batch itself, which is what an item's row points to, and not by
-     * a name. It compares batches by identity: the question is which batch an item's row is in. Null in x-content mode.
-     */
-    @Nullable
     private final Map<SourceBatch, BatchModeRouter> routersByBatch;
 
-    private BatchRouterSet(BatchModeRouter sole, boolean xContent, @Nullable Map<SourceBatch, BatchModeRouter> routersByBatch) {
+    private BatchRouterSet(BatchModeRouter sole, Map<SourceBatch, BatchModeRouter> routersByBatch) {
         this.sole = sole;
-        this.xContent = xContent;
         this.routers = null;
-        this.routersByIndex = null;
         this.routersByBatch = routersByBatch;
     }
 
     private BatchRouterSet(Map<String, BatchModeRouter> routers, Map<SourceBatch, BatchModeRouter> routersByBatch) {
         this.sole = null;
-        this.xContent = false;
         this.routers = routers;
-        this.routersByIndex = new HashMap<>();
         this.routersByBatch = routersByBatch;
     }
 
     /**
-     * Returns the router set for this bulk, or {@code null} when batch indexing does not apply. When the bulk
-     * carries pre-built batches, the set owns them, taken from the request; if this throws, they are released.
+     * Returns a router set when the bulk carries externally pre-built ESCF batches, or {@code null} when no pre-built
+     * batches are present. On success the router set owns the batches, taken from the request; on failure they are
+     * released here.
      *
      * @throws IllegalStateException    if pre-built batches are present but batch indexing is not supported on this node
      * @throws IllegalArgumentException if any item is not an {@link IndexRequest} carrying a source-row reference, if
@@ -99,8 +85,7 @@ final class BatchRouterSet implements Releasable {
     @Nullable
     static BatchRouterSet create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
         if (bulkRequest.hasPreBuiltBatches() == false) {
-            BatchModeRouter xContentRouter = BatchModeRouter.createForXContent(bulkRequest, batchIndexingSupported, recycler);
-            return xContentRouter == null ? null : new BatchRouterSet(xContentRouter, true, null);
+            return null;
         }
         if (batchIndexingSupported == false) {
             throw new IllegalStateException(
@@ -147,12 +132,12 @@ final class BatchRouterSet implements Releasable {
     }
 
     /**
-     * Creates a router set from pre-built batches, each keyed by the name of the index abstraction the items that
-     * hold its rows target. On success the set owns the batches; if this throws, the caller still owns all of them.
+     * Creates a router set from batches, each keyed by the {@link BatchModeRouter#batchKey} of the items that hold its
+     * rows. On success the set owns the batches; if this throws, the caller still owns all of them.
      *
      * @throws IllegalArgumentException if any batch is not an {@link EscfBatch}, or if one is supplied under several keys
      */
-    private static BatchRouterSet forBatches(Map<String, SourceBatch> batches, Recycler<BytesRef> recycler) {
+    static BatchRouterSet forBatches(Map<String, SourceBatch> batches, Recycler<BytesRef> recycler) {
         for (Map.Entry<String, SourceBatch> entry : batches.entrySet()) {
             if (entry.getValue() instanceof EscfBatch == false) {
                 throw new IllegalArgumentException(
@@ -172,7 +157,7 @@ final class BatchRouterSet implements Releasable {
             if (other != null) {
                 throw new IllegalArgumentException(
                     "the same pre-built batch was supplied for both ["
-                        + other.indexAbstractionName
+                        + other.key
                         + "] and ["
                         + entry.getKey()
                         + "]; each index abstraction needs a batch of its own"
@@ -181,7 +166,7 @@ final class BatchRouterSet implements Releasable {
             routers.put(entry.getKey(), router);
         }
         if (routers.size() == 1) {
-            return new BatchRouterSet(routers.values().iterator().next(), false, routersByBatch);
+            return new BatchRouterSet(routers.values().iterator().next(), routersByBatch);
         }
         return new BatchRouterSet(routers, routersByBatch);
     }
@@ -211,9 +196,7 @@ final class BatchRouterSet implements Releasable {
             if (row < router.source().docCount()) {
                 BitSet taken = rowsTaken.computeIfAbsent(router, r -> new BitSet(r.source().docCount()));
                 if (taken.get(row)) {
-                    throw new IllegalArgumentException(
-                        "two items hold row " + row + " of the pre-built batch for [" + router.indexAbstractionName + "]"
-                    );
+                    throw new IllegalArgumentException("two items hold row " + row + " of the pre-built batch for [" + router.key + "]");
                 }
                 taken.set(row);
             }
@@ -262,9 +245,17 @@ final class BatchRouterSet implements Releasable {
     /**
      * Records one item for routing, with the router that holds the batch of the item's index abstraction.
      *
-     * @throws IllegalArgumentException if no batch was supplied for the item's index abstraction, if the row of the
-     *                                  item is in another batch than that one, or if another batch of the bulk also
-     *                                  writes to the concrete index the item is routed to
+     * <p>An {@link IndexRequest} without a source-row reference belongs to an index that did not opt in
+     * to batch indexing ({@code index.batch_indexing}); {@link BulkBatchEncoders#encode} leaves such items
+     * on their inline source. They are routed immediately by the row path and added to
+     * {@code requestsByShard}. Pre-built batches never contain such items, as {@link #create} requires
+     * every item to carry a source-row reference.
+     *
+     * <p>Every other item is deferred until {@link #buildGrouping}, so {@code requestsByShard} is only
+     * written by this method for the inline items described above.
+     *
+     * @throws IllegalArgumentException if no batch was supplied for the item's index abstraction, or if the row of the
+     *                                  item is in another batch than that one
      */
     void route(
         BulkItemRequest bulkItem,
@@ -275,44 +266,35 @@ final class BatchRouterSet implements Releasable {
         ProjectMetadata project,
         Map<ShardId, List<BulkItemRequest>> requestsByShard
     ) {
-        BatchModeRouter router = xContent ? sole : findRouter(abstraction);
+        if (request instanceof IndexRequest indexRequest && indexRequest.indexSource().hasSourceRow() == false) {
+            request.preRoutingProcess(routing);
+            int shardId = request.route(routing);
+            request.postRoutingProcess(routing);
+            requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(bulkItem);
+            return;
+        }
+        BatchModeRouter router = findRouter(abstraction, project);
         if (router == null) {
+            String batchKey = BatchModeRouter.batchKey(abstraction, project);
             throw new IllegalArgumentException(
                 "item targeting index ["
                     + request.index()
                     + "] carries a source-row reference but no pre-built batch was supplied for ["
-                    + abstraction.getName()
-                    + "]; a batch must be keyed by the name of the index, alias, or data stream its items resolve to"
+                    + (batchKey == null ? abstraction.getName() : batchKey)
+                    + "]; a batch must be keyed by the write target of the index abstraction its items target: the data stream,"
+                    + " or the write index"
             );
         }
-        if (xContent == false && ((IndexRequest) request).indexSource().sourceBatch() != router.source()) {
+        if (((IndexRequest) request).indexSource().sourceBatch() != router.source()) {
             throw new IllegalArgumentException(
                 "item targeting index ["
                     + request.index()
                     + "] holds a row of a batch other than the pre-built batch supplied for ["
-                    + router.indexAbstractionName
-                    + "]; the rows of an item must be in the batch registered under the name the item targets"
+                    + router.key
+                    + "]; the rows of an item must be in the batch registered under the key of the item"
             );
         }
-        if (routersByIndex != null) {
-            BatchModeRouter owner = routersByIndex.get(concreteIndex);
-            if (owner != null && owner != router) {
-                throw new IllegalArgumentException(
-                    "item targeting index ["
-                        + request.index()
-                        + "] writes to index ["
-                        + concreteIndex.getName()
-                        + "], which the pre-built batch for ["
-                        + owner.indexAbstractionName
-                        + "] of this bulk also writes to; a bulk must carry a single batch for each index it writes to"
-                );
-            }
-        }
-        router.route(bulkItem, request, concreteIndex, routing, project, requestsByShard);
-        if (routersByIndex != null) {
-            // Only once the router has accepted the item: one it rejects does not write to the index.
-            routersByIndex.putIfAbsent(concreteIndex, router);
-        }
+        router.route(bulkItem, (IndexRequest) request, concreteIndex, routing, project);
     }
 
     /** Completes routing for every router and populates {@code requestsByShard}. Must be called once per bulk. */
@@ -359,6 +341,41 @@ final class BatchRouterSet implements Releasable {
         return result;
     }
 
+    /**
+     * Verifies 1:1 alignment between shard items and their batch rows. The wire format rebuilds row
+     * numbers from item ordinal, so misalignment would silently index the wrong source.
+     */
+    static void validateBatchAlignment(Map<ShardId, List<BulkItemRequest>> requestsByShard, Map<ShardId, SourceBatch> shardBatches) {
+        for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+            List<BulkItemRequest> shardItems = entry.getValue();
+            SourceBatch shardBatch = shardBatches.get(entry.getKey());
+            if (shardBatch == null) {
+                for (BulkItemRequest item : shardItems) {
+                    if (item.request() instanceof IndexRequest indexRequest && indexRequest.indexSource().hasSourceRow()) {
+                        throw new IllegalStateException(
+                            "item ["
+                                + item.id()
+                                + "] of shard ["
+                                + entry.getKey()
+                                + "] holds a source-row reference but its shard request has no batch attached;"
+                                + " it would be indexed with an empty source"
+                        );
+                    }
+                }
+            } else if (BulkShardBatch.rowsAlignWithItems(shardBatch, shardItems) == false) {
+                throw new IllegalStateException(
+                    "batch for shard ["
+                        + entry.getKey()
+                        + "] does not align with its items (batch rows: "
+                        + shardBatch.docCount()
+                        + ", items: "
+                        + shardItems.size()
+                        + "); this indicates a bug in the scatter logic"
+                );
+            }
+        }
+    }
+
     /** Releases every router's source batch. Batches returned from {@link #shardBatches()} stay valid. */
     @Override
     public void close() {
@@ -370,16 +387,16 @@ final class BatchRouterSet implements Releasable {
     }
 
     /**
-     * Returns the router for the abstraction's name, or {@code null} if no batch was supplied for it. The sole router
-     * still has its key compared, to catch an item that targets a different abstraction than the one batch the bulk
-     * carries.
+     * Returns the router for the abstraction's {@link BatchModeRouter#batchKey}, or {@code null} if no batch was
+     * supplied for it. The sole router still has its key compared, to catch an item that targets a different
+     * abstraction than the one batch the bulk carries.
      */
     @Nullable
-    private BatchModeRouter findRouter(IndexAbstraction abstraction) {
-        String name = abstraction.getName();
+    private BatchModeRouter findRouter(IndexAbstraction abstraction, ProjectMetadata project) {
+        String k = BatchModeRouter.batchKey(abstraction, project);
         if (sole != null) {
-            return name.equals(sole.indexAbstractionName) ? sole : null;
+            return k != null && k.equals(sole.key) ? sole : null;
         }
-        return routers.get(name);
+        return k == null ? null : routers.get(k);
     }
 }

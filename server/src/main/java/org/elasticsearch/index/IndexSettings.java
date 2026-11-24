@@ -1156,7 +1156,9 @@ public final class IndexSettings {
         } else if (mode == IndexMode.TIME_SERIES) {
             return Boolean.toString(defaultBatchIndexingForTimeSeries(settings));
         }
-        return Boolean.FALSE.toString();
+        // TEMPORARY: enable batch indexing for every index (when the feature flag is on) to shake out bugs in the batch path.
+        // The intended default is false for the modes that get here.
+        return Boolean.TRUE.toString();
     }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean value) {

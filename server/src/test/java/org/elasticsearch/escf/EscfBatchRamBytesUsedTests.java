@@ -42,13 +42,12 @@ public class EscfBatchRamBytesUsedTests extends ESTestCase {
         try (EscfBatchBuilder builder = new EscfBatchBuilder()) {
             for (int i = 0; i < rows; i++) {
                 byte[] value = randomAlphaOfLength(between(1, 20)).getBytes(StandardCharsets.UTF_8);
-                EscfRowBuffer row = builder.beginRow();
-                row.longField("long", i);
-                row.stringField("string", new XContentString.UTF8Bytes(value, 0, value.length));
-                row.finishRow();
-                builder.commit(0);
+                builder.beginRow();
+                builder.longField("long", i);
+                builder.stringField("string", new XContentString.UTF8Bytes(value, 0, value.length));
+                builder.finishRow();
             }
-            return builder.buildPartition(0);
+            return builder.build();
         }
     }
 }

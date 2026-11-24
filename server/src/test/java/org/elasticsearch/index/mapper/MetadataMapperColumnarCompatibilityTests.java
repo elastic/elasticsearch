@@ -315,10 +315,10 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
 
         try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, XContentType.JSON, 0);
+                encoder.addDocument(source, XContentType.JSON);
             }
             try (
-                EscfBatch escfBatch = encoder.buildPartition(0);
+                EscfBatch escfBatch = encoder.build();
                 BatchMappingContext ctx = new BatchMappingContext(
                     IndexOperationBatch.initFromBulk(
                         items,

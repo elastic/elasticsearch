@@ -20,7 +20,6 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfEncoder;
-import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -89,8 +88,8 @@ public class BinaryFieldMapperColumnarBatchTests extends MapperServiceTestCase {
     public void testBase64TakesRowPath() throws IOException {
         MapperService mapperService = mapperService(SourceFieldMapper.Mode.SYNTHETIC, false);
         try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            encoder.addDocument(new BytesArray("{\"f\":\"AQID\"}"), XContentType.JSON, 0);
-            try (EscfBatch batch = encoder.buildPartition(0)) {
+            encoder.addDocument(new BytesArray("{\"f\":\"AQID\"}"), XContentType.JSON);
+            try (EscfBatch batch = encoder.build()) {
                 assertNull(ShardBatchMapper.resolveMappers(batch, mapperService.mappingLookup(), mapperService.getIndexSettings()));
             }
         }
@@ -150,14 +149,13 @@ public class BinaryFieldMapperColumnarBatchTests extends MapperServiceTestCase {
     private static EscfBatch rawBatch(List<BytesRef> values, BytesRefRecycler recycler) {
         try (EscfBatchBuilder builder = new EscfBatchBuilder(recycler)) {
             for (BytesRef value : values) {
-                EscfRowBuffer row = builder.beginRow();
+                builder.beginRow();
                 if (value != null) {
-                    row.binaryField(FIELD, value);
+                    builder.binaryField(FIELD, value);
                 }
-                row.finishRow();
-                builder.commit(0);
+                builder.finishRow();
             }
-            return builder.buildPartition(0);
+            return builder.build();
         }
     }
 }

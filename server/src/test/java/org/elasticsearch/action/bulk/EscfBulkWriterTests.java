@@ -33,7 +33,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
-import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
@@ -233,10 +232,9 @@ public class EscfBulkWriterTests extends ESTestCase {
             @Override
             public void append(EscfBatchBuilder batch) {
                 for (int i = 0; i < count; i++) {
-                    EscfRowBuffer row = batch.beginRow();
-                    row.longField("value", first + i);
-                    row.finishRow();
-                    batch.commit(0);
+                    batch.beginRow();
+                    batch.longField("value", first + i);
+                    batch.finishRow();
                 }
             }
 
@@ -259,10 +257,9 @@ public class EscfBulkWriterTests extends ESTestCase {
             public void append(EscfBatchBuilder batch) {
                 long[] values = new long[] { id, id + 1 };
                 byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, values, new Object[2], 2);
-                EscfRowBuffer row = batch.beginRow();
-                row.arrayField("value", SourceValueType.FIXED_ARRAY, packed);
-                row.finishRow();
-                batch.commit(0);
+                batch.beginRow();
+                batch.arrayField("value", SourceValueType.FIXED_ARRAY, packed);
+                batch.finishRow();
             }
 
             @Override

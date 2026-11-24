@@ -342,7 +342,7 @@ public class PageToEscfBatchTests extends ComputeTestCase {
     }
 
     private static List<Map<String, Object>> toMaps(EscfBatchBuilder builder) throws IOException {
-        try (EscfBatch batch = builder.buildPartition(0)) {
+        try (EscfBatch batch = builder.build()) {
             List<Map<String, Object>> result = new ArrayList<>();
             for (int row = 0; row < batch.docCount(); row++) {
                 IndexSource src = new IndexSource();

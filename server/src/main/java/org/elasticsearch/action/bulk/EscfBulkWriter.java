@@ -108,7 +108,7 @@ public final class EscfBulkWriter implements Releasable {
         int count();
 
         /**
-         * Appends the rows to partition {@code 0} of {@code batch}.
+         * Appends the rows to {@code batch}.
          */
         void append(EscfBatchBuilder batch) throws IOException;
 
@@ -566,7 +566,7 @@ public final class EscfBulkWriter implements Releasable {
         // the rows are counted in indexing pressure already
         bulk.incrementalState(new BulkRequest.IncrementalState(Map.of(), true));
         try (chunk) {
-            EscfBatch batch = chunk.builder.buildPartition(0);
+            EscfBatch batch = chunk.builder.build();
             // the bulk owns the batch from here on
             bulk.setPreBuiltBatches(Map.of(index, batch));
             for (int i = 0; i < chunk.requests.size(); i++) {

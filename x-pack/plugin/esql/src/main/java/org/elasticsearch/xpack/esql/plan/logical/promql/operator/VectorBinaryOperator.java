@@ -494,7 +494,13 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
         Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
         Alias labelsAlias = new Alias(source(), RESULT_LABELS, labels, new NameId());
-        LogicalPlan plan = new Eval(cmd.source(), join, List.of(valueAlias, stepAlias, labelsAlias));
+        LogicalPlan plan = new Eval(cmd.source(), join, List.of(labelsAlias));
+        if (match.grouping() != Joining.NONE) {
+            // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels
+            // over the many side's can leave two many side series with the same labels.
+            plan = TranslationContext.uniqueSeries(cmd.source(), plan, step, List.of(labelsAlias.toAttribute()));
+        }
+        plan = new Eval(cmd.source(), plan, List.of(valueAlias, stepAlias));
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }
@@ -691,6 +697,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         List<Alias> definitions = new ArrayList<>(List.of(valueAlias, stepAlias));
         definitions.addAll(defined(output));
         LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+        if (match.grouping() != Joining.NONE) {
+            // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels over
+            // the many side's can leave two many side series with the same labels.
+            List<Attribute> labels = output.stream().map(NamedExpression::toAttribute).toList();
+            plan = TranslationContext.uniqueSeries(cmd.source(), plan, stepAlias.toAttribute(), labels);
+        }
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }

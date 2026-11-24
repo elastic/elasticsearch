@@ -11,20 +11,29 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.IntRange;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -48,7 +57,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -56,6 +68,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RowSource;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -64,6 +77,8 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -80,6 +95,7 @@ import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
+import org.elasticsearch.percolator.QueryAnalyzer.RangeField;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -91,6 +107,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -101,6 +118,8 @@ import org.junit.Before;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,6 +127,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -210,6 +230,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .startObject("date_field")
                 .field("type", "date")
+                .endObject()
+                .startObject("location")
+                .field("type", "geo_point")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -415,12 +438,15 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader);
+        Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(
+            indexReader,
+            IndexVersion.current()
+        );
         assertEquals(1, t.v2().size());
-        Map<String, List<byte[]>> rangesMap = t.v2();
+        Map<RangeField, List<byte[]>> rangesMap = t.v2();
         assertEquals(1, rangesMap.size());
 
-        List<byte[]> range = rangesMap.get("number_field2");
+        List<byte[]> range = rangesMap.get(new RangeField("number_field2"));
         assertNotNull(range);
         assertEquals(10, LongPoint.decodeDimension(range.get(0), 0));
         assertEquals(10, LongPoint.decodeDimension(range.get(1), 0));
@@ -500,45 +526,163 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader);
+        Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(
+            indexReader,
+            IndexVersion.current()
+        );
         assertEquals(0, t.v1().size());
-        Map<String, List<byte[]>> rangesMap = t.v2();
+        Map<RangeField, List<byte[]>> rangesMap = t.v2();
         assertEquals(7, rangesMap.size());
 
-        List<byte[]> range = rangesMap.get("number_field1");
+        List<byte[]> range = rangesMap.get(new RangeField("number_field1"));
         assertNotNull(range);
         assertEquals(10, IntPoint.decodeDimension(range.get(0), 0));
         assertEquals(10, IntPoint.decodeDimension(range.get(1), 0));
 
-        range = rangesMap.get("number_field2");
+        range = rangesMap.get(new RangeField("number_field2"));
         assertNotNull(range);
         assertEquals(20L, LongPoint.decodeDimension(range.get(0), 0));
         assertEquals(20L, LongPoint.decodeDimension(range.get(1), 0));
 
-        range = rangesMap.get("number_field3");
+        range = rangesMap.get(new RangeField("number_field3"));
         assertNotNull(range);
         assertEquals(30L, LongPoint.decodeDimension(range.get(0), 0));
         assertEquals(30L, LongPoint.decodeDimension(range.get(1), 0));
 
-        range = rangesMap.get("number_field4");
+        range = rangesMap.get(new RangeField("number_field4"));
         assertNotNull(range);
         assertEquals(30F, HalfFloatPoint.decodeDimension(range.get(0), 0), 0F);
         assertEquals(30F, HalfFloatPoint.decodeDimension(range.get(1), 0), 0F);
 
-        range = rangesMap.get("number_field5");
+        range = rangesMap.get(new RangeField("number_field5"));
         assertNotNull(range);
         assertEquals(40F, FloatPoint.decodeDimension(range.get(0), 0), 0F);
         assertEquals(40F, FloatPoint.decodeDimension(range.get(1), 0), 0F);
 
-        range = rangesMap.get("number_field6");
+        range = rangesMap.get(new RangeField("number_field6"));
         assertNotNull(range);
         assertEquals(50D, DoublePoint.decodeDimension(range.get(0), 0), 0D);
         assertEquals(50D, DoublePoint.decodeDimension(range.get(1), 0), 0D);
 
-        range = rangesMap.get("number_field7");
+        range = rangesMap.get(new RangeField("number_field7"));
         assertNotNull(range);
         assertEquals(InetAddresses.forString("192.168.1.12"), InetAddressPoint.decode(range.get(0)));
         assertEquals(InetAddresses.forString("192.168.1.24"), InetAddressPoint.decode(range.get(1)));
+    }
+
+    public void testExtractTermsAndRanges_multiDimensionalPoints() throws Exception {
+        addQueryFieldMappings();
+
+        MemoryIndex memoryIndex = new MemoryIndex(false);
+        memoryIndex.addField(new LatLonPoint("location", 52.2, 4.5), new WhitespaceAnalyzer());
+        memoryIndex.addField(new LatLonPoint("location", 52.4, 4.3), new WhitespaceAnalyzer());
+        memoryIndex.addField(new IntPoint("number", 7), new WhitespaceAnalyzer());
+        // Shapes index four of their seven dimensions, a one-dimensional range field indexes two
+        for (Field field : LatLonShape.createIndexableFields("shape", 52.2, 4.5)) {
+            memoryIndex.addField(field, new WhitespaceAnalyzer());
+        }
+        memoryIndex.addField(new IntRange("int_range", new int[] { 1 }, new int[] { 5 }), new WhitespaceAnalyzer());
+        // Multi-dimensional fields with 16-byte values are left out
+        InetAddress from = InetAddresses.forString("10.0.0.0");
+        InetAddress to = InetAddresses.forString("10.0.0.255");
+        memoryIndex.addField(new InetAddressRange("ip_range", from, to), new WhitespaceAnalyzer());
+        memoryIndex.addField(new BigIntegerPoint("big", BigInteger.ONE, BigInteger.TWO), new WhitespaceAnalyzer());
+        IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
+
+        Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(
+            indexReader,
+            IndexVersion.current()
+        );
+        assertEquals(0, t.v1().size());
+        Map<RangeField, List<byte[]>> rangesMap = t.v2();
+        assertThat(
+            rangesMap.keySet(),
+            containsInAnyOrder(
+                new RangeField("location", 0),
+                new RangeField("location", 1),
+                new RangeField("number"),
+                new RangeField("shape", 0),
+                new RangeField("shape", 1),
+                new RangeField("shape", 2),
+                new RangeField("shape", 3),
+                new RangeField("int_range", 0),
+                new RangeField("int_range", 1)
+            )
+        );
+        for (List<byte[]> range : rangesMap.values()) {
+            assertEquals(Integer.BYTES, range.get(0).length);
+            assertEquals(Integer.BYTES, range.get(1).length);
+        }
+
+        List<byte[]> latitude = rangesMap.get(new RangeField("location", 0));
+        assertNotNull(latitude);
+        assertEquals(52.2, GeoEncodingUtils.decodeLatitude(IntPoint.decodeDimension(latitude.get(0), 0)), 1e-6);
+        assertEquals(52.4, GeoEncodingUtils.decodeLatitude(IntPoint.decodeDimension(latitude.get(1), 0)), 1e-6);
+
+        List<byte[]> longitude = rangesMap.get(new RangeField("location", 1));
+        assertNotNull(longitude);
+        assertEquals(4.3, GeoEncodingUtils.decodeLongitude(IntPoint.decodeDimension(longitude.get(0), 0)), 1e-6);
+        assertEquals(4.5, GeoEncodingUtils.decodeLongitude(IntPoint.decodeDimension(longitude.get(1), 0)), 1e-6);
+
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+        t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader, previous);
+        assertThat(t.v2().keySet(), contains(new RangeField("number")));
+    }
+
+    public void testExtractRanges_geoBoundingBox() throws Exception {
+        try (SearchContext searchContext = createSearchContext(indexService)) {
+            SearchExecutionContext context = searchContext.getSearchExecutionContext();
+            addQueryFieldMappings();
+            DocumentMapper documentMapper = mapperService.documentMapper();
+            PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+            PercolatorFieldMapper.PercolatorFieldType percolatorFieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper
+                .fieldType();
+
+            Query query = new GeoBoundingBoxQueryBuilder("location").setCorners(52.3, 4.4, 52.1, 4.6).toQuery(context);
+            DocumentParserContext documentParserContext = new TestDocumentParserContext();
+            fieldMapper.processQuery(query, documentParserContext);
+            LuceneDocument document = documentParserContext.doc();
+
+            assertThat(document.getField(percolatorFieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
+            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+            PointRangeQuery box = (PointRangeQuery) ((IndexOrDocValuesQuery) query).getIndexQuery();
+            List<BytesRef> expectedRanges = new ArrayList<>();
+            for (int dim = 0; dim < 2; dim++) {
+                int from = dim * Integer.BYTES;
+                byte[] lower = Arrays.copyOfRange(box.getLowerPoint(), from, from + Integer.BYTES);
+                byte[] upper = Arrays.copyOfRange(box.getUpperPoint(), from, from + Integer.BYTES);
+                expectedRanges.add(new BytesRef(PercolatorFieldMapper.encodeRange(new RangeField("location", dim), lower, upper)));
+            }
+            assertThat(
+                document.getFields(percolatorFieldType.rangeField.name()).stream().map(IndexableField::binaryValue).toList(),
+                containsInAnyOrder(expectedRanges.toArray())
+            );
+            assertThat(
+                document.getFields(percolatorFieldType.minimumShouldMatchField.name()),
+                transformedItemsMatch(IndexableField::numericValue, contains(2L))
+            );
+
+            // geo_shape with an envelope and the default relation, intersects, builds the same Lucene box query
+            Query envelope = new GeoShapeQueryBuilder("location", new Rectangle(4.4, 4.6, 52.3, 52.1)).toQuery(context);
+            DocumentParserContext envelopeContext = new TestDocumentParserContext();
+            fieldMapper.processQuery(envelope, envelopeContext);
+            assertThat(
+                envelopeContext.doc().getFields(percolatorFieldType.rangeField.name()).stream().map(IndexableField::binaryValue).toList(),
+                containsInAnyOrder(expectedRanges.toArray())
+            );
+            assertThat(
+                envelopeContext.doc().getFields(percolatorFieldType.minimumShouldMatchField.name()),
+                transformedItemsMatch(IndexableField::numericValue, contains(2L))
+            );
+
+            IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+            DocumentParserContext previousVersionContext = new TestDocumentParserContext(MappingLookup.EMPTY, null, previous);
+            fieldMapper.processQuery(query, previousVersionContext);
+            assertThat(
+                previousVersionContext.doc().getField(percolatorFieldType.extractionResultField.name()).stringValue(),
+                equalTo(EXTRACTION_FAILED)
+            );
+        }
     }
 
     public void testPercolatorFieldMapper() throws Exception {
@@ -1039,6 +1183,18 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testEncodeRange_dimensions() {
+        byte[] value = new byte[Integer.BYTES];
+        IntPoint.encodeDimension(randomInt(), value, 0);
+        String name = randomAlphaOfLength(5);
+        List<BytesRef> prefixes = new ArrayList<>();
+        for (RangeField rangeField : List.of(new RangeField(name), new RangeField(name, 0), new RangeField(name, 1))) {
+            byte[] encoded = PercolatorFieldMapper.encodeRange(rangeField, value, value);
+            prefixes.add(new BytesRef(encoded, 0, BinaryRange.BYTES - Integer.BYTES));
+        }
+        assertThat(new HashSet<>(prefixes), hasSize(3));
+    }
+
     public void testEncodeRange() {
         int iters = randomIntBetween(32, 256);
         for (int i = 0; i < iters; i++) {
@@ -1073,7 +1229,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             }
 
             String randomFieldName = randomAlphaOfLength(5);
-            byte[] result = PercolatorFieldMapper.encodeRange(randomFieldName, encodedFrom, encodedTo);
+            byte[] result = PercolatorFieldMapper.encodeRange(new RangeField(randomFieldName), encodedFrom, encodedTo);
             assertEquals(32, result.length);
 
             BytesRef fieldAsBytesRef = new BytesRef(randomFieldName);

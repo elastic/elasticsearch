@@ -24,6 +24,7 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanNotQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -48,12 +50,17 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.percolator.QueryAnalyzer.QueryExtraction;
+import org.elasticsearch.percolator.QueryAnalyzer.Range;
 import org.elasticsearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -63,7 +70,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
@@ -901,13 +907,105 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertArrayEquals(ranges.get(0).range.upperPoint, InetAddressPoint.encode(InetAddresses.forString("192.168.1.255")));
     }
 
-    public void testTooManyPointDimensions() {
-        // For now no extraction support for geo queries:
-        Query query1 = LatLonPoint.newBoxQuery("_field", 0, 1, 0, 1);
-        assertEquals(Result.UNKNOWN, analyze(query1));
+    public void testPointRangeQuery_multipleDimensions() {
+        PointRangeQuery box = (PointRangeQuery) LatLonPoint.newBoxQuery("_field", 52.1, 52.3, 4.4, 4.6);
+        Result result = analyze(box);
+        assertFalse(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        List<QueryExtraction> ranges = new ArrayList<>(result.extractions);
+        ranges.sort(Comparator.comparingInt(extraction -> extraction.range.dimension));
+        assertThat(ranges.size(), equalTo(2));
+        for (int dim = 0; dim < 2; dim++) {
+            Range range = ranges.get(dim).range;
+            assertEquals("_field", range.fieldName);
+            assertEquals(dim, range.dimension);
+            int from = dim * Integer.BYTES;
+            assertArrayEquals(Arrays.copyOfRange(box.getLowerPoint(), from, from + Integer.BYTES), range.lowerPoint);
+            assertArrayEquals(Arrays.copyOfRange(box.getUpperPoint(), from, from + Integer.BYTES), range.upperPoint);
+        }
 
-        Query query2 = LongPoint.newRangeQuery("_field", new long[] { 0, 0, 0 }, new long[] { 1, 1, 1 });
-        assertEquals(Result.UNKNOWN, analyze(query2));
+        Query query = LongPoint.newRangeQuery("_field", new long[] { 0, 10, 20 }, new long[] { 1, 11, 21 });
+        result = analyze(query);
+        assertFalse(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        ranges = new ArrayList<>(result.extractions);
+        ranges.sort(Comparator.comparingInt(extraction -> extraction.range.dimension));
+        assertThat(ranges.size(), equalTo(3));
+        for (int dim = 0; dim < 3; dim++) {
+            long lower = dim * 10L;
+            Range range = ranges.get(dim).range;
+            assertEquals(dim, range.dimension);
+            assertDimension(range.lowerPoint, bytes -> LongPoint.encodeDimension(lower, bytes, 0));
+            assertDimension(range.upperPoint, bytes -> LongPoint.encodeDimension(lower + 1, bytes, 0));
+        }
+    }
+
+    public void testPointRangeQuery_multipleDimensionsLowerUpperReversed() {
+        Query query = LongPoint.newRangeQuery("_field", new long[] { 0, 10 }, new long[] { 1, 5 });
+        Result result = analyze(query);
+        assertTrue(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
+    }
+
+    public void testPointRangeQuery_multipleDimensionsOf16Bytes() {
+        Query query = BigIntegerPoint.newRangeQuery(
+            "_field",
+            new BigInteger[] { BigInteger.ONE, BigInteger.ONE },
+            new BigInteger[] { BigInteger.TEN, BigInteger.TEN }
+        );
+        assertEquals(Result.UNKNOWN, analyze(query));
+
+        // One-dimensional ones still are, like the ranges of ip fields
+        Result result = analyze(BigIntegerPoint.newRangeQuery("_field", BigInteger.ONE, BigInteger.TEN));
+        assertFalse(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(1));
+    }
+
+    public void testPointRangeQuery_boxCrossingDateline() {
+        // Lucene splits the box in two, one on each side of the dateline. Both have the same latitude range.
+        Query query = LatLonPoint.newBoxQuery("_field", -10, 10, 170, -170);
+        Result result = analyze(query);
+        assertFalse(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(3));
+        assertThat(result.extractions.stream().filter(extraction -> extraction.range.dimension == 0).count(), equalTo(1L));
+        assertThat(result.extractions.stream().filter(extraction -> extraction.range.dimension == 1).count(), equalTo(2L));
+    }
+
+    public void testPointRangeQuery_multipleDimensionsInConjunction() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", "value")), Occur.FILTER);
+        builder.add(LatLonPoint.newBoxQuery("_field", 52.1, 52.3, 4.4, 4.6), Occur.FILTER);
+        builder.add(IntPoint.newRangeQuery("_field2", 10, 20), Occur.FILTER);
+        Result result = analyze(builder.build());
+        assertFalse(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(4));
+        assertThat(result.extractions.size(), equalTo(4));
+
+        // a second box on the same field only adds ranges, the msm stays the same
+        builder.add(LatLonPoint.newBoxQuery("_field", 52.2, 52.4, 4.5, 4.7), Occur.FILTER);
+        result = analyze(builder.build());
+        assertFalse(result.verified);
+        assertThat(result.minimumShouldMatch, equalTo(4));
+        assertThat(result.extractions.size(), equalTo(6));
+    }
+
+    public void testPointRangeQuery_indexVersion() {
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+        Result result = QueryAnalyzer.analyze(IntPoint.newRangeQuery("_field", 10, 20), previous);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(1));
+
+        Query box = LatLonPoint.newBoxQuery("_field", 52.1, 52.3, 4.4, 4.6);
+        assertEquals(Result.UNKNOWN, QueryAnalyzer.analyze(box, previous));
+        // A box crossing the dateline is a disjunction of two boxes
+        assertEquals(Result.UNKNOWN, QueryAnalyzer.analyze(LatLonPoint.newBoxQuery("_field", -10, 10, 170, -170), previous));
+
+        result = QueryAnalyzer.analyze(box, IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions.size(), equalTo(2));
     }
 
     public void testPointRangeQuery_lowerUpperReversed() {
@@ -1069,6 +1167,10 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         result = analyze(new DisjunctionMaxQuery(Collections.emptyList(), 0f));
         assertEquals(result, Result.MATCH_NONE);
+    }
+
+    private static Result analyze(Query query) {
+        return QueryAnalyzer.analyze(query, IndexVersion.current());
     }
 
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {

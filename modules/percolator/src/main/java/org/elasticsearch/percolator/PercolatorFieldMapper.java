@@ -60,6 +60,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.percolator.QueryAnalyzer.RangeField;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -276,20 +277,20 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, SearchExecutionContext context) throws IOException {
-            Tuple<List<BytesRef>, Map<String, List<byte[]>>> t = extractTermsAndRanges(indexReader);
+            Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = extractTermsAndRanges(indexReader, context.indexVersionCreated());
             List<BytesRef> extractedTerms = t.v1();
-            Map<String, List<byte[]>> encodedPointValuesByField = t.v2();
+            Map<RangeField, List<byte[]>> encodedPointValuesByField = t.v2();
             // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
             boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() <= IndexSearcher
                 .getMaxClauseCount();
 
             List<Query> subQueries = new ArrayList<>();
-            for (Map.Entry<String, List<byte[]>> entry : encodedPointValuesByField.entrySet()) {
-                String rangeFieldName = entry.getKey();
+            for (Map.Entry<RangeField, List<byte[]>> entry : encodedPointValuesByField.entrySet()) {
+                RangeField pointField = entry.getKey();
                 List<byte[]> encodedPointValues = entry.getValue();
                 byte[] min = encodedPointValues.get(0);
                 byte[] max = encodedPointValues.get(1);
-                Query query = BinaryRange.newIntersectsQuery(rangeField.name(), encodeRange(rangeFieldName, min, max));
+                Query query = BinaryRange.newIntersectsQuery(rangeField.name(), encodeRange(pointField, min, max));
                 subQueries.add(query);
             }
 
@@ -315,9 +316,12 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
-        static Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
+        static Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> extractTermsAndRanges(
+            IndexReader indexReader,
+            IndexVersion indexVersion
+        ) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
-            Map<String, List<byte[]>> encodedPointValuesByField = new HashMap<>();
+            Map<RangeField, List<byte[]>> encodedPointValuesByField = new HashMap<>();
 
             LeafReader reader = indexReader.leaves().get(0).reader();
             for (FieldInfo info : reader.getFieldInfos()) {
@@ -333,12 +337,25 @@ public class PercolatorFieldMapper extends FieldMapper {
                         extractedTerms.add(builder.toBytesRef());
                     }
                 }
-                if (info.getPointIndexDimensionCount() == 1) { // not != 0 because range fields are not supported
+                int pointDimensions = info.getPointIndexDimensionCount();
+                int bytesPerDim = info.getPointNumBytes();
+                if (pointDimensions == 1
+                    || (pointDimensions > 1 && QueryAnalyzer.supportsMultiDimensionalRanges(indexVersion, bytesPerDim))) {
+                    // Point range queries search the indexed dimensions, which come first in the packed values, so one range
+                    // per indexed dimension matches what QueryAnalyzer extracts. Range and shape fields can't be told apart from
+                    // points here; they get ranges too, which no stored query has.
                     PointValues values = reader.getPointValues(info.name);
-                    List<byte[]> encodedPointValues = new ArrayList<>();
-                    encodedPointValues.add(values.getMinPackedValue().clone());
-                    encodedPointValues.add(values.getMaxPackedValue().clone());
-                    encodedPointValuesByField.put(info.name, encodedPointValues);
+                    byte[] min = values.getMinPackedValue();
+                    byte[] max = values.getMaxPackedValue();
+                    for (int dim = 0; dim < pointDimensions; dim++) {
+                        int from = dim * bytesPerDim;
+                        int to = from + bytesPerDim;
+                        List<byte[]> encodedPointValues = new ArrayList<>();
+                        encodedPointValues.add(Arrays.copyOfRange(min, from, to));
+                        encodedPointValues.add(Arrays.copyOfRange(max, from, to));
+                        RangeField rangeField = pointDimensions == 1 ? new RangeField(info.name) : new RangeField(info.name, dim);
+                        encodedPointValuesByField.put(rangeField, encodedPointValues);
+                    }
                 }
             }
             return new Tuple<>(extractedTerms, encodedPointValuesByField);
@@ -477,7 +494,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         LuceneDocument doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        result = QueryAnalyzer.analyze(query);
+        result = QueryAnalyzer.analyze(query, context.indexSettings().getIndexVersionCreated());
         if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new StringField(pft.extractionResultField.name(), EXTRACTION_FAILED, Field.Store.NO));
             return;
@@ -492,7 +509,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             } else if (extraction.range != null) {
                 byte[] min = extraction.range.lowerPoint;
                 byte[] max = extraction.range.upperPoint;
-                doc.add(new BinaryRange(rangeFieldMapper.fullPath(), encodeRange(extraction.range.fieldName, min, max)));
+                doc.add(new BinaryRange(rangeFieldMapper.fullPath(), encodeRange(extraction.range.rangeField(), min, max)));
             }
         }
 
@@ -536,14 +553,18 @@ public class PercolatorFieldMapper extends FieldMapper {
         return mapUnmappedFieldsAsText;
     }
 
-    static byte[] encodeRange(String rangeFieldName, byte[] minEncoded, byte[] maxEncoded) {
+    static byte[] encodeRange(RangeField rangeField, byte[] minEncoded, byte[] maxEncoded) {
         assert minEncoded.length == maxEncoded.length;
         byte[] bytes = new byte[BinaryRange.BYTES * 2];
 
-        // First compute hash for field name and write the full hash into the byte array
-        BytesRef fieldAsBytesRef = new BytesRef(rangeFieldName);
+        // First compute hash for field name and write the full hash into the byte array.
+        // Each dimension gets a seed of its own, so that the ranges of different dimensions don't intersect. One-dimensional
+        // fields keep seed 0: ranges stored by earlier versions were encoded with it. A 16-byte value, like an ip address,
+        // overwrites the whole hash, so its ranges are not kept apart from those of other fields.
+        long seed = rangeField.dimension() == RangeField.ONE_DIMENSIONAL ? 0 : rangeField.dimension() + 1;
+        BytesRef fieldAsBytesRef = new BytesRef(rangeField.name());
         MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-        MurmurHash3.hash128(fieldAsBytesRef.bytes, fieldAsBytesRef.offset, fieldAsBytesRef.length, 0, hash);
+        MurmurHash3.hash128(fieldAsBytesRef.bytes, fieldAsBytesRef.offset, fieldAsBytesRef.length, seed, hash);
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         bb.putLong(hash.h1).putLong(hash.h2).putLong(hash.h1).putLong(hash.h2);
         assert bb.position() == bb.limit();

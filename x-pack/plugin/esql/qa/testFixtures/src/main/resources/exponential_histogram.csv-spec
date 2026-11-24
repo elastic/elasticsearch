@@ -864,6 +864,35 @@ instance-2       | null       | null       | null          | null       | null  
 ;
 
 
+// FIRST, LAST, EARLIEST and LATEST return one sample of each series, the same as with FROM.
+// COUNT of a merged histogram would count every value of the series: 8841, 3250 and 3380.
+timeseriesFirstAndLastReturnSample
+required_capability: ts_command_v0
+required_capability: exponential_histogram_tech_preview
+required_capability: count_of_histogram_types
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+required_capability: last_agg_extended_types
+required_capability: fix_ts_first_last_samples
+
+TS exp_histo_sample
+ | WHERE NOT STARTS_WITH(instance, "dummy")
+ | STATS first_hist = FIRST(responseTime, @timestamp), earliest_hist = EARLIEST(responseTime),
+         last_hist = LAST(responseTime, @timestamp), latest_hist = LATEST(responseTime)
+         BY instance
+ | STATS first_count = COUNT(first_hist), earliest_count = COUNT(earliest_hist),
+         last_count = COUNT(last_hist), latest_count = COUNT(latest_hist)
+         BY instance
+ | SORT instance
+;
+
+first_count:long | earliest_count:long | last_count:long | latest_count:long | instance:keyword
+69               | 69                  | 93              | 93                | instance-0
+32               | 32                  | 23              | 23                | instance-1
+34               | 34                  | 26              | 26                | instance-2
+;
+
+
 timeseriesAllMathOverTimeAggsGrouped
 required_capability: exponential_histogram_tech_preview
 required_capability: ts_command_v0

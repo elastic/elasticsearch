@@ -72,7 +72,7 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock, IntBlock scaleFactorBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (dBlock.isNull(p)) {
           result.appendNull();
@@ -112,7 +112,7 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector dVector, IntVector scaleFactorVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double d = dVector.getDouble(p);
         int scaleFactor = scaleFactorVector.getInt(p);

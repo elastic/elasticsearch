@@ -15,6 +15,8 @@ import org.apache.lucene.tests.search.BaseRangeFieldQueryTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,6 +27,7 @@ import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryTy
 import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
 import static org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITHIN;
 
+@RunWith(ESRandomizedRunner.class)
 public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRangeFieldQueryTestCase {
 
     @Override

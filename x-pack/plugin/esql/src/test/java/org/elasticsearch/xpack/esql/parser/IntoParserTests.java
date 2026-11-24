@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -18,7 +19,6 @@ import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IntoParserTests extends AbstractStatementParserTests {
@@ -40,27 +40,20 @@ public class IntoParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1 | INTO dst::data", "invalid index pattern [dst::data], index pattern selectors are not supported in INTO");
     }
 
-    public void testMustBeTheLastTopLevelCommand() {
+    public void testMustBeLastCommandInSubqueries() {
         String error = "INTO must be the last command of the query";
-        expectError("ROW a = 1 | INTO dst | LIMIT 1", error);
-        expectError("ROW a = 1 | FORK (INTO dst) (LIMIT 1)", error);
         expectError("FROM (ROW a = 1 | INTO dst)", error);
+        expectError("FROM (ROW a = 1 | INTO dst | LIMIT 1)", error);
         expectError("ROW a = 1 | WHERE a IN (ROW b = 1 | INTO dst)", error);
-        expectError("EXPLAIN (ROW a = 1 | INTO dst)", error);
+        expectValidationError("LET x = (ROW b = 1 | INTO dst | LIMIT 1); ROW a = 1", error);
         expectValidationError("LET x = (ROW b = 1 | INTO dst); ROW a = 1", error);
-    }
-
-    public void testOnlyRowSource() {
-        String error = "INTO currently only supports ROW as a source, without FORK";
-        expectError("FROM src | INTO dst", error);
-        expectError("ROW a = 1 | FORK (WHERE true) (WHERE true) | INTO dst", error);
-        expectError("EXPLAIN (ROW a = 1) | INTO dst", error);
+        expectError("EXPLAIN (ROW a = 1) | INTO dst", "EXPLAIN does not support downstream commands");
     }
 
     public void testViewBodyRejected() {
         expectThrows(
             ParsingException.class,
-            containsString("INTO is not allowed in a view definition"),
+            "INTO is not allowed in a view definition",
             () -> TEST_PARSER.parseView(
                 "ROW a = 1 | INTO dst",
                 new QueryParams(),
@@ -70,5 +63,10 @@ public class IntoParserTests extends AbstractStatementParserTests {
                 EsqlFlags.DEFAULTS
             )
         );
+    }
+
+    public void testExplainInto() {
+        Explain explain = as(query("EXPLAIN (ROW a = 1 | INTO dst)"), Explain.class);
+        assertThat(as(explain.query(), Into.class).destination(), equalTo("dst"));
     }
 }

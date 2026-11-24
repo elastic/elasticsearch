@@ -54,7 +54,7 @@ final class RecordBoundaryProbe {
      * it is about to parse. That walk is not split discovery; naming it as such made testers treat the
      * reason as a phase signal it was not.
      */
-    static final String READ_CANCELLED_MESSAGE = "ES|QL external read cancelled while probing record boundaries";
+    static final String READ_CANCELLED_MESSAGE = RecordSplitter.RECORD_WALK_CANCELLED_MESSAGE;
 
     /**
      * With more than this many bytes of a probe's window left to transfer, reconnecting on the next probe is
@@ -326,7 +326,7 @@ final class RecordBoundaryProbe {
             if (drained) {
                 stream.close();
             } else {
-                storageObject.abortStream(stream);
+                stream.close();
             }
         }
     }
@@ -606,7 +606,7 @@ final class RecordBoundaryProbe {
             long probed;
             InputStream probeStream = storageObject.newStream(pos, remaining);
             getsIssued++;
-            try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+            try (probeStream) {
                 probed = splitter.findProvenRecordBoundary(probeStream);
             }
             if (probed >= 0) {
@@ -618,7 +618,7 @@ final class RecordBoundaryProbe {
                 InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
                 getsIssued++;
                 long start;
-                try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                try (walkStream) {
                     // The splitter polls this supplier and throws its own reason when it is true. Wrap so a
                     // cancel observed mid-walk carries the caller's phase message instead of the splitter's.
                     start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> {

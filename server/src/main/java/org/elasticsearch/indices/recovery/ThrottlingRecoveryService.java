@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT_AND_BLOCK;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes. The max number of concurrent recovery slots is controlled
@@ -194,11 +195,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (serviceClosed) {
                 logger.debug("service is closed, aborting recovery: {}", indexShard.recoveryState());
                 RecoveryListener.wrapPreservingContext(recoveryListener, context)
-                    .onRecoveryFailure(
-                        indexShard.recoveryState(),
-                        new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null),
-                        ABORT
-                    );
+                    .onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "service is closed", null), ABORT);
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", indexShard.recoveryState());
                 final RecoverySource.Type recoveryType = recoverySource.getType();
@@ -207,7 +204,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 executor.execute(() -> {
                     RecoveryListener.wrapPreservingContext(recoveryListener, context)
                         .onRecoveryFailure(
-                            indexShard.recoveryState(),
                             new RecoveryCancelledException(
                                 indexShard.shardId(),
                                 indexShard.recoveryState().getSourceNode(),
@@ -229,7 +225,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     ///
     /// For each allocation ID, pre-emptively records the cancellation so that a future [#enqueue] call will reject it.
     /// Any matching entries already in the pending queue are immediately notified via `onRecoveryFailure`
-    /// (with `sendShardFailure=false`, since the master is informed through the action response).
+    /// (with a failure strategy of [FailureStrategy#FAIL_SILENT_AND_BLOCK], since the master is informed through the action response).
     ///
     /// Returns the set of allocation IDs that were found and removed from the pending queue.
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
@@ -260,9 +256,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(
-                    state,
                     new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
-                    FAIL_SILENT
+                    // The master learns of this via the returned set (cancelledInQueue), so there is no need to send a shard failure
+                    // straight away. But we want to stop the shard being recreated by a cluster state which still assigns it.
+                    FAIL_SILENT_AND_BLOCK
                 );
             schedulingListener.onQueuedRecoveryCancelledOnTarget(state.getRecoverySource().getType(), pendingRecovery.priorityGroup());
             cancelledInQueue.add(pendingRecovery.allocationId());
@@ -337,7 +334,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             executor.execute(() -> {
                 stale.listener()
                     .onRecoveryFailure(
-                        state,
                         new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                         FAIL_SILENT
                     );
@@ -416,11 +412,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context)
-                .onRecoveryFailure(
-                    pending.recoveryState(),
-                    new RecoveryFailedException(pending.recoveryState(), "service closing", null),
-                    ABORT
-                );
+                .onRecoveryFailure(new RecoveryFailedException(pending.recoveryState(), "service closing", null), ABORT);
             schedulingListener.onQueuedRecoveryDiscardedOnTarget(
                 pending.recoveryState().getRecoverySource().getType(),
                 pending.priorityGroup()
@@ -711,11 +703,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            listener.onRecoveryFailure(
-                indexShard.recoveryState(),
-                new RecoveryFailedException(indexShard.recoveryState(), null, e),
-                FAIL_SEND
-            );
+            listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), null, e), FAIL_SEND);
         }
 
         @Override

@@ -211,13 +211,13 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
+    public static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime, zoneId).plus(temporalAmount));
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
-    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
+    public static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
         try {
             return DateUtils.toLong(Instant.from(asDateTime(DateUtils.toInstant(dateNanos), zoneId).plus(temporalAmount)));

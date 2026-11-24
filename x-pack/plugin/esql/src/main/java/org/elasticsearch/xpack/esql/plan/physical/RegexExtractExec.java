@@ -22,7 +22,7 @@ public abstract class RegexExtractExec extends UnaryExec implements EstimatesRow
     protected final Expression inputExpression;
     protected final List<Attribute> extractedFields;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     protected RegexExtractExec(Source source, PhysicalPlan child, Expression inputExpression, List<Attribute> extractedFields) {
         super(source, child);

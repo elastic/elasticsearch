@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -59,6 +60,10 @@ public class LocalMapper {
     private LocalMapper() {}
 
     public PhysicalPlan map(LogicalPlan p) {
+        return MapperUtils.stampOrigin(mapUnstamped(p), p);
+    }
+
+    private PhysicalPlan mapUnstamped(LogicalPlan p) {
 
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
@@ -150,6 +155,10 @@ public class LocalMapper {
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.INITIAL, tsInfo.limit());
         }
 
+        if (unary instanceof Into into) {
+            return MapperUtils.mapIntoWrite(into, mappedChild);
+        }
+
         //
         // Pipeline operators
         //
@@ -197,7 +206,7 @@ public class LocalMapper {
             }
             // we want to do local physical planning on the lookup node eventually for the right side of the lookup join
             // so here we will wrap the logical plan with a FragmentExec and keep it as is
-            FragmentExec fragmentExec = new FragmentExec(binary.right());
+            FragmentExec fragmentExec = MapperUtils.stampOrigin(new FragmentExec(binary.right()), binary.right());
             return new LookupJoinExec(
                 join.source(),
                 left,

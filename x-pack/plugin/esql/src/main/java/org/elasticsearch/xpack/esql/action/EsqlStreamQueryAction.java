@@ -13,9 +13,10 @@ import org.elasticsearch.compute.operator.PageStreamPublisher;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
- * Action type for streaming ES|QL execution on {@code POST /_query?streaming=true}.
+ * Action type for streaming ES|QL execution on {@code POST /_query/stream}.
  * Unlike {@link EsqlQueryAction}, the response type is {@link ActionResponse.Empty}: the action
  * completes only when compute finishes, so the transport task stays registered and cancellable for
  * the full duration of the query.
@@ -43,6 +44,15 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
      * this record is a handle to the full result stream, not merely a start-moment signal. All four
      * fields are signalled through {@link EsqlStreamQueryRequest#resultStreamListener()} rather than
      * through the transport action's own response path.
+     *
+     * <p>{@code isPartial} is a live view of whether the query has recorded failures so far (a skipped cluster, failed
+     * shards, ...). It can turn true after the stream starts, so it is read when a last line is built, not here.</p>
      */
-    public record ResultStream(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns, ZoneId zoneId) {}
+    public record ResultStream(
+        List<ColumnInfoImpl> columns,
+        PageStreamPublisher publisher,
+        boolean[] nullColumns,
+        ZoneId zoneId,
+        BooleanSupplier isPartial
+    ) {}
 }

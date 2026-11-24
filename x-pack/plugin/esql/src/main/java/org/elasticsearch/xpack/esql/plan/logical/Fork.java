@@ -11,11 +11,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,7 +43,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     @Override
     public Fork replaceChildren(List<LogicalPlan> newChildren) {
-        return new Fork(source(), newChildren, output());
+        return passIdentityTo(new Fork(source(), newChildren, output()));
     }
 
     @Override
@@ -56,12 +53,12 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     @Override
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), subPlans, output());
+        return passIdentityTo(new Fork(source(), subPlans, output()));
     }
 
     @Override
     public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new Fork(source(), subPlans, output);
+        return passIdentityTo(new Fork(source(), subPlans, output));
     }
 
     @Override
@@ -104,13 +101,15 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
                 //
-                // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
-                // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                // Likewise, a column of nothing but nulls has no values for a sibling's analyzer to disagree with. It still has to
+                // carry the merged data type: the plan check after optimization requires it, and failing there is a 500.
                 //
                 // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
                 // resolved. They are carried through the branch projections so the conversion can be extracted, but are
                 // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
-                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
+                if (merged == null
+                    || merged.dataType() == DataType.UNSUPPORTED
+                    || (onlyNull.test(attr) && attr.dataType() == merged.dataType())) {
                     continue;
                 }
 
@@ -198,23 +197,11 @@ public final class Fork extends MergePlan implements TelemetryAware {
     }
 
     /**
-     * Whether a column of {@code branch}'s output holds nothing but nulls, like the column a branch lacks altogether
-     * contributes to the merge; a column written as an explicit {@code EVAL x = null} is equally empty, so both are treated
-     * alike.
-     * <p>
-     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
-     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
-     * a later one shadows answer for the column.
-     * <p>
-     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
+     * FORK keeps merging {@code _score} as a plain reference for now, see {@link MergePlan#withScoreAttributeFromChildren}.
+     * TODO: this is a known issue (https://github.com/elastic/elasticsearch/issues/161746), and will fixed in the future.
      */
-    public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
-        Map<NameId, Boolean> onlyNull = new HashMap<>();
-        branch.forEachDown(Eval.class, eval -> {
-            for (Alias field : eval.fields()) {
-                onlyNull.put(field.id(), Expressions.isGuaranteedNull(field.child()));
-            }
-        });
-        return attr -> onlyNull.getOrDefault(attr.id(), false);
+    @Override
+    public boolean mergesScoreAsMetadata() {
+        return false;
     }
 }

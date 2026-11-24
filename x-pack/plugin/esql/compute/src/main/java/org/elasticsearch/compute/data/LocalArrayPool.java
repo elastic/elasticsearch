@@ -53,6 +53,8 @@ final class LocalArrayPool implements Releasable {
 
     void recycleLongs(long[] arr) {
         assert breaker.assertSingleThread();
+        assert breaker.assertNotClosed();
+
         final long bytes = usedBytesForLongs(arr.length);
         if (longCount < SLOTS && accept(bytes)) {
             longs[longCount++] = arr;
@@ -63,6 +65,7 @@ final class LocalArrayPool implements Releasable {
 
     int[] pollInts(int size) {
         assert breaker.assertSingleThread();
+
         if (intCount == 0 || poolable(usedBytesForInts(size)) == false) {
             return null;
         }
@@ -80,6 +83,8 @@ final class LocalArrayPool implements Releasable {
 
     void recycleInts(int[] arr) {
         assert breaker.assertSingleThread();
+        assert breaker.assertNotClosed();
+
         final long bytes = usedBytesForInts(arr.length);
         if (intCount < SLOTS && accept(bytes)) {
             ints[intCount++] = arr;
@@ -90,6 +95,7 @@ final class LocalArrayPool implements Releasable {
 
     double[] pollDoubles(int size) {
         assert breaker.assertSingleThread();
+
         if (doubleCount == 0 || poolable(usedBytesForDoubles(size)) == false) {
             return null;
         }
@@ -107,6 +113,8 @@ final class LocalArrayPool implements Releasable {
 
     void recycleDoubles(double[] arr) {
         assert breaker.assertSingleThread();
+        assert breaker.assertNotClosed();
+
         final long bytes = usedBytesForDoubles(arr.length);
         if (doubleCount < SLOTS && accept(bytes)) {
             doubles[doubleCount++] = arr;
@@ -118,6 +126,7 @@ final class LocalArrayPool implements Releasable {
     @Override
     public void close() {
         assert breaker.assertSingleThread();
+
         breaker.addWithoutBreaking(-idleBytes);
         idleBytes = 0;
         Arrays.fill(longs, null);

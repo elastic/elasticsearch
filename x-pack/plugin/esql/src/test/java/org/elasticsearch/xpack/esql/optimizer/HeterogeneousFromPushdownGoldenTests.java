@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -176,7 +177,8 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /** Identical {@code emp_no}/{@code salary}/{@code dept} schema for both datasets, so the UnionAll stays leaf. */
     private static ExternalSourceResolution heavyExternalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            heavyDatasetMetadata(),
             Map.of(
                 RESOURCE_A,
                 new ExternalSourceResolution.ResolvedSource(schemaFor(RESOURCE_A), FileList.UNRESOLVED, Map.of()),

@@ -493,10 +493,10 @@ final class ParquetPushedExpressions {
                 return null;
             }
             BytesRef prefix = (BytesRef) prefixValue;
-            if (physicalPrimitiveIs(schema, ne.name(), PrimitiveType.PrimitiveTypeName.BINARY) == false) {
-                return null; // declared keyword over a non-BINARY physical: decline, let FilterExec re-apply
+            if (binaryStatsHoldKeyword(schema, ne.name()) == false) {
+                return null; // declared keyword over a non-string physical: decline, let FilterExec re-apply
             }
-            var col = FilterApi.binaryColumn(ne.name());
+            var col = binaryColumn(schema, ne.name());
             FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
             BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
             if (upper != null) {
@@ -563,16 +563,19 @@ final class ParquetPushedExpressions {
                 if (boxed != null && (op == PredicateOp.NOT_EQ || parquetDoubleStatsDisagreeWithIeee(boxed))) {
                     yield null;
                 }
-                yield orderedPredicate(FilterApi.doubleColumn(columnName), boxed, op);
+                yield orderedPredicate(doubleColumn(schema, columnName), boxed, op);
             }
-            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
-                ? orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op)
-                : null;
+            // IS NULL / IS NOT NULL (value == null) only reads the null count, so the leaf's annotation is irrelevant.
+            case KEYWORD -> (value == null
+                ? physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                : binaryStatsHoldKeyword(schema, columnName))
+                    ? orderedPredicate(binaryColumn(schema, columnName), value != null ? toBinary(value) : null, op)
+                    : null;
             case BOOLEAN -> {
                 if (physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN) == false) {
                     yield null;
                 }
-                var col = FilterApi.booleanColumn(columnName);
+                var col = booleanColumn(schema, columnName);
                 Boolean v = value != null ? (Boolean) value : null;
                 yield switch (op) {
                     case EQ -> FilterApi.eq(col, v);
@@ -615,6 +618,19 @@ final class ParquetPushedExpressions {
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
         return primitive != null && primitive.getPrimitiveTypeName() == expected;
+    }
+
+    /**
+     * Whether the raw bytes of the {@code BINARY} leaf at {@code columnName} are the keyword the scan produces, so a
+     * keyword literal can be compared against its statistics. A {@code BINARY DECIMAL} is not: it infers as
+     * {@code double}, so a declared {@code keyword} over it reads the rendered number ({@code "12.34"}) while its
+     * statistics hold the unscaled two's-complement integer, and a pushed keyword bound would prune matching row groups.
+     */
+    private static boolean binaryStatsHoldKeyword(MessageType schema, String columnName) {
+        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
+        return primitive != null
+            && primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY
+            && primitive.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation == false;
     }
 
     /**
@@ -688,14 +704,14 @@ final class ParquetPushedExpressions {
                     // are bit-exact and stay pushable. The INT32 sibling declines the analogous unsigned mismatch.
                     yield null;
                 }
-                yield orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+                yield orderedPredicate(longColumn(schema, columnName), value != null ? ((Number) value).longValue() : null, op);
             }
             case INT32 -> {
                 if (value == null) {
-                    yield orderedPredicate(FilterApi.intColumn(columnName), null, op);
+                    yield orderedPredicate(intColumn(schema, columnName), null, op);
                 }
                 Integer narrowed = narrowLongToPhysicalInt32(((Number) value).longValue(), ptype);
-                yield narrowed != null ? orderedPredicate(FilterApi.intColumn(columnName), narrowed, op) : null;
+                yield narrowed != null ? orderedPredicate(intColumn(schema, columnName), narrowed, op) : null;
             }
             default -> null;
         };
@@ -729,7 +745,7 @@ final class ParquetPushedExpressions {
             return null;
         }
         Long rawValue = value != null ? ParquetColumnDecoding.encodeUnsignedLong(((Number) value).longValue()) : null;
-        return orderedPredicate(FilterApi.longColumn(columnName), rawValue, op);
+        return orderedPredicate(longColumn(schema, columnName), rawValue, op);
     }
 
     /**
@@ -747,7 +763,7 @@ final class ParquetPushedExpressions {
         if (value != null && pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }
-        return orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
+        return orderedPredicate(intColumn(schema, columnName), value != null ? ((Number) value).intValue() : null, op);
     }
 
     /**
@@ -787,17 +803,34 @@ final class ParquetPushedExpressions {
      * pushdown is only meaningful at non-repeated primitive leaves.
      *
      * <p>This is the single dotted-path resolver used by {@link #isPhysicalDouble} and
-     * {@link #buildDatetimePredicate} (and {@link #translateDatetimeIn}). Translation of the
-     * raw column name into a parquet-mr {@link Operators.Column} happens via
-     * {@link FilterApi#binaryColumn(String)} etc. which internally build a multi-segment
-     * {@link org.apache.parquet.hadoop.metadata.ColumnPath} via
-     * {@code ColumnPath.fromDotString} — so the dotted name flows end-to-end through the row
-     * group filter without any additional wrapping here.
+     * {@link #buildDatetimePredicate} (and {@link #translateDatetimeIn}). Column minting uses
+     * {@link ParquetFilterColumns} with the path this walk produced — never
+     * {@code FilterApi.*Column(String)}, which splits on {@code '.'} and misses a leaf whose
+     * name itself contains a dot.
      */
     @Nullable
     static PrimitiveType resolveNestedPrimitive(MessageType schema, String dottedName) {
+        ResolvedLeaf resolved = resolveLeaf(schema, dottedName);
+        return resolved == null ? null : resolved.type();
+    }
+
+    /**
+     * Physical parquet-mr path for {@code dottedName}: a one-element array when the file has a
+     * top-level leaf named exactly that string, otherwise one segment per group walked.
+     */
+    @Nullable
+    static String[] resolveColumnPath(MessageType schema, String dottedName) {
+        ResolvedLeaf resolved = resolveLeaf(schema, dottedName);
+        return resolved == null ? null : resolved.path();
+    }
+
+    private record ResolvedLeaf(PrimitiveType type, String[] path) {}
+
+    @Nullable
+    private static ResolvedLeaf resolveLeaf(MessageType schema, String dottedName) {
         if (schema.containsField(dottedName)) {
-            return pushablePrimitive(schema.getType(dottedName));
+            PrimitiveType primitive = pushablePrimitive(schema.getType(dottedName));
+            return primitive == null ? null : new ResolvedLeaf(primitive, new String[] { dottedName });
         }
         // Walk left-to-right, allowing literal-dot top-level prefixes to compose with nested
         // children — the exact-name fast path above already handled the no-dot case. Probe each
@@ -826,7 +859,10 @@ final class ParquetPushedExpressions {
                 if (repeatedOnPath == false) {
                     PrimitiveType primitive = pushablePrimitive(field);
                     if (primitive != null) {
-                        return primitive;
+                        String[] path = new String[1 + segments.length - prefixLen];
+                        path[0] = topLevel;
+                        System.arraycopy(segments, prefixLen, path, 1, segments.length - prefixLen);
+                        return new ResolvedLeaf(primitive, path);
                     }
                 }
             }
@@ -834,6 +870,35 @@ final class ParquetPushedExpressions {
             prefixLen++;
         }
         return null;
+    }
+
+    /**
+     * Path handed to {@link ParquetFilterColumns}. Prefers the schema walk; if the name does not
+     * resolve, keeps the ESQL name as a single segment rather than splitting on {@code '.'}.
+     */
+    private static String[] filterPath(MessageType schema, String columnName) {
+        String[] path = resolveColumnPath(schema, columnName);
+        return path != null ? path : new String[] { columnName };
+    }
+
+    private static Operators.IntColumn intColumn(MessageType schema, String columnName) {
+        return ParquetFilterColumns.intColumn(filterPath(schema, columnName));
+    }
+
+    private static Operators.LongColumn longColumn(MessageType schema, String columnName) {
+        return ParquetFilterColumns.longColumn(filterPath(schema, columnName));
+    }
+
+    private static Operators.DoubleColumn doubleColumn(MessageType schema, String columnName) {
+        return ParquetFilterColumns.doubleColumn(filterPath(schema, columnName));
+    }
+
+    private static Operators.BooleanColumn booleanColumn(MessageType schema, String columnName) {
+        return ParquetFilterColumns.booleanColumn(filterPath(schema, columnName));
+    }
+
+    private static Operators.BinaryColumn binaryColumn(MessageType schema, String columnName) {
+        return ParquetFilterColumns.binaryColumn(filterPath(schema, columnName));
     }
 
     /**
@@ -870,8 +935,8 @@ final class ParquetPushedExpressions {
                 return null;
             }
             return switch (ptype.getPrimitiveTypeName()) {
-                case INT32 -> orderedPredicate(FilterApi.intColumn(columnName), null, op);
-                case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), null, op);
+                case INT32 -> orderedPredicate(intColumn(schema, columnName), null, op);
+                case INT64 -> orderedPredicate(longColumn(schema, columnName), null, op);
                 default -> null;
             };
         }
@@ -886,7 +951,7 @@ final class ParquetPushedExpressions {
                     // all-day-D row group that genuinely matches). boundToPhysicalUnit handles the direction and
                     // declines EQ/NOT_EQ on a non-midnight literal.
                     Long dayBound = boundToPhysicalUnit(millis, op, MILLIS_PER_DAY);
-                    yield dayBound == null ? null : orderedPredicate(FilterApi.intColumn(columnName), (int) (long) dayBound, op);
+                    yield dayBound == null ? null : orderedPredicate(intColumn(schema, columnName), (int) (long) dayBound, op);
                 }
                 if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
                     // TIME(MILLIS) stores the millisecond of day, which IS the epoch-millis value the literal is in,
@@ -896,17 +961,17 @@ final class ParquetPushedExpressions {
                     // every stored value is below 86_400_000, so such a bound matches nothing or everything and
                     // FilterExec decides it exactly.
                     Integer bound = narrowLongToPhysicalInt32(millis, ptype);
-                    yield bound == null ? null : orderedPredicate(FilterApi.intColumn(columnName), bound, op);
+                    yield bound == null ? null : orderedPredicate(intColumn(schema, columnName), bound, op);
                 }
                 yield null;
             }
             case INT64 -> {
                 if (op == PredicateOp.EQ) {
                     // Equality is a band, not a point, once decode is lossy: push the whole band and keep pruning.
-                    yield temporalBandPredicate(columnName, millis, ptype, DataType.DATETIME, formats);
+                    yield temporalBandPredicate(columnName, millis, ptype, DataType.DATETIME, schema, formats);
                 }
                 Long bound = temporalBoundToRaw(columnName, millis, op, ptype, DataType.DATETIME, formats);
-                yield bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
+                yield bound == null ? null : orderedPredicate(longColumn(schema, columnName), bound, op);
             }
             default -> null;
         };
@@ -923,6 +988,7 @@ final class ParquetPushedExpressions {
         long decodedValue,
         PrimitiveType ptype,
         DataType declaredType,
+        MessageType schema,
         Map<String, String> formats
     ) {
         var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
@@ -933,7 +999,7 @@ final class ParquetPushedExpressions {
         if (band == null) {
             return null; // no stored value can decode to this literal
         }
-        return bandToPredicate(FilterApi.longColumn(columnName), band);
+        return bandToPredicate(longColumn(schema, columnName), band);
     }
 
     /**
@@ -1000,13 +1066,14 @@ final class ParquetPushedExpressions {
         List<Object> rawValues,
         PrimitiveType ptype,
         DataType declaredType,
+        MessageType schema,
         Map<String, String> formats
     ) {
         var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
         if (relation == null) {
             return null;
         }
-        var col = FilterApi.longColumn(columnName);
+        var col = longColumn(schema, columnName);
         FilterPredicate combined = null;
         for (Object v : rawValues) {
             DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, ((Number) v).longValue());
@@ -1068,14 +1135,14 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (value == null) {
-            return nullPredicateOrDecline(columnName, op, ptype, DataType.DATE_NANOS, formats);
+            return nullPredicateOrDecline(columnName, op, ptype, DataType.DATE_NANOS, schema, formats);
         }
         long nanos = ((Number) value).longValue();
         if (op == PredicateOp.EQ) {
-            return temporalBandPredicate(columnName, nanos, ptype, DataType.DATE_NANOS, formats);
+            return temporalBandPredicate(columnName, nanos, ptype, DataType.DATE_NANOS, schema, formats);
         }
         Long bound = temporalBoundToRaw(columnName, nanos, op, ptype, DataType.DATE_NANOS, formats);
-        return bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
+        return bound == null ? null : orderedPredicate(longColumn(schema, columnName), bound, op);
     }
 
     /**
@@ -1094,12 +1161,13 @@ final class ParquetPushedExpressions {
         PredicateOp op,
         PrimitiveType ptype,
         DataType declaredType,
+        MessageType schema,
         Map<String, String> formats
     ) {
         if (op == PredicateOp.EQ && ParquetColumnDecoding.decodeCanNull(ptype, declaredType, formats.get(columnName))) {
             return null;
         }
-        return orderedPredicate(FilterApi.longColumn(columnName), null, op);
+        return orderedPredicate(longColumn(schema, columnName), null, op);
     }
 
     /**
@@ -1181,13 +1249,13 @@ final class ParquetPushedExpressions {
                         yield null;
                     }
                 }
-                yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+                yield inPredicate(doubleColumn(schema, columnName), rawValues, v -> ((Number) v).doubleValue());
             }
-            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
-                ? inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary)
+            case KEYWORD -> binaryStatsHoldKeyword(schema, columnName)
+                ? inPredicate(binaryColumn(schema, columnName), rawValues, ParquetPushedExpressions::toBinary)
                 : null;
             case BOOLEAN -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN)
-                ? inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v)
+                ? inPredicate(booleanColumn(schema, columnName), rawValues, v -> (Boolean) v)
                 : null;
             case DATETIME -> translateDatetimeIn(columnName, rawValues, schema, formats);
             case DATE_NANOS -> translateDateNanosIn(columnName, rawValues, schema, formats);
@@ -1223,7 +1291,7 @@ final class ParquetPushedExpressions {
                     && rawValues.stream().anyMatch(v -> ((Number) v).longValue() >= 0)) {
                     yield null;
                 }
-                yield inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+                yield inPredicate(longColumn(schema, columnName), rawValues, v -> ((Number) v).longValue());
             }
             case INT32 -> {
                 List<Object> narrowed = new ArrayList<>();
@@ -1233,7 +1301,7 @@ final class ParquetPushedExpressions {
                         narrowed.add(n);
                     }
                 }
-                yield narrowed.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), narrowed, v -> (Integer) v);
+                yield narrowed.isEmpty() ? null : inPredicate(intColumn(schema, columnName), narrowed, v -> (Integer) v);
             }
             default -> null;
         };
@@ -1269,7 +1337,7 @@ final class ParquetPushedExpressions {
             }
         }
         return inPredicate(
-            FilterApi.longColumn(columnName),
+            longColumn(schema, columnName),
             rawValues,
             v -> ParquetColumnDecoding.encodeUnsignedLong(((Number) v).longValue())
         );
@@ -1288,7 +1356,7 @@ final class ParquetPushedExpressions {
         if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }
-        return inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
+        return inPredicate(intColumn(schema, columnName), rawValues, v -> ((Number) v).intValue());
     }
 
     private FilterPredicate translateDatetimeIn(
@@ -1316,7 +1384,7 @@ final class ParquetPushedExpressions {
                                 days.add((int) (m / MILLIS_PER_DAY));
                             }
                         }
-                        yield days.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), days, v -> (Integer) v);
+                        yield days.isEmpty() ? null : inPredicate(intColumn(schema, columnName), days, v -> (Integer) v);
                     }
                     if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
                         // The IN sibling of buildDatetimePredicate's TIME arm, and here for the same reason:
@@ -1332,11 +1400,11 @@ final class ParquetPushedExpressions {
                                 narrowed.add(n);
                             }
                         }
-                        yield narrowed.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), narrowed, v -> (Integer) v);
+                        yield narrowed.isEmpty() ? null : inPredicate(intColumn(schema, columnName), narrowed, v -> (Integer) v);
                     }
                     yield null;
                 }
-                case INT64 -> temporalInPredicate(columnName, rawValues, ptype, DataType.DATETIME, formats);
+                case INT64 -> temporalInPredicate(columnName, rawValues, ptype, DataType.DATETIME, schema, formats);
                 default -> null;
             };
         } catch (ArithmeticException e) {
@@ -1367,7 +1435,7 @@ final class ParquetPushedExpressions {
         if (ptype == null) {
             return null;
         }
-        return temporalInPredicate(columnName, rawValues, ptype, DataType.DATE_NANOS, formats);
+        return temporalInPredicate(columnName, rawValues, ptype, DataType.DATE_NANOS, schema, formats);
     }
 
     private static <T extends Comparable<T>, C extends Operators.Column<T> & Operators.SupportsEqNotEq> FilterPredicate inPredicate(
@@ -2655,8 +2723,12 @@ final class ParquetPushedExpressions {
      * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
      * up front and falls back to RECHECK if it throws. The Parquet KEYWORD reader always produces
-     * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
-     * on the YES path in practice.
+     * one of the two supported block types for a column the file stores as a string, so the
+     * block-type {@code null} sentinel is reached only through a {@code union_by_name} file that
+     * stores the keyword-reconciled column at another type (the cast to keyword runs above the
+     * reader, and this method sees e.g. a {@code LongBlock}). For those columns
+     * {@code PushFiltersToSource} keeps the conjunct in the {@code FilterExec} on top of pushing
+     * it, so the all-survive answer is re-checked there and YES stays exact.
      */
     private WordMask evaluateWildcardLike(
         WildcardLike wl,
@@ -2724,8 +2796,10 @@ final class ParquetPushedExpressions {
      * output) and the pattern is determinizable (KEYWORD inputs guarantee valid UTF-8 and
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern}'s
      * automaton build only throws {@code TooComplexToDeterminize} for pathological patterns
-     * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
-     * contract must be revisited.
+     * far beyond {@code "*google*"}) -- or, for a {@code union_by_name} column some file stores
+     * at a non-string type, the planner has kept the conjunct in the {@code FilterExec} as well
+     * (see {@link #evaluateWildcardLike}). If a future change broadens the YES-eligible set,
+     * this contract must be revisited.
      *
      * <p>Unlike {@link #evaluateNotContains} / {@link #evaluateNotEndsWith}, this method is an
      * instance method because it delegates to {@link #evaluateWildcardLike}, which reads the

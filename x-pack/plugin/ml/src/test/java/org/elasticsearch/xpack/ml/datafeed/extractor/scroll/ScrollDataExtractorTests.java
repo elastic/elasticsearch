@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.document.DocumentField;
@@ -346,8 +345,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenInitSearchResponseHasError() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
@@ -363,8 +362,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         Optional<InputStream> stream = extractor.next().data();
         assertThat(stream.isPresent(), is(true));
 
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
 
@@ -373,8 +372,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenInitSearchResponseEncounteredFailure() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
@@ -389,11 +388,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
             Arrays.asList("b1", "b2")
         );
         extractor.setNextResponse(goodResponse);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
         // goodResponse needs to be recreated because previous response is consumed (deleted/modified) while processing the response.
         goodResponse = createSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(goodResponse);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
 
         // first response is good
         assertThat(extractor.hasNext(), is(true));
@@ -447,9 +446,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         );
 
         extractor.setNextResponse(firstResponse);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
         extractor.setNextResponse(secondResponse);
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
 
         // first response is good
         assertThat(extractor.hasNext(), is(true));
@@ -470,8 +469,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testSearchPhaseExecutionExceptionOnInitScroll() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
-        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", List.of()));
 
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
 

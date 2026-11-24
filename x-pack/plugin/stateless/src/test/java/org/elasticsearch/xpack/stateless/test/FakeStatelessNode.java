@@ -324,7 +324,8 @@ public class FakeStatelessNode implements Closeable {
                     sharedCacheService,
                     threadPool,
                     clusterSettings,
-                    new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, ByteSizeValue.ZERO)
+                    new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, ByteSizeValue.ZERO),
+                    TelemetryProvider.NOOP
                 )
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(

@@ -78,6 +78,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.hamcrest.Matchers.equalTo;
@@ -952,10 +953,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     }
 
     private static SearchPhaseExecutionException searchPhaseExecutionExceptionWithShardFailures(int numShardFailures) {
-        ShardSearchFailure[] failures = new ShardSearchFailure[numShardFailures];
-        for (int i = 0; i < numShardFailures; i++) {
-            failures[i] = new ShardSearchFailure(new RuntimeException("simulated shard failure " + i));
-        }
+        List<ShardSearchFailure> failures = IntStream.range(0, numShardFailures)
+            .mapToObj(i -> new ShardSearchFailure(new RuntimeException("simulated shard failure " + i)))
+            .toList();
         return new SearchPhaseExecutionException("query", "all shards failed", failures);
     }
 
@@ -971,7 +971,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1, null);
         sections.adoptCoordinatorFetchCharge(() -> {});
         try {
-            return new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY, null, null, null);
+            return new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), List.of(), SearchResponse.Clusters.EMPTY, null, null, null);
         } finally {
             sections.close();
         }

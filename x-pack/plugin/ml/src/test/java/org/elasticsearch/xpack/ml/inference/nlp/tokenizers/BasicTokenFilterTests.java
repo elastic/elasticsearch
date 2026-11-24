@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -25,6 +27,7 @@ import java.util.List;
  * Some test cases taken from
  * https://github.com/huggingface/transformers/blob/ba8c4d0ac04acfcdbdeaed954f698d6d5ec3e532/tests/test_tokenization_bert.py
  */
+@RunWith(ESRandomizedRunner.class)
 public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
 
     public void testNeverSplit_GivenNoLowerCase() throws IOException {

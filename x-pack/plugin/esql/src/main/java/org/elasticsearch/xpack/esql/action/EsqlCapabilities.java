@@ -5047,6 +5047,13 @@ public class EsqlCapabilities {
          */
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
+        /**
+         * A conversion of a field mapped to different types across indices validates its other arguments, like the options of
+         * {@code TO_IP(x, {...})}. Older nodes silently ignored unknown options there, and reported an invalid option value
+         * without the position of the call.
+         */
+        UNION_TYPES_VALIDATE_CONVERSION_ARGUMENTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -187,7 +187,7 @@ public class BulkArrowAggregationTests extends ESTestCase {
     /**
      * Overflow is checked once per buffer, so a transient overflow that cancels <em>within one</em> unmasked 32-bit Arrow
      * buffer does not throw, while a sum that leaves the {@code long} range after the buffer is added still does. The
-     * guarantee is per buffer only: see {@link #testTransientOverflowAcrossBuffersStillThrows}.
+     * guarantee is per buffer only; see {@link #testRunningSumCarriesAcrossPages} for state carried across pages.
      */
     public void testAggregatorOverflowOverArrowBuffer() {
         DriverContext ctx = driverContext();
@@ -212,19 +212,21 @@ public class BulkArrowAggregationTests extends ESTestCase {
     }
 
     /**
-     * The same {@code 10} and {@code -10} as above, split over two buffers, throw on the first buffer even though the
-     * final sum would fit. Cancellation is not guaranteed across buffers or pages, as before this change.
+     * The running sum is carried across raw-input pages and every page is still checked once. The first page lands the
+     * sum exactly on {@code Long.MAX_VALUE}, which must not throw; the second page pushes it out of range and must.
      */
-    public void testTransientOverflowAcrossBuffersStillThrows() {
+    public void testRunningSumCarriesAcrossPages() {
         DriverContext ctx = driverContext();
         try (
-            IntBlock first = arrowBlock(new int[] { 10 });
+            IntBlock first = arrowBlock(new int[] { 5 });
+            IntBlock second = arrowBlock(new int[] { 1 });
             BooleanVector mask = blockFactory.newConstantBooleanVector(true, 1);
             SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
         ) {
             addIntermediate(agg, Long.MAX_VALUE - 5);
-            Page page = new Page(first);
-            expectThrows(ArithmeticException.class, () -> agg.addRawInput(page, mask));
+            agg.addRawInput(new Page(first), mask);
+            Page secondPage = new Page(second);
+            expectThrows(ArithmeticException.class, () -> agg.addRawInput(secondPage, mask));
         }
     }
 

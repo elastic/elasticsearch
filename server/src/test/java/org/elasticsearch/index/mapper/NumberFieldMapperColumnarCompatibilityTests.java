@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -1132,7 +1133,7 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             b.startObject(FIELD).field("type", "long").field("synthetic_source_keep", "all").endObject();
         }));
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of()));
     }
 
     private void assertTsdbKeepModeArrayBailsOut(Settings settings, CheckedConsumer<XContentBuilder, IOException> mapping)

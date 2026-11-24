@@ -2475,6 +2475,26 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("field [n.k] can not be indexed as a leaf field"));
     }
 
+    public void testSubobjectsFalseRootDottedKeyIntoNestedFlattenedStrictColumnar() throws Exception {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("n").field("type", "nested").startObject("properties");
+                b.startObject("f").field("type", "flattened").endObject();
+                b.endObject().endObject();
+            })
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        // object notation keeps working
+        ParsedDocument doc = mapper.parse(source("{\"n\": {\"f\": {\"key\": \"a\"}}}"));
+        assertEquals(2, doc.docs().size());
+
+        for (String json : List.of("{\"n.f.key\": \"a\"}", "{\"n.f\": {\"key\": \"a\"}}")) {
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(json)));
+            assertThat(json, e.getMessage(), containsString("field [n.f.key] can not be indexed as a leaf field"));
+        }
+    }
+
     public void testSubobjectsFalseFlatPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())

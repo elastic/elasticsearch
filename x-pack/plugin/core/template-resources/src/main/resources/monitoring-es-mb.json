@@ -3985,5 +3985,13 @@
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
-  "data_stream": {}
+  "data_stream": {},
+  "composed_of": [
+    ".monitoring-mb@custom",
+    ".monitoring-es-mb@custom"
+  ],
+  "ignore_missing_component_templates": [
+    ".monitoring-mb@custom",
+    ".monitoring-es-mb@custom"
+  ]
 }

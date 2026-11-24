@@ -2713,9 +2713,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * The width a node configures has to reach each segment's own read context. Every other test here passes the
-     * default, which is what a dropped link falls back to, so none of them can tell a forwarded setting from a
-     * constant. The two arms are the two context builds: one per segment, and the single-segment fallback's.
+     * Two arms for the two context builds: per segment, and the single-segment fallback.
      */
     public void testTheConfiguredExtremumWidthReachesEverySegmentContext() throws Exception {
         int narrow = 64;

@@ -103,11 +103,8 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             (Integer) stats.get("schema_cache.count"),
             greaterThan(0)
         );
-        // The count above is what rules out a retained wide extremum, and it is worth saying why rather
-        // than adding a byte bound that reads precise and cannot fail. A record carrying a megabyte value
-        // weighs far more than the per-entry ceiling, so the store refuses it at admission instead of
-        // admitting and weighing it. Every file having a record at all is therefore the evidence that none
-        // of them carries one.
+        // A megabyte value outweighs the per-entry ceiling, so every file having a record is the evidence
+        // that none carries one.
         long retainedStatistics = ExternalSourceCacheTestAccess.retainedStatisticsWeightBytes(cacheService);
         long statisticsBudget = (Long) stats.get("statistics_budget_bytes");
         assertThat("statistics retained weight must stay inside its own budget", retainedStatistics, lessThanOrEqualTo(statisticsBudget));
@@ -136,14 +133,9 @@ public class ExternalCsvLongTextSchemaCacheWeightIT extends AbstractExternalData
             );
         }
 
-        // The other half of what the cap buys, and it has to be shown in ONE record: the narrow column keeps
-        // its extrema in the very record whose wide column withheld them. Asking for `tag` on its own first
-        // would not show that, because a read harvests statistics only for the columns it projects --
-        // FormatReadContext defaults to StripeColumnScope.PROJECTED -- so the record would hold `tag` alone
-        // and a regression dropping every extremum whenever one column is too wide would pass. So ask for
-        // both columns, which harvests both into one record: `tag` published, `note` withheld. This one
-        // scans, but `tag` has not been harvested until now and that alone stops the substitution, so the
-        // scan is no evidence about `note`. The record it writes is what the next query reads.
+        // Ask for both columns so one record holds `tag` published and `note` withheld; a read harvests only
+        // the columns it projects (`esql.external.cache.stripe.columns` defaults to `projected`). This read
+        // scans because `tag` is not yet harvested, so it says nothing about `note`.
         try (
             var response = run(
                 syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(note), MAX(note)"),

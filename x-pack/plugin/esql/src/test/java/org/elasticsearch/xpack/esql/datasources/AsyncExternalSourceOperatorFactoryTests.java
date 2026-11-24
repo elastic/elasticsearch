@@ -6274,11 +6274,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * One case per rail the factory dispatches to. {@code FormatReadContext.Builder} defaults the width to
-     * {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES}, so dropping a {@code .statsMaxExtremumBytes(…)} call
-     * reverts silently to a kilobyte rather than failing to compile, and every other test in this file passes
-     * that same default. The integration tests pin only the slice-queue leaf — {@code LocalExecutionPlanner}
-     * sends any read carrying splits there — and they stay green with the multi-file forward deleted.
+     * One case per rail the factory dispatches to. A dropped {@code .statsMaxExtremumBytes(…)} compiles and
+     * reverts to the default, so each case passes a width that is not the default.
      */
     public void testTheConfiguredExtremumWidthReachesTheSliceQueueLeaf() throws Exception {
         WidthCapturingReader reader = new WidthCapturingReader(false);

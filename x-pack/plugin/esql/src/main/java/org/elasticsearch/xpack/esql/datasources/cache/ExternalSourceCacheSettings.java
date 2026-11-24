@@ -189,29 +189,13 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * The widest text extremum a line-oriented read publishes. A staged record copies both extrema of every
-     * harvested column into itself at whatever width the data has, so one long value in a column sets the
-     * size of every record that column appears in — and an extremum big enough to push the whole
-     * measurement past the statistics store's per-entry ceiling takes the row count and every other column
-     * down with it, leaving that file with no statistics at all. Past this width a read publishes the
-     * column's counts and no extremum, and {@code MIN}/{@code MAX} over it is answered by a scan.
+     * The widest text extremum a CSV, TSV or NDJSON read publishes, in bytes. A wider one is withheld: the
+     * column keeps its counts and {@code MIN}/{@code MAX} over it scans. Only the line-oriented readers
+     * consult it; a columnar format derives its extrema from the footer and never reaches
+     * {@link TextFormatStats}.
      * <p>
-     * Only the line-oriented readers consult it. A columnar format derives its extrema from the footer and
-     * never passes through {@link TextFormatStats}.
-     * <p>
-     * Unlike {@link #STRIPE_SIZE} this does NOT participate in stripe identity, so changing it does not
-     * invalidate anything: a cached wide extremum is a TRUE extremum, and the cap is about footprint rather
-     * than correctness. Wants to be cluster-uniform: a data node's contribution rides back to the
-     * coordinator of that query, which merges it into its own store, so under a heterogeneous setting what a
-     * coordinator can serve turns on which node read the file for it. Nothing enforces that —
-     * {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer.
-     * <p>
-     * A poisoned end stays poisoned for the life of its entry: a fold over more than one piece writes an
-     * unservable marker, and nothing later removes it — a clean whole-file measurement carries no key to
-     * overwrite it with. Reading the file whole never writes one in the first place.
-     * <p>
-     * Restart-only for the reason {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup
-     * {@code Settings}, so declaring it Dynamic would accept a runtime update and silently never observe it.
+     * Not part of stripe identity, so changing it invalidates nothing. Restart-only for the reason
+     * {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup {@code Settings}.
      */
     public static final Setting<ByteSizeValue> STATS_MAX_EXTREMUM_SIZE = Setting.byteSizeSetting(
         "esql.external.cache.stats.max_extremum_size",

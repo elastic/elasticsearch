@@ -28,12 +28,8 @@ import java.util.concurrent.ConcurrentMap;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * What a text read publishes about a column's extrema. Every staged contribution and every stored record
- * carries a copy of both extrema of every harvested column, so one wide keyword value would set the size of all
- * of them; above a width limit the extremum is withheld and the column's {@code MIN}/{@code MAX} is answered by
- * a scan instead. These cases pin the limit's boundary, that the counts are untouched by it, and that a fold
- * over a read that withheld one marks the extremum unservable rather than answering from the reads that did
- * publish one.
+ * These cases pin the limit's boundary, that the counts are untouched by it, and that a fold over a read that
+ * withheld one marks the extremum unservable rather than answering from the reads that did publish one.
  */
 public class TextFormatStatsTests extends ESTestCase {
 
@@ -56,8 +52,6 @@ public class TextFormatStatsTests extends ESTestCase {
 
         assertNull("a min wider than the limit is withheld", SourceStatisticsSerializer.extractColumnMin(published, "k"));
         assertNull("a max wider than the limit is withheld", SourceStatisticsSerializer.extractColumnMax(published, "k"));
-        // Documents the encoding rather than gating it: embedStatistics has no path that writes a servability
-        // marker for any input, because the ColumnStatistics SPI has no channel for one.
         assertNull(
             "withholding writes no unservable marker -- the column is simply unanswerable from statistics",
             published.get(SourceStatisticsSerializer.columnMinUnservableKey("k"))

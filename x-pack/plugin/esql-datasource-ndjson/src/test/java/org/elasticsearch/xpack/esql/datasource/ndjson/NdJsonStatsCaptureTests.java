@@ -73,9 +73,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * The whole-file publish reads the width off the context. Every link that drops it yields the default, so
-     * a read that only ever passes the default cannot tell this hop from a hardcoded constant: the same
-     * five-byte extremum publishes at the default and is withheld at four.
+     * The same five-byte extremum publishes at the default and is withheld at four.
      */
     public void testTheWidthSettingReachesTheWholeFilePublish() throws Exception {
         String body = "{\"a\":1,\"k\":\"alpha\"}\n{\"a\":2,\"k\":\"bravo\"}\n";

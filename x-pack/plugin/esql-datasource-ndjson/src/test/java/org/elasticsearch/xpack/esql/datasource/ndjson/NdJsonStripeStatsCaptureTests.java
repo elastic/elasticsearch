@@ -201,8 +201,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * The stripe rail's own hop: the width reaches {@code StripeStatsHarvester} through the page iterator, not
-     * only the whole-file publish. The same two-byte extremum is harvested at the default and withheld at one.
+     * The same two-byte extremum is harvested at the default and withheld at one.
      */
     public void testTheWidthSettingReachesTheStripeHarvest() throws Exception {
         byte[] bytes = ndjsonKeyword(6);

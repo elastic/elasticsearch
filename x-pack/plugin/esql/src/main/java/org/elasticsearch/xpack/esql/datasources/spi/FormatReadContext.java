@@ -139,10 +139,7 @@ public record FormatReadContext(
 ) {
 
     /**
-     * Default for {@code esql.external.cache.stats.max_extremum_size}, the widest text extremum a
-     * line-oriented read publishes. It lives here rather than beside the predicate that applies it because this
-     * package depends on nothing in the cache package, and the normalisation below needs the value. A negative
-     * width means unset.
+     * Default for {@code esql.external.cache.stats.max_extremum_size}; a negative width normalises to it.
      */
     public static final int DEFAULT_MAX_EXTREMUM_BYTES = 1024;
 
@@ -379,8 +376,7 @@ public record FormatReadContext(
 
         /**
          * The widest text extremum this read may publish. Negative leaves the default; zero withholds every
-         * text extremum that has any bytes. Orthogonal to {@link #statsColumnScope}, which decides which columns are harvested
-         * at all rather than how much of one is kept.
+         * one that has any bytes.
          */
         public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
             this.statsMaxExtremumBytes = statsMaxExtremumBytes;

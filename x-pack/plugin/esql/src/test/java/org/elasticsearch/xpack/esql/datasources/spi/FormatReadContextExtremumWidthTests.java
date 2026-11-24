@@ -12,10 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 
 /**
- * The unset-versus-zero encoding on the extremum width. Zero is a real setting — withhold every text
- * extremum that has bytes — so "unset" cannot also be zero, and the normalisation has to turn only a
- * negative into the default. Widening that test to {@code <= 0} would make a deliberate zero silently
- * become a kilobyte, which no other test in the tree would notice.
+ * Only a negative width is unset; zero is a real setting and must survive normalisation.
  */
 public class FormatReadContextExtremumWidthTests extends ESTestCase {
 

@@ -29,13 +29,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * That {@code esql.external.cache.stats.max_extremum_size} reaches the read that applies it. Every link from
- * the node's settings to the predicate — registration, {@code FileSourceFactory}, the operator factory, the
- * parsing coordinator, the reader — yields the 1 KB default when it is dropped, so a suite that only ever
- * passes the default cannot tell a wired setting from an unwired one. These {@code tag} values are five bytes
- * and the setting here is four, so they publish under the default and are withheld under this node's setting:
- * the sibling {@code ExternalCsvLongTextSchemaCacheWeightIT} asserts the same column is served from statistics
- * with no rows read, and here it has to scan.
+ * That {@code esql.external.cache.stats.max_extremum_size} reaches the read that applies it: five-byte values
+ * under a four-byte setting scan, where the default serves them.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourceIT {
@@ -68,7 +63,6 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
         String expectedTagMin = "tag-0";
         String expectedTagMax = "tag-" + (FILE_COUNT - 1);
 
-        // A read harvests only what it projects, so this one puts both columns in the record and scans for both.
         try (
             var response = run(
                 syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)"),
@@ -93,8 +87,8 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
             assertThat("a numeric extremum is served warm, so the record is cached", response.documentsFound(), equalTo(0L));
         }
 
-        // Five bytes against a four-byte setting. Under the 1 KB default this query is answered from statistics
-        // with no rows read, so a scan here is the setting having travelled the whole way.
+        // Five bytes against a four-byte setting: the default serves this from statistics, so a scan is the
+        // setting having travelled the whole way.
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag)"), TimeValue.timeValueMinutes(5))) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), equalTo(1));
@@ -109,12 +103,8 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
     }
 
     /**
-     * The same, over gzipped files. A compressed object has no known decompressed length, so it is read as a
-     * stream through {@code StreamingParallelParsingCoordinator} rather than split into ranges — a different
-     * forward of the same setting out of the operator factory, and one the plain-CSV case above never reaches.
-     * The parallelism pragma is what puts the read there: {@code openWithParallelism} returns null at one, and
-     * the single-threaded reader it falls back to receives the width by a different route, so on a one-processor
-     * runner this would pass without the streaming forward ever running.
+     * The same over gzipped files, which stream through {@code StreamingParallelParsingCoordinator}. The
+     * pragma forces that path on a one-processor runner.
      */
     public void testTheSettingReachesTheStreamingReadOfACompressedFile() throws Exception {
         assumeTrue("the streaming read is reached by pinning external_parsing_parallelism, a snapshot-only pragma", canUseQueryPragmas());

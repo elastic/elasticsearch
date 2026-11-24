@@ -15,10 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * The bounds the setting declares, which the docs quote and which {@code FileSourceFactory} depends on: it
- * reads the value through {@code Math.toIntExact}, so a ceiling above {@code Integer.MAX_VALUE} would let a
- * node fail at startup on a number an operator was told was valid. Zero is inside the range deliberately —
- * it means withhold every extremum carrying bytes, not unset.
+ * The setting's bounds. The ceiling must convert with {@code Math.toIntExact}, which is how
+ * {@code FileSourceFactory} reads it.
  */
 public class StatsMaxExtremumSizeSettingTests extends ESTestCase {
 

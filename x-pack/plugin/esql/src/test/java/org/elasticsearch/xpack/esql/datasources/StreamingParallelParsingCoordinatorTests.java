@@ -218,10 +218,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * The configured width has to reach each chunk's own read context. Every other test here passes the default,
-     * which is what a dropped link falls back to, so none of them can tell a forwarded setting from a constant.
-     */
     public void testTheConfiguredExtremumWidthReachesEveryChunkContext() throws Exception {
         int narrow = 64;
         LineFormatReader reader = new LineFormatReader(512);

@@ -149,16 +149,9 @@ public final class TextFormatStats {
     }
 
     /**
-     * {@code extremum}, or {@code null} when it is wider than {@code maxExtremumBytes}. The limit is on
-     * the stored {@link BytesRef}, so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike; an
-     * address is 16 bytes and stays under the default. Counts are unaffected, and so is the other end of the same
-     * column — a withheld end is answered by a scan, and a fold marks that end unservable rather than
-     * answer it from the reads that did publish one.
-     * <p>
-     * This is the publish side. {@link #build} calls its parameter {@code cachedStats}, but what it is
-     * handed is a measurement the current read just made; a retained record is read back through
-     * {@code SourceStatisticsSerializer}'s flat map, which does not come through here. So a wide extremum
-     * already in the store is served until its entry turns over.
+     * {@code extremum}, or {@code null} when it is a {@link BytesRef} longer than {@code maxExtremumBytes},
+     * so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike. Counts are unaffected, as is the
+     * column's other end. Applied when a read publishes, never when a stored record is read back.
      */
     private static Object publishable(Object extremum, int maxExtremumBytes) {
         assert extremum == null

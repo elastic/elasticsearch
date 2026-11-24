@@ -101,6 +101,42 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertThat(retrieve(mapped).get("items.calc").isRuntimeField(), is(false));
     }
 
+    public void testExcludeNestedFieldsKeepsARuntimeFieldNamedUnderANestedField() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "runtime" : { "field2.calc" : { "type" : "long" } },
+              "properties" : {
+                "field1" : { "type" : "keyword" },
+                "field2" : {
+                  "type" : "nested",
+                  "properties" : { "field3" : { "type" : "keyword" } }
+                }
+              }
+            } }
+            """);
+
+        Map<String, IndexFieldCapabilities> response = retrieve(mapperService, "-nested", "-metadata");
+
+        assertThat(response.keySet(), containsInAnyOrder("field1", "field2.calc"));
+        assertThat(response.get("field2.calc").isRuntimeField(), is(true));
+    }
+
+    public void testExcludeNestedFieldsKeepsARuntimeFieldNamedUnderANestedFieldBelowAnObject() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "runtime" : { "obj.items.calc" : { "type" : "long" } },
+              "properties" : {
+                "obj" : { "properties" : { "items" : { "type" : "nested", "properties" : { "qty" : { "type" : "long" } } } } }
+              }
+            } }
+            """);
+
+        Map<String, IndexFieldCapabilities> response = retrieve(mapperService, "-nested", "-metadata");
+
+        assertThat(response.keySet(), containsInAnyOrder("obj", "obj.items.calc"));
+        assertThat(response.get("obj").type(), is("object"));
+    }
+
     public void testNestedFieldsAreStillReportedWithoutTheFilterAlongsideARuntimeFieldNamedUnderThem() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {

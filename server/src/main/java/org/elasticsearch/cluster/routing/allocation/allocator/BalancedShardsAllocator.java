@@ -1133,7 +1133,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 shardRouting,
                 targetNode.getNodeId(),
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                new MoveReason(type, moveDecision.getCanRemainDecision().label()),
+                MoveReason.of(type, moveDecision.getCanRemainDecision().label()),
                 allocation.changes(),
                 type.recoveryPriority()
             );
@@ -1714,7 +1714,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 shard,
                                 minNode.getNodeId(),
                                 shardSize,
-                                MoveReason.of(MoveType.REBALANCE),
+                                MoveReason.REBALANCE,
                                 allocation.changes(),
                                 RecoveryPriority.RELOCATE_REBALANCING
                             ).v1()

@@ -544,7 +544,7 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            new MoveReason(moveType, canRemainDecision.label()),
+                            MoveReason.of(moveType, canRemainDecision.label()),
                             allocation.changes(),
                             moveType.recoveryPriority()
                         );
@@ -700,7 +700,7 @@ public class DesiredBalanceReconciler {
         private MoveReason rebalanceReason(ShardRouting shardRouting) {
             final var computedReason = desiredBalance.computedMoveReasons()
                 .get(new DesiredBalance.ShardCopy(shardRouting.shardId(), shardRouting.currentNodeId()));
-            return computedReason != null ? computedReason : MoveReason.of(MoveType.REBALANCE);
+            return computedReason != null ? computedReason : MoveReason.REBALANCE;
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

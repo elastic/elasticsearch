@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -220,6 +221,43 @@ public class SharingKeyTests extends ESTestCase {
         assertNotSame(components(one), components(two));
         assertThat(terms(two, "a"), containsInAnyOrder("a", "c"));
         assertThat(terms(one, "a"), containsInAnyOrder("a", "b"));
+    }
+
+    /**
+     * A reload rebuilds an index's components from its files and re-keys them, so an index that loaded the same words
+     * inline keeps its own when the file changes.
+     */
+    public void testReloadReadingAChangedFileLeavesOtherIndicesAlone() throws IOException {
+        writeConfigFile("stop.txt", "the");
+        Settings chain = Settings.builder()
+            .put("index.analysis.analyzer.a.tokenizer", "whitespace")
+            .putList("index.analysis.analyzer.a.filter", "st", "keep")
+            .put("index.analysis.filter.st.type", "stop")
+            .put("index.analysis.filter.keep.type", "keyword_marker")
+            .putList("index.analysis.filter.keep.keywords", "zzz")
+            .put("index.analysis.filter.keep.updateable", true)
+            .build();
+        IndexSettings fromFile = indexSettings(
+            "file",
+            IndexVersion.current(),
+            Settings.builder().put(chain).put("index.analysis.filter.st.stopwords_path", "stop.txt").build()
+        );
+        IndexSettings inline = indexSettings(
+            "inline",
+            IndexVersion.current(),
+            Settings.builder().put(chain).putList("index.analysis.filter.st.stopwords", "the").build()
+        );
+        IndexAnalyzers file = buildTracked(fromFile);
+        IndexAnalyzers other = buildTracked(inline);
+        file.reload(registry, fromFile, null, false, null);
+        other.reload(registry, inline, null, false, null);
+        assertSame(components(file), components(other));
+
+        writeConfigFile("stop.txt", "foo");
+        file.reload(registry, fromFile, null, false, new ReloadToken());
+
+        assertThat(terms(file, "the foo"), contains("the"));
+        assertThat(terms(other, "the foo"), contains("foo"));
     }
 
     private static IndexSettings indexSettings(String name, IndexVersion version, Settings analysis) {

@@ -323,7 +323,7 @@ public class Driver implements Releasable, Describable {
                 );
                 return isBlocked.listener();
             }
-            if (isBlocked.listener().isSuccess() == false) {
+            if (isFailed(isBlocked.listener())) {
                 return isBlocked.listener();
             }
             if (isFinished()) {
@@ -713,7 +713,7 @@ public class Driver implements Releasable, Describable {
                     onComplete(listener);
                     return;
                 }
-                if (fut.isDone() && fut.isSuccess()) {
+                if (fut.isSuccess()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier, false);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
@@ -763,6 +763,10 @@ public class Driver implements Releasable, Describable {
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
         driver.scheduler.scheduleOrRunTask(executor, task, resumed);
+    }
+
+    private static boolean isFailed(SubscribableListener<Void> listener) {
+        return listener.isDone() && listener.isSuccess() == false;
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

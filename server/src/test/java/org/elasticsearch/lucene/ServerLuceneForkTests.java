@@ -16,20 +16,10 @@ import java.util.List;
 import static org.elasticsearch.lucene.LuceneForks.checkForksAreValid;
 import static org.elasticsearch.lucene.LuceneForks.checkForksForExpiry;
 import static org.elasticsearch.lucene.LuceneForks.permanent;
-import static org.elasticsearch.lucene.LuceneForks.workaround;
 
 public class ServerLuceneForkTests extends ESTestCase {
 
     public static final List<LuceneForks.Fork> SERVER_FORKS = List.of(
-        workaround(
-            "org.elasticsearch.index.search.QueryTokenCacheAccountingFilter",
-            "apache/lucene#17020",
-            11,
-            0,
-            0,
-            "Stop counting the term bytes of CharTermAttributeImpl, whose clone no longer copies them, "
-                + "and drop the stale-bytes paragraph from the class Javadoc."
-        ),
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),

@@ -475,11 +475,18 @@ public class Driver implements Releasable, Describable {
 
         if (movedPage == false) {
             blockedResults.clear();
-            activeOperators.stream()
-                .map(Operator::isBlocked)
-                .filter(laf -> laf.listener().isSuccess() == false)
-                .forEach(blockedResults::add);
-            IsBlockedResult result = oneOf(blockedResults);
+            IsBlockedResult failed = null;
+            for (Operator op : activeOperators) {
+                IsBlockedResult blocked = op.isBlocked();
+                if (blocked.listener().isFailed()) {
+                    failed = blocked;
+                    break;
+                }
+                if (blocked.listener().isDone() == false) {
+                    blockedResults.add(blocked);
+                }
+            }
+            IsBlockedResult result = failed != null ? failed : oneOf(blockedResults);
             onNoPagesMoved();
             return result;
         }

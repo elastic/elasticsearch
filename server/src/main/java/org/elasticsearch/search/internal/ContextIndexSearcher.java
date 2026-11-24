@@ -20,11 +20,7 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-<<<<<<< HEAD
 import org.apache.lucene.search.FieldStats;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
-=======
->>>>>>> 37105872289b566c0237d5cac4d2a975233f1309
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;

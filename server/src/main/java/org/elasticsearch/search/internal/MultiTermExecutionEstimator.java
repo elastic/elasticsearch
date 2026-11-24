@@ -18,7 +18,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 
@@ -82,7 +82,7 @@ final class MultiTermExecutionEstimator implements LeafExecutionEstimator {
             }
 
             @Override
-            public void consumeTermsMatching(Query leafQuery, String field, Supplier<ByteRunAutomaton> automaton) {
+            public void consumeTermsMatching(Query leafQuery, String field, Supplier<ByteRunnable> automaton) {
                 capture(leafQuery);
             }
 

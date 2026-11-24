@@ -58,12 +58,12 @@ final class ExecutionBreakerWeight extends FilterWeight {
             }
 
             @Override
-            public long cost() {
+            public long cost() throws IOException {
                 return scorerSupplier.cost();
             }
 
             @Override
-            public void setTopLevelScoringClause() throws IOException {
+            public void setTopLevelScoringClause() {
                 scorerSupplier.setTopLevelScoringClause();
             }
         };

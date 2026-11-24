@@ -136,15 +136,5 @@ public final class LuceneForks {
         return new Fork(Kind.FORK, className, reason, null, "This fork is intentional and does not expire.");
     }
 
-<<<<<<< HEAD:server/src/test/java/org/elasticsearch/lucene/LuceneForks.java
-    public static final List<Fork> ALL = List.of(
-        permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.common.lucene.search.XMoreLikeThis", "Elasticsearch-specific more-like-this behaviour")
-    );
-
-=======
->>>>>>> 37105872289b566c0237d5cac4d2a975233f1309:test/framework/src/main/java/org/elasticsearch/lucene/LuceneForks.java
     private LuceneForks() {}
 }

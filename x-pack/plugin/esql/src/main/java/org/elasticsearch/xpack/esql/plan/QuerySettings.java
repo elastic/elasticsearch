@@ -139,6 +139,13 @@ public final class QuerySettings {
         - `LOAD_ALL` supports a subset of commands.
           Other commands fail with an error that lists the supported ones.
           {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+        - `LOAD_ALL` is not supported in a view definition, and the setting stops at a view's boundary.
+          Refer to [Limitations specific to
+          `LOAD_ALL`](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all-limitations).
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+        - `_unmapped_fields` is not a reserved name. If the query refers to or creates a column with that name, the column is used
+          instead and the unmapped fields are not returned in it.
+          {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
           although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
           {applies_to}`stack: ga 9.5+`

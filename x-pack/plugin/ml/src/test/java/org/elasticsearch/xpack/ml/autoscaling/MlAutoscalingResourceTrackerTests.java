@@ -38,7 +38,9 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,11 +48,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlDummyAutoscalingEntity;
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlJobRequirements;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -172,7 +176,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             .addRoutingEntry("ml-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
             .build();
 
-        List<DiscoveryNode> nodes = new java.util.ArrayList<>(
+        List<DiscoveryNode> nodes = new ArrayList<>(
             Stream.of(randomAssignment1.getNodeRoutingTable().values())
                 .map(r -> mock(DiscoveryNode.class))
                 .peek(n -> when(n.getRoles()).thenReturn(Set.of(DiscoveryNodeRole.ML_ROLE)))
@@ -1966,6 +1970,226 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
+        );
+    }
+
+    // 8GiB ML nodes with 4716MiB of ML memory,
+    // AD jobs with a 1024MB model memory limit (1034MiB including the process overhead).
+    private static final long NODE_SIZE = ByteSizeValue.ofGb(8).getBytes();
+    private static final long NODE_ML_MEMORY = ByteSizeValue.ofMb(4716).getBytes();
+    private static final long JOB_MEMORY = ByteSizeValue.ofMb(1034).getBytes();
+
+    /**
+     * Six nodes hold four jobs each, leaving a 550MiB hole per node. The 25th job fits on no node although the summed free memory
+     * of the tier (3.3GiB) is enough, so the autoscaler must be told that seven nodes are needed.
+     */
+    public void testFragmentedFreeMemoryShouldRaiseMinNodes() throws InterruptedException {
+        List<String> nodes = mlNodeIds(6);
+        List<String> assignments = new ArrayList<>();
+        for (String node : nodes) {
+            assignments.addAll(Collections.nCopies(4, node));
+        }
+        assignments.add(null);
+
+        assertStats(adJobs(assignments), nodes, Set.of(), JOB_MEMORY, stats -> {
+            assertEquals(7, stats.wantedMinNodes());
+            assertEquals(JOB_MEMORY, stats.wantedExtraPerNodeMemoryBytes());
+            assertEquals(JOB_MEMORY, stats.wantedExtraModelMemoryBytes());
+            assertEquals(24 * JOB_MEMORY, stats.currentTotalModelMemoryBytes());
+            assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
+        });
+
+        // Once the seventh node runs the job, nothing more is requested and the new node is not removed again.
+        List<String> sevenNodes = mlNodeIds(7);
+        assignments.set(assignments.size() - 1, sevenNodes.get(6));
+        assertStats(adJobs(assignments), sevenNodes, Set.of(), JOB_MEMORY, stats -> {
+            assertEquals(1, stats.wantedMinNodes());
+            assertEquals(0, stats.wantedExtraModelMemoryBytes());
+            assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
+        });
+    }
+
+    /**
+     * After a rollout all jobs wait for a node and open a few at a time per node. Jobs that wait only for an opening slot
+     * must not request nodes.
+     */
+    public void testJobsWaitingForOpeningSlotShouldNotRaiseMinNodes() throws InterruptedException {
+        List<String> nodes = mlNodeIds(6);
+        int alreadyOpen = randomIntBetween(0, 2);
+        List<String> assignments = new ArrayList<>();
+        for (String node : nodes) {
+            assignments.addAll(Collections.nCopies(alreadyOpen, node));
+        }
+        assignments.addAll(Collections.nCopies(24 - 6 * alreadyOpen, null));
+
+        assertStats(adJobs(assignments), nodes, Set.of(), JOB_MEMORY, stats -> {
+            assertEquals(1, stats.wantedMinNodes());
+            assertEquals((24 - 6 * alreadyOpen) * JOB_MEMORY, stats.wantedExtraModelMemoryBytes());
+        });
+
+        // One job more than the six nodes can hold
+        assignments.add(null);
+        assertStats(adJobs(assignments), nodes, Set.of(), JOB_MEMORY, stats -> assertEquals(7, stats.wantedMinNodes()));
+    }
+
+    public void testWaitingJobLargerThanNodeShouldNotRaiseMinNodes() throws InterruptedException {
+        List<String> nodes = mlNodeIds(2);
+        long jobMemory = NODE_ML_MEMORY;
+        assertStats(adJobs(Collections.singletonList(null)), nodes, Set.of(), jobMemory, stats -> {
+            // A larger node size is needed, which the autoscaler derives from the per node requirement.
+            assertEquals(1, stats.wantedMinNodes());
+            assertEquals(jobMemory, stats.wantedExtraPerNodeMemoryBytes());
+        });
+    }
+
+    public void testShuttingDownNodeShouldNotBeTargetForWaitingJobs() throws InterruptedException {
+        List<String> nodes = mlNodeIds(2);
+        List<String> assignments = new ArrayList<>(Collections.nCopies(4, nodes.get(1)));
+        assignments.add(null);
+
+        assertStats(adJobs(assignments), nodes, Set.of(), JOB_MEMORY, stats -> assertEquals(1, stats.wantedMinNodes()));
+        assertStats(adJobs(assignments), nodes, Set.of(nodes.get(0)), JOB_MEMORY, stats -> assertEquals(2, stats.wantedMinNodes()));
+    }
+
+    /**
+     * When the scale-down check allows removing a node, the jobs of that node must be placeable on the remaining nodes,
+     * otherwise the tier would alternate between scaling down and scaling up.
+     */
+    public void testJobsOfNodeRemovedOnScaleDownShouldNotRaiseMinNodes() {
+        for (int iteration = 0; iteration < 200; iteration++) {
+            long capacity = randomLongBetween(1000, 100_000);
+            int numNodes = randomIntBetween(2, 8);
+            int maxOpenJobs = randomIntBetween(2, 20);
+            Map<String, List<MlJobRequirements>> jobsByNode = new HashMap<>();
+            for (String node : mlNodeIds(numNodes)) {
+                List<MlJobRequirements> jobs = new ArrayList<>();
+                long used = 0;
+                int numJobs = randomIntBetween(0, maxOpenJobs - 1);
+                for (int j = 0; j < numJobs; j++) {
+                    long memory = randomLongBetween(1, capacity / 2);
+                    if (used + memory <= capacity) {
+                        jobs.add(MlJobRequirements.of(memory, 0));
+                        used += memory;
+                    }
+                }
+                if (jobs.isEmpty() == false) {
+                    jobsByNode.put(node, jobs);
+                }
+            }
+            if (jobsByNode.size() < 2) {
+                continue;
+            }
+            Map<String, Long> memoryByNode = new HashMap<>();
+            jobsByNode.forEach((node, jobs) -> memoryByNode.put(node, jobs.stream().mapToLong(MlJobRequirements::memory).sum()));
+            long minMemory = Collections.min(memoryByNode.values());
+            List<String> leastLoaded = memoryByNode.keySet().stream().filter(node -> memoryByNode.get(node) == minMemory).toList();
+            if (leastLoaded.size() != 1
+                || MlAutoscalingResourceTracker.checkIfOneNodeCouldBeRemoved(
+                    jobsByNode,
+                    capacity,
+                    0,
+                    maxOpenJobs,
+                    MlDummyAutoscalingEntity.of(0L, 0)
+                ) == false) {
+                continue;
+            }
+            String removed = leastLoaded.get(0);
+            List<Long> waiting = jobsByNode.remove(removed).stream().map(MlJobRequirements::memory).toList();
+            assertEquals(
+                0,
+                MlAutoscalingResourceTracker.additionalNodesForWaitingJobs(
+                    jobsByNode,
+                    jobsByNode.keySet(),
+                    waiting,
+                    capacity,
+                    0,
+                    maxOpenJobs
+                )
+            );
+        }
+    }
+
+    public void testWaitingJobsNotFittingHolesShouldBePackedOntoNewNodes() {
+        // Two nodes with 6 of 10 used, waiting 5, 5, 5, 4: none fits the 4 holes except the 4, so the three 5s need two nodes.
+        Map<String, List<MlJobRequirements>> jobsByNode = Map.of(
+            "ml-1",
+            List.of(MlJobRequirements.of(6, 0)),
+            "ml-2",
+            List.of(MlJobRequirements.of(6, 0))
+        );
+        assertEquals(
+            2,
+            MlAutoscalingResourceTracker.additionalNodesForWaitingJobs(
+                jobsByNode,
+                List.of("ml-1", "ml-2"),
+                List.of(5L, 5L, 5L, 4L),
+                10,
+                0,
+                512
+            )
+        );
+        // An empty current node is a target as well
+        assertEquals(
+            1,
+            MlAutoscalingResourceTracker.additionalNodesForWaitingJobs(
+                jobsByNode,
+                List.of("ml-1", "ml-2", "ml-3"),
+                List.of(5L, 5L, 5L, 4L),
+                10,
+                0,
+                512
+            )
+        );
+    }
+
+    private static List<String> mlNodeIds(int count) {
+        return IntStream.rangeClosed(1, count).mapToObj(i -> "ml-" + i).toList();
+    }
+
+    /** AD job tasks, one per entry: the executor node id, or null for a job awaiting lazy assignment. */
+    private static MlAutoscalingContext adJobs(List<String> executorNodes) {
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new ArrayList<>();
+        for (int i = 0; i < executorNodes.size(); i++) {
+            String jobId = "job-" + i;
+            String node = executorNodes.get(i);
+            tasks.add(
+                new PersistentTasksCustomMetadata.PersistentTask<>(
+                    MlTasks.jobTaskId(jobId),
+                    MlTasks.JOB_TASK_NAME,
+                    new OpenJobAction.JobParams(jobId),
+                    i,
+                    node == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(node, "")
+                )
+            );
+        }
+        return new MlAutoscalingContext(tasks, List.of(), List.of(), Map.of(), List.of(), PersistentTasksCustomMetadata.builder().build());
+    }
+
+    private void assertStats(
+        MlAutoscalingContext context,
+        List<String> nodes,
+        Set<String> shuttingDownNodes,
+        long jobMemory,
+        Consumer<MlAutoscalingStats> furtherTests
+    ) throws InterruptedException {
+        MlMemoryTracker memoryTracker = mock(MlMemoryTracker.class);
+        when(memoryTracker.getAnomalyDetectorJobMemoryRequirement(anyString())).thenReturn(jobMemory);
+        Map<String, Long> nodeSizes = new HashMap<>();
+        nodes.forEach(node -> nodeSizes.put(node, NODE_SIZE));
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                context,
+                memoryTracker,
+                nodeSizes,
+                shuttingDownNodes,
+                NODE_ML_MEMORY,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                MlDummyAutoscalingEntity.of(0L, 0),
+                1,
+                listener
+            ),
+            furtherTests
         );
     }
 

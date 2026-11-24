@@ -66,6 +66,8 @@ abstract class ColumnWindow {
     private long scanNextRow;
     /** The thread that opened the scan, to recognize the scans that a thread leaves behind when it moves to a new iterator. */
     private volatile Thread scanThread;
+    /** When the open scan was last used, as {@link System#nanoTime()}. The registry reads it to find the scans that nobody uses. */
+    private volatile long lastTouchNanos;
 
     ColumnWindow(
         ParquetPositionalReader reader,
@@ -107,6 +109,15 @@ abstract class ColumnWindow {
      */
     boolean scanOpenedBy(Thread thread) {
         return scanThread == thread;
+    }
+
+    /** Records the time of the last use of the open scan. It takes no lock, and the registry calls it on every page that is loaded. */
+    void touchedAt(long nanos) {
+        lastTouchNanos = nanos;
+    }
+
+    long lastTouchNanos() {
+        return lastTouchNanos;
     }
 
     final int maxDoc() {
@@ -199,6 +210,7 @@ abstract class ColumnWindow {
             }
             scanGroup = group;
             scanNextRow = row;
+            ScanRegistry.INSTANCE.opened(this);
         }
         ScanRegistry.INSTANCE.touch(this);
         while (true) {

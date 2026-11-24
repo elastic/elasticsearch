@@ -2527,7 +2527,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * @throws UnsupportedOperationException if the read is not a plain scan of flat columns with the optimized iterator
      */
     CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context, long skipRowsInFirstGroup) throws IOException {
-        CloseableIterator<Page> iterator = readRangeFromStart(object, context);
+        return skipRows(readRangeFromStart(object, context, null, NO_ROW_GROUP), skipRowsInFirstGroup);
+    }
+
+    /**
+     * Like {@link #readRange(StorageObject, RangeReadContext, long)} for the one row group {@code rowGroup} of {@code footer}, which the
+     * caller already holds. {@code readRange} finds the row groups of a byte range by the midpoint of every row group of the file, and
+     * each midpoint sums the sizes of all the column chunks of its group, so a caller that scans one row group after another, such as a
+     * doc values iterator, would pay that for every scan. The context's range must be the byte range of the group; it only sizes the
+     * reads.
+     *
+     * @param footer the unranged footer of exactly this file; it is shared and never modified
+     */
+    CloseableIterator<Page> readRowGroup(
+        StorageObject object,
+        RangeReadContext context,
+        ParquetMetadata footer,
+        int rowGroup,
+        long skipRowsInGroup
+    ) throws IOException {
+        assert footer.getBlocks().get(rowGroup).getStartingPos() == context.rangeStart()
+            : "the range [" + context.rangeStart() + "] does not start at the row group [" + rowGroup + "]";
+        return skipRows(readRangeFromStart(object, context, footer, rowGroup), skipRowsInGroup);
+    }
+
+    private static CloseableIterator<Page> skipRows(CloseableIterator<Page> iterator, long skipRowsInFirstGroup) throws IOException {
         if (skipRowsInFirstGroup > 0) {
             if (iterator instanceof OptimizedParquetColumnIterator optimized) {
                 optimized.skipRowsInFirstGroup(skipRowsInFirstGroup);
@@ -2539,7 +2563,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return iterator;
     }
 
-    private CloseableIterator<Page> readRangeFromStart(StorageObject object, RangeReadContext context) throws IOException {
+    /** Stands for "the row groups of the range", as the {@code rowGroup} argument of {@link #readRangeFromStart}. */
+    private static final int NO_ROW_GROUP = -1;
+
+    /**
+     * @param knownFooter the unranged footer, when the caller has it, which saves the lookup of the footer; {@code null} to find it
+     * @param rowGroup    the one row group to read, or {@link #NO_ROW_GROUP} for the row groups whose midpoint is in the range
+     */
+    private CloseableIterator<Page> readRangeFromStart(
+        StorageObject object,
+        RangeReadContext context,
+        @Nullable ParquetMetadata knownFooter,
+        int rowGroup
+    ) throws IOException {
         long rangeStart = context.rangeStart();
         long rangeEnd = context.rangeEnd();
         ParquetReaderCounters counters = context.readCounters() instanceof ParquetReaderCounters c ? c : null;
@@ -2570,7 +2606,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // range, making getFooter() unusable for other splits — so we must always derive the
         // range-filtered metadata from the unranged full footer via filterBlocksByRange.
         ParquetMetadata fullFooter;
-        if (context.fileContext() instanceof ParquetMetadata cachedFooter) {
+        if (knownFooter != null) {
+            fullFooter = knownFooter;
+        } else if (context.fileContext() instanceof ParquetMetadata cachedFooter) {
             fullFooter = cachedFooter;
         } else {
             long footerStartNanos = System.nanoTime();
@@ -2580,7 +2618,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
         }
         context.setFileContext(fullFooter);
-        ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
+        final ParquetMetadata rangeMetadata = rowGroup == NO_ROW_GROUP
+            ? filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
+            : new ParquetMetadata(fullFooter.getFileMetaData(), List.of(fullFooter.getBlocks().get(rowGroup)));
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
         // For range-restricted reads the iterator only sees a subset of the file's blocks, but
         // the deferred-extraction identities must remain file-global so the extractor can later
@@ -2615,7 +2655,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 object,
                 parquetInputFile,
                 readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(filter).build(),
-                filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
+                rangeMetadata
             ),
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink(),

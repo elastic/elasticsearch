@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.parquet.read.dv;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Closes the forward scans that nobody uses any more. An open scan reserves a share of the ES|QL reader's byte budget and keeps its
@@ -19,8 +22,14 @@ import java.util.concurrent.TimeUnit;
  * ES|QL slice or query) leaves its scan open. Left alone, the abandoned scans use up the budget and the next read waits for it forever.
  *
  * <p>A scan in use is touched on every page it loads, so a scan that was not touched for {@link #IDLE_NANOS} has no reader. Eviction
- * happens when scans are opened and touched, which is when the budget is needed; there is no timer. Evicting is always safe: the window
- * of the evicted scan only reopens it at its next load. The registry is shared by all segments of the node, because the budget is.
+ * happens when scans are opened, when scans are touched (at most once for each {@link #SWEEP_EVERY_NANOS}, whichever thread comes first)
+ * and on the timer of the plugin, see {@link #sweep()}. Evicting is always safe: the window of the evicted scan only reopens it at its
+ * next load. The registry is shared by all segments of the node, because the budget is.
+ *
+ * <p>A touch takes no lock. Every driver thread touches a scan for each page that it loads, and a lock for the registry as a whole
+ * made the threads of one query wait for each other (in a wall clock profile of the ClickBench queries, up to a third of the samples of a
+ * driver). The window keeps the time of its last touch, and only the rare operations (a scan that opens or closes, and the sweep) take
+ * the lock of the set of open scans.
  */
 public final class ScanRegistry {
 
@@ -28,8 +37,14 @@ public final class ScanRegistry {
 
     private static final long IDLE_NANOS = TimeUnit.SECONDS.toNanos(2);
 
-    /** In order of the last touch, the least recently touched first. */
-    private final Map<ColumnWindow, Long> lastTouch = new LinkedHashMap<>(16, 0.75f, true);
+    /** How often the touches look for idle scans: often enough that a scan is closed soon after its idle time, and rare enough to be free. */
+    private static final long SWEEP_EVERY_NANOS = IDLE_NANOS / 4;
+
+    /** The windows with an open scan. It is guarded by itself, and a window is in it from its scan opens until its scan closes. */
+    private final Set<ColumnWindow> open = new HashSet<>();
+
+    /** The time, as {@link System#nanoTime()}, from which a touch may sweep the idle scans. */
+    private final AtomicLong nextTouchSweep = new AtomicLong(System.nanoTime());
 
     private ScanRegistry() {}
 
@@ -51,54 +66,73 @@ public final class ScanRegistry {
      * leftovers.
      */
     void beforeOpen(ColumnWindow opening) {
-        List<ColumnWindow> victims = evictIdle(null);
         Thread thread = Thread.currentThread();
-        List<ColumnWindow> candidates = new ArrayList<>();
-        synchronized (lastTouch) {
-            // oldest first
-            for (ColumnWindow window : lastTouch.keySet()) {
-                if (window != opening && window.readsSameColumnAs(opening)) {
-                    candidates.add(window);
+        long now = System.nanoTime();
+        List<ColumnWindow> victims = new ArrayList<>();
+        List<OwnScan> ownScans = new ArrayList<>();
+        synchronized (open) {
+            for (Iterator<ColumnWindow> it = open.iterator(); it.hasNext();) {
+                ColumnWindow window = it.next();
+                long lastTouch = window.lastTouchNanos();
+                if (now - lastTouch > IDLE_NANOS) {
+                    it.remove();
+                    victims.add(window);
+                } else if (window != opening && window.readsSameColumnAs(opening) && window.scanOpenedBy(thread)) {
+                    ownScans.add(new OwnScan(window, lastTouch));
                 }
             }
         }
-        List<ColumnWindow> ownScans = new ArrayList<>();
-        for (ColumnWindow window : candidates) {
-            if (window.scanOpenedBy(thread) && victims.contains(window) == false) {
-                ownScans.add(window);
-            }
-        }
         int excess = ownScans.size() - (MAX_SCANS_PER_THREAD_AND_COLUMN - 1);
-        for (int i = 0; i < excess; i++) {
-            victims.add(ownScans.get(i));
+        if (excess > 0) {
+            // the oldest first
+            ownScans.sort(Comparator.comparingLong(OwnScan::lastTouch));
+            for (int i = 0; i < excess; i++) {
+                victims.add(ownScans.get(i).window());
+            }
         }
         closeAll(victims);
     }
 
+    /** A scan of the calling thread, with the time of its last touch as it was when the registry looked at it. */
+    private record OwnScan(ColumnWindow window, long lastTouch) {}
+
     /**
-     * Closes the scans that nobody used for the idle time. The idle rule otherwise runs only when a scan opens or is touched, so a node
-     * that stops reading would keep the row group chunks of its last scans on the heap. The plugin calls this on a timer.
+     * Closes the scans that nobody used for the idle time. The plugin calls this on a timer, because a node that stops reading would
+     * keep the row group chunks of its last scans on the heap.
      */
     public void sweep() {
-        closeAll(evictIdle(null));
+        closeAll(evictIdle());
     }
 
-    /** Records that the window's scan is open and in use. */
+    /** Records that the window's scan is open, and in use now. */
+    void opened(ColumnWindow window) {
+        window.touchedAt(System.nanoTime());
+        synchronized (open) {
+            open.add(window);
+        }
+    }
+
+    /** Records that the window's open scan is in use. This takes no lock, except for the rare sweep of the idle scans. */
     void touch(ColumnWindow window) {
-        closeAll(evictIdle(window));
+        long now = System.nanoTime();
+        window.touchedAt(now);
+        long next = nextTouchSweep.get();
+        if (now - next >= 0 && nextTouchSweep.compareAndSet(next, now + SWEEP_EVERY_NANOS)) {
+            closeAll(evictIdle());
+        }
     }
 
     void remove(ColumnWindow window) {
-        synchronized (lastTouch) {
-            lastTouch.remove(window);
+        synchronized (open) {
+            open.remove(window);
         }
     }
 
     /** Closes the scans of the windows that the producer owns, when the segment closes. */
     void closeAllOf(ParquetDocValuesProducer producer) {
         List<ColumnWindow> owned = new ArrayList<>();
-        synchronized (lastTouch) {
-            for (ColumnWindow window : lastTouch.keySet()) {
+        synchronized (open) {
+            for (ColumnWindow window : open) {
                 if (window.ownedBy(producer)) {
                     owned.add(window);
                 }
@@ -107,22 +141,17 @@ public final class ScanRegistry {
         closeAll(owned);
     }
 
-    private List<ColumnWindow> evictIdle(ColumnWindow touched) {
+    /** Takes the windows with an idle scan out of the set. */
+    private List<ColumnWindow> evictIdle() {
         List<ColumnWindow> idle = new ArrayList<>();
         long now = System.nanoTime();
-        synchronized (lastTouch) {
-            if (touched != null) {
-                lastTouch.put(touched, now);
-            }
-            var it = lastTouch.entrySet().iterator();
-            while (it.hasNext()) {
-                var entry = it.next();
-                if (now - entry.getValue() <= IDLE_NANOS) {
-                    // the entries after this one were touched more recently
-                    break;
+        synchronized (open) {
+            for (Iterator<ColumnWindow> it = open.iterator(); it.hasNext();) {
+                ColumnWindow window = it.next();
+                if (now - window.lastTouchNanos() > IDLE_NANOS) {
+                    it.remove();
+                    idle.add(window);
                 }
-                it.remove();
-                idle.add(entry.getKey());
             }
         }
         return idle;

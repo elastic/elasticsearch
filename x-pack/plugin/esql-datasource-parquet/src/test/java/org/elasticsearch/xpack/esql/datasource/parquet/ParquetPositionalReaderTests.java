@@ -32,6 +32,8 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -130,6 +132,43 @@ public class ParquetPositionalReaderTests extends ESTestCase {
                 groupFirstRow += rows;
             }
             assertThat(groupFirstRow, equalTo((long) ROWS));
+        }
+    }
+
+    /**
+     * A scan names its row group and does not search the footer for the groups of a byte range. It must read what the byte range of the
+     * group reads, for every group and every start row, so that the shortcut changes nothing.
+     */
+    public void testScanRowGroupReadsWhatTheByteRangeOfTheGroupReads() throws IOException {
+        StorageObject file = file();
+        try (
+            ParquetPositionalReader reader = ParquetPositionalReader.open(file, blockFactory, Settings.EMPTY, null);
+            ParquetFormatReader formatReader = ParquetPositionalReader.newFormatReader(Settings.EMPTY, blockFactory)
+        ) {
+            assertTrue("expected several row groups", reader.footer().getBlocks().size() > 1);
+            for (int group = 0; group < reader.footer().getBlocks().size(); group++) {
+                var block = reader.footer().getBlocks().get(group);
+                long start = block.getStartingPos();
+                long end = start + block.getCompressedSize();
+                for (long startRow : new long[] { 0, randomLongBetween(0, block.getRowCount() - 1) }) {
+                    List<Long> byRange = new ArrayList<>();
+                    RangeReadContext context = new RangeReadContext(List.of("id"), 16, start, end, List.of(), ErrorPolicy.PERMISSIVE, null);
+                    try (CloseableIterator<Page> pages = formatReader.readRange(file, context, startRow)) {
+                        while (pages.hasNext()) {
+                            Page page = pages.next();
+                            try {
+                                LongBlock ids = page.getBlock(0);
+                                for (int i = 0; i < ids.getPositionCount(); i++) {
+                                    byRange.add(ids.getLong(ids.getFirstValueIndex(i)));
+                                }
+                            } finally {
+                                page.releaseBlocks();
+                            }
+                        }
+                    }
+                    assertThat("group " + group + " from row " + startRow, scanIds(reader, group, startRow, 16), equalTo(byRange));
+                }
+            }
         }
     }
 

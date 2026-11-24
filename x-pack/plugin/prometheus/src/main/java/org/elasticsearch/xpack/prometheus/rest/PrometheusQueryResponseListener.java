@@ -35,9 +35,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
@@ -232,6 +234,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     ) throws IOException {
         int seriesCount = 0;
         BytesRef scratch = new BytesRef();
+        Set<String> columnLabels = columnLabels(columns, stepColIdx);
         StringBuilder valueBuffer = new StringBuilder(24);
 
         for (Page page : pages) {
@@ -268,7 +271,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 assert timestampsAreAscending(stepBlock, stepStart, count) : "PROMQL response step timestamps must be ascending";
 
                 builder.startObject();
-                buildMetricLabels(builder, timeseriesColIdx, page, position, stepColIdx, columns, zoneId, scratch);
+                buildMetricLabels(builder, timeseriesColIdx, columnLabels, page, position, stepColIdx, columns, zoneId, scratch);
                 buildMetricValues(mode, builder, valueBuffer, valueBlock, stepBlock, valueStart, stepStart, count);
                 builder.endObject(); // result entry
             }
@@ -286,13 +289,32 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return -1;
     }
 
+    /** The Prometheus names of the label columns, which take precedence over the labels of {@code _timeseries}. */
+    private static Set<String> columnLabels(List<ColumnInfoImpl> columns, int stepColIdx) {
+        Set<String> names = new HashSet<>();
+        for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+            String name = columns.get(i).name();
+            if (isTimeseriesColumn(name) == false) {
+                names.add(prometheusLabelName(name));
+            }
+        }
+        return names;
+    }
+
     /**
-     * Writes the labels of a series: those of its {@code _timeseries}, then each label column over them. A null or empty column
-     * removes its label, as Prometheus treats a label with an empty value as absent.
+     * Writes the labels of a series: those of its {@code _timeseries} that no label column names, then the label columns. A null
+     * or empty label is left out: Prometheus treats a label with an empty value as absent.
+     * PromQL {@code by}-labels are almost always {@code keyword}-typed: that case writes the UTF-8 bytes straight
+     * into the builder, avoiding a {@code utf8ToString()} allocation per label per row (profiling showed this was
+     * a measurable cost once done correctly for every row of a wide-cardinality result). Other types (IP, VERSION,
+     * DATETIME, etc. - all still backed by BytesRefBlock/LongBlock, not plain strings) fall back to ES|QL's own
+     * type-to-value extraction table for correctness; that fallback is not a hot path since it only runs for the
+     * rare non-keyword dimension column, not for every row's multi-valued value/step data.
      */
     private static void buildMetricLabels(
         XContentBuilder builder,
         int timeseriesColIdx,
+        Set<String> columnLabels,
         Page page,
         int position,
         int stepColIdx,
@@ -300,45 +322,37 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         ZoneId zoneId,
         BytesRef scratch
     ) throws IOException {
-        Map<String, String> metric = new LinkedHashMap<>();
+        builder.startObject("metric");
         if (timeseriesColIdx >= 0) {
             Block timeseries = page.getBlock(timeseriesColIdx);
             if (timeseries.isNull(position) == false) {
                 BytesRef json = ((BytesRefBlock) timeseries).getBytesRef(timeseries.getFirstValueIndex(position), scratch);
-                collectMetricFromTimeseriesJson(metric, json.utf8ToString());
+                writeMetricFromSeriesJson(builder, json.utf8ToString(), columnLabels);
             }
         }
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
             ColumnInfoImpl column = columns.get(i);
-            if (isTimeseriesColumn(column.name())) {
+            Block block = page.getBlock(i);
+            if (i == timeseriesColIdx || isTimeseriesColumn(column.name()) || block.isNull(position)) {
                 continue;
             }
             String name = prometheusLabelName(column.name());
-            String value = labelColumnValue(page.getBlock(i), column.type(), position, zoneId, scratch);
-            if (value == null) {
-                metric.remove(name);
-            } else {
-                metric.put(name, value);
+            int index = block.getFirstValueIndex(position);
+            if (column.type() == DataType.KEYWORD || column.type() == DataType.TEXT) {
+                BytesRef value = ((BytesRefBlock) block).getBytesRef(index, scratch);
+                if (value.length > 0) {
+                    builder.field(name);
+                    builder.utf8Value(value.bytes, value.offset, value.length);
+                }
+                continue;
+            }
+            Object value = ResponseValueUtils.valueExtractorFor(column.type(), zoneId).extract(block, index, scratch);
+            String text = value == null ? null : labelValue(value);
+            if (text != null) {
+                builder.field(name, text);
             }
         }
-        builder.startObject("metric");
-        for (Map.Entry<String, String> label : metric.entrySet()) {
-            builder.field(label.getKey(), label.getValue());
-        }
         builder.endObject(); // metric
-    }
-
-    /** The value of a label column at {@code position}, or null where it is null or empty. */
-    @Nullable
-    private static String labelColumnValue(Block block, DataType type, int position, ZoneId zoneId, BytesRef scratch) {
-        if (block.isNull(position)) {
-            return null;
-        }
-        int index = block.getFirstValueIndex(position);
-        Object value = type == DataType.KEYWORD || type == DataType.TEXT
-            ? ((BytesRefBlock) block).getBytesRef(index, scratch).utf8ToString()
-            : ResponseValueUtils.valueExtractorFor(type, zoneId).extract(block, index, scratch);
-        return value == null ? null : labelValue(value);
     }
 
     /** Strip labels. prefix used when a BY label collides with the value column name. */
@@ -476,19 +490,19 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     /**
-     * Collects the labels of a {@code _timeseries} JSON value into {@code metric}, leaving out empty ones.
+     * Writes metric labels from a {@code _timeseries} JSON value, leaving out empty ones and those named in {@code skip}.
      * <ul>
      *   <li>The {@code labels} namespace is unwrapped without a prefix:
-     *       {@code {"labels":{"__name__":"up","job":"prometheus"}}} -> labels {@code __name__}, {@code job}.</li>
+     *       {@code {"labels":{"__name__":"up","job":"prometheus"}}} -> fields {@code __name__}, {@code job}.</li>
      *   <li>All other namespaces are flattened recursively with dot-separated paths:
-     *       {@code {"attributes":{"resource":{"service.name":"foo"}}}} -> label {@code attributes.resource.service.name}.</li>
+     *       {@code {"attributes":{"resource":{"service.name":"foo"}}}} -> field {@code attributes.resource.service.name}.</li>
      * </ul>
      */
-    static void collectMetricFromTimeseriesJson(Map<String, String> metric, String timeseriesJson) throws IOException {
-        forEachEntryFlattened(parseLabelsJson(timeseriesJson, true), (name, value) -> {
+    static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson, Set<String> skip) throws IOException {
+        forEachEntryFlattened(parseLabelsJson(seriesJson, true), (name, value) -> {
             String labelValue = labelValue(value);
-            if (labelValue != null) {
-                metric.put(name, labelValue);
+            if (labelValue != null && skip.contains(name) == false) {
+                builder.field(name, labelValue);
             }
         });
     }

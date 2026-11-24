@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
-import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
@@ -129,12 +128,7 @@ public class EsqlDatafeedQueryValidator {
             return;
         }
         warnOnOuterLimit(esqlQuery, datafeedId);
-        // Filter and LIMIT so the default result row cap cannot hide a required column when the query has many columns.
-        // The names are inlined as string literals, not bound as params: params apply to the whole request, user query included.
-        String describeSuffix = summaryCountField != null
-            ? DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ", " + esqlString(summaryCountField) + ")\n| LIMIT 2"
-            : DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ")\n| LIMIT 1";
-        String describeQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, describeSuffix);
+        String describeQuery = describeQuery(esqlQuery, timeField, summaryCountField);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
@@ -155,7 +149,7 @@ public class EsqlDatafeedQueryValidator {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             // A source that does not exist yet or an unreachable remote does not fail PUT, same as a DSL datafeed. Start checks remotes.
-            if (isDeferredExistenceFailure(cause) || cause instanceof ConnectTransportException) {
+            if (isDeferredExistenceFailure(cause) || org.elasticsearch.ExceptionsHelper.isRemoteUnavailableException(e)) {
                 logger.debug(() -> "[" + datafeedId + "] ES|QL DESCRIBE probe failed with [" + cause + "]. Deferring to runtime.");
                 listener.onResponse(Boolean.TRUE);
             } else {
@@ -176,19 +170,37 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * Runs {@code esqlQuery | LIMIT 0} with {@code _clusters} metadata and returns the remote sources the query reads as
-     * {@code cluster:index_expression}, so datafeed start can apply the same remote-cluster checks as for a DSL datafeed. The local
-     * cluster and the cross-project {@code _origin} qualifier are not remote. A source that does not exist yet reports no clusters.
+     * The probe for datafeed start. Runs the same {@code DESCRIBE} as {@link #validateQuery} but never defers: a source that does not
+     * exist, an unreachable remote and a skipped remote without columns fail the start, as a DSL datafeed fails when it cannot read
+     * its indices. On success returns the remote sources as {@code cluster:index_expression}, so start can run the remote-cluster
+     * checks of a DSL datafeed. The local cluster and the cross-project {@code _origin} qualifier are not remote.
      */
-    public void remoteIndexExpressions(
+    public void validateAtStart(
         Client client,
         Map<String, String> headers,
         String esqlQuery,
         @Nullable String projectRouting,
+        String timeField,
+        @Nullable String summaryCountField,
         ActionListener<List<String>> listener,
         @Nullable String datafeedId
     ) {
+        if (describeAvailable.getAsBoolean() == false) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_ESQL_DESCRIBE_UNAVAILABLE, esqlDatafeedSubject(datafeedId))
+                )
+            );
+            return;
+        }
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
+            List<String> unavailable = unavailableClustersWithoutDescription(response);
+            if (unavailable.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE, esqlDatafeedSubject(datafeedId), unavailable)
+                );
+            }
+            checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
             List<String> remote = new ArrayList<>();
             for (EsqlClusterInfo cluster : response.response().clusters()) {
                 String alias = cluster.clusterAlias();
@@ -201,18 +213,10 @@ public class EsqlDatafeedQueryValidator {
                 );
             }
             listener.onResponse(List.copyOf(remote));
-        }, e -> {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (isDeferredExistenceFailure(cause)) {
-                logger.debug(() -> "[" + datafeedId + "] ES|QL remote source probe failed with [" + cause + "]. Deferring to runtime.");
-                listener.onResponse(List.of());
-            } else {
-                listener.onFailure(e);
-            }
-        });
+        }, listener::onFailure);
         queryRunner.executeAsync(
             client,
-            EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO),
+            describeQuery(esqlQuery, timeField, summaryCountField),
             null,
             headers,
             projectRouting,
@@ -223,12 +227,23 @@ public class EsqlDatafeedQueryValidator {
     }
 
     /**
-     * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote instead of failing. When every source is on such a remote,
-     * the response has only a placeholder column instead of the DESCRIBE columns. Returns those clusters, or an empty list when the
-     * response has the DESCRIBE columns.
+     * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. The names are inlined as
+     * string literals, not bound as params: params apply to the whole request, user query included.
+     */
+    private static String describeQuery(String esqlQuery, String timeField, @Nullable String summaryCountField) {
+        String describeSuffix = summaryCountField != null
+            ? DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ", " + esqlString(summaryCountField) + ")\n| LIMIT 2"
+            : DESCRIBE + "\n| WHERE name IN (" + esqlString(timeField) + ")\n| LIMIT 1";
+        return EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, describeSuffix);
+    }
+
+    /**
+     * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote or one that matches no index instead of failing. When
+     * every source is on such a remote, the response has no DESCRIBE rows, and may lack the DESCRIBE columns too. Returns the skipped
+     * or failed clusters, or an empty list when the response has DESCRIBE rows.
      */
     private static List<String> unavailableClustersWithoutDescription(EsqlQueryResponse response) {
-        if (response.response().columns().stream().anyMatch(c -> "name".equals(c.name()))) {
+        if (response.response().rows().iterator().hasNext()) {
             return List.of();
         }
         return response.response()

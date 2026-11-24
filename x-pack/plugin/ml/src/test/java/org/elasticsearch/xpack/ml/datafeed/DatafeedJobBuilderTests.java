@@ -485,6 +485,24 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         verifyNoInteractions(validator);
     }
 
+    public void testBuildGivenEsqlProbeFailureAndNoRemoteSearchingShouldStillBuild() throws Exception {
+        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<List<String>>>getArgument(6).onFailure(new IllegalStateException("shard not available"));
+            return null;
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
+        datafeedJobBuilder = newBuilder(nonRemoteClusterClientNode(), validator);
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        datafeedJobBuilder.build(
+            newDatafeedTask("datafeed1"),
+            newEsqlContext(),
+            ActionTestUtils.assertNoFailureListener(datafeedJob -> wasHandlerCalled.set(true))
+        );
+
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
     private DatafeedJobBuilder newBuilder(Settings settings, EsqlDatafeedQueryValidator validator) {
         return new DatafeedJobBuilder(
             client,
@@ -505,9 +523,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     private static EsqlDatafeedQueryValidator validatorReportingRemotes(List<String> remotes) {
         EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
         doAnswer(invocation -> {
-            ((ActionListener<List<String>>) invocation.getArgument(4)).onResponse(remotes);
+            ((ActionListener<List<String>>) invocation.getArgument(6)).onResponse(remotes);
             return null;
-        }).when(validator).remoteIndexExpressions(any(), any(), any(), any(), any(), any());
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
         return validator;
     }
 

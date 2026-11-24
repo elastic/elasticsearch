@@ -42,6 +42,11 @@ teardown:
         force: true
         ignore: 404
   - do:
+      ml.delete_datafeed:
+        datafeed_id: esql-ccs-missing-feed
+        force: true
+        ignore: 404
+  - do:
       ml.delete_job:
         job_id: esql-ccs-job
         force: true
@@ -115,6 +120,38 @@ teardown:
         datafeed_id: esql-ccs-wildcard-feed
         force: true
   - match: { stopped: true }
+
+  - do:
+      ml.close_job:
+        job_id: esql-ccs-job
+        force: true
+
+---
+"Test start of ES|QL datafeed fails when the only source is on a skipped remote":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-ccs-missing-feed
+        body: >
+          {
+            "job_id": "esql-ccs-job",
+            "esql_query": "FROM my_remote_cluster:does_not_exist",
+            "source_time_field": "date",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-ccs-missing-feed" }
+
+  - do:
+      ml.open_job:
+        job_id: esql-ccs-job
+
+  - do:
+      catch: bad_request
+      ml.start_datafeed:
+        datafeed_id: esql-ccs-missing-feed
+        start: "2018-10-29T12:00:00Z"
+        end: "2018-10-29T13:00:00Z"
+  - match: { error.reason: '/.*skipped\sthe\sclusters.*/' }
 
   - do:
       ml.close_job:

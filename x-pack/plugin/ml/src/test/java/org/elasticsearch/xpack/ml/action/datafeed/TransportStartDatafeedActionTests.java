@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -25,17 +28,20 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
@@ -46,11 +52,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class TransportStartDatafeedActionTests extends ESTestCase {
 
@@ -187,17 +198,97 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
     }
 
-    public void testEsqlRemoteIndexExpressionsShouldResolveToRegisteredClusterAliases() {
-        List<String> remoteIndexExpressions = List.of("east:logs-*", "west:*");
+    public void testCheckEsqlSourcesAtStartShouldProbeWithHeadersAndEffectiveProjectRouting() {
+        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        Client probeClient = mock(Client.class);
+        DatafeedConfig datafeed = newEsqlDatafeed().setHeaders(Map.of("h", "v")).setProjectRouting("_alias:prod-*").build();
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeed,
+            new CrossProjectModeDecider(Settings.EMPTY),
+            false
+        );
+        List<String> remote = List.of("east:logs-*");
+        doAnswer(invocation -> {
+            invocation.<ActionListener<List<String>>>getArgument(6).onResponse(remote);
+            return null;
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
-        assertThat(
-            RemoteClusterLicenseChecker.remoteClusterAliases(Set.of("east", "west", "other"), remoteIndexExpressions),
-            equalTo(List.of("east", "west"))
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.checkEsqlSourcesAtStart(
+            validator,
+            probeClient,
+            datafeed,
+            effective,
+            newJob(),
+            new CrossProjectModeDecider(Settings.EMPTY),
+            future
         );
-        expectThrows(
-            NoSuchRemoteClusterException.class,
-            () -> RemoteClusterLicenseChecker.remoteClusterAliases(Set.of("east"), remoteIndexExpressions)
+
+        assertThat(future.actionGet(), sameInstance(remote));
+        // cross-project search is off, so the persisted project routing is inert and must not reach ES|QL
+        verify(validator).validateAtStart(
+            same(probeClient),
+            eq(Map.of("h", "v")),
+            eq(datafeed.getEsqlQuery()),
+            isNull(),
+            eq("time"),
+            isNull(),
+            any(),
+            eq("esql-datafeed")
         );
+    }
+
+    public void testCheckEsqlSourcesAtStartGivenProbeFailureShouldFailListener() {
+        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        DatafeedConfig datafeed = newEsqlDatafeed().build();
+        doAnswer(invocation -> {
+            invocation.<ActionListener<List<String>>>getArgument(6).onFailure(new IllegalStateException("boom"));
+            return null;
+        }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
+
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.checkEsqlSourcesAtStart(
+            validator,
+            mock(Client.class),
+            datafeed,
+            datafeed,
+            newJob(),
+            new CrossProjectModeDecider(Settings.EMPTY),
+            future
+        );
+
+        expectThrows(IllegalStateException.class, future::actionGet);
+    }
+
+    public void testCheckEsqlSourcesAtStartWithCrossProjectEnabledShouldNotProbe() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        DatafeedConfig datafeed = newEsqlDatafeed().build();
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.checkEsqlSourcesAtStart(validator, mock(Client.class), datafeed, datafeed, newJob(), decider, future);
+
+        assertThat(future.actionGet(), equalTo(List.of()));
+        verifyNoInteractions(validator);
+        assertThat(TransportStartDatafeedAction.skipsRemoteClusterChecks(datafeed, decider), is(true));
+    }
+
+    private static DatafeedConfig.Builder newEsqlDatafeed() {
+        return new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM east:logs-*")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1));
+    }
+
+    private static Job newJob() {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder job = DatafeedRunnerTests.createDatafeedJob();
+        job.setDataDescription(dataDescription);
+        job.setCreateTime(new Date());
+        return job.build();
     }
 
     public void testStartEsqlDatafeedWithCrossProjectEnabledSkipsIndicesOptions() {

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -42,9 +44,11 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_CYCLES;
 import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_FLOOR;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
-import static org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction.isCrossProjectMode;
+import static org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction.skipsRemoteClusterChecks;
 
 public class DatafeedJobBuilder {
+
+    private static final Logger logger = LogManager.getLogger(DatafeedJobBuilder.class);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -214,16 +218,20 @@ public class DatafeedJobBuilder {
             dataExtractorFactoryHandler
         );
 
-        if (remoteClusterClient || datafeedConfig.getEsqlQuery() == null || isCrossProjectMode(effectiveDatafeedConfig)) {
+        if (remoteClusterClient
+            || datafeedConfig.getEsqlQuery() == null
+            || skipsRemoteClusterChecks(effectiveDatafeedConfig, crossProjectModeDecider)) {
             createDataExtractorFactory.run();
             return;
         }
         // An ES|QL datafeed has no index list, so ask ES|QL for its remote sources. This node cannot reach remote clusters.
-        esqlQueryValidator.remoteIndexExpressions(
+        esqlQueryValidator.validateAtStart(
             cloudCredentialManagerSupplier.get().wrapClient(parentTaskAssigningClient, cloudCredential),
             datafeedConfig.getHeaders(),
             datafeedConfig.getEsqlQuery(),
             effectiveDatafeedConfig.getProjectRouting(),
+            job.getDataDescription().getTimeField(),
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeedConfig, job),
             ActionListener.wrap(remoteIndices -> {
                 if (remoteIndices.isEmpty() == false) {
                     dataExtractorFactoryHandler.onFailure(
@@ -239,7 +247,12 @@ public class DatafeedJobBuilder {
                 } else {
                     createDataExtractorFactory.run();
                 }
-            }, dataExtractorFactoryHandler::onFailure),
+            }, e -> {
+                // The master validated the query at start. A transient probe failure must not stop a datafeed that reads local indices,
+                // and extraction reports and retries its own errors.
+                logger.debug(() -> "[" + datafeedConfig.getId() + "] ES|QL remote source probe failed. Creating the extractor.", e);
+                createDataExtractorFactory.run();
+            }),
             datafeedConfig.getId()
         );
     }

@@ -225,7 +225,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 }
             };
 
-        // There is no remote transport version check: the remote never sees esql_query, and ES|QL checks remote compatibility itself.
         // Verify data extractor factory can be created, then start persistent task
         BiConsumer<Job, List<String>> checkRemoteSourcesAndCreateExtractor = (job, remoteIndices) -> {
             if (remoteIndices.isEmpty() == false) {
@@ -251,7 +250,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     crossProjectModeDecider,
                     datafeedConfigHolder.get().getCloudInternalCredential() != null
                 );
-                boolean isCpsMode = isCrossProjectMode(effectiveDatafeed);
+                boolean isCpsMode = skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider);
 
                 if (isCpsMode) {
                     // Skip license check for CPS - all projects share the same highest license
@@ -285,8 +284,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             }
         };
 
-        // An ES|QL datafeed has no index list, so ask ES|QL which remote clusters the query reads. Cross-project mode has projects,
-        // not remote clusters, so it has nothing to check.
+        // An ES|QL datafeed has no index list, so ask ES|QL which remote clusters the query reads.
         Consumer<Job> createDataExtractor = job -> {
             DatafeedConfig datafeed = datafeedConfigHolder.get();
             if (datafeed.getEsqlQuery() == null) {
@@ -298,23 +296,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 crossProjectModeDecider,
                 datafeed.getCloudInternalCredential() != null
             );
-            if (isCrossProjectMode(effectiveDatafeed)) {
-                checkRemoteSourcesAndCreateExtractor.accept(job, List.of());
-                return;
-            }
-            Client probeClient = CloudCredentialsExtension.getInstance()
-                .credentialManager()
-                .wrapClient(client, datafeed.getCloudInternalCredential());
-            esqlQueryValidator.remoteIndexExpressions(
-                probeClient,
-                datafeed.getHeaders(),
-                datafeed.getEsqlQuery(),
-                datafeed.getProjectRouting(),
+            checkEsqlSourcesAtStart(
+                esqlQueryValidator,
+                CloudCredentialsExtension.getInstance().credentialManager().wrapClient(client, datafeed.getCloudInternalCredential()),
+                datafeed,
+                effectiveDatafeed,
+                job,
+                crossProjectModeDecider,
                 ActionListener.wrap(
                     remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, remoteIndices),
                     responseHeaderPreservingListener::onFailure
-                ),
-                datafeed.getId()
+                )
             );
         };
 
@@ -367,8 +359,47 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             .toList();
     }
 
-    public static boolean isCrossProjectMode(DatafeedConfig datafeed) {
+    static boolean isCrossProjectMode(DatafeedConfig datafeed) {
         return datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+    }
+
+    /**
+     * Whether remote cluster checks do not apply because the datafeed searches linked projects. An ES|QL datafeed has no
+     * {@code indices_options}, so only the cross-project decision tells.
+     */
+    public static boolean skipsRemoteClusterChecks(DatafeedConfig effectiveDatafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return effectiveDatafeed.getEsqlQuery() != null
+            ? DatafeedConfig.isCPSAllowed(crossProjectModeDecider)
+            : isCrossProjectMode(effectiveDatafeed);
+    }
+
+    /**
+     * Probes the query of an ES|QL datafeed and passes the remote sources it reads to {@code listener}. Cross-project mode has
+     * projects, not remote clusters, so it has nothing to probe or check.
+     */
+    static void checkEsqlSourcesAtStart(
+        EsqlDatafeedQueryValidator validator,
+        Client probeClient,
+        DatafeedConfig datafeed,
+        DatafeedConfig effectiveDatafeed,
+        Job job,
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActionListener<List<String>> listener
+    ) {
+        if (skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
+            listener.onResponse(List.of());
+            return;
+        }
+        validator.validateAtStart(
+            probeClient,
+            datafeed.getHeaders(),
+            datafeed.getEsqlQuery(),
+            effectiveDatafeed.getProjectRouting(),
+            job.getDataDescription().getTimeField(),
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
+            listener,
+            datafeed.getId()
+        );
     }
 
     static void setIndicesOptionsIfPresent(StartDatafeedAction.DatafeedParams params, DatafeedConfig datafeed) {

@@ -63,6 +63,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         assert previous == null || previous == merge : "segment [" + mergedSegment.info.name + "] is already merged by " + previous;
     }
 
+    /// Stops tracking the merge that produced the segment, whether the merge succeeded, failed or was aborted.
     public void onMergeFinished(SegmentCommitInfo mergedSegment, MergePolicy.OneMerge merge) {
         final var removed = merges.remove(segmentId(mergedSegment.info));
         assert removed == merge : "segment [" + mergedSegment.info.name + "] was tracked for " + removed + " instead of " + merge;

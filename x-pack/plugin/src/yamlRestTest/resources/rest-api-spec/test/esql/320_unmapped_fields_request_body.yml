@@ -1,0 +1,72 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ unmapped_fields_in_request_body, optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+      reason: unmapped_fields is accepted under settings in the request body on newer nodes only.
+
+  # extra is not mapped and lives only in _source.
+  - do:
+      indices.create:
+        index: unmapped_body
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "unmapped_body", "_id": "1" } }
+          - { "id": 1, "extra": "x" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: unmapped_body
+        ignore_unavailable: true
+
+---
+'unmapped_fields in the request body loads the unmapped fields':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM unmapped_body | LIMIT 10'
+          settings:
+            unmapped_fields: LOAD_ALL
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ 1, { extra: x } ] }
+
+---
+'unmapped_fields in the request body is overridden by SET in the query':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="NULLIFY"; FROM unmapped_body | LIMIT 10'
+          settings:
+            unmapped_fields: LOAD_ALL
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+  - match: { values.0: [ 1 ] }
+
+---
+'a value unmapped_fields does not know is rejected':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM unmapped_body | LIMIT 10'
+          settings:
+            unmapped_fields: everything
+  - match: { error.type: x_content_parse_exception }
+  - match: { error.caused_by.reason: "/.*Failed\\sto\\sparse\\svalue\\sfor\\ssetting\\s\\[unmapped_fields\\].*Invalid\\sunmapped_fields\\sresolution\\s\\[everything\\].*/" }

@@ -284,7 +284,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             String message = "Trained model deployment [" + assignment.getDeploymentId() + "] is not allocated to any nodes";
             boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
             if (starting) {
-                message += "; starting deployment of one allocation";
+                message += "; starting deployment";
                 logger.debug(message);
                 waitForAllocation.waitForAssignment(
                     new InferenceWaitForAllocation.WaitingRequest(

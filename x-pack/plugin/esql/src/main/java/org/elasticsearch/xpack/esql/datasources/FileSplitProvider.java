@@ -2538,7 +2538,7 @@ public class FileSplitProvider implements SplitProvider {
      * a single-driver LIMIT issues zero cuts. Gated on {@code rowLimit !=} {@link FormatReader#NO_LIMIT}.
      */
     int probeWaveSize(int rowLimit, long strideBytes, int positionCount) {
-        return probeWaveSize(rowLimit, strideBytes, positionCount, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+        return probeWaveSize(rowLimit, strideBytes, positionCount, ExternalLimitSplits.defaultTaskConcurrency(Settings.EMPTY), 1);
     }
 
     int probeWaveSize(int rowLimit, long strideBytes, int positionCount, int taskConcurrency, int fileCount) {
@@ -2565,7 +2565,7 @@ public class FileSplitProvider implements SplitProvider {
      * The walk's {@code maxBoundaries} includes 0, so the cap is cuts+1.
      */
     int provenBoundaryCap(int rowLimit, long strideBytes) {
-        return provenBoundaryCap(rowLimit, strideBytes, ExternalLimitSplits.DEFAULT_TASK_CONCURRENCY, 1);
+        return provenBoundaryCap(rowLimit, strideBytes, ExternalLimitSplits.defaultTaskConcurrency(Settings.EMPTY), 1);
     }
 
     int provenBoundaryCap(int rowLimit, long strideBytes, int taskConcurrency, int fileCount) {

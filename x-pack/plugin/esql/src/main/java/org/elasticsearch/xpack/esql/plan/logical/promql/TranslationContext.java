@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -515,10 +518,53 @@ public record TranslationContext(
         return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
     }
 
-    /** {@code packing} leaving {@code labels} out as well: the label container of the remaining labels. */
-    public static Expression unset(Expression packing, Stream<String> labels) {
-        List<Expression> names = labels.sorted().<Expression>map(label -> Literal.keyword(packing.source(), label)).toList();
+    /**
+     * {@code packing} leaving {@code labels} out as well: the label container of the remaining labels. The container holds a
+     * label at the path of its field, so a label named by the alias of a passthrough field, such as {@code state} for
+     * {@code attributes.state}, is left out at that path too, as the source leaves it out of the packing it loads.
+     */
+    private Expression unset(Expression packing, Stream<String> labels) {
+        Map<String, Set<String>> fields = passthroughFieldsByAlias();
+        List<Expression> names = labels.flatMap(label -> Stream.concat(Stream.of(label), fields.getOrDefault(label, Set.of()).stream()))
+            .distinct()
+            .sorted()
+            .<Expression>map(label -> Literal.keyword(packing.source(), label))
+            .toList();
         return new TimeSeriesMetadataFilter(packing.source(), packing, names, true);
+    }
+
+    /**
+     * The fields below a passthrough object in the queried indices, keyed by their alias: the name below their innermost
+     * passthrough object, as {@code ExemplarsRewriter} names them. A field the metadata functions already read by its alias,
+     * as they read one below {@code labels}, is not listed.
+     */
+    private Map<String, Set<String>> passthroughFieldsByAlias() {
+        Map<String, Set<String>> fields = new HashMap<>();
+        for (IndexResolution resolution : analyzer.indexResolution().values()) {
+            if (resolution.isValid()) {
+                collectPassthroughFields(resolution.get().mapping(), "", null, fields);
+            }
+        }
+        return fields;
+    }
+
+    private static void collectPassthroughFields(
+        Map<String, EsField> mapping,
+        String prefix,
+        @Nullable String passthrough,
+        Map<String, Set<String>> fields
+    ) {
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String path = prefix + entry.getKey();
+            EsField field = entry.getValue();
+            if (passthrough != null && field.getDataType() != DataType.OBJECT) {
+                String alias = path.substring(passthrough.length() + 1);
+                if (PromqlLabels.labelName(path).equals(alias) == false) {
+                    fields.computeIfAbsent(alias, k -> new TreeSet<>()).add(path);
+                }
+            }
+            collectPassthroughFields(field.getProperties(), path + ".", field.isPassthrough() ? path : passthrough, fields);
+        }
     }
 
     /**

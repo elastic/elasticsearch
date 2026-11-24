@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
@@ -117,8 +118,8 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
                     + "] index level setting."
             );
         }
-        // whatever the field, as a regexp query is refused on any field type
-        if (context.allowExpensiveQueries() == false) {
+        // whatever the field, as a regexp query is refused on any field type, but a constant one, which tests its one value
+        if (context.allowExpensiveQueries() == false && fieldType instanceof ConstantFieldType == false) {
             throw new ElasticsearchException(
                 "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
             );
@@ -182,14 +183,23 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
     /**
      * Whether both syntaxes give the pattern the same strings, false if Lucene can't parse it. The automata and the
      * differences between them are built within a fold budget, as a label matcher's automaton is, so that the check is
-     * bounded on the coordinator; a pattern past it is refused as one that can't be checked, which it is told apart from.
+     * bounded on the coordinator. A pattern whose own automaton is too complex is refused as it would be once every node
+     * is upgraded; one past the budget otherwise, such as {@code @a.{20}} whose {@code @} Lucene reads as any string, is
+     * refused as one that can't be checked, which it is told apart from.
      */
     private static boolean sameLanguage(Re2Pattern re2, RLikePattern lucene, Source source) {
         // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
         CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
+        Automaton a;
         try {
-            Automaton a = re2.createAutomaton(false, breaker, NAME);
+            a = re2.createAutomaton(false, breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        } catch (FoldContext.FoldTooMuchMemoryException e) {
+            throw tooComplexToCheck(re2, e);
+        }
+        try {
             // the Lucene side is built as the old label matcher built it, every step charged to the same budget
             Automaton nfa = new CircuitBreakingRegExp(lucene.pattern(), RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(
                 breaker,
@@ -203,14 +213,18 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         } catch (IllegalArgumentException e) {
             return false;
         } catch (TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
-            throw new IllegalArgumentException(
-                "regex ["
-                    + re2.pattern()
-                    + "] can't be matched until every node is upgraded: it is too complex to check that nodes on older versions,"
-                    + " which read it as a Lucene regexp, match the same strings",
-                e
-            );
+            throw tooComplexToCheck(re2, e);
         }
+    }
+
+    private static IllegalArgumentException tooComplexToCheck(Re2Pattern re2, RuntimeException e) {
+        return new IllegalArgumentException(
+            "regex ["
+                + re2.pattern()
+                + "] can't be matched until every node is upgraded: it is too complex to check that nodes on older versions,"
+                + " which read it as a Lucene regexp, match the same strings",
+            e
+        );
     }
 
     /**

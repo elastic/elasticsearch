@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
@@ -59,13 +60,27 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
     }
 
     /**
-     * A field without a terms index refuses it too, as it refuses a {@code regexp} query: some, such as a flattened key,
-     * don't check the setting when given an automaton.
+     * A field without a terms index refuses it too, as it refuses a {@code regexp} query, even one such as a doc-values-only
+     * flattened key, which doesn't check the setting when given an automaton.
      */
     public void testDocValuesOnlyFieldRefusesWhenExpensiveQueriesAreNotAllowed() throws IOException {
-        SearchExecutionContext context = noExpensiveQueries(keyword(false));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("a.*", context));
+        MapperService mapperService = createMapperService(
+            mapping(b -> b.startObject("labels").field("type", "flattened").field("index", false).endObject())
+        );
+        assertThat(
+            "the key builds the query when expensive ones are allowed",
+            query("labels.pod", "a.*", createSearchExecutionContext(mapperService)),
+            notNullValue()
+        );
+        SearchExecutionContext context = noExpensiveQueries(mapperService);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("labels.pod", "a.*", context));
         assertThat(e.getMessage(), equalTo("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false."));
+    }
+
+    /** A constant field tests its one value, so it runs the match as it runs a {@code regexp} query, whatever the setting. */
+    public void testConstantFieldRunsWhenExpensiveQueriesAreNotAllowed() throws IOException {
+        SearchExecutionContext context = noExpensiveQueries(keyword(true));
+        assertThat(query("_index", "t.*", context), notNullValue());
     }
 
     public void testAutomatonIsChargedToTheShardBreaker() throws IOException {
@@ -109,6 +124,13 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         SearchExecutionContext context = createSearchExecutionContext(keyword(true));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query(".*a.{20}", context));
         assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
+
+        // built against the shard breaker, it fails as a regexp query's automaton does, which the search reports the same way
+        SearchExecutionContext limited = new SearchExecutionContext(
+            createSearchExecutionContext(keyword(true)),
+            new TrackingCircuitBreaker(ByteSizeValue.ofMb(100).getBytes())
+        );
+        expectThrows(TooComplexToDeterminizeException.class, () -> query(".*a.{20}", limited));
     }
 
     private MapperService keyword(boolean indexed) throws IOException {
@@ -129,8 +151,12 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
     }
 
     private static org.apache.lucene.search.Query query(String regex, SearchExecutionContext context) {
-        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(regex));
-        MappedFieldType fieldType = context.getFieldType("label");
+        return query("label", regex, context);
+    }
+
+    private static org.apache.lucene.search.Query query(String field, String regex, SearchExecutionContext context) {
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute(field), new Re2Pattern(regex));
+        MappedFieldType fieldType = context.getFieldType(field);
         return re2Like.asLuceneQuery(fieldType, MultiTermQuery.CONSTANT_SCORE_REWRITE, context);
     }
 }

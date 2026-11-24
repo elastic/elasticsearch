@@ -58,13 +58,24 @@ public class Re2LikeTransportVersionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[" + regex + "] can't be matched until every node is upgraded"));
     }
 
-    /** A pattern past the budget of the check is refused as one that can't be checked, not as one read differently. */
+    /**
+     * A pattern RE2 builds but whose Lucene reading is past the budget of the check, as {@code @} reads as any string, is
+     * refused as one that can't be checked, not as one read differently.
+     */
     public void testRefusesPatternTooComplexToCheck() {
-        String regex = ".*a.{20}";
+        String regex = "@a.{20}";
         Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(regex));
         TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(ESQL_RE2_LIKE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> re2Like.forTransportVersion(version));
         assertThat(e.getMessage(), containsString("[" + regex + "] can't be matched until every node is upgraded: it is too complex"));
+    }
+
+    /** A pattern RE2 itself can't build is refused as it is once every node is upgraded. */
+    public void testRefusesPatternTooComplexToRun() {
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(".*a.{20}"));
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(ESQL_RE2_LIKE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> re2Like.forTransportVersion(version));
+        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
     }
 
     private static Re2Like re2Like() {

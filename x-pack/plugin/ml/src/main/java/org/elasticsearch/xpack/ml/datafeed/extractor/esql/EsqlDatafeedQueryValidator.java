@@ -197,7 +197,12 @@ public class EsqlDatafeedQueryValidator {
             List<String> unavailable = unavailableClustersWithoutDescription(response);
             if (unavailable.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE, esqlDatafeedSubject(datafeedId), unavailable)
+                    Messages.getMessage(
+                        Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE,
+                        esqlDatafeedSubject(datafeedId),
+                        unavailable,
+                        summaryCountField == null ? List.of(timeField) : List.of(timeField, summaryCountField)
+                    )
                 );
             }
             checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);

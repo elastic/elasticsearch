@@ -214,7 +214,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
-        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         TransportStartDatafeedAction.checkEsqlSourcesAtStart(
             validator,
             probeClient,
@@ -226,7 +226,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             future
         );
 
-        assertThat(future.actionGet(), sameInstance(remote));
+        future.actionGet();
         assertThat(params.getDatafeedIndices(), equalTo(remote));
         // cross-project search is off, so the persisted project routing is inert and must not reach ES|QL
         verify(validator).validateAtStart(
@@ -250,7 +250,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
-        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         TransportStartDatafeedAction.checkEsqlSourcesAtStart(
             validator,
             mock(Client.class),
@@ -275,7 +275,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
-        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         TransportStartDatafeedAction.checkEsqlSourcesAtStart(
             validator,
             mock(Client.class),
@@ -287,7 +287,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             future
         );
 
-        assertThat(future.actionGet(), equalTo(List.of()));
+        future.actionGet();
         assertThat(params.getDatafeedIndices(), equalTo(List.of()));
         verifyNoInteractions(validator);
         assertThat(TransportStartDatafeedAction.skipsRemoteClusterChecks(datafeed, decider), is(true));

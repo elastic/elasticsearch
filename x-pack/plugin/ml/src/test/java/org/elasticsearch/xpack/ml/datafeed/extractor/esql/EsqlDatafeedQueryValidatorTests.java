@@ -224,6 +224,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure, instanceOf(ElasticsearchStatusException.class));
         assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(failure.getMessage(), containsString("[east]"));
+        assertThat(failure.getMessage(), containsString("[@timestamp]"));
+    }
+
+    public void testValidateAtStartGivenSkippedRemoteWithLocalColumnsShouldListIt() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+        );
+        assertThat(validateAtStart(harness), equalTo(List.of("east:logs-*")));
     }
 
     public void testValidateAtStartShouldBeEmptyForLocalSource() {

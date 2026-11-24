@@ -296,14 +296,19 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             );
             checkEsqlSourcesAtStart(
                 esqlQueryValidator,
-                CloudCredentialsExtension.getInstance().credentialManager().wrapClient(client, datafeed.getCloudInternalCredential()),
+                CloudCredentialsExtension.getInstance()
+                    .credentialManager()
+                    .wrapClient(
+                        new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+                        datafeed.getCloudInternalCredential()
+                    ),
                 datafeed,
                 effectiveDatafeed,
                 job,
                 crossProjectModeDecider,
                 params,
                 ActionListener.wrap(
-                    remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, trueRemoteIndices(params.getDatafeedIndices())),
+                    unused -> checkRemoteSourcesAndCreateExtractor.accept(job, trueRemoteIndices(params.getDatafeedIndices())),
                     responseHeaderPreservingListener::onFailure
                 )
             );
@@ -385,10 +390,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Job job,
         CrossProjectModeDecider crossProjectModeDecider,
         StartDatafeedAction.DatafeedParams params,
-        ActionListener<List<String>> listener
+        ActionListener<Void> listener
     ) {
         if (skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
-            listener.onResponse(List.of());
+            listener.onResponse(null);
             return;
         }
         validator.validateAtStart(
@@ -400,7 +405,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
             ActionListener.wrap(remoteSources -> {
                 params.setDatafeedIndices(remoteSources);
-                listener.onResponse(remoteSources);
+                listener.onResponse(null);
             }, listener::onFailure),
             datafeed.getId()
         );

@@ -112,8 +112,9 @@ public final class Messages {
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE =
-        "Cannot start {0} because ES|QL skipped the clusters {1} and described no columns. "
-            + "Check that the clusters are connected and that the indices in the query exist on them.";
+        "Cannot start {0} because ES|QL skipped the clusters {1} and returned none of the required columns {2}. "
+            + "Make sure that the clusters are connected, that the indices in the query exist on them, "
+            + "and that the query returns the required columns.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

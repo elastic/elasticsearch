@@ -268,7 +268,10 @@ public class EscfEncoderTests extends ESTestCase {
             try (EscfBatch batch = encode(List.of(new BytesArray(doc)), allowSimd, Set.of("obj.vec"))) {
                 EscfColumn vec = column(batch, "obj.vec");
                 assertEquals(EscfColumnKind.ARRAY, vec.kind());
-                assertArrayEquals(new float[] { 0.1f, Float.parseFloat(midpointText), 3f, -2.5e-3f }, vec.numericArrayAsFloats(0), 0f);
+                assertArrayEquals(new float[] { 0.1f, Float.parseFloat(midpointText), 3f, -2.5e-3f }, vec.numericArrayAsFloats(0, 4), 0f);
+                // an array of another length is left to the element by element path, which stops at the first extra element
+                assertNull(vec.numericArrayAsFloats(0, 3));
+                assertNull(vec.numericArrayAsFloats(0, 5));
                 ArrayReader elements = vec.getArrayValue(0);
                 assertTrue(elements.next());
                 assertEquals((double) 0.1f, elements.doubleValue(), 0d);
@@ -294,7 +297,7 @@ public class EscfEncoderTests extends ESTestCase {
         for (boolean allowSimd : simdModes()) {
             try (EscfBatch batch = encode(List.of(new BytesArray(doc)), allowSimd, Set.of("vec"))) {
                 EscfColumn vec = column(batch, "vec");
-                assertNull(vec.numericArrayAsFloats(0));
+                assertNull(vec.numericArrayAsFloats(0, 4));
                 ArrayReader elements = vec.getArrayValue(0);
                 assertTrue(elements.next());
                 assertEquals(SourceValueType.FLOAT, elements.type());

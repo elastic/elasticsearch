@@ -4614,17 +4614,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * The elements of the array vector of {@code doc}, which must have {@code dims} of them, as floats. An array of numbers only,
-     * the common case, is read in bulk; any other array is read element by element, and throws on a non-number element.
+     * The elements of the array vector of {@code doc}, which must have {@code dims} of them, as floats. An array of {@code dims}
+     * numbers only, the common case, is read in bulk; any other array is read element by element, which allocates no more than
+     * {@code dims} floats, stops at the first element past them, and throws on a non-number element.
      */
     private float[] vectorElements(EscfColumn source, int doc, byte type, int dims) {
-        final float[] numbers = type == SourceValueType.FIXED_ARRAY ? source.numericArrayAsFloats(doc) : null;
+        final float[] numbers = type == SourceValueType.FIXED_ARRAY ? source.numericArrayAsFloats(doc, dims) : null;
         if (numbers != null) {
-            if (numbers.length != dims) {
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: [" + fullPath() + "] has [" + numbers.length + "] dimensions, the mapping defines [" + dims + "]"
-                );
-            }
             return numbers;
         }
         final float[] vector = new float[dims];

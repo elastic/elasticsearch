@@ -274,13 +274,15 @@ public abstract class EscfColumn implements SliceableColumn {
     /**
      * The number elements of the array at {@code row} narrowed to floats, read in bulk, or {@code null} when this column does not
      * keep that array as a run of numbers, as only an {@link EscfColumnKind#ARRAY} column of a {@code LONG} or {@code DOUBLE}
-     * element kind does. Callers that get {@code null} read the array element by element with {@link #getArrayValue}.
+     * element kind does, or when the array does not have exactly {@code length} elements. Callers that get {@code null} read the
+     * array element by element with {@link #getArrayValue}, which can stop at the first element past what they expect, so an
+     * overlong array is never decoded, or allocated for, in full.
      *
      * <p>A double element narrows with a cast, as {@code (float) getArrayValue(row).doubleValue()} would: exact for the elements
      * an encoder parsed as floats, and otherwise rounded a second time (see {@link org.elasticsearch.sourcebatch.FloatNarrowing}).
      */
     @Nullable
-    public float[] numericArrayAsFloats(int row) {
+    public float[] numericArrayAsFloats(int row, int length) {
         return null;
     }
 

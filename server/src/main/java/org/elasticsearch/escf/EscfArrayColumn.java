@@ -84,10 +84,10 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
-    public float[] numericArrayAsFloats(int row) {
-        if (child instanceof AbstractFixed64Column numbers) {
-            int elemFrom = intAt(rowOffsets, row);
-            float[] values = new float[intAt(rowOffsets, row + 1) - elemFrom];
+    public float[] numericArrayAsFloats(int row, int length) {
+        int elemFrom = intAt(rowOffsets, row);
+        if (child instanceof AbstractFixed64Column numbers && intAt(rowOffsets, row + 1) - elemFrom == length) {
+            float[] values = new float[length];
             numbers.readFloats(elemFrom, values);
             return values;
         }

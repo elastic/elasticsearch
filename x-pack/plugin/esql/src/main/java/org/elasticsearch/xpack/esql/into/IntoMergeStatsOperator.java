@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -27,9 +28,10 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -43,6 +45,8 @@ import java.util.function.Supplier;
  * refresh the destination exactly once.
  */
 public final class IntoMergeStatsOperator implements Operator {
+    private static final Logger logger = LogManager.getLogger(IntoMergeStatsOperator.class);
+
     /**
      * @param refresher refreshes the destination when the merged stats show writes, or {@code null} when no refresh is wanted
      */
@@ -193,7 +197,7 @@ public final class IntoMergeStatsOperator implements Operator {
         // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, but does say which shard
         // it was, and a failure from another node is wrapped again with the details of that node. The message, the status and the cause
         // are those of what they wrap, so that the root cause of the response is what actually went wrong. The shard goes on the error
-        // itself, and the wrappers are kept as suppressed, so that the shard copy and node that failed are not lost.
+        // itself.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
         RestStatus status = ExceptionsHelper.status(underlying);
         String hint = status == RestStatus.FORBIDDEN
@@ -211,25 +215,27 @@ public final class IntoMergeStatsOperator implements Operator {
         if (cause instanceof ElasticsearchException wrapper && wrapper.getShardId() != null) {
             failure.setShard(wrapper.getShardId());
         }
-        if (cause != underlying) {
-            failure.addSuppressed(describeWrappers(cause, underlying));
-        }
+        // The wrappers say which node refused, an internal detail that the response must not carry, not even in its stack trace, and
+        // attaching them would repeat the cause chain. The cluster admin gets them, with the whole failure, from the log.
+        logger.warn(
+            () -> Strings.format(
+                "INTO [%s] wrote [%d] documents but the refresh failed: %s",
+                refresher.destination(),
+                createdSum,
+                wrappers(cause)
+            ),
+            cause
+        );
         refreshFailure = failure;
     }
 
-    /**
-     * The details of the wrappers around {@code underlying}, such as the node that failed, in an exception that has no cause. Suppressing
-     * the wrapper itself would attach the cause chain a second time: the response renders a wrapper as what it wraps, so the failure
-     * would be reported twice, and the stack trace would mark the direct cause as a circular reference.
-     */
-    private static ElasticsearchException describeWrappers(Throwable wrapper, Throwable underlying) {
-        List<String> wrappers = new ArrayList<>();
-        for (Throwable t = wrapper; t != null && t != underlying; t = t.getCause()) {
-            wrappers.add(t.toString());
+    /** The failure and what it wraps, outermost first, which is where the node that refused is named. */
+    private static String wrappers(Throwable cause) {
+        StringBuilder chain = new StringBuilder();
+        for (Throwable t = cause; t != null; t = t.getCause()) {
+            chain.append(chain.isEmpty() ? "" : " <- ").append(t);
         }
-        ElasticsearchException details = new ElasticsearchException("the refresh failed through {}", wrappers);
-        details.setStackTrace(wrapper.getStackTrace());
-        return details;
+        return chain.toString();
     }
 
     private boolean refreshPending() {

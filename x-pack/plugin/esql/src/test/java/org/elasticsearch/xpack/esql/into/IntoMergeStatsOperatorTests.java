@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -48,7 +50,6 @@ import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -287,44 +288,51 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Which node refused, and the other details of a remote failure, are on the wrappers, which the message and the cause leave out.
-     * The response renders a wrapper as what it wraps, so the details are in the stack trace that {@code error_trace=true} adds.
+     * Which node refused, and its transport address, are internal details: the response, with or without {@code error_trace}, must
+     * not carry them, and the failure must not attach the wrappers that hold them, which would repeat the cause chain.
      */
-    public void testErrorTraceKeepsTheTransportDetailsOfAShardFailure() throws IOException {
+    public void testResponseDoesNotDiscloseTheRemoteNode() throws IOException {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
-        RemoteTransportException remote = new RemoteTransportException("[node-b][127.0.0.1:9300][indices:admin/refresh[s][r]]", breaker);
-        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remote))));
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
 
-        assertThat(e.getCause(), sameInstance(breaker));
-        assertThat(e.getSuppressed(), arrayWithSize(1));
-        assertThat("the cause chain is already the cause of the error", e.getSuppressed()[0].getCause(), nullValue());
-        String stackTrace = (String) errorBody(e, true).get("stack_trace");
-        assertThat(stackTrace, containsString("node-b"));
-        assertThat(stackTrace, containsString("BroadcastShardOperationFailedException"));
-        assertThat(stackTrace, not(containsString("CIRCULAR REFERENCE")));
+        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+        assertThat(e.getSuppressed(), emptyArray());
+        for (boolean errorTrace : new boolean[] { false, true }) {
+            String body = errorBody(e, errorTrace).toString();
+            assertThat(body, not(containsString("node-b")));
+            assertThat(body, not(containsString("127.0.0.1")));
+            assertThat(body, not(containsString("CIRCULAR REFERENCE")));
+        }
     }
 
-    /** The wrappers are kept for their details, so what they wrap must not be reported a second time as a suppressed failure. */
-    @SuppressWarnings("unchecked")
-    public void testSuppressedWrappersDoNotRepeatTheFailure() throws IOException {
+    /** The node that refused is what the cluster admin needs, so it goes to the log, with the whole failure. */
+    public void testRemoteNodeOfAShardFailureIsLogged() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
         op.finish();
 
-        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
-        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(breaker))));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-
-        List<Map<String, Object>> suppressed = (List<Map<String, Object>>) errorBody(e).get("suppressed");
-        for (Map<String, Object> entry : suppressed) {
-            assertThat(entry.get("type"), not(equalTo("circuit_breaking_exception")));
-            assertThat((String) entry.get("reason"), not(containsString("Data too large")));
+        try (MockLog mockLog = MockLog.capture(IntoMergeStatsOperator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "refresh failure names the node",
+                    IntoMergeStatsOperator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*[" + DEST + "]*node-b*"
+                )
+            );
+            client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remoteBreaker()))));
+            expectThrows(ElasticsearchStatusException.class, op::getOutput);
+            mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    private static RemoteTransportException remoteBreaker() {
+        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        return new RemoteTransportException("[node-b][127.0.0.1:9300][indices:admin/refresh[s][r]]", breaker);
     }
 
     public void testRefreshIsOnlyRetriedForAClosedMember() {

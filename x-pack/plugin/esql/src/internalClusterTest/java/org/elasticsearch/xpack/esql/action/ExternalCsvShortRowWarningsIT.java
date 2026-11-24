@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * What a short row tells the client, end to end: a dropped row and a padded row each have to reach a response
@@ -87,6 +89,48 @@ public class ExternalCsvShortRowWarningsIT extends AbstractExternalDataSourceIT 
         List<String> warnings = warningsOf("FROM " + dataset + " | KEEP id, name | SORT id", 3);
         assertThat(warnings, hasItem(containsString("missing trailing fields, read as null: [2] columns, the header has [3]")));
         assertThat(warnings, hasItem(containsString("reading those fields as null")));
+    }
+
+    /**
+     * The default {@code fail_fast} is the headline change: a query over a ragged file that used to return rows with
+     * invented nulls now fails, and the failure a client reads names the row and both widths. The reader tests pin
+     * the message; this pins that it survives the trip from the reader to the response.
+     */
+    public void testShortRowFailsTheQueryUnderTheDefaultErrorMode() throws Exception {
+        Path file = writeRaggedCsv(createTempDir().resolve("ragged_fail"), "ragged.csv");
+        String dataset = registerDataset("ragged_short_fail_fast", StoragePath.fileUri(file), Map.of());
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, name | SORT id"))
+                .actionGet(30, TimeUnit.SECONDS)
+        );
+        String failure = ExceptionsHelper.stackTrace(e);
+        assertThat(failure, containsString("Row [2]"));
+        assertThat(failure, containsString("missing trailing fields: [2] columns, the header has [3]"));
+    }
+
+    /**
+     * A short row must not decide a column's type. With {@code v,n / 1,10 / bad / 2,20} the lone field {@code bad}
+     * would make {@code v} a keyword and fail {@code AVG(v)} at analysis, which says nothing about the row that is
+     * actually at fault; the failure has to be the row's own.
+     */
+    public void testAShortRowDoesNotTurnANumericColumnIntoAnAnalysisError() throws Exception {
+        Path dir = createTempDir().resolve("short_sample");
+        Files.createDirectories(dir);
+        Path file = dir.resolve("short.csv");
+        Files.writeString(file, "v,n\n1,10\nbad\n2,20\n", StandardCharsets.UTF_8);
+        String dataset = registerDataset("short_sample_avg", StoragePath.fileUri(file), Map.of());
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest("FROM " + dataset + " | STATS AVG(v)"))
+                .actionGet(30, TimeUnit.SECONDS)
+        );
+        String failure = ExceptionsHelper.stackTrace(e);
+        assertThat(failure, containsString("Row [2]"));
+        assertThat(failure, containsString("missing trailing fields: [1] columns, the header has [2]"));
+        assertThat(failure, not(containsString("argument of [AVG(v)] must be")));
     }
 
     /**

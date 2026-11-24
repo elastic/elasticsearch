@@ -1742,6 +1742,30 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * An aggregation over unless reads only the series unless keeps: a group whose every series a right one matches is absent,
+     * as in Prometheus, rather than a count of 0 or a sum of nothing.
+     */
+    public void testPromqlAggregationOverUnlessDropsRemovedGroups() {
+        String index = "promql-aggregation-over-unless";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "c", "region", "west", "tx", 5.0);
+        refresh(index);
+        String unless = "(tx unless on(region) tx{region=\"east\"})";
+
+        for (String aggregation : List.of("count", "sum", "max", "avg")) {
+            double expected = aggregation.equals("count") ? 1.0 : 5.0;
+            assertRowsAnyOrder(
+                promqlQuery(index, aggregation + " by (region) " + unless) + " | KEEP result, region",
+                List.of(List.of(expected, "west"))
+            );
+        }
+        assertRowsAnyOrder(promqlQuery(index, "count(tx unless tx)") + " | KEEP result", List.of());
+        assertRowsAnyOrder(promqlQuery(index, "count(" + unless + ")") + " | KEEP result", List.of(List.of(1.0)));
+    }
+
     /** Arithmetic mask with and executes on the typed path. */
     public void testPromqlAndWithArithmeticMask() {
         String index = "promql-and-with-arithmetic-mask";

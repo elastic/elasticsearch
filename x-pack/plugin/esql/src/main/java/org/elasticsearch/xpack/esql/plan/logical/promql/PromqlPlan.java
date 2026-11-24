@@ -36,10 +36,10 @@ public interface PromqlPlan {
     PromqlDataType returnType();
 
     /**
-     * Translates this node into an ES|QL plan. {@code translation} carries what the enclosing node
-     * {@link TranslationContext#required() requires} of this node's labels and the shared services: recursion into the child
-     * under a requirement, and the aggregation and {@link TranslationContext#eval eval} helpers
-     * every node composes its result from. Each node owns its translation the way it owns its {@link #output()}.
+     * Translates this node into an ES|QL plan. {@code translation} carries the shared services: recursion into the child,
+     * and the aggregation and {@link TranslationContext#eval eval} helpers every node composes its result from. The result
+     * carries the labels of its series as one label container. Each node owns its translation the way it owns its
+     * {@link #output()}.
      */
     TranslationContext.IntermediateResult translate(TranslationContext translation);
 

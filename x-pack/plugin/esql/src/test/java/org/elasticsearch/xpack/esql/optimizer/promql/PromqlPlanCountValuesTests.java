@@ -7,25 +7,24 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.FloatToLabelValue;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.junit.Before;
@@ -38,11 +37,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 /**
- * Plan shape of PromQL {@code count_values}: one series-grain collapse of a raw child, a regroup counting each distinct
- * double value, and the label text formatted once per output group.
+ * Plan shape of PromQL {@code count_values}: one series-grain collapse of a raw child, then a regroup counting the series of
+ * each group by its label container, with the value label written as the text of each series' value.
  */
 public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -55,10 +53,10 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
         assumeTrue("Requires PROMQL_COUNT_VALUES capability", EsqlCapabilities.Cap.PROMQL_COUNT_VALUES.isEnabled());
     }
 
-    /** Every NaN payload groups as one value: packed multi-key hashing compares the raw bits of a double. */
+    /** Every NaN payload formats as one value. */
     public void testNaNKeyIsCanonicalized() {
         LogicalPlan plan = countValuesPlan("count_values(\"v\", network.cost)");
-        Case nanCase = as(groupingKeyAlias(plan).child(), Case.class);
+        Case nanCase = as(formattedValue(plan), Case.class);
         NotEquals isNaN = as(nanCase.children().get(0), NotEquals.class);
         assertTrue(isNaN.left().semanticEquals(isNaN.right()));
         Literal nan = as(nanCase.children().get(1), Literal.class);
@@ -70,45 +68,44 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
     public void testWholeNumberKeyIsNotCanonicalized() {
         for (String metric : List.of("network.bytes_in", "network.total_bytes_in", "network.eth0.tx")) {
             LogicalPlan plan = countValuesPlan("count_values(\"v\", " + metric + ")");
-            assertThat(metric, groupingKeyAlias(plan).child(), instanceOf(ToDouble.class));
+            assertThat(metric, formattedValue(plan), instanceOf(ToDouble.class));
         }
     }
 
     /** A group whose series have no value at a step counts 0, which is no element: the count maps to null above it. */
     public void testZeroCountIsNull() {
         LogicalPlan plan = countValuesPlan("count_values(\"v\", network.bytes_in)");
-        Aggregate countAggregate = countAggregate(plan);
-        Eval above = plan.collect(Eval.class).stream().filter(e -> e.child() == countAggregate).findFirst().orElseThrow();
-        Case zeroAsNull = as(above.fields().getFirst().child(), Case.class);
-        Equals isZero = as(zeroAsNull.children().getFirst(), Equals.class);
+        Attribute count = countAggregate(plan).aggregates().getFirst().toAttribute();
+        List<Case> zeroAsNull = plan.collect(Eval.class)
+            .stream()
+            .flatMap(e -> e.fields().stream())
+            .map(Alias::child)
+            .filter(c -> c instanceof Case zero && zero.children().getFirst() instanceof Equals equals && equals.left().equals(count))
+            .map(Case.class::cast)
+            .toList();
+        assertThat(zeroAsNull, hasSize(1));
+        Equals isZero = as(zeroAsNull.getFirst().children().getFirst(), Equals.class);
         assertEquals(0L, as(isZero.right(), Literal.class).value());
     }
 
     public void testAggregatedChildIsNotCollapsedAgain() {
         LogicalPlan plan = countValuesPlan("count_values(\"v\", sum by (cluster) (network.bytes_in))");
         assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(1));
-        assertEquals(List.of("step", "v"), groupingNames(countAggregate(plan)));
+        assertEquals(List.of("v"), countedLabels(plan));
     }
 
     /** A key that is not a dimension groups the per-series values too, as for {@code sum by}. */
     public void testNonDimensionKey() {
         LogicalPlan plan = countValuesPlan("count_values by (event) (\"v\", network.bytes_in)");
-        assertEquals(List.of("step", "event", "v"), groupingNames(countAggregate(plan)));
+        assertEquals(List.of("event", "v"), countedLabels(plan));
         List<Aggregate> regroups = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat(regroups, hasSize(2));
-        for (Aggregate regroup : regroups) {
-            assertThat(groupingNames(regroup), hasItem("event"));
-        }
+        assertThat(groupingNames(regroups.getLast()), hasItem("event"));
     }
 
     /** A value label written with the passthrough prefix names the same label as its bare form. */
     public void testPrefixedValueLabel() {
         LogicalPlan plan = planPrometheusLayout("count_values(\"labels.instance\", sum by (instance, job) (node_memory_MemTotal_bytes))");
-        Attribute key = groupingAttribute(countAggregate(plan), "instance");
-        assertThat(key, not(instanceOf(FieldAttribute.class)));
-        assertEquals(DataType.DOUBLE, key.dataType());
-        Alias label = formattedLabel(plan, "labels.instance");
-        assertEquals(key.id(), as(label.child().children().getFirst(), Attribute.class).id());
+        assertEquals(List.of("instance"), countedLabels(plan));
         assertEquals(List.of("labels.instance"), plan.output().stream().skip(2).map(Attribute::name).toList());
     }
 
@@ -124,9 +121,15 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
         );
         assertThat(plan.collect(Aggregate.class), empty());
         assertEquals(List.of("step", "v", "w"), outputNames(plan));
-        assertEquals(new BytesRef("1"), formattedLabel(plan, "v").child().fold(FoldContext.small()));
         for (String name : List.of("v", "w")) {
-            assertEquals(formattedLabel(plan, name).id(), output(plan, name).id());
+            Alias label = plan.collect(Eval.class)
+                .stream()
+                .flatMap(e -> e.fields().stream())
+                .filter(a -> a.id().equals(output(plan, name).id()))
+                .findFirst()
+                .orElseThrow();
+            TimeSeriesMetadataPath read = as(label.child(), TimeSeriesMetadataPath.class);
+            assertEquals(List.of("v", "w"), labelsOf(plan, read.children().getFirst()));
         }
     }
 
@@ -163,17 +166,12 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
     }
 
     /**
-     * The fused path cannot pair an aggregated constant with {@code scalar(...)} of a vector; where every node knows the label
-     * container functions they join as independent pipelines.
+     * The fused path cannot pair an aggregated constant with {@code scalar(...)} of a vector; they join as independent
+     * pipelines.
      */
     public void testConstantTimesScalarOfVector() {
         String query = "count_values(\"v\", vector(1)) * scalar(sum(network.bytes_in))";
-        if (containerFunctions()) {
-            assertThat(countValuesPlan(query).collect(HashJoin.class), hasSize(1));
-            return;
-        }
-        VerificationException e = expectThrows(VerificationException.class, () -> countValuesPlan(query));
-        assertThat(e.getMessage(), containsString("binary operations between vectors with mismatched grouping keys are not yet supported"));
+        assertThat(countValuesPlan(query).collect(HashJoin.class), hasSize(1));
     }
 
     /**
@@ -230,25 +228,31 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
             .orElseThrow(() -> new AssertionError("no grouping [" + name + "] in " + aggregate.groupings()));
     }
 
-    /** The alias defining the double key that the counting aggregate groups by. */
-    private static Alias groupingKeyAlias(LogicalPlan plan) {
-        Attribute key = groupingAttribute(countAggregate(plan), "v");
-        return plan.collect(Eval.class)
+    /** The value each series' value label is formatted from. */
+    private static Expression formattedValue(LogicalPlan plan) {
+        List<FloatToLabelValue> formatted = plan.collect(Eval.class)
             .stream()
             .flatMap(e -> e.fields().stream())
-            .filter(a -> a.id().equals(key.id()))
-            .findFirst()
-            .orElseThrow();
-    }
-
-    /** The alias formatting the label {@code name} from its double value. */
-    private static Alias formattedLabel(LogicalPlan plan, String name) {
-        List<Alias> formatted = plan.collect(Eval.class)
-            .stream()
-            .flatMap(e -> e.fields().stream())
-            .filter(a -> a.name().equals(name) && a.child() instanceof FloatToLabelValue)
+            .map(Alias::child)
+            .filter(FloatToLabelValue.class::isInstance)
+            .map(FloatToLabelValue.class::cast)
             .toList();
         assertThat(formatted, hasSize(1));
-        return formatted.getFirst();
+        return formatted.getFirst().children().getFirst();
+    }
+
+    /** The labels of each group the counting aggregate counts the series of: the label container it keys by. */
+    private static List<String> countedLabels(LogicalPlan plan) {
+        Aggregate count = countAggregate(plan);
+        Attribute packed = ((NamedExpression) count.groupings().getLast()).toAttribute();
+        List<PackDims> packs = plan.collect(PackDims.class)
+            .stream()
+            .filter(
+                p -> Alias.unwrap(count.groupings().getLast()) instanceof Attribute a && a.id().equals(p.packed().id())
+                    || p.packed().id().equals(packed.id())
+            )
+            .toList();
+        assertThat(packs, hasSize(1));
+        return labelsOf(plan, packs.getFirst().dims().getFirst());
     }
 }

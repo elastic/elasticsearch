@@ -15,21 +15,17 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * Base class for PromQL histogram functions that evaluate classic histogram buckets grouped by their {@code le} label.
@@ -87,11 +83,7 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
 
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
-        // bucket bound off the `le` column itself, so the child must also expose it by name.
-        List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-        TranslationSchema childRequired = union(union(subtract(context.required(), le), open(le)), finite(le));
-        IntermediateResult result = context.withRequired(childRequired).translate(child());
+        IntermediateResult result = context.translate(child());
         if (result.kind().constant) {
             return result;
         }
@@ -101,28 +93,53 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
             return new ValueTransformationFunction(source(), child(), definition(), parameters()).translate(context);
         }
 
-        // Classic counter-backed histograms need the special treatment below.
-        Attribute leColumn = result.label(HistogramFunctionCall.LE_LABEL);
-        if (leColumn == null) {
-            // like prometheus, return warning and drop series w/o `le`
+        // Classic counter-backed histograms evaluate their buckets by `le`: the series collapse as they are, then group by
+        // their labels but `le`, reading each bucket's bound off it. Prometheus drops the metric name from the result.
+        // An input without `le` has a null bound and evaluates to nothing, with a warning like Prometheus.
+        if (hasLe(context) == false) {
             HeaderWarning.addWarning(functionName() + ": input vector has no le label; no buckets to evaluate");
-            var skipAllFilter = new Filter(source(), result.plan(), Literal.FALSE);
-            var nullGrouping = new Values(source(), new Literal(source(), null, DataType.DOUBLE));
-            IntermediateResult skipped = result.with(skipAllFilter, result.schema(), result.value());
-            return skipped.kind().afterInitialAggregation
-                ? context.regroup(skipped, result.schema(), false, nullGrouping)
-                : context.collapse(skipped, result.schema(), nullGrouping);
         }
-
         if (result.kind().afterInitialAggregation == false) {
-            result = context.collapse(result, result.schema(), result.value());
-            leColumn = result.label(HistogramFunctionCall.LE_LABEL);
-            assert leColumn != null : "invariant: [ " + HistogramFunctionCall.LE_LABEL + " ] required";
+            result = context.emitInitialAggregate(result, result.value());
         }
-
         // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-        TranslationSchema schema = context.regroupWithout(result.schema(), le);
         Expression count = new ToDouble(source(), result.value());
-        return context.regroup(result, schema, true, buildAggregateFunction(count, leColumn));
+        Expression labels = result.labels();
+        Expression le = labels == null ? new Literal(source(), null, DataType.KEYWORD) : PromqlLabels.read(labels, LE_LABEL);
+        IntermediateResult quantiles = context.emitAggregate(
+            result,
+            PromqlLabels.without(labels, List.of(LE_LABEL)),
+            buildAggregateFunction(count, le)
+        );
+        return quantiles.withLabels(context.withoutMetricName(quantiles.labels()));
+    }
+
+    /** Whether the series of the input may carry {@code le}: one of the labels the input keeps, which the source maps a field for. */
+    private boolean hasLe(TranslationContext context) {
+        return carries(child(), LE_LABEL, context);
+    }
+
+    /** Whether the series of {@code node} may carry the label {@code label}. */
+    private static boolean carries(LogicalPlan node, String label, TranslationContext context) {
+        return switch (node) {
+            case CountValuesAggregate countValues -> labelName(countValues.valueLabel()).equals(label)
+                || countValues.grouping() != AcrossSeriesAggregate.Grouping.NONE
+                    && carries((AcrossSeriesAggregate) countValues, label, context);
+            case AcrossSeriesAggregate aggregate -> carries(aggregate, label, context);
+            case MetadataManipulationFunction relabel -> labelName(relabel.destination()).equals(label)
+                || carries(relabel.child(), label, context);
+            case LiteralSelector ignored -> false;
+            case Selector ignored -> context.cmd().child().output().stream().anyMatch(field -> labelName(field).equals(label));
+            default -> node.children().stream().anyMatch(child -> carries(child, label, context));
+        };
+    }
+
+    private static boolean carries(AcrossSeriesAggregate aggregate, String label, TranslationContext context) {
+        boolean listed = aggregate.groupings().stream().anyMatch(grouping -> labelName(grouping).equals(label));
+        return switch (aggregate.grouping()) {
+            case BY -> listed;
+            case WITHOUT -> listed == false && carries(aggregate.child(), label, context);
+            case NONE -> false;
+        };
     }
 }

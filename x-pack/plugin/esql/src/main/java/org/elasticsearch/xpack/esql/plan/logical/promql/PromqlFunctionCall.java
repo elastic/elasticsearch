@@ -171,9 +171,12 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      * {@link #translate} so a new family cannot inherit this lowering by accident.
      */
     protected final IntermediateResult translateValueFunction(TranslationContext context) {
-        IntermediateResult child = (dropsMetricName() ? context.withoutMetricName() : context).translate(child());
+        IntermediateResult child = context.translate(child());
         if (child.kind().constant) {
             return child;
+        }
+        if (dropsMetricName()) {
+            child = child.withLabels(context.withoutMetricName(child.labels()));
         }
         Expression window = AggregateFunction.NO_WINDOW;
         if (child() instanceof RangeSelector rangeSelector) {

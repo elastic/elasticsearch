@@ -19,23 +19,20 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.FloatToLabelValue;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
 
 /**
  * The PromQL {@code count_values(label, v)} aggregation: counts the elements sharing each distinct sample value and exposes
@@ -133,77 +130,47 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
 
     /**
      * {@code count_values} is two aggregation levels: the child collapses to one value per series (an aggregated child
-     * already is one), then a regroup by the grouping keys plus the sample value counts the series sharing each value.
-     * The value groups as a double so equal values group together whatever their text, and is formatted to the label
-     * text once per output group rather than once per series.
+     * already is one), then an aggregate keyed by the labels of each group with the value label written counts the series
+     * sharing each value. The value label is the text Prometheus gives the value, so values of one text count together.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        String label = TranslationContext.mapFinite(valueLabel);
-        List<String> keys = TranslationContext.mapFinite(output()).stream().filter(k -> k.equals(label) == false).toList();
-        IntermediateResult ir = context.withRequired(union(open(), finite(keys))).translate(child());
+        IntermediateResult ir = context.translate(child());
         Expression value = ir.value();
         if (value.resolved() && value.dataType().isHistogram()) {
             throw new ParsingException(source(), "{} function is not yet supported on native histograms", functionName());
         }
         if (ir.kind().constant) {
-            return translateCountValuesConstant(context, ir, keys);
+            // A constant child is a single element per step, so it counts 1 under its own value.
+            Expression one = new Case(
+                source(),
+                new IsNull(source(), ir.value()),
+                List.of(Literal.NULL, new Literal(source(), 1.0, DataType.DOUBLE))
+            );
+            IntermediateResult counted = context.eval(ir, one);
+            Expression text = new FloatToLabelValue(source(), groupingKey(asDouble(ir.value())));
+            Expression group = groupLabels(context, ir.labels());
+            return counted.withLabels(valueLabels(context, group == null ? TranslationContext.emptyLabels(source()) : group, text));
         }
-        IntermediateResult table = ir.kind().afterInitialAggregation
-            ? ir
-            : context.collapse(ir, union(ir.schema(), finite(keys)), ir.value());
-
-        Source source = source();
-        Alias key = new Alias(source, label, groupingKey(table.valueColumn()));
-        LogicalPlan keyed = new Eval(source, table.plan(), List.of(key));
-        // the key replaces a stored label of the same name, which the regroup would otherwise prefer as its backing field
-        List<Attribute> shadowed = keyed.output()
-            .stream()
-            .filter(a -> a.id().equals(key.id()) == false && TranslationContext.mapFinite(a).equals(label))
-            .toList();
-        if (shadowed.isEmpty() == false) {
-            keyed = new Project(source, keyed, keyed.output().stream().filter(a -> shadowed.contains(a) == false).toList());
-        }
-
-        List<String> regroupKeys = new ArrayList<>(keys);
-        regroupKeys.add(label);
-        IntermediateResult counted = context.regroup(
-            table.with(keyed, union(table.schema(), finite(List.of(label))), table.value()),
-            finite(regroupKeys),
-            false,
-            new Count(source, key.toAttribute())
+        IntermediateResult table = ir.kind().afterInitialAggregation ? ir : context.emitInitialAggregate(ir, ir.value());
+        Expression group = groupLabels(context, table.labels());
+        // the text of each series' value under a name of its own, which the label written into the group's labels reads
+        Alias text = new Alias(
+            source(),
+            TemporaryNameGenerator.locallyUniqueTemporaryName(PromqlLabels.labelName(valueLabel)),
+            new FloatToLabelValue(source(), groupingKey(table.valueColumn()))
         );
-        counted = context.eval(counted, TranslationContext.zeroCountAsNull(counted.valueColumn()));
-        Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, counted.label(label)), valueLabel.id());
-        return counted.with(new Eval(source, counted.plan(), List.of(formatted)), counted.schema(), counted.value());
+        table = table.with(new Eval(context.cmd().source(), table.plan(), List.of(text)), table.value());
+        Expression labels = valueLabels(context, group == null ? TranslationContext.emptyLabels(source()) : group, text.toAttribute());
+        IntermediateResult counted = context.emitAggregate(table, labels, new Count(source(), table.valueColumn()));
+        return context.eval(counted, TranslationContext.zeroCountAsNull(counted.valueColumn()));
     }
 
-    /**
-     * A constant child is a single element per step, so it counts 1 under its own value. The grouping keys it lacks are
-     * null, and the columns outside the result's label set are projected away so no enclosing node reads them.
-     */
-    private IntermediateResult translateCountValuesConstant(TranslationContext context, IntermediateResult ir, List<String> keys) {
+    /** {@code labels} with the value label written as {@code text}, which replaces a label of the same name. */
+    private Expression valueLabels(TranslationContext context, Expression labels, Expression text) {
         Source source = source();
-        String label = TranslationContext.mapFinite(valueLabel);
-        List<Alias> fields = new ArrayList<>();
-        for (String key : keys) {
-            if (ir.label(key) == null) {
-                fields.add(TranslationContext.emitNullExpression(TranslationContext.mapToRef(key)));
-            }
-        }
-        Alias formatted = new Alias(source, valueLabel.name(), new FloatToLabelValue(source, asDouble(ir.value())), valueLabel.id());
-        fields.add(formatted);
-        List<String> labels = new ArrayList<>(keys);
-        labels.add(label);
-        TranslationSchema schema = finite(labels);
-        Expression one = new Case(source, new IsNull(source, ir.value()), List.of(Literal.NULL, new Literal(source, 1.0, DataType.DOUBLE)));
-        IntermediateResult counted = context.eval(ir.with(new Eval(source, ir.plan(), fields), schema, ir.value()), one);
-        List<Attribute> projections = new ArrayList<>(List.of(counted.valueColumn(), counted.step()));
-        for (String key : keys) {
-            projections.add(counted.label(key));
-        }
-        projections.add(formatted.toAttribute());
-        return counted.with(new Project(source, counted.plan(), projections), schema, counted.value());
+        String name = PromqlLabels.labelName(valueLabel);
+        return new TimeSeriesMetadataSet(source, labels, Literal.keyword(source, name), text, context.labelPath(name));
     }
 
     private Expression asDouble(Expression value) {
@@ -214,7 +181,7 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
      * The value as a double grouping key. Packed multi-key hashing compares a double's raw bits, so a value that can be
      * NaN maps every NaN payload to the one canonical NaN; a whole number never converts to NaN.
      */
-    private Expression groupingKey(Attribute value) {
+    private Expression groupingKey(Expression value) {
         Expression asDouble = asDouble(value);
         DataType type = value.dataType();
         if (type.noCounter().isWholeNumber()) {

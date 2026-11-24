@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -32,7 +38,12 @@ import org.hamcrest.Matcher;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -150,5 +161,37 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
 
     protected static EsField metric(String name, DataType type) {
         return new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
+    }
+
+    /**
+     * The sorted names of the labels the label container {@code container} holds in {@code plan}: followed through the aliases
+     * that define it to the label container functions that build it. A label container whose labels aren't known by name, such
+     * as the source's own, holds no named label.
+     */
+    protected static List<String> labelsOf(LogicalPlan plan, Expression container) {
+        Map<NameId, Expression> definitions = new HashMap<>();
+        plan.forEachExpressionDown(Alias.class, alias -> definitions.putIfAbsent(alias.id(), alias.child()));
+        return new TreeSet<>(labelsOf(container, definitions, new HashSet<>())).stream().toList();
+    }
+
+    private static Set<String> labelsOf(Expression container, Map<NameId, Expression> definitions, Set<NameId> seen) {
+        if (container instanceof Attribute attribute && definitions.containsKey(attribute.id()) && seen.add(attribute.id())) {
+            return labelsOf(definitions.get(attribute.id()), definitions, seen);
+        }
+        if (container instanceof TimeSeriesMetadataFilter filter) {
+            Set<String> names = filter.keys().stream().map(l -> BytesRefs.toString(((Literal) l).value())).collect(Collectors.toSet());
+            if (filter.exclude() == false) {
+                return names;
+            }
+            Set<String> held = new HashSet<>(labelsOf(filter.children().getFirst(), definitions, seen));
+            held.removeAll(names);
+            return held;
+        }
+        if (container instanceof TimeSeriesMetadataSet set) {
+            Set<String> held = new HashSet<>(labelsOf(set.children().getFirst(), definitions, seen));
+            held.add(BytesRefs.toString(((Literal) set.key()).value()));
+            return held;
+        }
+        return Set.of();
     }
 }

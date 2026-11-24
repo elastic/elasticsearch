@@ -871,10 +871,16 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             .orElseThrow();
     }
 
-    /** The labels a join side is keyed on: the join keys are {@code [step, pack]} and the pack carries the labels. */
+    /**
+     * The labels a join side is keyed on: the join keys are {@code [step, pack]} and the pack carries the labels, each read
+     * under a temporary name of the label.
+     */
     private static List<String> keyedLabels(LogicalPlan joinSide) {
         LogicalPlan packed = joinSide instanceof Project project ? project.child() : joinSide;
-        return as(packed, PackDims.class).dims().stream().map(Attribute::name).toList();
+        return as(packed, PackDims.class).dims()
+            .stream()
+            .map(dim -> dim.name().replaceFirst("^\\$\\$(.+)\\$temp_name\\$\\d+$", "$1"))
+            .toList();
     }
 
     /**

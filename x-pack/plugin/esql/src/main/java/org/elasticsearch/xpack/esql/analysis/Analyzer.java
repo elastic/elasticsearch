@@ -166,6 +166,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AddPromqlResultOrder;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.ScalarizeTimeSeriesMetadataPaths;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -346,7 +347,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Instant result-ordering functions wrap collapse (or a bare command) with OrderBy before translation.
                 new AddPromqlResultOrder(),
                 // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
-                new TranslatePromqlToEsqlPlan()
+                new TranslatePromqlToEsqlPlan(),
+                // Replaces reads of a label out of the label container with the values the plan already has.
+                new ScalarizeTimeSeriesMetadataPaths()
             ),
             new Batch<>(
                 "Resolution",

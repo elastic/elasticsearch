@@ -1,0 +1,538 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
+
+/**
+ * Reads of a label out of the keyword label container, on plans built the way the PromQL translation builds them: a
+ * time-series aggregate keyed by the source's labels, and container functions above it. Every case goes through
+ * {@link #scalarize}, which checks what holds for every plan: the output, the keys and the packs stay, and the rule is
+ * idempotent.
+ */
+public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
+
+    private static final Source SOURCE = Source.EMPTY;
+
+    private final FieldAttribute cluster = dimension("cluster");
+    private final FieldAttribute pod = dimension("pod");
+    private final FieldAttribute shard = new FieldAttribute(
+        SOURCE,
+        "shard",
+        new EsField("shard", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION)
+    );
+    private final FieldAttribute event = new FieldAttribute(SOURCE, "event", new EsField("event", DataType.KEYWORD, Map.of(), true, null));
+    private final FieldAttribute value = new FieldAttribute(SOURCE, "value", new EsField("value", DataType.DOUBLE, Map.of(), true, null));
+
+    /** A read of a dimension is the dimension field, one more key of the time-series aggregate next to the container. */
+    public void testReadOfADimensionIsTheField() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        LogicalPlan plan = scalarize(new Eval(SOURCE, aggregate, List.of(read("pod", labels.toAttribute(), "pod"))));
+
+        TimeSeriesAggregate scalarized = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(scalarized.groupings(), hasItem(pod));
+        assertThat(scalarized.output(), hasItem(pod));
+        assertThat(reads(plan), empty());
+        assertEquals(pod, valueOf(plan, "pod"));
+    }
+
+    /** A label the container leaves out, or one no field holds, is in no series. */
+    public void testReadOfALabelNotInTheContainerIsNull() {
+        Alias labels = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new TimeSeriesWithout(SOURCE, List.of(pod)));
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        LogicalPlan plan = scalarize(
+            new Eval(SOURCE, aggregate, List.of(read("pod", labels.toAttribute(), "pod"), read("job", labels.toAttribute(), "job")))
+        );
+
+        assertThat(reads(plan), empty());
+        assertNullLiteral(valueOf(plan, "pod"));
+        assertNullLiteral(valueOf(plan, "job"));
+        assertThat(plan.collect(TimeSeriesAggregate.class).getFirst().groupings(), hasSize(1));
+    }
+
+    /** A dimension that isn't a keyword holds its text in the container and its typed value in its field: the read stays. */
+    public void testReadOfADimensionThatIsNotAKeywordStays() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        LogicalPlan plan = new Eval(SOURCE, aggregate, List.of(read("shard", labels.toAttribute(), "shard")));
+        assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    /**
+     * A field that is no dimension holds a label the container doesn't: the aggregate groups by it too, as by a label a query
+     * groups by, and writes it into the container, so the read is the field.
+     */
+    public void testReadOfAFieldThatIsNoDimensionKeysTheAggregate() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        LogicalPlan plan = scalarize(new Eval(SOURCE, aggregate, List.of(read("event", labels.toAttribute(), "event"))));
+        assertThat(reads(plan), empty());
+        assertThat(plan.collect(TimeSeriesAggregate.class).getFirst().groupings(), hasItem(event));
+    }
+
+    /** A written label reads as what was written, a label left out as null, any other label as before the writes. */
+    public void testReadThroughWritesAndFilters() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, cluster);
+        Alias rewritten = new Alias(
+            SOURCE,
+            "rewritten",
+            new TimeSeriesMetadataSet(
+                SOURCE,
+                new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "cluster")), true),
+                Literal.keyword(SOURCE, "region"),
+                cluster,
+                List.of("region")
+            )
+        );
+        Eval writes = new Eval(SOURCE, aggregate, List.of(rewritten));
+        LogicalPlan plan = scalarize(
+            new Eval(
+                SOURCE,
+                writes,
+                List.of(
+                    read("region", rewritten.toAttribute(), "region"),
+                    read("cluster", rewritten.toAttribute(), "cluster"),
+                    read("pod", rewritten.toAttribute(), "pod")
+                )
+            )
+        );
+
+        assertThat(reads(plan), empty());
+        assertEquals(cluster, valueOf(plan, "region"));
+        assertNullLiteral(valueOf(plan, "cluster"));
+        assertEquals(pod, valueOf(plan, "pod"));
+    }
+
+    /**
+     * A label copied from another label reads as that label, in one run: the copy and a read of it are both replaced, as
+     * {@code group_left} copies a label of the one side into the result labels that a read above takes.
+     */
+    public void testReadOfACopiedLabel() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Alias copied = new Alias(
+            SOURCE,
+            "copied",
+            new TimeSeriesMetadataSet(
+                SOURCE,
+                labels.toAttribute(),
+                Literal.keyword(SOURCE, "copy"),
+                path(labels.toAttribute(), "pod"),
+                List.of("copy")
+            )
+        );
+        Eval copies = new Eval(SOURCE, aggregate, List.of(copied));
+        LogicalPlan plan = scalarize(new Eval(SOURCE, copies, List.of(read("copy", copied.toAttribute(), "copy"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(pod, valueOf(plan, "copy"));
+    }
+
+    /**
+     * A label written as the text of a column that isn't a string reads as that text: no such text is empty, so the write
+     * keeps all of it. The text is computed once, where the column is, and carried up.
+     */
+    public void testReadOfALabelWrittenAsText() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, shard);
+        Expression text = new ToString(SOURCE, shard, EsqlTestUtils.TEST_CFG);
+        Alias written = new Alias(
+            SOURCE,
+            "written",
+            new TimeSeriesMetadataSet(SOURCE, Literal.keyword(SOURCE, "{}"), Literal.keyword(SOURCE, "shard"), text, List.of("shard"))
+        );
+        Eval writes = new Eval(SOURCE, aggregate, List.of(written));
+        LogicalPlan plan = scalarize(new Eval(SOURCE, writes, List.of(read("shard", written.toAttribute(), "shard"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(text, valueOf(plan, "shard"));
+    }
+
+    /** A filter keeping labels keeps their reads; any other label is left out. */
+    public void testReadThroughAKeepFilter() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Expression kept = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), false);
+        LogicalPlan plan = scalarize(new Eval(SOURCE, aggregate, List.of(read("pod", kept, "pod"), read("cluster", kept, "cluster"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(pod, valueOf(plan, "pod"));
+        assertNullLiteral(valueOf(plan, "cluster"));
+    }
+
+    /**
+     * A label named by anything but a literal may be any label, so a read through it, and a write of several values, which
+     * may hold an empty one the write leaves out, stay.
+     */
+    public void testReadThroughWhatIsNotKnownStays() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, cluster);
+        Expression filtered = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(cluster), true);
+        Expression written = new TimeSeriesMetadataSet(
+            SOURCE,
+            labels.toAttribute(),
+            cluster,
+            Literal.keyword(SOURCE, "a"),
+            List.of("cluster")
+        );
+        Expression values = new TimeSeriesMetadataSet(
+            SOURCE,
+            labels.toAttribute(),
+            Literal.keyword(SOURCE, "pod"),
+            new Literal(SOURCE, List.of(new BytesRef("a"), new BytesRef("")), DataType.KEYWORD),
+            List.of("pod")
+        );
+        LogicalPlan plan = new Eval(
+            SOURCE,
+            aggregate,
+            List.of(read("filtered", filtered, "pod"), read("written", written, "pod"), read("values", values, "pod"))
+        );
+        assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    /** A value read below a projection is projected too, so the read above it finds it. */
+    public void testReadAboveAProjection() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Attribute last = aggregate.output().getFirst();
+        Project project = new Project(SOURCE, aggregate, List.of(last, labels.toAttribute()));
+        Filter filter = new Filter(SOURCE, project, new IsNotNull(SOURCE, last));
+        LogicalPlan plan = scalarize(new Eval(SOURCE, filter, List.of(read("pod", labels.toAttribute(), "pod"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(pod, valueOf(plan, "pod"));
+        Eval top = as(as(plan, Project.class).child(), Eval.class);
+        Attribute carried = as(top.fields().getFirst().child(), Attribute.class);
+        assertThat(plan.collect(Project.class).getLast().output(), hasItem(carried));
+    }
+
+    /**
+     * Each side of a join reads its own labels. The two reads of {@code pod} are two values, which the join keeps apart
+     * though it merges its output by name.
+     */
+    public void testReadsOnBothSidesOfAJoin() {
+        Alias leftLabels = labels();
+        Alias leftContainer = new Alias(SOURCE, "$left", leftLabels.toAttribute());
+        Eval left = new Eval(SOURCE, timeSeriesAggregate(leftLabels), List.of(leftContainer));
+        Alias rightLabels = labels();
+        Alias rightContainer = new Alias(SOURCE, "$right", rightLabels.toAttribute());
+        Eval right = new Eval(SOURCE, timeSeriesAggregate(rightLabels), List.of(rightContainer));
+        Attribute leftValue = left.output().getFirst();
+        Attribute rightValue = right.output().getFirst();
+        HashJoin join = new HashJoin(SOURCE, left, right, List.of(leftValue), List.of(rightValue), List.of(rightValue), false);
+        LogicalPlan plan = scalarize(
+            new Eval(
+                SOURCE,
+                join,
+                List.of(read("left_pod", leftContainer.toAttribute(), "pod"), read("right_pod", rightContainer.toAttribute(), "pod"))
+            )
+        );
+
+        assertThat(reads(plan), empty());
+        Attribute leftPod = as(valueOf(plan, "left_pod"), Attribute.class);
+        Attribute rightPod = as(valueOf(plan, "right_pod"), Attribute.class);
+        assertEquals(pod, definitionOrSelf(plan, leftPod));
+        assertEquals(pod, definitionOrSelf(plan, rightPod));
+        HashJoin scalarized = plan.collect(HashJoin.class).getFirst();
+        Eval above = as(plan instanceof Project project ? project.child() : plan, Eval.class);
+        List<Attribute> carried = above.fields().stream().map(f -> as(f.child(), Attribute.class)).toList();
+        assertThat(carried, hasSize(2));
+        assertNotEquals(carried.get(0).name(), carried.get(1).name());
+        assertTrue(scalarized.output().containsAll(carried));
+        assertTrue(scalarized.left().outputSet().contains(carried.get(0)));
+        // a join executes only what it adds of its right side
+        assertThat(scalarized.addedFields(), hasItem(carried.get(1)));
+    }
+
+    /**
+     * A read of a union's container is a read of each branch's container at the same position, as a projection commutes
+     * with a union: when every branch has the value, the union outputs it as one more column.
+     */
+    public void testReadAboveAUnion() {
+        Alias excluded = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new TimeSeriesWithout(SOURCE, List.of(cluster)));
+        LogicalPlan plan = scalarize(
+            new Eval(SOURCE, union(branch(labels()), branch(excluded)), List.of(readOfUnion("pod"), readOfUnion("cluster")))
+        );
+
+        assertThat(reads(plan), empty());
+        UnionAll scalarized = plan.collect(UnionAll.class).getFirst();
+        assertThat(scalarized.output(), hasSize(4));
+        Attribute pods = scalarized.output().get(2);
+        Attribute clusters = scalarized.output().get(3);
+        assertEquals(pods, valueOf(plan, "pod"));
+        assertEquals(clusters, valueOf(plan, "cluster"));
+        for (LogicalPlan branch : scalarized.children()) {
+            assertThat(branch.output(), hasSize(4));
+            assertEquals(pod, valueOf(branch, branch.output().get(2)));
+            // a union pairs the columns of its branches by name, as the translation names them
+            assertEquals(pods.name(), branch.output().get(2).name());
+            assertEquals(clusters.name(), branch.output().get(3).name());
+        }
+        assertEquals(cluster, valueOf(scalarized.children().get(0), scalarized.children().get(0).output().get(3)));
+        assertNullLiteral(valueOf(scalarized.children().get(1), scalarized.children().get(1).output().get(3)));
+    }
+
+    /** A read of a union's container stays when a branch doesn't have the value: the union has no column for it. */
+    public void testReadAboveAUnionWithoutTheValueInABranchStays() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Attribute last = aggregate.output().getFirst();
+        Aggregate regroup = new Aggregate(
+            SOURCE,
+            aggregate,
+            List.of(labels.toAttribute()),
+            List.of(new Alias(SOURCE, "value", new Values(SOURCE, last)), labels.toAttribute())
+        );
+        LogicalPlan plan = new Eval(SOURCE, union(branch(labels()), regroup), List.of(readOfUnion("pod")));
+        assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    private UnionAll union;
+
+    /** A union of {@code branches}, each returning a value then a label container, the way the translation unions `or`. */
+    private UnionAll union(LogicalPlan... branches) {
+        union = new UnionAll(
+            SOURCE,
+            List.of(branches),
+            List.of(
+                new ReferenceAttribute(SOURCE, null, "$prom_value", DataType.DOUBLE),
+                new ReferenceAttribute(SOURCE, null, "$prom_labels", DataType.KEYWORD)
+            )
+        );
+        return union;
+    }
+
+    private Alias readOfUnion(String label) {
+        return read(label, union.output().get(1), label);
+    }
+
+    /** A branch returning the last value of the series then their labels {@code labels}. */
+    private LogicalPlan branch(Alias labels) {
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        return new Project(SOURCE, aggregate, List.of(aggregate.output().getFirst(), labels.toAttribute()));
+    }
+
+    /** What the output {@code attribute} of {@code plan} evaluates to, looked through aliases. */
+    private static Expression valueOf(LogicalPlan plan, Attribute attribute) {
+        Expression value = attribute;
+        while (value instanceof Attribute named) {
+            Expression defined = definition(plan, named);
+            if (defined == null) {
+                return named;
+            }
+            value = defined;
+        }
+        return value;
+    }
+
+    /**
+     * An aggregate keyed by a container returns the container, not the series' fields: a read above it stays, since a key
+     * of several values would split its rows.
+     */
+    public void testReadAboveAnAggregateStays() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Attribute last = aggregate.output().getFirst();
+        Alias sum = new Alias(SOURCE, "sum", new Values(SOURCE, last));
+        Aggregate regroup = new Aggregate(SOURCE, aggregate, List.of(labels.toAttribute()), List.of(sum, labels.toAttribute()));
+        LogicalPlan plan = new Eval(SOURCE, regroup, List.of(read("pod", labels.toAttribute(), "pod")));
+        assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    /**
+     * An aggregate keyed by a packed container returns the container unpacked. A label read above it is one more input of
+     * the pack, and one more output of the unpack: the container determines the label, so the groups stay, and a pack keys
+     * a label of several values whole. No pack is added.
+     */
+    public void testReadAboveAnAggregateKeyedByAPackedContainer() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Attribute last = aggregate.output().getFirst();
+        Attribute packed = new ReferenceAttribute(SOURCE, null, "$packed", DataType.KEYWORD);
+        PackDims pack = new PackDims(SOURCE, aggregate, List.of(labels.toAttribute()), packed);
+        Alias key = new Alias(SOURCE, "$key", packed);
+        Aggregate regroup = new Aggregate(
+            SOURCE,
+            pack,
+            List.of(key),
+            List.of(new Alias(SOURCE, "value", new Values(SOURCE, last)), key.toAttribute())
+        );
+        UnpackDims unpack = new UnpackDims(SOURCE, regroup, key.toAttribute(), List.of(labels.toAttribute()));
+        LogicalPlan plan = scalarize(new Eval(SOURCE, unpack, List.of(read("pod", labels.toAttribute(), "pod"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(pod, valueOf(plan, "pod"));
+        PackDims packs = plan.collect(PackDims.class).getFirst();
+        UnpackDims unpacks = plan.collect(UnpackDims.class).getFirst();
+        assertThat(packs.dims(), hasSize(2));
+        assertEquals(packs.dims(), unpacks.dims());
+        assertEquals(labels.toAttribute(), packs.dims().getFirst());
+    }
+
+    /** A plan reading no label is returned as it is. */
+    public void testPlanWithoutReads() {
+        Alias labels = labels();
+        LogicalPlan plan = timeSeriesAggregate(labels);
+        assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    /**
+     * Applies the rule and checks what holds for every plan: the output stays, packs stay, a time-series aggregate keeps its
+     * keys but the series' label container and gains only fields of the source as keys, and a second run changes nothing.
+     */
+    private static LogicalPlan scalarize(LogicalPlan plan) {
+        LogicalPlan scalarized = new ScalarizeTimeSeriesMetadataPaths().apply(plan, EsqlTestUtils.TEST_CFG);
+        assertEquals(plan.output(), scalarized.output());
+        assertEquals(plan.collect(PackDims.class).size(), scalarized.collect(PackDims.class).size());
+        assertEquals(plan.collect(UnpackDims.class).size(), scalarized.collect(UnpackDims.class).size());
+        List<TimeSeriesAggregate> before = plan.collect(TimeSeriesAggregate.class);
+        List<TimeSeriesAggregate> after = scalarized.collect(TimeSeriesAggregate.class);
+        assertEquals(before.size(), after.size());
+        for (int i = 0; i < before.size(); i++) {
+            for (Expression grouping : before.get(i).groupings()) {
+                if (grouping instanceof Alias alias && alias.child() instanceof TimeSeriesWithout) {
+                    continue;
+                }
+                assertThat(after.get(i).groupings(), hasItem(grouping));
+            }
+            List<Expression> added = new ArrayList<>(after.get(i).groupings());
+            added.removeAll(before.get(i).groupings());
+            added.removeIf(g -> g instanceof Alias alias && alias.child() instanceof TimeSeriesWithout);
+            assertThat(added, everyItem(instanceOf(FieldAttribute.class)));
+        }
+        assertEquals(scalarized, new ScalarizeTimeSeriesMetadataPaths().apply(scalarized, EsqlTestUtils.TEST_CFG));
+        return scalarized;
+    }
+
+    private static Alias read(String name, Expression container, String label) {
+        return new Alias(SOURCE, name, path(container, label));
+    }
+
+    private static Expression path(Expression container, String label) {
+        return new TimeSeriesMetadataPath(SOURCE, container, Literal.keyword(SOURCE, label));
+    }
+
+    /** What the alias named {@code name} in the plan's top {@link Eval} evaluates to, looked through temporary names. */
+    private static Expression valueOf(LogicalPlan plan, String name) {
+        Eval eval = as(plan instanceof Project project ? project.child() : plan, Eval.class);
+        Expression value = eval.fields().stream().filter(f -> f.name().equals(name)).findFirst().orElseThrow().child();
+        while (value instanceof Attribute attribute) {
+            Expression defined = definition(plan, attribute);
+            if (defined == null) {
+                return attribute;
+            }
+            value = defined;
+        }
+        return value;
+    }
+
+    private static Expression definitionOrSelf(LogicalPlan plan, Attribute attribute) {
+        Expression defined = definition(plan, attribute);
+        return defined == null ? attribute : defined;
+    }
+
+    /** The expression an alias of {@code plan} gives {@code attribute}, or null when no alias defines it. */
+    private static Expression definition(LogicalPlan plan, Attribute attribute) {
+        for (LogicalPlan node : plan.collect(n -> true)) {
+            for (Expression e : node.expressions()) {
+                if (e instanceof Alias alias && alias.id().equals(attribute.id())) {
+                    return alias.child();
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void assertNullLiteral(Expression expression) {
+        Literal literal = as(expression, Literal.class);
+        assertNull(literal.value());
+        assertEquals(DataType.KEYWORD, literal.dataType());
+    }
+
+    private static List<Expression> reads(LogicalPlan plan) {
+        return plan.collect(node -> true)
+            .stream()
+            .flatMap(node -> node.expressions().stream())
+            .flatMap(expression -> expression.collect(TimeSeriesMetadataPath.class::isInstance).stream())
+            .toList();
+    }
+
+    private static Alias labels() {
+        return new Alias(SOURCE, MetadataAttribute.TIMESERIES, new TimeSeriesWithout(SOURCE));
+    }
+
+    /** A time-series aggregate keyed by {@code labels} and {@code keys}, returning the last value, then its keys. */
+    private TimeSeriesAggregate timeSeriesAggregate(Alias labels, FieldAttribute... keys) {
+        EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(cluster, pod, shard, event, value));
+        Alias last = new Alias(SOURCE, "value", new Values(SOURCE, value));
+        List<Expression> groupings = new ArrayList<>(List.of(labels));
+        List<NamedExpression> aggregates = new ArrayList<>(List.of(last, labels.toAttribute()));
+        groupings.addAll(List.of(keys));
+        aggregates.addAll(List.of(keys));
+        return new TimeSeriesAggregate(
+            SOURCE,
+            relation,
+            groupings,
+            aggregates,
+            null,
+            null,
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+            false
+        );
+    }
+
+    private static FieldAttribute dimension(String name) {
+        return new FieldAttribute(SOURCE, name, new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION));
+    }
+}

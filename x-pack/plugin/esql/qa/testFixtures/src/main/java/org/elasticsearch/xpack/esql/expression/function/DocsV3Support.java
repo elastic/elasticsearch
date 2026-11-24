@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -1397,6 +1398,15 @@ public abstract class DocsV3Support {
 
     public static class SettingsDocsSupport extends DocsV3Support {
 
+        /** The version that introduced the {@code settings} object of the request body. */
+        private static final String BODY_STACK_SINCE = "9.5";
+
+        /**
+         * Settings that joined the {@code settings} object of the request body after it was introduced, which is the
+         * version they are tagged with instead. {@code unmapped_fields} was {@code SET}-only until 9.7.
+         */
+        private static final Map<String, String> BODY_STACK_SINCE_OVERRIDES = Map.of("unmapped_fields", "9.7");
+
         private final QuerySettingDef<?> setting;
 
         public SettingsDocsSupport(QuerySettingDef<?> setting, Class<?> testClass, Callbacks callbacks) {
@@ -1464,6 +1474,7 @@ public abstract class DocsV3Support {
                 builder.append(" `").append(type).append("`");
             }
             builder.append("\n\n");
+            builder.append(alsoSetIn(setting));
 
             if (mapParam != null) {
                 EsqlFunctionRegistry.ArgSignature arg = EsqlFunctionRegistry.mapParam(mapParam);
@@ -1489,6 +1500,44 @@ public abstract class DocsV3Support {
             logger.info("Writing settings definition for [{}]", name);
             logger.debug("{}", rendered);
             writeToTempSettingsDir(rendered);
+        }
+
+        /**
+         * The places a setting can be supplied besides {@code SET}: the request body, a cluster setting, or a view
+         * definition. It is derived from the declarations in {@link QuerySettings} and {@link ViewQuerySettings#SETTINGS},
+         * so the docs cannot claim a place that the code does not offer. The request body is documented under its
+         * canonical {@code settings.<name>} key only, not under the top-level aliases that a few settings keep for
+         * compatibility.
+         * <p>
+         * The code does not declare since which version a place is offered, so each place is tagged with the version it
+         * was released in, which is the same for every setting that offers it. The one exception is listed in
+         * {@link #BODY_STACK_SINCE_OVERRIDES}. A setting that is newer than its place is tagged by its own badge as well,
+         * and a reader needs both.
+         */
+        static String alsoSetIn(QuerySettingDef<?> setting) {
+            List<String> places = new ArrayList<>();
+            if (setting.requestBody()) {
+                String availability = setting.serverlessOnly()
+                    ? "{applies_to}`serverless: ga`"
+                    : "{applies_to}`stack: ga "
+                        + BODY_STACK_SINCE_OVERRIDES.getOrDefault(setting.name(), BODY_STACK_SINCE)
+                        + "+` {applies_to}`serverless: ga`";
+                places.add("- the request body, as `settings." + setting.name() + "` " + availability);
+            }
+            if (setting.clusterSetting() != null) {
+                places.add(
+                    "- a cluster setting, `"
+                        + setting.clusterSetting().getKey()
+                        + "` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`"
+                );
+            }
+            if (ViewQuerySettings.SETTINGS.contains(setting)) {
+                places.add("- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`");
+            }
+            if (places.isEmpty()) {
+                return "";
+            }
+            return "**Can also be set in**:\n" + String.join("\n", places) + "\n\n";
         }
 
         private void renderExample(Example example, StringBuilder builder) throws IOException {

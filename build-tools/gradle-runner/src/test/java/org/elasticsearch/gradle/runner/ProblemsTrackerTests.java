@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.runner;
 
+import org.gradle.tooling.events.problems.ContextualLabel;
 import org.gradle.tooling.events.problems.Problem;
 import org.gradle.tooling.events.problems.ProblemDefinition;
 import org.gradle.tooling.events.problems.ProblemGroup;
@@ -32,14 +33,15 @@ class ProblemsTrackerTests {
     @Test
     void countsSingleProblemsAndSummaries() {
         ProblemsTracker tracker = new ProblemsTracker();
-        ProblemGroup validation = problemGroup("validation", null);
-        ProblemGroup configurationCache = problemGroup("configuration-cache", validation);
+        ProblemGroup gradle = problemGroup("Gradle", null);
+        ProblemGroup isolatedProjects = problemGroup("Isolated Projects", gradle);
+        ProblemGroup deprecation = problemGroup("Deprecation", gradle);
 
-        ProblemId repeatedProblemId = problemId("cannot-access-another-project", "Cannot access another project", configurationCache);
+        ProblemId repeatedProblemId = problemId("Cannot access another project", isolatedProjects);
         tracker.statusChanged(singleProblemEvent(problem(repeatedProblemId, Severity.ERROR)));
         tracker.statusChanged(problemSummariesEvent(problemSummary(repeatedProblemId, 4)));
 
-        ProblemId warningProblemId = problemId("deprecated-thing", "Deprecated thing", validation);
+        ProblemId warningProblemId = problemId("Task usage", deprecation);
         tracker.statusChanged(singleProblemEvent(problem(warningProblemId, Severity.WARNING)));
 
         ProblemsReport report = tracker.buildReport();
@@ -51,10 +53,11 @@ class ProblemsTrackerTests {
         assertEquals(Map.of("ERROR", 5, "WARNING", 1), severities);
 
         assertEquals(2, report.problems().size());
-        assertEquals("validation:configuration-cache:cannot-access-another-project", report.problems().get(0).id());
+        assertEquals("Gradle:Isolated Projects:Cannot access another project", report.problems().get(0).id());
+        assertEquals("Cannot access another project", report.problems().get(0).displayName());
         assertEquals(5, report.problems().get(0).count());
         assertEquals("ERROR", report.problems().get(0).severity());
-        assertEquals("validation:deprecated-thing", report.problems().get(1).id());
+        assertEquals("Gradle:Deprecation:Task usage", report.problems().get(1).id());
         assertEquals(1, report.problems().get(1).count());
         assertEquals("WARNING", report.problems().get(1).severity());
     }
@@ -62,7 +65,7 @@ class ProblemsTrackerTests {
     @Test
     void usesUnknownSeverityWhenOnlySummaryWasObserved() {
         ProblemsTracker tracker = new ProblemsTracker();
-        ProblemId problemId = problemId("summary-only", "Summary only", problemGroup("validation", null));
+        ProblemId problemId = problemId("Summary only", problemGroup("Others", null));
 
         tracker.statusChanged(problemSummariesEvent(problemSummary(problemId, 3)));
 
@@ -76,7 +79,7 @@ class ProblemsTrackerTests {
     @Test
     void mapsKnownSeverityByValueNotIdentity() {
         ProblemsTracker tracker = new ProblemsTracker();
-        ProblemId problemId = problemId("value-based-error", "Value based error", problemGroup("validation", null));
+        ProblemId problemId = problemId("Value based error", problemGroup("Others", null));
 
         tracker.statusChanged(singleProblemEvent(problem(problemId, severity(Severity.ERROR.getSeverity(), true))));
 
@@ -85,6 +88,49 @@ class ProblemsTrackerTests {
         assertEquals("ERROR", report.problems().get(0).severity());
         assertEquals("ERROR", report.severities().get(0).severity());
         assertEquals(1, report.severities().get(0).count());
+    }
+
+    @Test
+    void tracksContextualLabelsPerProblemId() {
+        ProblemsTracker tracker = new ProblemsTracker();
+        ProblemId taskUsage = problemId("Task usage", problemGroup("Deprecation", problemGroup("Gradle", null)));
+
+        tracker.statusChanged(singleProblemEvent(problem(taskUsage, Severity.WARNING, "The Task.getAnt() method has been deprecated.")));
+        tracker.statusChanged(singleProblemEvent(problem(taskUsage, Severity.WARNING, "The buildNeeded task has been deprecated.")));
+        tracker.statusChanged(singleProblemEvent(problem(taskUsage, Severity.WARNING, "The Task.getAnt() method has been deprecated.")));
+        tracker.statusChanged(singleProblemEvent(problem(taskUsage, Severity.WARNING, "  ")));
+        tracker.statusChanged(problemSummariesEvent(problemSummary(taskUsage, 2)));
+
+        ProblemsReport report = tracker.buildReport();
+        assertEquals(6, report.totalProblems());
+        assertEquals(1, report.problems().size());
+        ProblemsReport.ProblemEntry entry = report.problems().get(0);
+        assertEquals("Gradle:Deprecation:Task usage", entry.id());
+        assertEquals(6, entry.count());
+        assertEquals(
+            List.of(
+                new ProblemsReport.LabelEntry("The Task.getAnt() method has been deprecated.", 2),
+                new ProblemsReport.LabelEntry("The buildNeeded task has been deprecated.", 1)
+            ),
+            entry.labels()
+        );
+    }
+
+    @Test
+    void capsDistinctContextualLabelsPerProblemId() {
+        ProblemsTracker tracker = new ProblemsTracker();
+        ProblemId problemId = problemId("Task usage", problemGroup("Deprecation", problemGroup("Gradle", null)));
+
+        for (int i = 0; i < ProblemsTracker.MAX_LABELS_PER_PROBLEM + 5; i++) {
+            tracker.statusChanged(singleProblemEvent(problem(problemId, Severity.WARNING, "label-" + i)));
+        }
+        // labels that are already tracked keep counting once the cap is reached
+        tracker.statusChanged(singleProblemEvent(problem(problemId, Severity.WARNING, "label-0")));
+
+        ProblemsReport.ProblemEntry entry = tracker.buildReport().problems().get(0);
+        assertEquals(ProblemsTracker.MAX_LABELS_PER_PROBLEM + 6, entry.count());
+        assertEquals(ProblemsTracker.MAX_LABELS_PER_PROBLEM, entry.labels().size());
+        assertEquals(new ProblemsReport.LabelEntry("label-0", 2), entry.labels().get(0));
     }
 
     private static SingleProblemEvent singleProblemEvent(Problem problem) {
@@ -110,6 +156,14 @@ class ProblemsTrackerTests {
     }
 
     private static Problem problem(ProblemId problemId, Severity severity) {
+        return problem(problemId, severity, null);
+    }
+
+    private static Problem problem(ProblemId problemId, Severity severity, String label) {
+        ContextualLabel contextualLabel = label == null ? null : proxy(ContextualLabel.class, name -> switch (name) {
+            case "getContextualLabel" -> label;
+            default -> unsupported(name);
+        });
         ProblemDefinition definition = proxy(ProblemDefinition.class, name -> switch (name) {
             case "getId" -> problemId;
             case "getSeverity" -> severity;
@@ -118,7 +172,8 @@ class ProblemsTrackerTests {
         });
         return proxy(Problem.class, name -> switch (name) {
             case "getDefinition" -> definition;
-            case "getContextualLabel", "getDetails", "getFailure", "getAdditionalData" -> null;
+            case "getContextualLabel" -> contextualLabel;
+            case "getDetails", "getFailure", "getAdditionalData" -> null;
             case "getOriginLocations", "getContextualLocations", "getSolutions" -> List.of();
             default -> unsupported(name);
         });
@@ -132,10 +187,9 @@ class ProblemsTrackerTests {
         });
     }
 
-    private static ProblemId problemId(String name, String displayName, ProblemGroup group) {
+    private static ProblemId problemId(String name, ProblemGroup group) {
         return proxy(ProblemId.class, methodName -> switch (methodName) {
             case "getName" -> name;
-            case "getDisplayName" -> displayName;
             case "getGroup" -> group;
             default -> unsupported(methodName);
         });
@@ -143,7 +197,7 @@ class ProblemsTrackerTests {
 
     private static ProblemGroup problemGroup(String name, ProblemGroup parent) {
         return proxy(ProblemGroup.class, methodName -> switch (methodName) {
-            case "getName", "getDisplayName" -> name;
+            case "getName" -> name;
             case "getParent" -> parent;
             default -> unsupported(methodName);
         });

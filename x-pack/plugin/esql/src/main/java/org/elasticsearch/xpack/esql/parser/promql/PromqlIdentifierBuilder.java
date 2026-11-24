@@ -13,8 +13,8 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IdentifierCon
 
 abstract class PromqlIdentifierBuilder extends AbstractPromqlBuilder {
 
-    PromqlIdentifierBuilder(int startLine, int startColumn, @Nullable String viewName) {
-        super(startLine, startColumn, viewName);
+    PromqlIdentifierBuilder(@Nullable String viewName) {
+        super(viewName);
     }
 
     @Override

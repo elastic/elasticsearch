@@ -23,9 +23,9 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -105,6 +105,9 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     private final ProjectLayout projectLayout;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup forbiddenApisGroup;
+    private final ThirdLevelProblemGroup missingClassesGroup;
+    private final ThirdLevelProblemGroup jarHellGroup;
 
     @Inject
     public ThirdPartyAuditTask(
@@ -122,6 +125,9 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         this.targetCompatibility = objectFactory.property(JavaVersion.class);
         this.javaHome = objectFactory.property(String.class);
         this.problemReporter = problems.getReporter();
+        this.forbiddenApisGroup = ElasticsearchBuildProblems.FORBIDDEN_APIS.group(problems);
+        this.missingClassesGroup = ElasticsearchBuildProblems.MISSING_CLASSES.group(problems);
+        this.jarHellGroup = ElasticsearchBuildProblems.JAR_HELL.group(problems);
     }
 
     @Input
@@ -241,7 +247,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                         "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed "
                             + "or that exclusions are configured unnecessarily"
                     ),
-                    ProblemId.create("pointless-exclusions", "All exclusions are unnecessary", ElasticsearchBuildProblems.FORBIDDEN_APIS),
+                    forbiddenApisGroup.problemId("All exclusions are unnecessary"),
                     spec -> spec.contextualLabel("All excluded classes seem to have no issues")
                         .details(
                             "This is sometimes an indication that the check silently failed or that exclusions are configured unnecessarily"
@@ -271,7 +277,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 missingClasses.forEach(
                     cls -> problems.add(
                         problemReporter.create(
-                            ProblemId.create("missing-class", "Missing third-party class", ElasticsearchBuildProblems.MISSING_CLASSES),
+                            missingClassesGroup.problemId("Missing third-party class"),
                             spec -> spec.contextualLabel("Missing class: " + cls)
                                 .solution("Add the missing dependency or exclude the class via ignoreMissingClasses()")
                         )
@@ -283,7 +289,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 violationsClasses.forEach(
                     cls -> problems.add(
                         problemReporter.create(
-                            ProblemId.create("api-violation", "Forbidden API violation", ElasticsearchBuildProblems.FORBIDDEN_APIS),
+                            forbiddenApisGroup.problemId("Forbidden API violation"),
                             spec -> spec.contextualLabel("Forbidden API violation in: " + cls)
                                 .solution("Fix the API violation or exclude the class via ignoreViolations()")
                         )
@@ -356,7 +362,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             List<Problem> problems = jdkJarHellClasses.stream()
                 .map(
                     cls -> problemReporter.create(
-                        ProblemId.create("jdk-jar-hell", "JDK jar hell conflict", ElasticsearchBuildProblems.JAR_HELL),
+                        jarHellGroup.problemId("JDK jar hell conflict"),
                         spec -> spec.contextualLabel("JDK jar hell conflict: " + cls)
                             .solution("Remove the conflicting class or exclude it via ignoreJarHellWithJDK()")
                     )

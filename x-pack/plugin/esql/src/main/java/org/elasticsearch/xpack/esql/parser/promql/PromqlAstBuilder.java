@@ -20,8 +20,8 @@ public class PromqlAstBuilder extends PromqlLogicalPlanBuilder {
 
     private int expressionDepth = 0;
 
-    public PromqlAstBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params, @Nullable String viewName) {
-        super(start, end, startLine, startColumn, params, viewName);
+    public PromqlAstBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(start, end, params, viewName);
     }
 
     public LogicalPlan plan(ParseTree ctx) {

@@ -71,8 +71,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -619,33 +618,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         MockTransportService receiverTransport = MockTransportService.getInstance(receiver);
         receiverTransport.addRequestHandlingBehavior(
             TransportSearchAction.TYPE.name(),
-            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
-                @Override
-                public String getProfileName() {
-                    return channel.getProfileName();
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response) {
-                    channel.sendResponse(response);
-                }
-
-                @Override
-                public void sendResponse(TransportResponse response, CircuitBreaker circuitBreaker) {
-                    responseBreaker.set(circuitBreaker);
-                    channel.sendResponse(response, circuitBreaker);
-                }
-
-                @Override
-                public void sendResponse(Exception exception) {
-                    channel.sendResponse(exception);
-                }
-
-                @Override
-                public TransportVersion getVersion() {
-                    return channel.getVersion();
-                }
-            }, task)
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                TestTransportChannels.capturingResponseBreaker(channel, responseBreaker::set),
+                task
+            )
         );
         try {
             TransportService senderTransport = internalCluster().getInstance(TransportService.class, sender);

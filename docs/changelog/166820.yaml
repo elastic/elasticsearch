@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166820
+summary: '`TooManyClausesException` to yield a 400 status code'
+type: bug

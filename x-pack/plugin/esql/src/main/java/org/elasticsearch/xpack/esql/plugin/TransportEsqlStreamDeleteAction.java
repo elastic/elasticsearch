@@ -19,9 +19,10 @@ import org.elasticsearch.xpack.esql.action.EsqlStreamDeleteAction;
 import org.elasticsearch.xpack.esql.streaming.DeleteStreamResultRequest;
 
 /**
- * Deletes a stored stream, the counterpart of {@code TransportDeleteAsyncResultAction}. {@code RBACEngine} does not authorize this
- * action against any index, so it must check that the caller started the stream before deleting it. Nothing is stored yet, so no
- * stream exists and every id is not found, which is also what an unknown stream will get once streams are stored.
+ * Deletes a stored stream, the counterpart of {@code TransportDeleteAsyncResultAction}. The request carries a stream id and no indices,
+ * so this action must check that the caller started the stream before deleting it. That check, and the {@code RBACEngine} wiring that
+ * lets the action through on a secured cluster, come with the stream storage. Nothing is stored yet, so no stream exists and every id
+ * is not found, which is also what an unknown stream will get once streams are stored.
  */
 public class TransportEsqlStreamDeleteAction extends TransportAction<DeleteStreamResultRequest, AcknowledgedResponse> {
 

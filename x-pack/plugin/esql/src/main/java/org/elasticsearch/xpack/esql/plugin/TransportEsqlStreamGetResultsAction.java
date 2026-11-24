@@ -19,9 +19,10 @@ import org.elasticsearch.xpack.esql.action.EsqlStreamGetResultAction;
 import org.elasticsearch.xpack.esql.streaming.GetStreamResultRequest;
 
 /**
- * Reads a stored stream result on the node that receives the request. {@code RBACEngine} does not authorize this action against any
- * index, so it must check that the caller started the stream before reading it. Nothing is stored yet, so no stream exists and every
- * id is not found, which is also what an unknown stream will get once streams are stored.
+ * Reads a stored stream result on the node that receives the request. The request carries a stream id and no indices, so this action
+ * must check that the caller started the stream before reading it. That check, and the {@code RBACEngine} wiring that lets the action
+ * through on a secured cluster, come with the stream storage. Nothing is stored yet, so no stream exists and every id is not found,
+ * which is also what an unknown stream will get once streams are stored.
  */
 public class TransportEsqlStreamGetResultsAction extends TransportAction<GetStreamResultRequest, ActionResponse.Empty> {
 

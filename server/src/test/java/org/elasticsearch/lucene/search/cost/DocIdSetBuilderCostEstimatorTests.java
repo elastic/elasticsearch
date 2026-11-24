@@ -21,6 +21,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class DocIdSetBuilderCostEstimatorTests extends ESTestCase {
@@ -60,44 +61,68 @@ public class DocIdSetBuilderCostEstimatorTests extends ESTestCase {
      * Fills a real {@link DocIdSetBuilder} the way a BKD intersection does, growing by a block of points and then adding some
      * of them, and checks that the estimate for the total grown is a ceiling on what the builder holds before {@code build()}
      * and on the set it builds, and that the builder never upgrades to a bit set when the estimate assumed it stays sparse.
+     * <p>
+     * Two more setups check the estimate is not merely a ceiling because it always charges the bit set. A total far below the
+     * threshold leaves the builder sparse, since no order of grows upgrades it before about half the threshold, so it must be
+     * charged less than the bit set. A total past the threshold, with every block added in full, upgrades the builder.
      */
     public void testEstimateIsCeilingOnRealBuilder() {
-        for (int iter = 0; iter < 20; iter++) {
-            int maxDoc = between(1, 1 << 20);
-            long threshold = maxDoc >>> 7;
-            long target = randomLongBetween(1, Math.max(1, 2 * threshold));
-            DocIdSetBuilder builder = new DocIdSetBuilder(maxDoc);
-            long grown = 0;
-            int nextDoc = 0;
-            while (grown < target) {
-                int count = randomBoolean() ? between(1, 512) : (int) randomLongBetween(1, target);
-                DocIdSetBuilder.BulkAdder adder = builder.grow(count);
-                grown += count;
-                int adds = Math.min(between(0, count), maxDoc - nextDoc);
-                for (int i = 0; i < adds; i++) {
-                    adder.add(nextDoc++);
-                }
-            }
-            DocIdSetBuilderCostEstimator estimator = new DocIdSetBuilderCostEstimator(grown, maxDoc);
-            long estimated = estimator.estimate();
-            long beforeBuild = RamUsageTester.ramUsed(builder);
-            DocIdSet built = builder.build();
-            long afterBuild = RamUsageTester.ramUsed(built);
-            String context = String.format(
-                Locale.ROOT,
-                "[maxDoc=%d, grown=%d, dense=%b, estimated=%d, beforeBuild=%d, afterBuild=%d]",
-                maxDoc,
-                grown,
-                estimator.isDense(),
-                estimated,
-                beforeBuild,
-                afterBuild
-            );
-            assertThat("estimate must be a ceiling on the builder " + context, estimated, greaterThanOrEqualTo(beforeBuild));
-            assertThat("estimate must be a ceiling on the built set " + context, estimated, greaterThanOrEqualTo(afterBuild));
-            if (estimator.isDense() == false) {
-                assertThat("a sparse estimate must not see a bit set " + context, built, not(instanceOf(BitDocIdSet.class)));
+        int anyMaxDoc = between(1, 1 << 20);
+        assertEstimateIsCeiling(anyMaxDoc, randomLongBetween(1, Math.max(1, 2 * (anyMaxDoc >>> 7))), false);
+
+        // large enough that the estimator's fixed slack is small next to the threshold
+        int maxDoc = between(1 << 14, 1 << 20);
+        long threshold = maxDoc >>> 7;
+        long bitSetBytes = FixedBitSetCost.bytes(maxDoc);
+
+        Filled sparse = assertEstimateIsCeiling(maxDoc, randomLongBetween(1, threshold / 8), false);
+        assertThat("a sparse builder must not be charged a bit set " + sparse.context(), sparse.estimated(), lessThan(bitSetBytes));
+
+        Filled dense = assertEstimateIsCeiling(maxDoc, randomLongBetween(threshold + 1, 2 * threshold), true);
+        assertThat("a builder past the threshold must upgrade " + dense.context(), dense.built(), instanceOf(BitDocIdSet.class));
+        assertThat("a dense builder must be charged the bit set " + dense.context(), dense.estimated(), greaterThan(bitSetBytes));
+    }
+
+    /** A filled builder's estimate and the set it built, with the measurements behind them for assertion messages. */
+    private record Filled(long estimated, DocIdSet built, String context) {}
+
+    /**
+     * Grows a real builder by blocks until exactly {@code target} has been grown in total, adding some of each block or, if
+     * {@code addEveryBlock}, all of it, and checks the estimate for the total grown is a ceiling on the builder and its set.
+     */
+    private static Filled assertEstimateIsCeiling(int maxDoc, long target, boolean addEveryBlock) {
+        DocIdSetBuilder builder = new DocIdSetBuilder(maxDoc);
+        long grown = 0;
+        int nextDoc = 0;
+        while (grown < target) {
+            int count = (int) Math.min(target - grown, randomBoolean() ? between(1, 512) : randomLongBetween(1, target));
+            DocIdSetBuilder.BulkAdder adder = builder.grow(count);
+            grown += count;
+            int adds = Math.min(addEveryBlock ? count : between(0, count), maxDoc - nextDoc);
+            for (int i = 0; i < adds; i++) {
+                adder.add(nextDoc++);
             }
         }
+        DocIdSetBuilderCostEstimator estimator = new DocIdSetBuilderCostEstimator(grown, maxDoc);
+        long estimated = estimator.estimate();
+        long beforeBuild = RamUsageTester.ramUsed(builder);
+        DocIdSet built = builder.build();
+        long afterBuild = RamUsageTester.ramUsed(built);
+        String context = String.format(
+            Locale.ROOT,
+            "[maxDoc=%d, grown=%d, dense=%b, estimated=%d, beforeBuild=%d, afterBuild=%d]",
+            maxDoc,
+            grown,
+            estimator.isDense(),
+            estimated,
+            beforeBuild,
+            afterBuild
+        );
+        assertThat("estimate must be a ceiling on the builder " + context, estimated, greaterThanOrEqualTo(beforeBuild));
+        assertThat("estimate must be a ceiling on the built set " + context, estimated, greaterThanOrEqualTo(afterBuild));
+        if (estimator.isDense() == false) {
+            assertThat("a sparse estimate must not see a bit set " + context, built, not(instanceOf(BitDocIdSet.class)));
+        }
+        return new Filled(estimated, built, context);
     }
 }

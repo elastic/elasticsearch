@@ -68,7 +68,8 @@ public class HashJoinTests extends ESTestCase {
             List.of(rightKey),
             List.of(value),
             false,
-            JoinTypes.LEFT
+            JoinTypes.LEFT,
+            false
         );
         assertThat(hashJoin.config().type(), sameInstance(JoinTypes.LEFT));
     }

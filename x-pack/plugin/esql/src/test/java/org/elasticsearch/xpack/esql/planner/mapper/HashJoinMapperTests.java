@@ -180,6 +180,6 @@ public class HashJoinMapperTests extends ESTestCase {
                 )
             )
         );
-        return new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), unique, type);
+        return new HashJoin(Source.EMPTY, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue), unique, type, false);
     }
 }

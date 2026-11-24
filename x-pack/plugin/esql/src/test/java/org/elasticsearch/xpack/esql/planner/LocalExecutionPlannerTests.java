@@ -1755,7 +1755,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         ReferenceAttribute ordinal = Mapper.newJoinMarker(Source.EMPTY);
         List<Attribute> addedFields = new ArrayList<>(buildValueAttrs);
         addedFields.add(ordinal);
-        PhysicalPlan join = new HashJoinExec(Source.EMPTY, probe, build, probeKeyAttrs, buildKeyAttrs, addedFields);
+        PhysicalPlan join = new HashJoinExec(Source.EMPTY, probe, build, probeKeyAttrs, buildKeyAttrs, addedFields, false);
         join = new FilterExec(Source.EMPTY, join, new IsNotNull(Source.EMPTY, ordinal));
         if (unique) {
             join = new DistinctByExec(Source.EMPTY, join, ordinal, true);

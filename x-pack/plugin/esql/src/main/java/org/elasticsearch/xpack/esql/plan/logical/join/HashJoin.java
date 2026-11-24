@@ -57,20 +57,7 @@ public class HashJoin extends Join implements SortPreserving {
         List<Attribute> addedFields,
         boolean unique
     ) {
-        this(source, left, right, leftFields, rightFields, addedFields, unique, JoinTypes.INNER);
-    }
-
-    public HashJoin(
-        Source source,
-        LogicalPlan left,
-        LogicalPlan right,
-        List<Attribute> leftFields,
-        List<Attribute> rightFields,
-        List<Attribute> addedFields,
-        boolean unique,
-        JoinType type
-    ) {
-        this(source, left, right, leftFields, rightFields, addedFields, unique, type, false);
+        this(source, left, right, leftFields, rightFields, addedFields, unique, JoinTypes.INNER, false);
     }
 
     public HashJoin(

@@ -43,17 +43,6 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         PhysicalPlan hashData,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        List<Attribute> addedFields
-    ) {
-        this(source, left, hashData, leftFields, rightFields, addedFields, false);
-    }
-
-    public HashJoinExec(
-        Source source,
-        PhysicalPlan left,
-        PhysicalPlan hashData,
-        List<Attribute> leftFields,
-        List<Attribute> rightFields,
         List<Attribute> addedFields,
         boolean repeatedKeys
     ) {

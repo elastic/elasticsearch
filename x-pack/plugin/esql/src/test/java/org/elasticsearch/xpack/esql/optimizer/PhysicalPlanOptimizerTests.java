@@ -3811,7 +3811,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var planWithInvalidJoinRightSide = plan.transformUp(
             LookupJoinExec.class,
             // LookupJoinExec.rightReferences() is currently EMPTY (hack); use a HashJoinExec instead.
-            join -> new HashJoinExec(join.source(), join.left(), join.left(), join.leftFields(), join.rightFields(), join.output())
+            join -> new HashJoinExec(join.source(), join.left(), join.left(), join.leftFields(), join.rightFields(), join.output(), false)
         );
 
         e = expectThrows(

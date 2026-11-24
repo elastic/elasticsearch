@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.DelegatingStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
@@ -713,9 +714,9 @@ public final class GlobExpander {
     /**
      * Async equivalent of
      * {@link #expand(String, StorageProvider, List, Map, int, int, int, ListingExtents, PlanningMemory, BooleanSupplier)}.
-     * Walk-eligible unbounded globs with concurrency &gt; 1 list directories on {@code fanOutExecutor} even when
-     * the provider does not list in key order. Prefix fan-out still requires key order. Comma-separated paths
-     * are always handled synchronously on the calling thread.
+     * Walk-eligible globs with concurrency &gt; 1 list directories on {@code fanOutExecutor} even when
+     * the provider does not list in key order. Prefix fan-out still requires key order. Comma-separated
+     * paths expand each glob segment through the same async walk, sharing one directory-listing budget.
      */
     public static void expandAsync(
         String path,
@@ -806,27 +807,24 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
         if (isTopLevelCommaList(path)) {
-            try {
-                listener.onResponse(
-                    doExpandCommaSeparated(
-                        path,
-                        provider,
-                        hints,
-                        partitionConfig,
-                        maxDiscoveredFiles,
-                        maxGlobExpansion,
-                        maxListedObjects,
-                        nameFilter,
-                        fileOrder,
-                        memory,
-                        isCancelled,
-                        folderRange,
-                        maxDirectoryListings
-                    )
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            doExpandCommaSeparatedAsync(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                memory,
+                concurrency,
+                isCancelled,
+                fanOutExecutor,
+                listener,
+                folderRange,
+                maxDirectoryListings
+            );
         } else {
             expandGlobWithRewriteFallbackAsync(
                 path,
@@ -911,6 +909,11 @@ public final class GlobExpander {
         String effective = effectivePattern(pattern, hints, partitionConfig);
         boolean rewritten = effective.equals(pattern) == false;
         boolean bounded = extents.boundsFileSet();
+        int leftover = remainingDirectoryListings(provider, maxDirectoryListings);
+        if (provider instanceof DirectoryListingCounter && leftover <= 0) {
+            // Comma leftover 0: skip rather than walk with max=0 (finishSurvivors of the prefix).
+            return FileList.EMPTY;
+        }
         if (rewritten == false && bounded == false) {
             return doExpandGlob(
                 pattern,
@@ -927,7 +930,7 @@ public final class GlobExpander {
                 cancelled,
                 true,
                 folderRange,
-                maxDirectoryListings
+                leftover
             );
         }
 
@@ -953,7 +956,7 @@ public final class GlobExpander {
                 cancelled,
                 true,
                 folderRange,
-                maxDirectoryListings
+                leftover
             );
         } catch (IOException e) {
             // Only a rewritten prefix is a folder we invented. A bound on the original glob that throws
@@ -1002,6 +1005,10 @@ public final class GlobExpander {
         // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
         String retryDetail = rewriteFallbackRetryDetail(rewritten, retryPattern.equals(pattern));
         logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
+        leftover = remainingDirectoryListings(provider, maxDirectoryListings);
+        if (provider instanceof DirectoryListingCounter && leftover <= 0) {
+            return narrowed != null ? narrowed : FileList.EMPTY;
+        }
         try {
             // Skip the splice on Hive so month=6 is not listed again. TEMPLATE retries the exact-string prefix.
             return doExpandGlob(
@@ -1019,7 +1026,7 @@ public final class GlobExpander {
                 cancelled,
                 false,
                 folderRange,
-                maxDirectoryListings
+                leftover
             );
         } catch (IOException retryFailure) {
             SuppressedFailures.attach(retryFailure, failure);
@@ -1639,14 +1646,13 @@ public final class GlobExpander {
         // (unprovable narrowing) falls through to the flat listing below; a store failure or discovery-cap
         // error does not. See PartitionPruningWalk for the fail-closed rules and the trust boundary.
         // There is no brace retry: a guessed spelling drops percent-encoded folders.
-        // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
-        // requests; the flat path asks the store for the pattern's literal lead and filters the rest, which is a
-        // page per thousand keys, or one request where the lead is selective AND the provider narrows on it --
-        // S3 and the local filesystem do; one that takes the SPI default lists the directory as before.
+        // A file-set bound does not skip the walk: the walk is what keeps a time filter from prefix-draining
+        // the dataset. After a successful walk the bound keeps the first matching files in listing order.
+        // A walk that withdraws still falls through to the bounded flat drain below.
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;
-        if (walkComputed || (extents.boundsFileSet() == false && wouldWalk(prefix, glob, hints, partitionConfig, folderRange))) {
+        if (walkComputed || wouldWalk(prefix, glob, hints, partitionConfig, folderRange)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             PartitionPruningWalk.WalkResult walk = walkComputed
                 ? precomputedWalk
@@ -1733,6 +1739,14 @@ public final class GlobExpander {
                 PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                 if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
                     if (walkTypesConsistent(walk, walkedMetadata)) {
+                        // Prove the walk on the full matched set, then apply the file-set bound. Truncating first
+                        // can hide a type-widening folder past the prefix and reject a correct walk, after which
+                        // the bounded flat drain prefix-lists unfiltered.
+                        boolean truncated = extents.boundsFileSet() && walked.size() > extents.maxFiles();
+                        if (truncated) {
+                            walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));
+                            walkedMetadata = detectPartitions(walked, partitionConfig, ignored -> {});
+                        }
                         // globKeptCount is glob matches after exclusion, before _file.*, matching the flat path.
                         if (walk.excludedCount() > 0) {
                             String exclusionNotice = exclusionNotice(
@@ -1747,7 +1761,7 @@ public final class GlobExpander {
                                 walkNotices.add(exclusionNotice);
                             }
                         }
-                        return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
+                        return new GenericFileList(walked, pattern, walkedMetadata, walkNotices, truncated);
                     }
                     logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
                     suppressValueFilter = true;
@@ -2023,8 +2037,9 @@ public final class GlobExpander {
     /**
      * Async counterpart of {@link #expandGlobWithRewriteFallback}. Uses the same two-step logic (narrow then
      * retry on empty) but chains the steps through {@link ActionListener} so the calling thread is not blocked
-     * when fan-out is active. Callers with no fan-out (bounded or provider does not support key order) still see
-     * the flat drain run synchronously on the calling thread.
+     * when fan-out or the async walk is active. Bounded walk-eligible globs with concurrency &gt; 1 list
+     * directories on {@code fanOutExecutor}; the file-set bound is applied to the walked files. Callers
+     * with no walk and no fan-out still see the flat drain run synchronously on the calling thread.
      */
     private static void expandGlobWithRewriteFallbackAsync(
         String pattern,
@@ -2048,6 +2063,11 @@ public final class GlobExpander {
         String effective = effectivePattern(pattern, hints, partitionConfig);
         boolean rewritten = effective.equals(pattern) == false;
         boolean bounded = extents.boundsFileSet();
+        int leftover = remainingDirectoryListings(provider, maxDirectoryListings);
+        if (provider instanceof DirectoryListingCounter && leftover <= 0) {
+            listener.onResponse(FileList.EMPTY);
+            return;
+        }
         if (rewritten == false && bounded == false) {
             doExpandGlobAsync(
                 pattern,
@@ -2066,7 +2086,7 @@ public final class GlobExpander {
                 fanOutExecutor,
                 true,
                 folderRange,
-                maxDirectoryListings,
+                leftover,
                 listener
             );
             return;
@@ -2094,7 +2114,7 @@ public final class GlobExpander {
             fanOutExecutor,
             true,
             folderRange,
-            maxDirectoryListings,
+            leftover,
             ActionListener.wrap(narrowed -> {
                 if (narrowed.isResolved() == false || narrowed.fileCount() > 0) {
                     listener.onResponse(narrowed);
@@ -2130,6 +2150,11 @@ public final class GlobExpander {
                         + "] yielded no files; "
                         + rewriteFallbackRetryDetail(finalRewritten, retryPattern.equals(pattern))
                 );
+                int retryLeftover = remainingDirectoryListings(provider, maxDirectoryListings);
+                if (provider instanceof DirectoryListingCounter && retryLeftover <= 0) {
+                    listener.onResponse(narrowed);
+                    return;
+                }
                 doExpandGlobAsync(
                     retryPattern,
                     provider,
@@ -2147,7 +2172,7 @@ public final class GlobExpander {
                     fanOutExecutor,
                     false,
                     folderRange,
-                    maxDirectoryListings,
+                    retryLeftover,
                     listener
                 );
             }, narrowFailure -> {
@@ -2186,6 +2211,11 @@ public final class GlobExpander {
                     () -> "Narrowed listing of [" + pattern + "] failed; re-listing without the narrowing that produced it",
                     narrowFailure
                 );
+                int retryLeftover = remainingDirectoryListings(provider, maxDirectoryListings);
+                if (provider instanceof DirectoryListingCounter && retryLeftover <= 0) {
+                    listener.onResponse(FileList.EMPTY);
+                    return;
+                }
                 doExpandGlobAsync(
                     retryPattern,
                     provider,
@@ -2203,7 +2233,7 @@ public final class GlobExpander {
                     fanOutExecutor,
                     false,
                     folderRange,
-                    maxDirectoryListings,
+                    retryLeftover,
                     ActionListener.wrap(listener::onResponse, retryFailure -> {
                         retryFailure.addSuppressed(narrowFailure);
                         listener.onFailure(retryFailure);
@@ -2214,10 +2244,11 @@ public final class GlobExpander {
     }
 
     /**
-     * Async counterpart of {@link #doExpandGlob}. Walk-eligible unbounded globs with concurrency &gt; 1 run
+     * Async counterpart of {@link #doExpandGlob}. Walk-eligible globs with concurrency &gt; 1 run
      * {@link PartitionPruningWalk#tryWalkAsync} on {@code fanOutExecutor} even when
      * {@link StorageProvider#listsInKeyOrder()} is false — the walk merges by slot, not by store key order.
-     * Bounded listings and concurrency 1 stay on the sequential walk inside {@link #doExpandGlob}.
+     * A file-set bound does not skip that walk; {@link #doExpandGlob} keeps at most the bound. Concurrency 1
+     * stays on the sequential walk inside {@link #doExpandGlob}.
      *
      * <p>After an async walk the rest of {@link #doExpandGlob} (anchor probe, flat fallback) runs on a
      * {@code fanOutExecutor} thread — {@code esql_external_io} / {@code metadataReadExecutor}. That pool
@@ -2263,9 +2294,9 @@ public final class GlobExpander {
         }
 
         // Walk is independent of prefix fan-out: it lists directories and merges by slot, so it does not
-        // need listsInKeyOrder(). Bounded listings skip the walk (same gate as doExpandGlob). Concurrency 1
+        // need listsInKeyOrder(). A file-set bound still walks (same gate as doExpandGlob). Concurrency 1
         // stays on the sequential walk inside doExpandGlob below.
-        if (concurrency > 1 && extents.boundsFileSet() == false && storagePath.isPattern()) {
+        if (concurrency > 1 && storagePath.isPattern()) {
             GlobMatcher walkMatcher = new GlobMatcher(storagePath.globPart());
             if (walkMatcher.enumerateKeys(maxGlobExpansion) == null
                 && wouldWalk(storagePath.patternPrefix(), storagePath.globPart(), hints, partitionConfig, folderRange)) {
@@ -3254,12 +3285,14 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether an unbounded drain of this pattern would try the partition walk — and so might withdraw from it and
-     * return the unfiltered superset, where a bounded drain applies the value filter and keeps a subset.
+     * Whether this pattern would try the partition walk. A file-set bound is applied after a successful
+     * walk rather than skipping it: a prefix drain of the dataset is the case the walk exists to avoid.
+     * A walk that withdraws still falls through to the bounded flat drain, which applies the value filter
+     * and keeps a subset.
      * <p>
      * It is the gate at the walk in {@link #doExpandGlob} and {@link #doExpandGlobAsync}, lifted out so the
-     * condition reads as one named question rather than a conjunction written inline. Only the bound-independent
-     * half is here; the caller adds its own. Async walk is independent of prefix fan-out eligibility.
+     * condition reads as one named question rather than a conjunction written inline. Async walk is
+     * independent of prefix fan-out eligibility.
      */
     static boolean wouldWalk(String glob, @Nullable List<PartitionFilterHint> hints, PartitionConfig partitionConfig) {
         return wouldWalk(null, glob, hints, partitionConfig, null);
@@ -3637,25 +3670,29 @@ public final class GlobExpander {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        List<StorageEntry> allEntries = new ArrayList<>();
-        List<String> listingWarnings = new ArrayList<>();
-        FileList unionAnchorListing = null;
+        DirectoryListingCounter counted = new DirectoryListingCounter(provider, maxDirectoryListings);
+        CommaUnion union = new CommaUnion();
 
         for (String trimmed : commaSegments(pathList)) {
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
-                int remainingBudget = maxDiscoveredFiles - allEntries.size();
+                int remainingBudget = remainingDiscoveredFiles(maxDiscoveredFiles, union.entries.size());
                 if (remainingBudget <= 0) {
                     // Earlier segments already filled the kept-files cap. Expanding further would only
                     // walk, or turn a rewrite-hit _file.* miss into a fallback that throws limit 0.
                     continue;
                 }
+                if (counted.remaining() <= 0) {
+                    // Same as the kept-files cap: leftover 0 must not start a walk. Walk with
+                    // maxDirectoryListings=0 finishSurvivors the prefix with no month prune.
+                    continue;
+                }
                 // Per segment, so a segment a rewrite narrows to empty falls back on its own instead of being masked
-                // by another segment that still matches. Each glob gets the same walk cap: FileList does not report
-                // how many keys were listed, so there is no remaining listed-objects budget to share.
+                // by another segment that still matches. Directory listings share one ceiling across segments;
+                // FileList does not report listed-objects, so that cap is still per segment.
                 FileList expanded = expandGlobWithRewriteFallback(
                     trimmed,
-                    provider,
+                    counted,
                     hints,
                     partitionConfig,
                     remainingBudget,
@@ -3675,41 +3712,251 @@ public final class GlobExpander {
                     memory,
                     cancelled,
                     folderRange,
-                    maxDirectoryListings
+                    counted.remaining()
                 );
-                listingWarnings.addAll(expanded.listingWarnings());
-                if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
-                    if (g.isInferenceAnchor()) {
-                        if (unionAnchorListing == null) {
-                            unionAnchorListing = g;
-                        }
-                    } else {
-                        allEntries.addAll(g.files());
-                    }
-                }
+                union.absorb(expanded);
             } else {
-                var obj = provider.newObject(segmentPath);
-                if (obj.exists()) {
-                    allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified(), obj.probedVersion()));
-                    checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
+                addLiteralCommaSegment(union, counted, segmentPath, maxDiscoveredFiles);
+            }
+        }
+
+        return union.finish(pathList, fileOrder, partitionConfig);
+    }
+
+    /**
+     * Async counterpart of {@link #doExpandCommaSeparated}. Each glob segment runs through
+     * {@link #expandGlobWithRewriteFallbackAsync} so a walk-eligible path lists directories on
+     * {@code fanOutExecutor}. Segments stay in declaration order and share one directory-listing
+     * ceiling: independent per-path caps would sum past the node setting.
+     */
+    private static void doExpandCommaSeparatedAsync(
+        String pathList,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange,
+        int maxDirectoryListings
+    ) {
+        Check.notNull(pathList, "pathList cannot be null");
+        Check.notNull(provider, "provider cannot be null");
+        expandCommaSegmentAsync(
+            0,
+            new CommaExpansion(
+                pathList,
+                commaSegments(pathList),
+                new DirectoryListingCounter(provider, maxDirectoryListings),
+                new CommaUnion(),
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                memory,
+                concurrency,
+                isCancelled,
+                fanOutExecutor,
+                listener,
+                folderRange
+            )
+        );
+    }
+
+    private static void expandCommaSegmentAsync(int index, CommaExpansion expansion) {
+        while (index < expansion.segments.size()) {
+            String trimmed = expansion.segments.get(index++);
+            StoragePath segmentPath;
+            try {
+                segmentPath = StoragePath.of(trimmed);
+            } catch (Exception e) {
+                expansion.listener.onFailure(e);
+                return;
+            }
+            if (segmentPath.isPattern()) {
+                int remainingBudget = remainingDiscoveredFiles(expansion.maxDiscoveredFiles, expansion.union.entries.size());
+                if (remainingBudget <= 0) {
+                    continue;
+                }
+                if (expansion.counted.remaining() <= 0) {
+                    continue;
+                }
+                int next = index;
+                expandGlobWithRewriteFallbackAsync(
+                    trimmed,
+                    expansion.counted,
+                    expansion.hints,
+                    expansion.partitionConfig,
+                    remainingBudget,
+                    expansion.maxGlobExpansion,
+                    expansion.maxListedObjects,
+                    expansion.nameFilter,
+                    FileOrderConfig.DEFAULT,
+                    ListingExtents.UNBOUNDED,
+                    expansion.memory,
+                    expansion.concurrency,
+                    expansion.isCancelled,
+                    expansion.fanOutExecutor,
+                    ActionListener.wrap(expanded -> {
+                        expansion.union.absorb(expanded);
+                        expandCommaSegmentAsync(next, expansion);
+                    }, expansion.listener::onFailure),
+                    expansion.folderRange,
+                    expansion.counted.remaining()
+                );
+                return;
+            }
+            try {
+                addLiteralCommaSegment(expansion.union, expansion.counted, segmentPath, expansion.maxDiscoveredFiles);
+            } catch (Exception e) {
+                expansion.listener.onFailure(e);
+                return;
+            }
+        }
+        ActionListener.completeWith(
+            expansion.listener,
+            () -> expansion.union.finish(expansion.pathList, expansion.fileOrder, expansion.partitionConfig)
+        );
+    }
+
+    /**
+     * Immutable inputs for {@link #expandCommaSegmentAsync}. The union and listing counter mutate
+     * across segments; everything else is the original expand call.
+     */
+    private record CommaExpansion(
+        String pathList,
+        List<String> segments,
+        DirectoryListingCounter counted,
+        CommaUnion union,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        int concurrency,
+        BooleanSupplier isCancelled,
+        Executor fanOutExecutor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {}
+
+    private static void addLiteralCommaSegment(CommaUnion union, StorageProvider provider, StoragePath segmentPath, int maxDiscoveredFiles)
+        throws IOException {
+        var obj = provider.newObject(segmentPath);
+        if (obj.exists()) {
+            union.entries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified(), obj.probedVersion()));
+            checkDiscoveredFilesLimit(union.entries.size(), maxDiscoveredFiles);
+        }
+    }
+
+    private static int remainingDiscoveredFiles(int maxDiscoveredFiles, int kept) {
+        return kept >= maxDiscoveredFiles ? 0 : maxDiscoveredFiles - kept;
+    }
+
+    /**
+     * Concatenated comma-list state. Glob segments absorb independently so a rewrite-to-empty on one
+     * cannot be masked by another that still matches. Only the first inference-anchor is kept, and
+     * only when no real match survives.
+     */
+    private static final class CommaUnion {
+        private final List<StorageEntry> entries = new ArrayList<>();
+        private final List<String> warnings = new ArrayList<>();
+        private FileList anchor;
+
+        void absorb(FileList expanded) {
+            warnings.addAll(expanded.listingWarnings());
+            if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
+                if (g.isInferenceAnchor()) {
+                    if (anchor == null) {
+                        anchor = g;
+                    }
+                } else {
+                    entries.addAll(g.files());
                 }
             }
         }
 
-        if (allEntries.isEmpty()) {
-            if (unionAnchorListing == null) {
-                return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pathList, null, listingWarnings);
+        FileList finish(String pathList, FileOrderConfig fileOrder, PartitionConfig partitionConfig) {
+            if (entries.isEmpty()) {
+                if (anchor == null) {
+                    return warnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pathList, null, warnings);
+                }
+                GenericFileList donor = (GenericFileList) anchor;
+                List<String> notices = new ArrayList<>(warnings);
+                return new GenericFileList(donor.files(), pathList, donor.partitionMetadata(), notices, false, true);
             }
-            GenericFileList donor = (GenericFileList) unionAnchorListing;
-            List<String> notices = new ArrayList<>(listingWarnings);
-            return new GenericFileList(donor.files(), pathList, donor.partitionMetadata(), notices, false, true);
+            fileOrder.apply(entries);
+            PartitionMetadata partitionMetadata = detectPartitions(entries, partitionConfig, warnings::add);
+            return new GenericFileList(entries, pathList, partitionMetadata, warnings);
+        }
+    }
+
+    /**
+     * Live leftover of {@code esql.external.max_directory_listings} for the next walk. A
+     * {@link DirectoryListingCounter} reports remaining after listings already issued, so a rewrite
+     * retry cannot reuse the start-of-segment snapshot. Other providers keep the caller's cap.
+     */
+    private static int remainingDirectoryListings(StorageProvider provider, int maxDirectoryListings) {
+        return provider instanceof DirectoryListingCounter counted ? counted.remaining() : maxDirectoryListings;
+    }
+
+    /**
+     * Counts every {@code listChildren} issued for a comma list so later glob segments inherit the
+     * remaining directory-listing ceiling rather than a fresh copy of the node cap. Further calls
+     * after the ceiling return {@code null} so a rewrite retry cannot issue a second copy of the leftover.
+     * Comma expansion skips a glob when {@link #remaining()} is 0 rather than walking with a zero
+     * cap, which would {@code finishSurvivors} the prefix unpruned.
+     */
+    private static final class DirectoryListingCounter extends DelegatingStorageProvider {
+        private final StorageProvider inner;
+        private final int maxDirectoryListings;
+        private final AtomicInteger issued = new AtomicInteger();
+
+        DirectoryListingCounter(StorageProvider inner, int maxDirectoryListings) {
+            this.inner = inner;
+            this.maxDirectoryListings = maxDirectoryListings;
         }
 
-        fileOrder.apply(allEntries);
+        int remaining() {
+            int used = issued.get();
+            return used >= maxDirectoryListings ? 0 : maxDirectoryListings - used;
+        }
 
-        PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig, listingWarnings::add);
+        @Override
+        protected StorageProvider delegate() {
+            return inner;
+        }
 
-        return new GenericFileList(allEntries, pathList, partitionMetadata, listingWarnings);
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+            while (true) {
+                int used = issued.get();
+                if (used >= maxDirectoryListings) {
+                    return null;
+                }
+                if (issued.compareAndSet(used, used + 1)) {
+                    return inner.listChildren(prefix, limit);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            // The caller owns the inner provider.
+        }
     }
 
     /**

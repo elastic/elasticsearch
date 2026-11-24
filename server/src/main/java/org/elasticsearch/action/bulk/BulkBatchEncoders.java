@@ -156,6 +156,7 @@ final class BulkBatchEncoders {
                 if (key == null) {
                     // Direct write to a backing index, alias with no write index, or unsupported routing.
                     logger.debug("batch encoding skipped: item targeting [{}] is not batch-compatible", targetName);
+                    closeAll(encoders, batches);
                     return null;
                 }
 
@@ -200,17 +201,20 @@ final class BulkBatchEncoders {
 
         } catch (Exception e) {
             logger.debug("batch encoding failed; falling back to the row path for this bulk", e);
-            // Release any batches that were successfully built.
-            if (batches != null) {
-                for (SourceBatch batch : batches.values()) {
-                    batch.close();
-                }
-            }
-            // Close any open encoders.
-            for (EscfEncoder encoder : encoders.values()) {
-                encoder.close();
-            }
+            closeAll(encoders, batches);
             return null;
+        }
+    }
+
+    /** Releases the batches that were built and the encoders that are still open. */
+    private static void closeAll(Map<String, EscfEncoder> encoders, @Nullable Map<String, SourceBatch> batches) {
+        if (batches != null) {
+            for (SourceBatch batch : batches.values()) {
+                batch.close();
+            }
+        }
+        for (EscfEncoder encoder : encoders.values()) {
+            encoder.close();
         }
     }
 

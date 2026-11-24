@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -254,6 +255,226 @@ public class BatchModeRouterTests extends ESTestCase {
         return XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
     }
 
+    /** An item whose row is in the batch of another index would be indexed with the wrong document, so it is rejected. */
+    public void testItemWithRowOfAnotherBatchIsRejected() throws IOException {
+        EscfBatch batchA = buildBatch(1);
+        EscfBatch batchB = buildBatch(1);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("index-a", batchA, 0));
+        bulkRequest.add(rowRequest("index-a", batchB, 0)); // names index-a, but its row is in the batch of index-b
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+        ProjectMetadata project = project(plainMetadata("index-a", 1), plainMetadata("index-b", 1));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
+            assertThat(e.getMessage(), containsString("holds a row of a batch other than the pre-built batch supplied for [index-a]"));
+        } finally {
+            router.close();
+        }
+    }
+
+    /** One batch under two keys would be owned, and released, by two routers, so it is rejected, and released once. */
+    public void testSameBatchUnderTwoKeysIsRejected() throws IOException {
+        EscfBatch batch = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("index-a", batch, 0));
+        bulkRequest.add(rowRequest("index-b", batch, 1));
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batch, "index-b", batch));
+
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("the same pre-built batch was supplied for both"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
+        // The batch must have been released, once: the check after the test fails if a page is still held, and a
+        // second release of the batch trips its own assertion.
+    }
+
+    /**
+     * A row is the document of one item, so two items on the same row of a batch are a mistake of the producer. It is
+     * rejected when the router set is created, with the batch released, and not found out later when items are routed.
+     */
+    public void testTwoItemsOnTheSameRowAreRejected() throws IOException {
+        EscfBatch batch = buildBatch(3);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("myindex", batch, 1));
+        bulkRequest.add(rowRequest("myindex", batch, 1));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(bulkRequest, true, recycler));
+        assertThat(e.getMessage(), containsString("two items hold row 1 of the pre-built batch for [myindex]"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
+    }
+
+    /**
+     * An item with a row of a batch that was not supplied could take the place of a legitimate item in the timestamp
+     * step, when the row numbers are the same, so it is rejected when the router set is created.
+     */
+    public void testItemWithRowOfBatchNotSuppliedIsRejected() throws IOException {
+        EscfBatch supplied = buildBatch(2);
+        EscfBatch notSupplied = buildBatch(2);
+        try {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(rowRequest("myindex", supplied, 1));
+            bulkRequest.add(rowRequest("myindex", notSupplied, 1));
+            bulkRequest.setPreBuiltBatches(Map.of("myindex", supplied));
+
+            var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(bulkRequest, true, recycler));
+            assertThat(e.getMessage(), containsString("holds a row of a batch that was not supplied for the bulk"));
+            assertFalse(bulkRequest.hasPreBuiltBatches());
+        } finally {
+            // The set never owned this batch, so it is not released with the others.
+            notSupplied.close();
+        }
+    }
+
+    /** Rows of different batches overlap, and must not be taken for the same row. */
+    public void testItemsOnTheSameRowOfDifferentBatchesAreAccepted() throws IOException {
+        EscfBatch batchA = buildBatch(2);
+        EscfBatch batchB = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int row = 0; row < 2; row++) {
+            bulkRequest.add(rowRequest("index-a", batchA, row));
+            bulkRequest.add(rowRequest("index-b", batchB, row));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        assertThat(router, notNullValue());
+        router.close();
+    }
+
+    public void testBatchKeyOfPlainIndexIsItsName() {
+        ProjectMetadata project = project(plainMetadata("myindex", 1));
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myindex"), project), equalTo("myindex"));
+    }
+
+    /** An alias is keyed by its write index, not by its own name, so the key does not depend on how the items name their target. */
+    public void testBatchKeyOfAliasIsItsWriteIndex() {
+        IndexMetadata writeIndex = IndexMetadata.builder(plainMetadata("write-index", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        IndexMetadata otherIndex = IndexMetadata.builder(plainMetadata("other-index", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(false))
+            .build();
+        ProjectMetadata project = project(writeIndex, otherIndex);
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myalias"), project), equalTo("write-index"));
+    }
+
+    /** An alias over several indices with no write index has no write target, so it has no key. */
+    public void testBatchKeyOfAliasWithoutWriteIndexIsNull() {
+        IndexMetadata first = IndexMetadata.builder(plainMetadata("first-index", 1)).putAlias(AliasMetadata.builder("myalias")).build();
+        IndexMetadata second = IndexMetadata.builder(plainMetadata("second-index", 1)).putAlias(AliasMetadata.builder("myalias")).build();
+        ProjectMetadata project = project(first, second);
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myalias"), project), nullValue());
+    }
+
+    public void testBatchKeyOfDataStreamIsItsName() {
+        ProjectMetadata project = projectWithDataStream(tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END));
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get(DATA_STREAM), project), equalTo(DATA_STREAM));
+    }
+
+    /** An alias over a data stream is keyed by the data stream, as the items' backing index is selected by the data stream. */
+    public void testBatchKeyOfAliasOverDataStreamIsTheDataStream() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectWithDataStream(tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END)));
+        builder.put("ds-alias", DATA_STREAM, true, null);
+        ProjectMetadata project = builder.build();
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("ds-alias"), project), equalTo(DATA_STREAM));
+    }
+
+    /** A write straight to a backing index has no key: its rows would belong in the batch of the data stream. */
+    public void testBatchKeyOfBackingIndexIsNull() {
+        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(backing);
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get(backing.getIndex().getName()), project), nullValue());
+    }
+
+    public void testBatchKeyOfUnknownAbstractionIsNull() {
+        assertThat(BatchModeRouter.batchKey(null, project()), nullValue());
+    }
+
+    /** An alias is keyed by its write index, so items that name the alias are routed with the batch of that index. */
+    public void testBatchKeyedByWriteIndexRoutesItemsOfItsAlias() throws IOException {
+        int numDocs = randomIntBetween(3, 20);
+        IndexMetadata writeIndex = IndexMetadata.builder(plainMetadata("write-index", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        IndexMetadata otherIndex = IndexMetadata.builder(plainMetadata("other-index", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(false))
+            .build();
+        ProjectMetadata project = project(writeIndex, otherIndex);
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int row = 0; row < numDocs; row++) {
+            bulkRequest.add(rowRequest("myalias", batch, row));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of("write-index", batch));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
+
+        assertThat(result.keySet(), equalTo(Set.of(new ShardId(writeIndex.getIndex(), 0))));
+        assertShardsAligned(requestsByShard, result);
+        router.close();
+    }
+
+    /** An alias is not the key of its batch: a batch registered under the name of the alias is not found by its items. */
+    public void testBatchKeyedByAliasNameIsNotFound() throws IOException {
+        IndexMetadata index = IndexMetadata.builder(plainMetadata("myindex", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        ProjectMetadata project = project(index);
+        BulkRequest bulkRequest = buildBulkRequest("myalias", buildBatch(1), 1);
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
+            assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [myindex]"));
+        } finally {
+            router.close();
+        }
+    }
+
+    /** The rows of an alias and of its write index share one batch, as they write to the same index. */
+    public void testItemsOfAnAliasAndItsWriteIndexShareOneBatch() throws IOException {
+        IndexMetadata index = IndexMetadata.builder(plainMetadata("myindex", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        ProjectMetadata project = project(index);
+        EscfBatch batch = buildBatch(2);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("myalias", batch, 0));
+        bulkRequest.add(rowRequest("myindex", batch, 1));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
+
+        assertThat(result.values().iterator().next().docCount(), equalTo(2));
+        assertShardsAligned(requestsByShard, result);
+        router.close();
+    }
+
+    /** A direct write to a backing index has no batch key, so the router set has no batch for it. */
+    public void testDirectWriteToBackingIndexHasNoBatch() throws IOException {
+        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(backing);
+        String backingName = backing.getIndex().getName();
+        BulkRequest bulkRequest = new BulkRequest();
+        EscfBatch batch = buildBatch(1);
+        bulkRequest.add(tsdbRowRequest(backingName, batch, 0, IN_GEN_1));
+        bulkRequest.setPreBuiltBatches(Map.of(backingName, batch));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
+            assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [" + backingName + "]"));
+        } finally {
+            router.close();
+        }
+    }
+
     public void testCreateReturnsNullWhenNoBatches() {
         assertThat(BatchRouterSet.create(new BulkRequest(), true, recycler), nullValue());
     }
@@ -319,6 +540,67 @@ public class BatchModeRouterTests extends ESTestCase {
         request.setPreBuiltBatches(Map.of("myindex", new NotAnEscfBatch()));
         var e = expectThrows(IllegalArgumentException.class, () -> BatchRouterSet.create(request, true, recycler));
         assertThat(e.getMessage(), containsString("must be an EscfBatch"));
+    }
+
+    /**
+     * A bulk may carry one batch per index. Items of the two indices are interleaved and the batches have
+     * overlapping row indices, so each item must be routed with the batch of its own index.
+     */
+    public void testMultipleBatchesRouteToTheirOwnIndices() throws IOException {
+        int docsA = randomIntBetween(3, 20);
+        int docsB = randomIntBetween(3, 20);
+        EscfBatch batchA = buildBatch(docsA);
+        EscfBatch batchB = buildBatch(docsB);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < Math.max(docsA, docsB); i++) {
+            if (i < docsA) {
+                bulkRequest.add(rowRequest("index-a", batchA, i));
+            }
+            if (i < docsB) {
+                bulkRequest.add(rowRequest("index-b", batchB, i));
+            }
+        }
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+        IndexMetadata mdA = plainMetadata("index-a", randomIntBetween(1, 3));
+        IndexMetadata mdB = plainMetadata("index-b", randomIntBetween(1, 3));
+        ProjectMetadata project = project(mdA, mdB);
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        assertThat(router, notNullValue());
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
+
+        assertShardsAligned(requestsByShard, result);
+        assertThat(rowsOfIndex(result, mdA.getIndex()), equalTo(docsA));
+        assertThat(rowsOfIndex(result, mdB.getIndex()), equalTo(docsB));
+        router.close();
+    }
+
+    private static int rowsOfIndex(Map<ShardId, SourceBatch> shardBatches, Index index) {
+        return shardBatches.entrySet()
+            .stream()
+            .filter(e -> e.getKey().getIndex().equals(index))
+            .mapToInt(e -> e.getValue().docCount())
+            .sum();
+    }
+
+    /** With several batches, an item whose index has no batch of its own is rejected, not routed with another index's batch. */
+    public void testItemWithoutBatchOfItsIndexIsRejectedWithMultipleBatches() throws IOException {
+        EscfBatch batchA = buildBatch(1);
+        EscfBatch batchB = buildBatch(1);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("index-a", batchA, 0));
+        bulkRequest.add(rowRequest("index-c", batchB, 0));
+        bulkRequest.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
+        ProjectMetadata project = project(plainMetadata("index-a", 1), plainMetadata("index-b", 1), plainMetadata("index-c", 1));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
+            assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [index-c]"));
+        } finally {
+            router.close();
+        }
     }
 
     public void testSingleShardAllRowsRouted() throws IOException {
@@ -450,7 +732,7 @@ public class BatchModeRouterTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> router.route(item, request, ia, other.getIndex(), IndexRouting.fromIndexMetadata(other), project, new HashMap<>())
         );
-        assertThat(e.getMessage(), containsString("no pre-built batch was supplied"));
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [otherindex]"));
         router.close();
     }
 
@@ -754,7 +1036,7 @@ public class BatchModeRouterTests extends ESTestCase {
                 requestsByShard
             )
         );
-        assertThat(e.getMessage(), containsString("no pre-built batch was supplied"));
+        assertThat(e.getMessage(), containsString("no pre-built batch was supplied for [" + iaOther.getName() + "]"));
         router.close();
     }
 
@@ -894,7 +1176,71 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * {@link BatchRouterSet#preResolveTimestamps} reads an ISO-8601 STRING value from the batch's
+     * With several batches, only the router of a TSDB data stream resolves timestamps, from the rows of its own
+     * items. The batch of a plain index in the same bulk has overlapping row indices and no {@code @timestamp}
+     * column, and its items must neither reach the other router nor get a timestamp. Items are matched to routers by
+     * the batch their row is in, not by the name they target, which can be date math. The resolved timestamps put the
+     * two items in different backing indices.
+     */
+    public void testPreResolveTimestampsWithSeveralBatches() throws IOException {
+        IndexMetadata gen1 = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        IndexMetadata gen2 = tsdbBackingIndex(2, 1, GEN_1_END, "2025-01-01T00:00:00Z");
+        ProjectMetadata project = ProjectMetadata.builder(projectWithDataStream(gen1, gen2))
+            .put(plainMetadata("plain-index", 1), false)
+            .build();
+
+        Instant ts0 = Instant.parse("2024-02-01T12:34:56.789Z"); // in generation 1
+        Instant ts1 = Instant.parse("2024-09-01T00:00:00Z"); // in generation 2
+        EscfBatch tsdbBatch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (Instant ts : List.of(ts0, ts1)) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("dim", "d");
+                doc.field("@timestamp", ts.toEpochMilli());
+                doc.endObject();
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
+            }
+            tsdbBatch = encoder.build();
+        }
+        EscfBatch plainBatch = buildBatch(3);
+
+        List<IndexRequest> tsdbRequests = new ArrayList<>();
+        List<IndexRequest> plainRequests = new ArrayList<>();
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int row = 0; row < 3; row++) {
+            if (row < 2) {
+                // The second item names its data stream with date math, which is not a name in the indices lookup.
+                IndexRequest request = new IndexRequest(row == 0 ? DATA_STREAM : "<" + DATA_STREAM + "-{now/d}>").opType(
+                    DocWriteRequest.OpType.CREATE
+                );
+                request.indexSource().setSourceRow(tsdbBatch, row, XContentType.JSON);
+                tsdbRequests.add(request);
+                bulkRequest.add(request);
+            }
+            IndexRequest request = rowRequest("plain-index", plainBatch, row);
+            plainRequests.add(request);
+            bulkRequest.add(request);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, tsdbBatch, "plain-index", plainBatch));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        router.preResolveTimestamps(project, bulkRequest.requests());
+
+        assertThat(tsdbRequests.get(0).getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts0)));
+        assertThat(tsdbRequests.get(1).getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts1)));
+        for (IndexRequest request : plainRequests) {
+            assertThat(request.getTimeSeriesTimestamp(), nullValue());
+        }
+        // The timestamps are what selects the backing index of each item.
+        IndexAbstraction dataStream = project.getIndicesLookup().get(DATA_STREAM);
+        assertThat(tsdbRequests.get(0).getConcreteWriteIndex(dataStream, project), equalTo(gen1.getIndex()));
+        assertThat(tsdbRequests.get(1).getConcreteWriteIndex(dataStream, project), equalTo(gen2.getIndex()));
+        router.close();
+    }
+
+    /**
+     * {@link BatchModeRouter#preResolveTimestamps} reads an ISO-8601 STRING value from the batch's
      * {@code @timestamp} column, parses it, and caches the canonical bound on the request.
      */
     public void testPreResolveTimestampsFromStringColumn() throws IOException {

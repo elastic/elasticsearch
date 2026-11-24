@@ -159,6 +159,24 @@ final class BatchModeRouter implements Releasable {
         return writeIndex == null ? null : writeIndex.getName(); // CONCRETE_INDEX, or a plain ALIAS
     }
 
+    /** The batch this router routes the rows of. */
+    EscfBatch source() {
+        return source;
+    }
+
+    /**
+     * Whether {@link #preResolveTimestamps} has anything to do for this router: its batch is for a TSDB data stream,
+     * the only kind of target that selects the backing index of each document by its timestamp.
+     */
+    boolean resolvesTimestamps(ProjectMetadata project) {
+        IndexAbstraction ia = project.getIndicesLookup().get(key);
+        if (ia == null) {
+            return false;
+        }
+        DataStream dataStream = DataStream.resolveDataStream(ia, project);
+        return dataStream != null && IndexMode.isTsdb(dataStream.getIndexMode());
+    }
+
     /**
      * Resolves {@code @timestamp} from the ESCF columns and caches it on each item's
      * {@link IndexRequest} via {@link IndexRequest#setTimeSeriesTimestamp}. Must be called before the
@@ -166,39 +184,27 @@ final class BatchModeRouter implements Releasable {
      * {@link DataStream#getWriteIndex(IndexRequest, ProjectMetadata)} finds the memoized value and can
      * select the correct backing index.
      *
-     * <p>No-op for non-TSDB data streams. All-or-none: if every request already has a timestamp set
-     * (producer supplied it out-of-band), returns immediately. A mixed batch (some set, some not)
-     * throws.
+     * <p>No-op for non-TSDB data streams.
      *
-     * @param requests the bulk request's items; only those whose batch key matches this router are
-     *                 considered, so this method is safe to call from a coordinator that passes the
-     *                 full request list
+     * <p>All-or-none: if every request already has a timestamp set (producer supplied it out-of-band),
+     * returns immediately. A mixed batch (some set, some not) throws.
+     *
+     * @param requests the items whose rows this router's batch holds; each row-bearing {@link IndexRequest}'s
+     *                 row index is used to map it to the batch column
      * @throws IllegalArgumentException if {@code @timestamp} is missing, an unsupported kind,
      *                                  or a row has no value for it
      */
     void preResolveTimestamps(ProjectMetadata project, List<DocWriteRequest<?>> requests) {
-        // Only TSDB data streams need per-document backing-index selection.
-        IndexAbstraction ia = project.getIndicesLookup().get(key);
-        if (ia == null) {
-            return;
-        }
-        DataStream dataStream = DataStream.resolveDataStream(ia, project);
-        if (dataStream == null || IndexMode.isTsdb(dataStream.getIndexMode()) == false) {
+        if (resolvesTimestamps(project) == false) {
             return;
         }
 
-        // Build a row→IndexRequest map so we can set timestamps by row index. Filter to items that
-        // belong to this router (multi-router bulks may have overlapping row-index ranges).
+        // Build a row→IndexRequest map so we can set timestamps by row index.
         IndexRequest[] byRow = new IndexRequest[source.docCount()];
         boolean anyHasTimestamp = false;
         boolean anyLacksTimestamp = false;
         for (DocWriteRequest<?> req : requests) {
             if (req instanceof IndexRequest ir && ir.indexSource().hasSourceRow()) {
-                IndexAbstraction reqIa = project.getIndicesLookup().get(ir.index());
-                String reqKey = batchKey(reqIa, project);
-                if (key.equals(reqKey) == false) {
-                    continue;
-                }
                 int rowIndex = ir.indexSource().rowIndex();
                 if (rowIndex >= 0 && rowIndex < byRow.length) {
                     byRow[rowIndex] = ir;

@@ -14,6 +14,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,6 +32,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,8 +48,10 @@ import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.DEST;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -257,6 +262,51 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(rootCause.get("shard"), equalTo("0"));
     }
 
+    /**
+     * The root cause is what actually went wrong, which is how Elasticsearch reports a failure that wraps another one. The message that
+     * the documents were written and the shard are on the error itself.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSerializedRootCauseOfAShardFailureIsTheFailureItself() throws IOException {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(breaker))));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+
+        Map<String, Object> error = errorBody(e);
+        assertThat(error.get("reason"), equalTo("INTO [" + DEST + "] wrote [1] documents but the refresh failed: [parent] Data too large"));
+        assertThat(error.get("index"), equalTo(DEST));
+        assertThat(error.get("shard"), equalTo("0"));
+        Map<String, Object> rootCause = ((List<Map<String, Object>>) error.get("root_cause")).getFirst();
+        assertThat(rootCause.get("type"), equalTo("circuit_breaking_exception"));
+        assertThat(rootCause.get("reason"), equalTo("[parent] Data too large"));
+    }
+
+    /**
+     * Which node refused, and the other details of a remote failure, are on the wrappers, which the message and the cause leave out.
+     * The response renders a wrapper as what it wraps, so the details are in the stack trace that {@code error_trace=true} adds.
+     */
+    public void testErrorTraceKeepsTheTransportDetailsOfAShardFailure() throws IOException {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        RemoteTransportException remote = new RemoteTransportException("[node-b][127.0.0.1:9300][indices:admin/refresh[s][r]]", breaker);
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(remote))));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+
+        assertThat(e.getCause(), sameInstance(breaker));
+        assertThat(e.getSuppressed(), arrayWithSize(1));
+        assertThat(e.getSuppressed()[0], instanceOf(BroadcastShardOperationFailedException.class));
+        String stackTrace = (String) errorBody(e, true).get("stack_trace");
+        assertThat(stackTrace, containsString("node-b"));
+        assertThat(stackTrace, containsString("BroadcastShardOperationFailedException"));
+    }
+
     public void testRefreshIsOnlyRetriedForAClosedMember() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
@@ -264,7 +314,8 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
         client.failRefresh(new IndexNotFoundException(DEST));
         assertThat(client.refreshes, empty());
-        expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat("an action-level failure is its own cause, so there is nothing to keep apart", e.getSuppressed(), emptyArray());
     }
 
     public void testRefreshThatReachedNoShardFails() {
@@ -313,11 +364,19 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
     }
 
     /** The body of the error response, as the REST layer renders it. */
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> errorBody(Exception e) throws IOException {
+        return errorBody(e, false);
+    }
+
+    /** The body of the error response, with the stack trace that {@code error_trace=true} adds if asked for. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> errorBody(Exception e, boolean errorTrace) throws IOException {
+        ToXContent.Params params = new ToXContent.MapParams(
+            Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, Boolean.toString(errorTrace == false))
+        );
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            ElasticsearchException.generateFailureXContent(builder, ToXContent.EMPTY_PARAMS, e, true);
+            ElasticsearchException.generateFailureXContent(builder, params, e, true);
             builder.endObject();
             return (Map<String, Object>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON)
                 .v2()

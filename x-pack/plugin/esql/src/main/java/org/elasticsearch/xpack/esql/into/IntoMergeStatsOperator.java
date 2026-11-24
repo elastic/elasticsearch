@@ -190,8 +190,9 @@ public final class IntoMergeStatsOperator implements Operator {
 
     private void recordRefreshFailure(Exception cause) {
         // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, but does say which shard
-        // it was. The message, the status and the cause are those of what it wraps, and the shard goes on the error itself: as the cause,
-        // the wrapper would also become the root cause of the response, in place of the error that says the documents were written.
+        // it was, and a failure from another node is wrapped again with the details of that node. The message, the status and the cause
+        // are those of what they wrap, so that the root cause of the response is what actually went wrong. The shard goes on the error
+        // itself, and the wrappers are kept as suppressed, so that the shard copy and node that failed are not lost.
         Throwable underlying = ExceptionsHelper.unwrapCause(cause);
         RestStatus status = ExceptionsHelper.status(underlying);
         String hint = status == RestStatus.FORBIDDEN
@@ -208,6 +209,9 @@ public final class IntoMergeStatsOperator implements Operator {
         );
         if (cause instanceof ElasticsearchException wrapper && wrapper.getShardId() != null) {
             failure.setShard(wrapper.getShardId());
+        }
+        if (cause != underlying) {
+            failure.addSuppressed(cause);
         }
         refreshFailure = failure;
     }

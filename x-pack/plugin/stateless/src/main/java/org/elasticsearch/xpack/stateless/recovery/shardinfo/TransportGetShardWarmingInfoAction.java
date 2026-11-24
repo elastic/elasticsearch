@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
@@ -132,13 +132,19 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
             logger.debug("no routing node for local node [{}], no warming info for [{}]", localNodeId, request.shardId());
             return Response.NONE;
         }
+        final RoutingNode targetNode = state.getRoutingNodes().node(request.targetNodeId());
         final long nowMillis = nowSupplier.getAsLong();
         final ConcurrentMap<ShardId, Long> estimates = estimatesForSignal(state, localNodeId, request.shutdownSignalTimestamp());
         long sourceBytesToWarm = 0L;
         long shardBytesToWarm = -1L;
         for (ShardRouting routing : localRoutingNode) {
-            if (routing.relocating() && request.targetNodeId().equals(routing.relocatingNodeId()) == false) {
-                // already relocating to another target
+            if (routing.relocating()) {
+                if (request.targetNodeId().equals(routing.relocatingNodeId()) == false) {
+                    // already relocating to another target
+                    continue;
+                }
+            } else if (targetNode != null && targetNode.getByShardId(routing.shardId()) != null) {
+                // target already holds another copy of this shard
                 continue;
             }
             final IndexShard shard = indicesService.getShardOrNull(routing.shardId());
@@ -223,11 +229,11 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
     static long estimateBytesToWarm(
         Collection<BlobFileRanges> ranges,
         WarmingRatioProvider ratioProvider,
-        ToLongFunction<StatelessCompoundCommit.TimestampFieldValueRange> resolveTimestamp,
+        ToLongFunction<TimestampFieldValueRange> resolveTimestamp,
         long nowMillis
     ) {
         // Use timestamp range to identify commits. It's the best we have, and it's acceptable if there is a clash.
-        record CommitInBlob(BccBlob bccBlob, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {}
+        record CommitInBlob(BccBlob bccBlob, @Nullable TimestampFieldValueRange timestampRange) {}
         record Extent(long start, long end) {
             Extent union(Extent other) {
                 return new Extent(Math.min(start, other.start), Math.max(end, other.end));

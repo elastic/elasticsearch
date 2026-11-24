@@ -860,6 +860,41 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(error.getMessage(), containsString("cannot modify setting [index.sort.field] on restore"));
     }
 
+    public void testRestoreCannotChangeOrRemoveIndexSortExpression() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setMapping("host.name", "type=keyword", "@timestamp", "type=date")
+                .setSettings(Settings.builder().put(indexSettings()).put("index.sort", "@timestamp DESC, host.name"))
+        );
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+
+        var modifyError = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().put("index.sort", "host.name"))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(modifyError.getMessage(), containsString("cannot modify setting [index.sort] on restore"));
+
+        var removeError = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIgnoreIndexSettings("index.sort")
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(removeError.getMessage(), containsString("cannot remove setting [index.sort] on restore"));
+    }
+
     public void testRecreateBlocksOnRestore() throws Exception {
         Client client = client();
 

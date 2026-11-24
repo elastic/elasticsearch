@@ -13,11 +13,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -212,8 +214,48 @@ public class PartitionValueMatcherTests extends ESTestCase {
         hint("k", Operator.LESS_THAN, 0.0),
         hint("k", Operator.LESS_THAN_OR_EQUAL, -0.0),
         hint("k", Operator.IN, 0.0, 7.0),
-        hint("k", Operator.IN, -0.0, 7.0)
+        hint("k", Operator.IN, -0.0, 7.0),
+        hint("k", Operator.LIKE, "*_20261118T14*"),
+        hint("k", Operator.LIKE, "file_*.parquet")
     );
+
+    public void testLikeMatchesWildcardPatternSemantics() {
+        PartitionFilterHint like = hint("k", Operator.LIKE, "*_20261118T14*");
+        assertNull("folder walk must not compile LIKE per value", PartitionValueMatcher.matches("file_1.parquet", like));
+        assertEquals(
+            Boolean.TRUE,
+            PartitionValueMatcher.matchesLike(
+                "108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1405Z_3f2a.log.gz",
+                like.values().get(0),
+                null
+            )
+        );
+        assertEquals(
+            Boolean.FALSE,
+            PartitionValueMatcher.matchesLike(
+                "108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1505Z_3f2a.log.gz",
+                like.values().get(0),
+                null
+            )
+        );
+        assertEquals(
+            Boolean.FALSE,
+            PartitionValueMatcher.matchesLike(
+                "108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261119T1405Z_3f2a.log.gz",
+                like.values().get(0),
+                null
+            )
+        );
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("file_1.parquet", "file_*.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileX1.parquet", "file_*.parquet", null));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("fileA.parquet", "file?.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileAB.parquet", "file?.parquet", null));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("file*.parquet", "file\\*.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileX.parquet", "file\\*.parquet", null));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("file?.parquet", "file\\?.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileA.parquet", "file\\?.parquet", null));
+        assertNull(PartitionValueMatcher.matchesLike(6, like.values().get(0), null));
+    }
 
     public void testWalkPruneImpliesReadLayerExclusion() {
         for (List<String> values : VALUE_SETS) {
@@ -321,6 +363,12 @@ public class PartitionValueMatcherTests extends ESTestCase {
             case GREATER_THAN_OR_EQUAL -> new GreaterThanOrEqual(SRC, column, literal, null);
             case LESS_THAN -> new LessThan(SRC, column, literal, null);
             case LESS_THAN_OR_EQUAL -> new LessThanOrEqual(SRC, column, literal, null);
+            case LIKE -> {
+                if (columnType != DataType.KEYWORD) {
+                    yield null;
+                }
+                yield new WildcardLike(SRC, column, new WildcardPattern(String.valueOf(hint.values().get(0))));
+            }
             case IN -> throw new AssertionError("handled above");
         };
     }

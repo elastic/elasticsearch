@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -3301,8 +3302,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     /**
      * With {@code index.mapping.exclude_source_vectors}, on by default, {@code synthetic_source_keep} on a vector field itself is
-     * ignored, as the vector is rebuilt from the index. A vector inside a kept object or nested object stays in
-     * {@code _ignored_source} with it.
+     * ignored, as the vector is rebuilt from the index. A vector inside a kept object, nested object, or array of objects kept by the
+     * index-level {@code arrays} setting stays in {@code _ignored_source} with it, as indexed and in place.
      */
     public void testSyntheticSourceKeepOnExcludedVectorField() throws IOException {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
@@ -3311,8 +3312,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays")
             .build();
         DocumentMapper mapper = createMapperService(version, settings, mapping(b -> {
+            b.startObject("arr").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.startObject("vector").field("type", "dense_vector").field("dims", 3).endObject();
+            b.endObject().endObject();
             b.startObject("vector").field("type", "dense_vector").field("dims", 3).field("synthetic_source_keep", "all").endObject();
             b.startObject("obj").field("synthetic_source_keep", "all").startObject("properties");
             b.startObject("k").field("type", "keyword").endObject();
@@ -3324,6 +3330,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.endObject().endObject();
         })).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("arr");
+            b.startObject().field("k", "first").endObject();
+            b.startObject().field("k", "second").field("vector", List.of(1, 2, 3)).endObject();
+            b.endArray();
             b.field("vector", List.of(1, 2, 3));
             b.startObject("obj").field("k", "foo").field("vector", List.of(1, 2, 3)).endObject();
             b.startArray("nested");
@@ -3341,6 +3351,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             ignoredSource,
             equalTo(
                 Map.of(
+                    "arr",
+                    List.of(Map.of("k", "first"), Map.of("k", "second", "vector", List.of(1, 2, 3))),
                     "obj",
                     Map.of("k", "foo", "vector", List.of(1, 2, 3)),
                     "nested",

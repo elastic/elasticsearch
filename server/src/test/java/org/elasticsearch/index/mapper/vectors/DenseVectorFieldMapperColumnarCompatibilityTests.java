@@ -9,12 +9,16 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -309,6 +313,40 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
     public void testNonUnitDotProductVectorFallsBack() throws IOException {
         final MapperService mapperService = createMapperService(vectordbColumnarSettings(), vectorMapping("float", "dot_product"));
         expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, vectorDoc("[1,2,3,4,5,6,7,8]")));
+    }
+
+    /**
+     * In a time-series index, {@code synthetic_source_keep: all} on a vector is ignored when {@code index.mapping.exclude_source_vectors}
+     * is on, the default, so the vector takes the batch path rather than falling back to the row path, and both write the same fields.
+     */
+    public void testTimeSeriesSyntheticSourceKeepAll() throws IOException {
+        final BytesRef tsid = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
+        final String routing = TimeSeriesRoutingHashFieldMapper.encode(42);
+        final long timestamp = 1622505600000L; // 2021-06-01T00:00:00.000Z
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            // Synthetic ids are written differently by the two paths, which is not what this test is about.
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+        final List<Doc> docs = new ArrayList<>();
+        for (int i = 0; i < between(1, 10); i++) {
+            // The dimension is left out of the sources: keyword doc values are not supported on the batch path.
+            final String source = "{\"@timestamp\":" + (timestamp + i) + ",\"" + FIELD + "\":" + randomVectorJson(DIMS, false) + "}";
+            docs.add(doc(TsidExtractingIdFieldMapper.createId(42, tsid, timestamp + i), routing, tsid, i, source));
+        }
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD)
+                .field("type", "dense_vector")
+                .field("dims", DIMS)
+                .field("similarity", "l2_norm")
+                .field("synthetic_source_keep", "all")
+                .endObject();
+        }), settings, batch("time series keep all", 1L, docs.toArray(Doc[]::new)));
     }
 
     private boolean supportsColumnarParse(XContentBuilder mapping) throws IOException {

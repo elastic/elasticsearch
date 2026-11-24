@@ -236,6 +236,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AbsentFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -1627,15 +1628,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
             }
 
-            // A label_replace/label_join destination or a count_values value label is a derived label that overwrites
-            // (shadows) any stored label of the same name (a dimension or __name__). Shadowing is positional: a reference sees
-            // a derived label only when the node deriving it lies within the vector the reference consumes - i.e. strictly
-            // below the reference's node. So each node resolves against the stored labels shadowed by the labels derived in
-            // its own child subtree(s): a selector's matchers, and any reference below a deriving node, bind to the stored
-            // label, while an enclosing by(dst) binds to the derived label. When several nodes on one path derive the same
-            // label the outermost (last-applied) one wins, so same-named derived labels are collapsed keeping the shallowest -
-            // which also keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call
-            // list, so this is local to this command.
+            // A label_replace/label_join destination, a count_values value label, or a label of an absent result is a derived
+            // label that overwrites (shadows) any stored label of the same name (a dimension or __name__). Shadowing is
+            // positional: a reference sees a derived label only when the node deriving it lies within the vector the reference
+            // consumes - i.e. strictly below the reference's node. So each node resolves against the stored labels shadowed by
+            // the labels derived in its own child subtree(s): a selector's matchers, and any reference below a deriving node,
+            // bind to the stored label, while an enclosing by(dst) binds to the derived label. When several nodes on one path
+            // derive the same label the outermost (last-applied) one wins, so same-named derived labels are collapsed keeping
+            // the shallowest - which also keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is
+            // a fresh per-call list, so this is local to this command. The labels of an absent result are visible to the nodes
+            // above it only.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
@@ -1664,8 +1666,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * The labels derived in {@code plan} - relabel destinations and {@code count_values} value labels - in pre-order
-         * (ancestors before descendants).
+         * The labels derived in {@code plan} - relabel destinations, {@code count_values} value labels, and the labels of an
+         * {@code absent} result - in pre-order (ancestors before descendants).
          */
         private static List<Attribute> derivedLabels(LogicalPlan plan) {
             List<Attribute> derived = new ArrayList<>();
@@ -1674,6 +1676,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     derived.add(relabel.destination());
                 } else if (node instanceof CountValuesAggregate countValues) {
                     derived.add(countValues.valueLabel());
+                } else if (node instanceof AbsentFunction absent) {
+                    derived.addAll(absent.output());
                 }
             });
             return derived;

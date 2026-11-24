@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -21,6 +23,7 @@ import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.UnigramTokeniz
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 
+@RunWith(ESRandomizedRunner.class)
 public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
     private static final String UNKNOWN_TOKEN = "<unk>";
     private static final List<String> NEVER_SPLIT = List.of("<mask>");

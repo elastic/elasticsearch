@@ -24,6 +24,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.lang.foreign.MemorySegment;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -122,6 +124,91 @@ public class BulkArrowAggregationTests extends ESTestCase {
                 agg.addRawInput(new Page(block), mask);
                 assertEquals(expected, evaluateLong(agg, ctx));
             }
+        }
+    }
+
+    /** Extreme values must not wrap inside the unchecked per-buffer accumulation. */
+    public void testSumIntOverArrowBufferExtremes() {
+        int positions = between(1, 5000);
+        int[] max = new int[positions];
+        int[] min = new int[positions];
+        Arrays.fill(max, Integer.MAX_VALUE);
+        Arrays.fill(min, Integer.MIN_VALUE);
+        assertEquals((long) positions * Integer.MAX_VALUE, sumIntArrow(max));
+        assertEquals((long) positions * Integer.MIN_VALUE, sumIntArrow(min));
+    }
+
+    public void testSumIntOverArrowBufferFullRange() {
+        int[] values = new int[between(1, 5000)];
+        long expected = 0;
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomInt();
+            expected += values[i];
+        }
+        assertEquals(expected, sumIntArrow(values));
+    }
+
+    /** Only the first {@code count} ints of the segment are summed, even if the buffer holds more. */
+    public void testCombineBulkSegmentIgnoresValuesPastCount() {
+        int[] values = new int[between(1, 100)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = between(-1000, 1000);
+        }
+        int count = between(0, values.length);
+        long expected = 0;
+        for (int i = 0; i < count; i++) {
+            expected += values[i];
+        }
+        long current = randomLongBetween(-1_000_000_000_000L, 1_000_000_000_000L);
+        try (IntBlock block = arrowBlock(values)) {
+            MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
+            assertEquals(current + expected, SumIntAggregator.combineBulk(current, segment, count));
+        }
+    }
+
+    /** The one overflow check per buffer must still fire when the final result does not fit in a long. */
+    public void testCombineBulkSegmentOverflow() {
+        try (IntBlock block = arrowBlock(new int[] { 1 })) {
+            MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
+            expectThrows(ArithmeticException.class, () -> SumIntAggregator.combineBulk(Long.MAX_VALUE, segment, 1));
+        }
+        try (IntBlock block = arrowBlock(new int[] { -1 })) {
+            MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
+            expectThrows(ArithmeticException.class, () -> SumIntAggregator.combineBulk(Long.MIN_VALUE, segment, 1));
+        }
+    }
+
+    /** Overflow of the final sum throws; a transient overflow that comes back in range does not. */
+    public void testAggregatorOverflowOverArrowBuffer() {
+        DriverContext ctx = driverContext();
+        try (
+            IntBlock block = arrowBlock(new int[] { 10, -10 });
+            BooleanVector mask = blockFactory.newConstantBooleanVector(true, 2);
+            SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
+        ) {
+            addIntermediate(agg, Long.MAX_VALUE - 5);
+            agg.addRawInput(new Page(block), mask);
+            assertEquals(Long.MAX_VALUE - 5, evaluateLong(agg, ctx));
+        }
+        try (
+            IntBlock block = arrowBlock(new int[] { 10 });
+            BooleanVector mask = blockFactory.newConstantBooleanVector(true, 1);
+            SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
+        ) {
+            addIntermediate(agg, Long.MAX_VALUE - 5);
+            Page page = new Page(block);
+            expectThrows(ArithmeticException.class, () -> agg.addRawInput(page, mask));
+        }
+    }
+
+    private void addIntermediate(SumIntAggregatorFunction agg, long initial) {
+        try (
+            Page intermediate = new Page(
+                blockFactory.newConstantLongBlockWith(initial, 1),
+                blockFactory.newConstantBooleanBlockWith(true, 1)
+            )
+        ) {
+            agg.addIntermediateInput(intermediate);
         }
     }
 

@@ -88,6 +88,12 @@ public class AggregatorImplementer {
      * per element, which lets the aggregator reduce with a wide accumulator.
      */
     private final ExecutableElement combineBulk;
+    /**
+     * Optional {@code static <state> combineBulk(<state>, MemorySegment, int)}. When present, the unmasked
+     * {@code IntArrowBufVector} arm folds the whole 32-bit buffer (segment and position count) in one call
+     * instead of looping per element, so the aggregator can reduce with a wide accumulator.
+     */
+    private final ExecutableElement combineBulkSegment;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<IntermediateStateDesc> intermediateState;
@@ -161,6 +167,14 @@ public class AggregatorImplementer {
                 requireType(aggState.declaredType()),
                 requireName("combineBulk"),
                 requireArgs(requireType(aggState.declaredType()), requireType(Types.INT_ARRAY_VECTOR))
+            )
+            : null;
+        this.combineBulkSegment = warnExceptions.isEmpty() && aggState.declaredType().isPrimitive()
+            ? optionalStaticMethod(
+                declarationType,
+                requireType(aggState.declaredType()),
+                requireName("combineBulk"),
+                requireArgs(requireType(aggState.declaredType()), requireType(MEMORY_SEGMENT), requireType(TypeName.INT))
             )
             : null;
 
@@ -501,7 +515,13 @@ public class AggregatorImplementer {
             // Any Arrow-buffer subtype with a known native layout reduces through a MemorySegment loop,
             // widening (signed) to the element type for narrower buffers; everything else loops per element.
             String segmentLayout = bulkReducible ? Types.ARROW_VECTOR_VALUE_LAYOUT.get(subtype) : null;
-            if (segmentLayout != null) {
+            if (masked == false
+                && combineBulkSegment != null
+                && aggParams.size() == 1
+                && bulkReducible
+                && subtype.equals(Types.INT_ARROW_BUF_VECTOR)) {
+                emitCombineBulkSegment(builder, "specialized");
+            } else if (segmentLayout != null) {
                 emitSegmentVectorLoop(builder, masked, "specialized", segmentLayout);
             } else if (masked == false && combineBulk != null && aggParams.size() == 1 && subtype.equals(Types.INT_ARRAY_VECTOR)) {
                 emitCombineBulk(builder, "specialized");
@@ -522,6 +542,25 @@ public class AggregatorImplementer {
             builder.addStatement("state.seen(true)");
         }
         builder.addStatement("state.$TValue($T.combineBulk(state.$TValue(), $L))", returnType, declarationType, returnType, accessor);
+    }
+
+    /**
+     * Folds the whole off-heap 32-bit Arrow buffer of {@code accessor} into state with the aggregator's
+     * {@code combineBulk(state, MemorySegment, int)}.
+     */
+    private void emitCombineBulkSegment(MethodSpec.Builder builder, String accessor) {
+        TypeName returnType = TypeName.get(combine.getReturnType());
+        if (aggState.hasSeen()) {
+            builder.addStatement("state.seen(true)");
+        }
+        builder.addStatement(
+            "state.$TValue($T.combineBulk(state.$TValue(), $L.valuesSegment(), $L.getPositionCount()))",
+            returnType,
+            declarationType,
+            returnType,
+            accessor,
+            accessor
+        );
     }
 
     /** Per-element vector loop over {@code accessor} (typed get + {@code combine} into state). */

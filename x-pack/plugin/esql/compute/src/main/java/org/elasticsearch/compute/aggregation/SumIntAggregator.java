@@ -16,6 +16,9 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasables;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+
 @Aggregator({ @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator(supportsPartitioning = true)
 class SumIntAggregator {
@@ -34,6 +37,20 @@ class SumIntAggregator {
      */
     public static long combineBulk(long current, IntArrayVector v) {
         return Math.addExact(current, v.sum());
+    }
+
+    /**
+     * Folds the first {@code count} 32-bit ints of an off-heap Arrow buffer into {@code current}. The sum of at
+     * most {@code Integer.MAX_VALUE} ints cannot overflow a {@code long}, so there is a single overflow check per
+     * buffer instead of one per element. Reads use an unaligned layout because Arrow buffers are not guaranteed
+     * to be aligned to the element width.
+     */
+    public static long combineBulk(long current, MemorySegment segment, int count) {
+        long sum = 0;
+        for (int i = 0; i < count; i++) {
+            sum += segment.getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, i);
+        }
+        return Math.addExact(current, sum);
     }
 
     public static long combine(long current, long v) {

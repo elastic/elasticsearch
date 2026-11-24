@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -36,6 +38,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ValueCardinal
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests {@link ValueCardinality} on analyzed (not optimized) plans, so the nodes the proof walks through are the ones the user wrote.
@@ -277,6 +281,27 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
 
         String renamed = "FROM test | RENAME languages AS l | STATS c = COUNT(*) BY l | STATS n = COUNT(*) BY l";
         assertThat(cardinalityOfKey(renamed, "l"), equalTo(SINGLE));
+    }
+
+    /**
+     * After optimization, a {@code STATS} key that only renames a column is grouped by that column and output as an alias of it,
+     * with a different id. The walk must unwrap the alias to see that the output is a key.
+     */
+    public void testRenamedKeyOnAnOptimizedPlanIsSingle() {
+        LogicalPlan plan = optimizedPlan("FROM test | STATS c = COUNT(*) BY l = languages");
+        Aggregate aggregate = plan.collect(Aggregate.class).get(0);
+        NamedExpression output = aggregate.aggregates().stream().filter(o -> o.name().equals("l")).findFirst().orElseThrow();
+
+        // The shape this test is for: the grouping is languages, and the output is the alias l = languages, with another id.
+        assertThat(aggregate.groupings(), hasSize(1));
+        Attribute grouping = Expressions.attribute(aggregate.groupings().get(0));
+        assertThat(output, instanceOf(Alias.class));
+        Expression aliased = ((Alias) output).child();
+        assertThat(aliased, instanceOf(Attribute.class));
+        assertThat(((Attribute) aliased).id(), equalTo(grouping.id()));
+        assertThat(output.id(), not(equalTo(grouping.id())));
+
+        assertThat(ValueCardinality.ofOutput(output.toAttribute(), aggregate), equalTo(SINGLE));
     }
 
     public void testEarlierAggregateValuesIsUnknown() {

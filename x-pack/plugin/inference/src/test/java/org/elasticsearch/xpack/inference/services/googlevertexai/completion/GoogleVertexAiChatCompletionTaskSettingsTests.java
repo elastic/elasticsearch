@@ -137,12 +137,15 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
     @Override
     protected GoogleVertexAiChatCompletionTaskSettings mutateInstance(GoogleVertexAiChatCompletionTaskSettings instance)
         throws IOException {
-        if (randomBoolean()) {
-            var thinkingConfig = randomValueOtherThan(instance.thinkingConfig(), () -> new ThinkingConfig(randomNonNegativeIntOrNull()));
-            return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, instance.maxTokens());
-        } else {
-            var maxTokens = randomValueOtherThan(instance.maxTokens(), ESTestCase::randomNonNegativeIntOrNull);
-            return new GoogleVertexAiChatCompletionTaskSettings(instance.thinkingConfig(), maxTokens);
+        var thinkingConfig = instance.thinkingConfig();
+        var maxTokens = instance.maxTokens();
+
+        switch (randomInt(1)) {
+            case 0 -> thinkingConfig = randomValueOtherThan(thinkingConfig, () -> new ThinkingConfig(randomNonNegativeIntOrNull()));
+            case 1 -> maxTokens = randomValueOtherThan(maxTokens, ESTestCase::randomNonNegativeIntOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
+
+        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
     }
 }

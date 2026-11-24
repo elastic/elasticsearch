@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -204,6 +207,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final DatasetListingService listingService;
+    /**
+     * Whether the node's external-source cache is accepting writes, asked once per read.
+     * <p>
+     * Per-stripe and whole-file statistics are harvested for that cache and nothing else: a disabled cache
+     * discards the contribution on the coordinator, where
+     * {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} returns on its first line, so
+     * harvesting under a disabled cache is scan-path cost spent on a result no one accepts. A supplier rather
+     * than a captured flag because {@code esql.external.cache.enabled} is dynamic and doubles as the cache's
+     * clear operation, while this factory is a per-node singleton built once: a value read at construction
+     * would miss every toggle. It governs neither the footer caches, which are per-reader and
+     * built from node settings, nor the columnar statistics read out of a footer, which cost no extra scan.
+     */
+    private final BooleanSupplier externalSourceCacheEnabled;
     /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
     private final NodeWarningThrottle warnings = new NodeWarningThrottle();
 
@@ -274,7 +290,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
             localFileAccess,
             externalSourceMetrics,
             listingService,
-            AdmissionTracker.NOOP
+            AdmissionTracker.NOOP,
+            // Test wiring: read the setting directly, as the shorter DataSourceModule constructors do. It honours a
+            // yml-configured disable, and cannot observe a dynamic toggle -- production passes the cache's own flag.
+            () -> ExternalSourceCacheSettings.CACHE_ENABLED.get(settings != null ? settings : Settings.EMPTY)
         );
     }
 
@@ -287,7 +306,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService,
-        AdmissionTracker admissionTracker
+        AdmissionTracker admissionTracker,
+        BooleanSupplier externalSourceCacheEnabled
     ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
@@ -303,6 +323,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             admissionTracker
         );
         this.listingService = listingService;
+        Check.notNull(externalSourceCacheEnabled, "externalSourceCacheEnabled cannot be null");
+        this.externalSourceCacheEnabled = externalSourceCacheEnabled;
     }
 
     @Override
@@ -698,6 +720,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     && context.deferredExtraction()
                     && dropsRowsOnCoercionFailure == false;
 
+                // Resolved once for this read, so both stats arguments below agree even if the cache is toggled
+                // between them.
+                boolean harvestStatistics = externalSourceCacheEnabled.getAsBoolean();
+
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,
                     format,
@@ -719,8 +745,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .parsingParallelism(context.parsingParallelism())
                     .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                     .maxRecordBytes(context.maxRecordBytes())
-                    .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
-                    .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                    // A disabled cache harvests nothing. NONE is the whole off switch for both row readers: it
+                    // zeroes the stripe grid NdJsonPageIterator derives and short-circuits the capture in both, so
+                    // the whole-file publish stops with the per-stripe one. The grid size goes with it rather than
+                    // being left set, so no reader builds a harvester that can never be fed. Asked here, per read,
+                    // because this is where the harvest is configured and the flag is live.
+                    .statsStripeSize(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes() : -1L)
+                    .statsColumnScope(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings) : StripeColumnScope.NONE)
                     .streamingSegmentatorAdmission(segmentatorAdmission)
                     .formatReaderRegistry(formatRegistry)
                     .registryPrototype(prototype)

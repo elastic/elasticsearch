@@ -2694,7 +2694,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE this read harvests nothing, so it takes no cacheable identity: that skips the mtime probe
+        // below, which is a cache-only metadata read (a HEAD on a store carrying no Last-Modified header), and
+        // leaves cacheableObject null, which is what every publish and every accumulator downstream keys off.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -2733,7 +2736,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
-            chunkMode ? context.statsStripeSize() : -1L,
+            // Self-gated on the scope as NdJsonPageIterator does, so the grid and the scope cannot disagree:
+            // the factory resolves the two independently, and cache-on with stripe.columns=none hands this
+            // reader a positive grid under NONE. Without this term it would build a harvester, and take the
+            // offset-tracking read route, with nothing to consume either.
+            chunkMode && context.statsColumnScope() != StripeColumnScope.NONE ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
             context.statsStripeSink(),
@@ -4563,6 +4570,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
+            // Pins the call site's scope term: drop it and chunkMode alone leaves a positive grid under NONE, so
+            // this builds a harvester nothing can feed. Assertions are off in production.
+            assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null
+                : "stripe grid active under " + this.statsColumnScope + ", size " + statsStripeSize;
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -5494,7 +5505,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // loop (see appendStagedRow) instead of re-walking every built block. Build the
                 // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
                 // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                if (cacheableObject != null) {
+                // PROJECTED is the only scope whose whole-file publish reads these, and captureBlockStats returns
+                // early for every other, so accumulating under another scope folds a min/max/null per cell on the
+                // parse loop for a result no one reads. The direct path is never entered under ALL (see
+                // directEligible), and COUNT wants the row count alone.
+                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }

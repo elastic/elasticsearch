@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -295,14 +299,22 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * The walk follows a chain of any length to its end. It is a loop, so a long chain does not overflow the stack.
+     * <p>
+     * The {@code EVAL} is built in code, not parsed from a query: analyzing a query with this many aliases is quadratic, and takes
+     * much longer than the walk.
      */
     public void testVeryLongAliasChainIsFollowedWithoutOverflow() {
-        StringBuilder query = new StringBuilder("FROM test | EVAL a0 = MV_MIN(languages)");
+        LogicalPlan source = analyzerWithSingleValuedFields(Set.of()).query("FROM test | KEEP languages");
+        Attribute languages = source.output().get(0);
+        List<Alias> fields = new ArrayList<>(DEEP_ALIASES);
+        Alias last = new Alias(Source.EMPTY, "a0", new MvMin(Source.EMPTY, languages));
+        fields.add(last);
         for (int i = 1; i < DEEP_ALIASES; i++) {
-            query.append(", a").append(i).append(" = a").append(i - 1);
+            last = new Alias(Source.EMPTY, "a" + i, last.toAttribute());
+            fields.add(last);
         }
-        query.append(" | STATS c = COUNT(*) BY a").append(DEEP_ALIASES - 1);
-        assertThat(cardinalityOfKey(query.toString(), "a" + (DEEP_ALIASES - 1)), equalTo(SINGLE));
+        Eval eval = new Eval(Source.EMPTY, source, fields);
+        assertThat(ValueCardinality.ofOutput(last.toAttribute(), eval), equalTo(SINGLE));
     }
 
     public void testFieldFlaggedByTheMappingIsSingle() {

@@ -79,6 +79,10 @@ enum ValueCardinality {
      * The columns that a node reads are usually the output of its child; this is not the case for {@code EVAL} and {@code ROW}. In
      * these nodes a field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}. To ask about an
      * expression of one of these nodes, pass the node itself.
+     * <p>
+     * On a plan that is not optimized, the aggregates of a {@code STATS} can also read a grouping of the same {@code STATS}, as in
+     * {@code STATS COUNT(k) BY k = x}. No node outputs {@code k} there, so ask on an optimized plan, where the optimizer has moved
+     * {@code k = x} into an {@code EVAL} below the {@code STATS}.
      */
     static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
         // A loop, not recursion: each step has at most one next step, so the walk needs no stack and no depth limit. It ends,

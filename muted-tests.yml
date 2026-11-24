@@ -667,3 +667,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testPointInTimeRelocationPitPositionsInBcc
   issue: https://github.com/elastic/elasticsearch/issues/166791
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testPostWriteRefreshTimeoutDoesNotMakeOnGoingRecoveryFail
+  issue: https://github.com/elastic/elasticsearch/issues/167208

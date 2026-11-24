@@ -1644,6 +1644,26 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         assertRowsAnyOrder(promqlQuery(index, "tx > bool scalar(avg(tx))") + " | KEEP result", List.of(List.of(0.0), List.of(1.0)));
     }
 
+    /**
+     * A comparison with NaN on either side is false, except != which is true, as in Prometheus: a filter drops the series or
+     * keeps it with its value, under an aggregation too.
+     */
+    public void testPromqlComparisonWithNaN() {
+        String index = "promql-comparison-with-nan";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 3.0);
+        refresh(index);
+        String nan = "((tx - tx) / (tx - tx))";
+
+        assertRowsAnyOrder(promqlQuery(index, nan + " > 0") + " | KEEP result", List.of());
+        assertRowsAnyOrder(promqlQuery(index, nan + " != 0") + " | KEEP result", List.of(List.of(Double.NaN), List.of(Double.NaN)));
+        assertRowsAnyOrder(promqlQuery(index, "tx > " + nan) + " | KEEP result", List.of());
+        assertRowsAnyOrder(promqlQuery(index, "tx != " + nan) + " | KEEP result", List.of(List.of(1.0), List.of(3.0)));
+        assertRowsAnyOrder(promqlQuery(index, "count(tx < " + nan + ")") + " | KEEP result", List.of());
+        assertRowsAnyOrder(promqlQuery(index, "count(tx != " + nan + ")") + " | KEEP result", List.of(List.of(2.0)));
+    }
+
     /** Removing the metric name from the output must not merge histogram families before their quantiles. */
     public void testPromqlHistogramMetricNameIsAnInternalGroupingDependency() {
         String index = "promql-histogram-families";

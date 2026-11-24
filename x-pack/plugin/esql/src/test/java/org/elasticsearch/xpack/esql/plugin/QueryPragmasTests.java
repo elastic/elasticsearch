@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,6 +71,43 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), true).build()).fetchPhase(), equalTo(true));
         assertThat(new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), false).build()).fetchPhase(), equalTo(false));
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.FETCH_PHASE.getKey()));
+    }
+
+    public void testTaskConcurrencyAndParsingParallelismHonorNodeProcessorsWhenUnset() {
+        assumeTrue(
+            "node.processors=1 must be below host CPU so the fallback is observable",
+            EsExecutors.allocatedProcessors(Settings.EMPTY) > 1
+        );
+        QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
+        Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+        assertThat(pragmas.parsingParallelism(nodeSettings), equalTo(1));
+        assertThat(pragmas.taskConcurrency(nodeSettings), equalTo(ThreadPool.searchOrGetThreadPoolSize(1)));
+        assertThat(pragmas.taskConcurrency(nodeSettings), equalTo(2));
+        assertThat(
+            pragmas.taskConcurrency(),
+            equalTo(ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY)))
+        );
+        assertThat(pragmas.parsingParallelism(), equalTo(EsExecutors.allocatedProcessors(Settings.EMPTY)));
+    }
+
+    public void testTaskConcurrencyExplicitPragmaWinsIndependently() {
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 5).build());
+        Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+        assertThat(pragmas.taskConcurrency(nodeSettings), equalTo(5));
+        assertThat(pragmas.parsingParallelism(nodeSettings), equalTo(1));
+    }
+
+    public void testParsingParallelismExplicitPragmaWinsIndependently() {
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.PARSING_PARALLELISM.getKey(), 3).build());
+        Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+        assertThat(pragmas.parsingParallelism(nodeSettings), equalTo(3));
+        assertThat(pragmas.taskConcurrency(nodeSettings), equalTo(2));
+    }
+
+    public void testExplicitTaskConcurrencyOneIsNotLiftedBySearchFormula() {
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build());
+        Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+        assertThat(pragmas.taskConcurrency(nodeSettings), equalTo(1));
     }
 
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {

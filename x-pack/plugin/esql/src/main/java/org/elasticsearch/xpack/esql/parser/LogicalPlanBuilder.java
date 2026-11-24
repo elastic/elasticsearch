@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
-import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
@@ -73,7 +72,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -1230,27 +1228,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // shared field-caps path in ResolveEqlRelation.
         IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         String query = eqlQuery(ctx.stringOrParameter());
-        EqlQueryIntrospection.Shape shape;
-        try {
-            shape = EqlQueryIntrospection.inspect(query);
-        } catch (org.elasticsearch.xpack.eql.parser.ParsingException e) {
-            String position = e.getLineNumber() > 0 ? "line " + e.getLineNumber() + ":" + e.getColumnNumber() + " of the EQL query: " : "";
-            throw new ParsingException(
-                source(ctx.stringOrParameter()),
-                "cannot parse EQL query [{}]: {}{}",
-                query,
-                position,
-                e.getErrorMessage()
-            );
-        } catch (RuntimeException e) {
-            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
-            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]", query);
-        }
-        EqlRelation.Mode mode = switch (shape.mode()) {
-            case EVENT -> EqlRelation.Mode.EVENT;
-            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
-            case SAMPLE -> EqlRelation.Mode.SAMPLE;
-        };
+        // No eql/ql types in this class: they would load with it, failing every ES|QL query in a runtime without those plugins.
+        EqlRequests.QueryShape shape = EqlRequests.inspectQuery(source(ctx.stringOrParameter()), query);
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
         if (config.containsKey("indices")) {
@@ -1260,7 +1239,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
         // ones the EQL delegate can populate and appends them to the output.
         List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
-        return new UnresolvedEqlRelation(source, indexPattern, query, config, mode, shape.hasExplicitLimit(), metadataFields);
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, shape.mode(), shape.hasExplicitLimit(), metadataFields);
     }
 
     private String eqlQuery(EsqlBaseParser.StringOrParameterContext ctx) {

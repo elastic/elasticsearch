@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeE
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.List;
@@ -163,6 +164,21 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
 
         String eql = "process where\nx ==";
         expectError("EQL logs-* ?q", List.of(paramAsConstant("q", eql)), expectedEqlParserError(eql, "2:5"));
+    }
+
+    public void testInvalidLikeEscapeInEqlQueryKeepsItsMessage() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        for (String eql : List.of("process where x like \"\\u{01}\"", "process where x like~ \"\\u{01}\"")) {
+            expectThrows(InvalidArgumentException.class, () -> EqlQueryIntrospection.inspect(eql));
+            expectError(
+                "EQL logs-* ?q",
+                List.of(paramAsConstant("q", eql)),
+                "line 1:12: cannot parse EQL query ["
+                    + eql
+                    + "]: Invalid sequence - escape character is not followed by special wildcard char"
+            );
+        }
     }
 
     public void testInternalEqlParserFailureIsNotShownToTheUser() {

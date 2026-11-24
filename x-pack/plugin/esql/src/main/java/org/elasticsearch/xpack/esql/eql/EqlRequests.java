@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.RequestDefaults;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.ql.QlClientException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -108,6 +111,29 @@ public final class EqlRequests {
         BiConsumer<EqlSearchRequest, String> apply
     ) {
         options.put(name, new Option(String.class, "string", 0, allowedValues, (request, value) -> apply.accept(request, (String) value)));
+    }
+
+    public record QueryShape(EqlRelation.Mode mode, boolean hasExplicitLimit) {}
+
+    public static QueryShape inspectQuery(Source source, String query) {
+        EqlQueryIntrospection.Shape shape;
+        try {
+            shape = EqlQueryIntrospection.inspect(query);
+        } catch (org.elasticsearch.xpack.eql.parser.ParsingException e) {
+            String position = e.getLineNumber() > 0 ? "line " + e.getLineNumber() + ":" + e.getColumnNumber() + " of the EQL query: " : "";
+            throw new ParsingException(source, "cannot parse EQL query [{}]: {}{}", query, position, e.getErrorMessage());
+        } catch (QlClientException e) {
+            throw new ParsingException(source, "cannot parse EQL query [{}]: {}", query, e.getMessage());
+        } catch (RuntimeException e) {
+            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
+            throw new ParsingException(source, "cannot parse EQL query [{}]", query);
+        }
+        EqlRelation.Mode mode = switch (shape.mode()) {
+            case EVENT -> EqlRelation.Mode.EVENT;
+            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
+            case SAMPLE -> EqlRelation.Mode.SAMPLE;
+        };
+        return new QueryShape(mode, shape.hasExplicitLimit());
     }
 
     /**

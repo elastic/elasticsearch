@@ -10,17 +10,25 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Counts physical bytes delivered to the caller by a leaf {@link StorageObject#newStream} into the
- * profile {@link StorageObjectMetricsCounters} and publishes those delivered bytes as one APM bytes
- * event at close or abort.
+ * profile {@link StorageObjectMetricsCounters} and publishes those delivered bytes as APM bytes
+ * events at close or abort.
  * <p>
  * The tally is a plain {@code long} on the producer thread — no per-byte atomics. Live
  * {@code _tasks} snapshots may trail by one {@link #PUBLISH_CHUNK_BYTES} chunk; close/abort
  * flushes the remainder so the query profile is exact. Abort-in-flight slack (bytes sitting
  * in an SDK buffer that never reached {@code read}) is unobservable and excluded.
+ * <p>
+ * {@link #abort()} and {@link #close()} may race an in-flight {@code read}: cancel closes the
+ * inner stream (or runs {@code onAbort}) while the reader is still in {@code in.read()} or about
+ * to {@link #account}. Accounting takes a short lock that does <em>not</em> span {@code in.read()},
+ * so cancel is not stuck behind the GET. Bytes the inner stream still delivers after that abort
+ * are folded into the same remainder; profile {@code bytesRead} and APM
+ * {@code storage.bytes_read.total} stay equal to bytes handed to the caller — no drop, no
+ * double-count. Post-abort reads each emit their APM delta (the sum stays exact); otherwise
+ * there is a single publish of the stream total.
  * <p>
  * {@link #abort()} publishes the same delivered totals, then runs the optional {@code onAbort}
  * callback instead of {@link InputStream#close()}. S3 sets that callback so the HTTP connection is
@@ -35,10 +43,16 @@ public final class MeteredInputStream extends FilterInputStream {
 
     private final StorageObjectMetricsCounters counters;
     private final Runnable onAbort;
-    private final AtomicBoolean closed = new AtomicBoolean();
+    /**
+     * Guards {@link #closed}, {@link #local}, {@link #lastPublished}, and {@link #apmPublished}.
+     * Never held across {@code in.read()} / {@code in.skip()} / inner close.
+     */
+    private final Object metricsLock = new Object();
 
+    private boolean closed;
     private long local;
     private long lastPublished;
+    private long apmPublished;
 
     public MeteredInputStream(InputStream in, StorageObjectMetricsCounters counters) {
         this(in, counters, null);
@@ -96,7 +110,7 @@ public final class MeteredInputStream extends FilterInputStream {
     }
 
     /**
-     * Flushes remaining bytes and publishes the stream total once, then aborts the inner
+     * Flushes remaining delivered bytes into the profile and APM, then aborts the inner
      * stream when {@code onAbort} was set, otherwise closes it. Idempotent with {@link #close()}.
      */
     public void abort() throws IOException {
@@ -109,28 +123,46 @@ public final class MeteredInputStream extends FilterInputStream {
     }
 
     private void account(long n) {
-        local += n;
-        long unpublished = local - lastPublished;
-        if (unpublished >= PUBLISH_CHUNK_BYTES) {
-            counters.addBytes(unpublished);
-            lastPublished = local;
+        synchronized (metricsLock) {
+            local += n;
+            if (closed) {
+                flushMetrics();
+                return;
+            }
+            long unpublished = local - lastPublished;
+            if (unpublished >= PUBLISH_CHUNK_BYTES) {
+                counters.addBytes(unpublished);
+                lastPublished = local;
+            }
         }
     }
 
     private void finish(boolean abort) throws IOException {
-        if (closed.compareAndSet(false, true) == false) {
-            return;
+        synchronized (metricsLock) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            flushMetrics();
         }
+        if (abort && onAbort != null) {
+            onAbort.run();
+        } else {
+            in.close();
+        }
+    }
+
+    /** Caller holds {@link #metricsLock}. */
+    private void flushMetrics() {
         long remainder = local - lastPublished;
         if (remainder > 0) {
             counters.addBytes(remainder);
             lastPublished = local;
         }
-        counters.publishStreamBytes(local);
-        if (abort && onAbort != null) {
-            onAbort.run();
-        } else {
-            in.close();
+        long apmDelta = local - apmPublished;
+        if (apmDelta > 0) {
+            counters.publishStreamBytes(apmDelta);
+            apmPublished = local;
         }
     }
 }

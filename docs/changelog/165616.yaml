@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165551
+pr: 165616
+summary: Keep IN subquery filter on indexed fields
+type: enhancement

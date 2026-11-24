@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -36,8 +37,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -47,10 +54,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -439,7 +448,118 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
+    // -- prefix-bearing mv_like / mv_rlike: the implied range is offered to the reader beside the pattern --
+
+    /**
+     * A prefix-bearing {@code mv_like} has no statistics form, so the reader is handed the {@code mv_in_range} it
+     * implies. The bound is a pruning hint only: the retained {@code FilterExec} carries the original pattern, and
+     * not the bound, which the pattern implies.
+     */
+    public void testPrefixBearingMvPatternPushesTheImpliedRange() {
+        FieldAttribute region = fieldAttr("region", DataType.KEYWORD);
+        for (Expression pattern : List.of(
+            new MvLike(SRC, region, keyword("E*")),
+            new MvLike(SRC, region, keyword("E*U")),
+            new MvRLike(SRC, region, keyword("E.*"))
+        )) {
+            PhysicalPlan result = applyRule(new FilterExec(SRC, externalSource(region), pattern), rangeOnlyRegistry());
+
+            FilterExec filter = as(result, FilterExec.class);
+            assertEquals("the retained filter is the original pattern alone", pattern, filter.condition());
+            ExternalSourceExec source = as(filter.child(), ExternalSourceExec.class);
+            assertNotNull(source.pushedFilter());
+            MvInRange bound = as(source.pushedExpressions().getFirst(), MvInRange.class);
+            assertEquals(1, source.pushedExpressions().size());
+            assertEquals(region, bound.field());
+            assertEquals(new BytesRef("E"), bound.lower().fold(FoldContext.small()));
+            assertEquals(new BytesRef("F"), bound.upper().fold(FoldContext.small()));
+            assertFalse(bound.includeUpper());
+        }
+    }
+
+    /** Beside other conjuncts the bound is added for the pattern only, and the other conjuncts keep their place. */
+    public void testImpliedRangeIsAddedBesideOtherConjuncts() {
+        FieldAttribute region = fieldAttr("region", DataType.KEYWORD);
+        FieldAttribute salary = fieldAttr("salary");
+        Expression pattern = new MvLike(SRC, region, keyword("E*"));
+        Expression other = new Equals(SRC, salary, intLiteral(100));
+        FilterExec filterExec = new FilterExec(SRC, externalSource(region, salary), new And(SRC, pattern, other));
+
+        FilterExec filter = as(applyRule(filterExec, rangeOnlyRegistry()), FilterExec.class);
+
+        assertEquals(Set.copyOf(List.of(pattern, other)), Set.copyOf(Predicates.splitAnd(filter.condition())));
+        ExternalSourceExec source = as(filter.child(), ExternalSourceExec.class);
+        assertEquals(1, source.pushedExpressions().size());
+        assertThat(source.pushedExpressions().getFirst(), instanceOf(MvInRange.class));
+    }
+
+    /**
+     * No bound is derived where none is implied: a pattern without a literal prefix, and any pattern under a
+     * {@code NOT}, where the superset range would become an under-match. With nothing else to push, the plan is
+     * left as it was.
+     */
+    public void testNoImpliedRangeWithoutAPrefixOrUnderNot() {
+        FieldAttribute region = fieldAttr("region", DataType.KEYWORD);
+        for (Expression condition : List.of(
+            new MvLike(SRC, region, keyword("*E")),
+            new MvRLike(SRC, region, keyword(".*E")),
+            new Not(SRC, new MvLike(SRC, region, keyword("E*"))),
+            new Or(SRC, new MvLike(SRC, region, keyword("E*")), new MvLike(SRC, region, keyword("A*")))
+        )) {
+            FilterExec filterExec = new FilterExec(SRC, externalSource(region), condition);
+            List<Expression> offered = new ArrayList<>();
+            assertSame(condition.toString(), filterExec, applyRule(filterExec, rangeOnlyRegistry(offered)));
+            assertEquals("only the original condition is offered", List.of(condition), offered);
+        }
+    }
+
     private static final Source SRC = Source.EMPTY;
+
+    private static ExternalSourceExec externalSource(FieldAttribute... attributes) {
+        return new ExternalSourceExec(
+            SRC,
+            "file:///test.parquet",
+            "parquet",
+            List.of(attributes),
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "null_field"),
+            Map.of(),
+            /* pushedFilter = */ null,
+            /* estimatedRowSize = */ null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+    }
+
+    private static Literal keyword(String value) {
+        return new Literal(SRC, new BytesRef(value), DataType.KEYWORD);
+    }
+
+    /**
+     * A parquet reader whose support pushes {@code mv_in_range} as RECHECK (pushed, and kept in the remainder) and
+     * nothing else -- the classification the Parquet support gives these shapes, where {@code mv_like} and
+     * {@code mv_rlike} have no statistics form. A stub, because the real support lives in a plugin this module
+     * cannot depend on.
+     */
+    private static FormatReaderRegistry rangeOnlyRegistry() {
+        return rangeOnlyRegistry(new ArrayList<>());
+    }
+
+    /** As {@link #rangeOnlyRegistry()}, recording into {@code offered} every expression the rule hands the support. */
+    private static FormatReaderRegistry rangeOnlyRegistry(List<Expression> offered) {
+        FormatReaderRegistry registry = new FormatReaderRegistry(null);
+        FormatReader parquet = new DroppingStubReader() {
+            @Override
+            public FilterPushdownSupport filterPushdownSupport() {
+                return filters -> {
+                    offered.addAll(filters);
+                    List<Expression> pushed = filters.stream().filter(MvInRange.class::isInstance).toList();
+                    return pushed.isEmpty()
+                        ? FilterPushdownSupport.PushdownResult.none(filters)
+                        : new FilterPushdownSupport.PushdownResult("opaque", pushed, filters);
+                };
+            }
+        };
+        registry.registerLazy("parquet", (settings, blockFactory) -> parquet, null, null);
+        return registry;
+    }
 
     private static FieldAttribute fieldAttr(String name) {
         return fieldAttr(name, DataType.INTEGER);
@@ -546,7 +666,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
     }
 
     /** The opt-in half: a reader that does declare the row-drop on its filtered path, as ORC does. */
-    private static final class DroppingStubReader extends StubReader {
+    private static class DroppingStubReader extends StubReader {
         @Override
         public boolean dropsRowsUnderPushedFilter() {
             return true;

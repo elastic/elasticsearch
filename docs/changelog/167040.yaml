@@ -1,0 +1,5 @@
+area: Query Languages
+issues: []
+pr: 167040
+summary: "Charge relayed async SQL, EQL and ES|QL responses to the request breaker"
+type: enhancement

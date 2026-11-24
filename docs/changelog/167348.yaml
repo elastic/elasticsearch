@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163211
+pr: 167348
+summary: De-snapshot the FILLNULL command
+type: feature

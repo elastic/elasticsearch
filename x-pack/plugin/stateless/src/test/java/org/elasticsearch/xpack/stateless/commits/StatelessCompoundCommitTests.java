@@ -20,7 +20,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
@@ -298,10 +301,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             StreamOutput positionTracking = new OutputStreamStreamOutput(output);
 
             Map<String, BlobLocation> referencedCommitBlobsWithoutBlobLength = StatelessCompoundCommitTestUtils.randomCommitFiles();
-            List<StatelessCompoundCommit.InternalFile> internalFiles = new ArrayList<>();
+            List<InternalFile> internalFiles = new ArrayList<>();
             int internalFileCount = randomIntBetween(1, 10);
             for (int i = 0; i < internalFileCount; i++) {
-                internalFiles.add(new StatelessCompoundCommit.InternalFile("internal_file_" + i, randomLongBetween(100, 1000)));
+                internalFiles.add(new InternalFile("internal_file_" + i, randomLongBetween(100, 1000)));
             }
 
             writeBwcHeader(
@@ -316,7 +319,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             );
 
             var headerOffset = positionTracking.position();
-            var totalSize = headerOffset + internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
+            var totalSize = headerOffset + internalFiles.stream().mapToLong(InternalFile::length).sum();
             var expectedCommitFiles = StatelessCompoundCommit.combineCommitFiles(
                 new BccBlob(
                     BccBlob.blobNameFromGeneration(testInstance.generation()),
@@ -338,7 +341,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 testInstance.nodeEphemeralId(),
                 expectedCommitFiles.commitFiles(),
                 totalSize,
-                internalFiles.stream().map(StatelessCompoundCommit.InternalFile::name).collect(Collectors.toSet()),
+                internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet()),
                 headerOffset,
                 InternalFilesReplicatedRanges.EMPTY,
                 Map.of(),
@@ -360,7 +363,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         long primaryTerm,
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobFiles,
-        List<StatelessCompoundCommit.InternalFile> internalFiles,
+        List<InternalFile> internalFiles,
         int version
     ) throws IOException {
         assert version < StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING;
@@ -425,6 +428,25 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     assertThat(e.getMessage(), containsString("(offset + file) length is greater than blobLength"));
                 }
             }
+        }
+    }
+
+    public void testTimestampFieldValueRangeXContent() throws IOException {
+        final var range = randomTimestampFieldValueRange();
+
+        // what the header of a compound commit has always written for the range, which is persisted
+        final var inline = new BytesStreamOutput();
+        try (var builder = new XContentBuilder(XContentType.SMILE.xContent(), inline)) {
+            builder.startObject().field("min_millis", range.minMillis()).field("max_millis", range.maxMillis()).endObject();
+        }
+        final var shared = new BytesStreamOutput();
+        try (var builder = new XContentBuilder(XContentType.SMILE.xContent(), shared)) {
+            range.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        assertThat(shared.bytes(), equalTo(inline.bytes()));
+
+        try (var parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, shared.bytes().streamInput())) {
+            assertThat(TimestampFieldValueRange.TIMESTAMP_FIELD_VALUE_RANGE_PARSER.parse(parser, null), equalTo(range));
         }
     }
 

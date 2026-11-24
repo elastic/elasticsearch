@@ -30,7 +30,6 @@ import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -372,12 +371,8 @@ public record StatelessCompoundCommit(
                 if (timestampFieldValueRange != null) {
                     // the CC XContentHeader is always serialized under the last version,
                     // so the timestamp field value range always has the right to be present
-                    b.startObject("timestamp_field_value_range");
-                    {
-                        b.field("min_millis", timestampFieldValueRange.minMillis);
-                        b.field("max_millis", timestampFieldValueRange.maxMillis);
-                    }
-                    b.endObject();
+                    b.field("timestamp_field_value_range");
+                    timestampFieldValueRange.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }
                 b.startObject("commit_files");
                 {
@@ -662,39 +657,6 @@ public record StatelessCompoundCommit(
         );
     }
 
-    public record TimestampFieldValueRange(long minMillis, long maxMillis) implements Writeable {
-
-        static final ConstructingObjectParser<TimestampFieldValueRange, Void> TIMESTAMP_FIELD_VALUE_RANGE_PARSER =
-            new ConstructingObjectParser<>(
-                "timestamp_field_value_range",
-                args -> new TimestampFieldValueRange((long) args[0], (long) args[1])
-            );
-        static {
-            TIMESTAMP_FIELD_VALUE_RANGE_PARSER.declareLong(constructorArg(), new ParseField("min_millis"));
-            TIMESTAMP_FIELD_VALUE_RANGE_PARSER.declareLong(constructorArg(), new ParseField("max_millis"));
-        }
-
-        public TimestampFieldValueRange {
-            if (minMillis > maxMillis) {
-                throw new IllegalArgumentException("Invalid millis timestamp range [" + minMillis + ", " + maxMillis + "]");
-            }
-        }
-
-        public TimestampFieldValueRange(StreamInput in) throws IOException {
-            this(in.readLong(), in.readLong());
-        }
-
-        public long midpointMillis() {
-            return minMillis + (maxMillis - minMillis) / 2;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(minMillis);
-            out.writeLong(maxMillis);
-        }
-    }
-
     record CombinedCommitFilesResult(
         // all files that are part of this commit, either referenced or internal
         Map<String, BlobLocation> commitFiles,
@@ -758,43 +720,5 @@ public record StatelessCompoundCommit(
             previous = file;
         }
         return true;
-    }
-
-    record InternalFile(String name, long length) implements Writeable, ToXContentObject, Comparable<InternalFile> {
-
-        private static final ConstructingObjectParser<InternalFile, Void> PARSER = new ConstructingObjectParser<>(
-            "internal_file",
-            true,
-            args -> new InternalFile((String) args[0], (long) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("name"));
-            PARSER.declareLong(constructorArg(), new ParseField("length"));
-        }
-
-        private InternalFile(StreamInput streamInput) throws IOException {
-            this(streamInput.readString(), streamInput.readLong());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeLong(length);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("name", name).field("length", length).endObject();
-        }
-
-        @Override
-        public int compareTo(InternalFile o) {
-            int cmp = Long.compare(length, o.length);
-            if (cmp != 0) {
-                return cmp;
-            }
-            return name.compareTo(o.name);
-        }
     }
 }

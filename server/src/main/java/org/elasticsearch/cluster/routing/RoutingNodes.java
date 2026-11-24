@@ -591,7 +591,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
-                                MoveReason.of(MoveType.RESTARTED),
+                                MoveReason.RESTARTED,
                                 routingChangesObserver,
                                 sourceShard.recoveryPriority()
                             );

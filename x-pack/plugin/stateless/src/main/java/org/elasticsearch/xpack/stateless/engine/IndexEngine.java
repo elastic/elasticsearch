@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -1142,6 +1143,9 @@ public class IndexEngine extends InternalEngine {
             // started merges
             @Override
             public void setMergeInfo(SegmentCommitInfo info) {
+                // the index writer sets the merge info more than once, but the warmer tracks the merge by the id of its segment
+                assert getMergeInfo() == null || Arrays.equals(getMergeInfo().info.getId(), info.info.getId())
+                    : "the segment of a merge changed from " + getMergeInfo().info + " to " + info.info;
                 super.setMergeInfo(info);
                 if (warmer != null) {
                     warmer.onMergeStarted(info, this);

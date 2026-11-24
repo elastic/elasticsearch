@@ -1341,7 +1341,10 @@ public class Reindexer {
                  * Its important that routing comes after parent in case you want to
                  * change them both.
                  */
-                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
+                // On an index change the routing prepared for the original destination no longer applies, so any explicit script write
+                // wins, even one that merely repeats the hit's value and would otherwise not count as a change.
+                if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())
+                    || (metadata.indexChanged() && metadata.routingWritten())) {
                     request.setRouting(metadata.getRouting());
                     request.setRoutingFromSlice(metadata.isRoutingFromSlice());
                 } else if (metadata.indexChanged() && request.isRoutingFromSlice() && metadata.routingWritten() == false) {

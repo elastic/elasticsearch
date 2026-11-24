@@ -234,7 +234,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         ReindexRequest request = request();
         IndexRequest index = new IndexRequest("sliced-destination").id("1")
             .source(Map.of("foo", "bar"))
-            .routing("tenant-a")
+            .routing("destination-slice")
             .setRoutingFromSlice(true);
         PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a");
 

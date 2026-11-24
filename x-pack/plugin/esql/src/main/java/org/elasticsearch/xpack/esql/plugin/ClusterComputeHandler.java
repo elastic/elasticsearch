@@ -384,6 +384,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     concreteIndices,
                     originalIndices,
                     exchangeSource,
+                    // the fetch phase reads the local cluster only, so the data nodes of a remote cluster keep no fetch contexts
+                    null,
                     cancelQueryOnFailure,
                     // the usage of a failed compute on a remote cluster is not reported yet
                     usage -> {},

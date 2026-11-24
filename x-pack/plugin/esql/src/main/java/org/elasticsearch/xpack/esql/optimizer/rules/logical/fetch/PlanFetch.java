@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -46,11 +48,15 @@ import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP
 import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
 
 /**
- * Plans the fetch phase for a {@code LIMIT} or {@code TopN} that the data nodes and the coordinator both apply.
+ * Plans the fetch phase for a {@code TopN} that the data nodes and the coordinator both apply.
  * <p>
- * A <em>cut</em> is a {@code LIMIT} or a {@code TopN}: a pipeline breaker that only decides which rows survive. The
- * mapper runs the cut on every data node and once more on the coordinator over what they send. The global top N is
- * always among the top N rows of every part, but only the coordinator's cut knows the global winners.
+ * A <em>cut</em> is a {@code TopN}: a pipeline breaker that only decides which rows survive. The mapper runs the cut on
+ * every data node and once more on the coordinator over what they send. The global top N is always among the top N rows
+ * of every part, but only the coordinator's cut knows the global winners.
+ * <p>
+ * A plain {@code LIMIT} keeps loading its columns eagerly. A data node stops reading after {@code LIMIT} rows, and without
+ * a filter the coordinator queries only a few nodes at a time, so the coordinator drops few of the rows the data nodes
+ * load. The fetch would add a round trip and save little.
  * <p>
  * Without the fetch phase every data node loads each column the query returns for every row that survives its own
  * cut, and the coordinator keeps only the global winners. With it the data nodes send the {@code _doc} of each row
@@ -82,17 +88,28 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * Both are about correctness only. {@link #paysOff} then decides whether an accepted plan is likely faster with the
  * fetch phase. Every other plan keeps loading its columns eagerly, unchanged, and the rule logs why at debug level.
  * <p>
- * {@link EsqlFlags#fetchPhaseMode()} turns the rule on. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}. The rule
+ * {@link #mode} turns the rule on and picks its mode. {@link FetchPhaseMode#ALWAYS} skips {@link #paysOff}. The rule
  * runs in the last batch of the logical optimizer, so no other logical rule needs to know {@link Fetch}.
  */
 public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
     private static final Logger logger = LogManager.getLogger(PlanFetch.class);
 
+    /**
+     * The transport version every node needs before a coordinator plans a fetch phase. It names the newest wire format
+     * the fetch phase depends on: the fetch request. Every node that reads it also reads the detached {@code _doc} of the
+     * exchange and keeps the reader contexts a data node request asks for.
+     */
+    public static final TransportVersion PLANNER_MINIMUM = TransportVersion.fromName("esql_fetch_action");
+
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext context) {
-        FetchPhaseMode mode = context.flags().fetchPhaseMode();
+        FetchPhaseMode mode = mode(context.flags().fetchPhaseMode(), context.configuration().pragmas().fetchPhase());
         if (mode == FetchPhaseMode.DISABLED) {
             return plan;
+        }
+        if (context.minimumVersion().supports(PLANNER_MINIMUM) == false) {
+            // the query still runs, eagerly, also when it asks for the fetch phase
+            return declined(plan, "a node of the cluster can't read fetch requests");
         }
         Shape shape = shape(plan);
         if (mode == FetchPhaseMode.AUTO && shape instanceof Candidate candidate) {
@@ -102,6 +119,24 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             case Declined declined -> declined(plan, declined.reason());
             case Candidate candidate -> rewrite(plan, candidate);
         };
+    }
+
+    /**
+     * The mode the rule plans a query with. A build without the fetch phase plans none, whatever the {@code fetch_phase}
+     * pragma says. Otherwise the pragma decides when the query sets it: {@code true} plans the fetch for every plan that
+     * can use it, {@code false} for none. Without the pragma the mode of the cluster decides.
+     *
+     * @param clusterMode the mode the build and the cluster give, see {@link EsqlFlags#fetchPhaseMode()}
+     * @param pragma      the {@code fetch_phase} pragma, {@code null} when the query does not set it
+     */
+    static FetchPhaseMode mode(FetchPhaseMode clusterMode, @Nullable Boolean pragma) {
+        if (clusterMode == FetchPhaseMode.UNAVAILABLE) {
+            return FetchPhaseMode.DISABLED;
+        }
+        if (pragma != null) {
+            return pragma ? FetchPhaseMode.ALWAYS : FetchPhaseMode.DISABLED;
+        }
+        return clusterMode;
     }
 
     private static LogicalPlan declined(LogicalPlan plan, String reason) {
@@ -132,7 +167,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * The plans the fetch phase supports. From the root down, the plan is one chain of commands over one relation:
      * <ol>
      *     <li>commands above the cut that can run on the coordinator, see {@link #isSupportedAfterCut},</li>
-     *     <li>the cut, the {@code TopN} or {@code LIMIT} closest to the relation that isn't local,</li>
+     *     <li>the cut, the {@code TopN} closest to the relation that isn't local,</li>
      *     <li>commands between the cut and the relation that keep the document of each row and run on the data nodes,
      *     see {@link #isSupportedBeforeCut},</li>
      *     <li>one {@code STANDARD} or {@code TIME_SERIES} relation, on the local cluster,</li>
@@ -166,7 +201,7 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
             cutIndex--;
         }
         if (cutIndex < 0) {
-            return new Declined("no [LIMIT] or [TopN] cuts the rows");
+            return new Declined("no [TopN] cuts the rows");
         }
         for (UnaryPlan node : chain.subList(0, cutIndex)) {
             if (isSupportedAfterCut(node) == false) {
@@ -202,9 +237,6 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * trip after the coordinator cut, which nothing overlaps. With few or small deferred columns the round trip costs
      * more than it saves.
      * <ul>
-     *     <li>The cut must be a {@code TopN}. A data node stops reading after {@code LIMIT} rows, and without a
-     *     filter the coordinator queries only a few nodes at a time, so an eager {@code LIMIT} loads few rows that the
-     *     coordinator drops.</li>
      *     <li>The relation must have more than one shard. The data node that holds a single shard cuts its rows down to
      *     the global winners, and node-level late materialization already loads the deferred columns of those only.</li>
      *     <li>The fetch must defer {@code _source}. It is usually the largest column per row and the most expensive to
@@ -213,9 +245,6 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * Once the round trip is paid, the fetch defers every column {@link #demand} allows, not only {@code _source}.
      */
     private static Shape paysOff(Candidate candidate) {
-        if (candidate.cut() instanceof TopN == false) {
-            return new Declined("a [LIMIT] cut leaves too few dropped rows to pay for the fetch");
-        }
         if (hasOneShard(candidate.relation())) {
             return new Declined("the relation has one shard, whose node loads the deferred columns of the winners only");
         }
@@ -320,9 +349,12 @@ public final class PlanFetch extends ParameterizedRule<LogicalPlan, LogicalPlan,
         }
     }
 
-    /** A local {@code LIMIT} or {@code TopN} only cuts the rows of one node, so it doesn't pick the global winners. */
+    /**
+     * A local {@code TopN} only cuts the rows of one node, so it doesn't pick the global winners. A plain {@code LIMIT}
+     * is no cut, see the documentation of the class.
+     */
     private static boolean isCut(LogicalPlan node) {
-        return (node instanceof TopN topN && topN.local() == false) || (node instanceof Limit limit && limit.local() == false);
+        return node instanceof TopN topN && topN.local() == false;
     }
 
     /**

@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -510,7 +511,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         assertNotNull(mapper);
         assertTrue(
             "supportsColumnarParse must be true for doc_values routing",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
 
         IndexRequest[] requests = new IndexRequest[] {

@@ -3131,7 +3131,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 failureStrategyFuture.onResponse(failureStrategy);
             }
         };
@@ -6715,7 +6715,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assert false : "Unexpected failure";
             }
         };

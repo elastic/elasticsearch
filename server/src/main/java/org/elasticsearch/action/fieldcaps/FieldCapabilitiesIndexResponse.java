@@ -30,6 +30,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static final TransportVersion NUMBER_OF_SHARDS_VERSION = TransportVersion.fromName("field_caps_number_of_shards");
     private static final TransportVersion CREATED_VERSION = TransportVersion.fromName("field_caps_index_created_version");
     public static final TransportVersion FIELD_CAPS_INDEX_VERSIONS = TransportVersion.fromName("field_caps_index_versions");
+    public static final TransportVersion TIME_SERIES_STATS = TransportVersion.fromName("field_caps_time_series_stats");
 
     private final String indexName;
     @Nullable
@@ -42,6 +43,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private final int createdVersion;
     private final long indexSettingsVersion;
     private final long mappingVersion;
+    @Nullable
+    private final TimeSeriesStats timeSeriesStats;
 
     public FieldCapabilitiesIndexResponse(
         String indexName,
@@ -52,7 +55,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         int numberOfShards,
         int createdVersion,
         long indexSettingsVersion,
-        long mappingVersion
+        long mappingVersion,
+        @Nullable TimeSeriesStats timeSeriesStats
     ) {
         this.indexName = indexName;
         this.indexMappingHash = indexMappingHash;
@@ -64,6 +68,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.createdVersion = createdVersion;
         this.indexSettingsVersion = indexSettingsVersion;
         this.mappingVersion = mappingVersion;
+        this.timeSeriesStats = timeSeriesStats;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -82,6 +87,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             this.indexSettingsVersion = 0;
             this.mappingVersion = 0;
         }
+        this.timeSeriesStats = in.getTransportVersion().supports(TIME_SERIES_STATS) ? in.readOptionalWriteable(TimeSeriesStats::new) : null;
     }
 
     @Override
@@ -101,6 +107,9 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             out.writeVLong(indexSettingsVersion);
             out.writeVLong(mappingVersion);
         }
+        if (out.getTransportVersion().supports(TIME_SERIES_STATS)) {
+            out.writeOptionalWriteable(timeSeriesStats);
+        }
     }
 
     private record CompressedGroup(
@@ -109,6 +118,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         int[] createdVersionPerIndex,
         long[] settingsVersionPerIndex,
         long[] mappingVersionPerIndex,
+        TimeSeriesStats[] timeSeriesStatsPerIndex,
         IndexMode indexMode,
         String mappingHash,
         int[] fields
@@ -145,6 +155,9 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                 settingsVersionPerIndex = new long[indices.length];
                 mappingVersionPerIndex = new long[indices.length];
             }
+            final TimeSeriesStats[] timeSeriesStatsPerIndex = input.getTransportVersion().supports(TIME_SERIES_STATS)
+                ? input.readArray(in -> in.readOptionalWriteable(TimeSeriesStats::new), TimeSeriesStats[]::new)
+                : new TimeSeriesStats[indices.length];
             final IndexMode indexMode = IndexMode.readFrom(input);
             final String mappingHash = input.readString();
             compressedGroups[i] = new CompressedGroup(
@@ -153,6 +166,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                 createdVersionPerIndex,
                 settingsVersionPerIndex,
                 mappingVersionPerIndex,
+                timeSeriesStatsPerIndex,
                 indexMode,
                 mappingHash,
                 input.readIntArray()
@@ -177,7 +191,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                         compressedGroup.numberOfShardsPerIndex[j],
                         compressedGroup.createdVersionPerIndex[j],
                         compressedGroup.settingsVersionPerIndex[j],
-                        compressedGroup.mappingVersionPerIndex[j]
+                        compressedGroup.mappingVersionPerIndex[j],
+                        compressedGroup.timeSeriesStatsPerIndex[j]
                     )
                 );
             }
@@ -213,6 +228,9 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             if (output.getTransportVersion().supports(FIELD_CAPS_INDEX_VERSIONS)) {
                 o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.indexSettingsVersion));
                 o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeVLong(r.mappingVersion));
+            }
+            if (output.getTransportVersion().supports(TIME_SERIES_STATS)) {
+                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeOptionalWriteable(r.timeSeriesStats));
             }
             var first = fieldCapabilitiesIndexResponses.get(0);
             IndexMode.writeTo(first.indexMode, o);
@@ -289,6 +307,14 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         return mappingVersion;
     }
 
+    /**
+     * The time-series stats
+     */
+    @Nullable
+    public TimeSeriesStats getTimeSeriesStats() {
+        return timeSeriesStats;
+    }
+
     TransportVersion getOriginVersion() {
         return originVersion;
     }
@@ -303,6 +329,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             && createdVersion == that.createdVersion
             && indexSettingsVersion == that.indexSettingsVersion
             && mappingVersion == that.mappingVersion
+            && Objects.equals(timeSeriesStats, that.timeSeriesStats)
             && Objects.equals(indexName, that.indexName)
             && Objects.equals(indexMappingHash, that.indexMappingHash)
             && Objects.equals(responseMap, that.responseMap);
@@ -318,7 +345,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             numberOfShards,
             createdVersion,
             indexSettingsVersion,
-            mappingVersion
+            mappingVersion,
+            timeSeriesStats
         );
     }
 }

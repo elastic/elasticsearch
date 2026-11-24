@@ -57,7 +57,13 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
 
     @Override
     protected GetFieldMappingsResponse mutateInstance(GetFieldMappingsResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>(instance.mappings());
+        if (mappings.isEmpty()) {
+            mappings.put("index", Collections.emptyMap());
+        } else {
+            mappings.remove(randomFrom(mappings.keySet()));
+        }
+        return new GetFieldMappingsResponse(mappings);
     }
 
     @Override

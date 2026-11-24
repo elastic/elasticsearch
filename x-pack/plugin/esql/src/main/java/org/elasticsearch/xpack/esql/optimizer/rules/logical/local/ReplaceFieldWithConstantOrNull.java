@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -72,6 +73,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         Map<Attribute, Expression> attrToConstant = new HashMap<>();
         plan.forEachUp(ExternalRelation.class, external -> externalFieldsBuilder.addAll(external.output()));
         plan.forEachUp(NestedExpand.class, expand -> nestedChildrenBuilder.addAll(expand.expanded()));
+        plan.forEachUp(p -> p.forEachExpression(NestedPredicate.class, predicate -> nestedChildrenBuilder.addAll(predicate.inputs())));
         plan.forEachUp(EsRelation.class, esRelation -> {
             // Looking for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index
             // is used in the FROM command, it will not be marked with LOOKUP mode there - but STANDARD.

@@ -159,8 +159,10 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
 
             // the listener is not completed before the engine is closed
             closeStarted.set(true);
+            final var listenerCompleted = new AtomicBoolean();
             new Thread(() -> ActionListener.run(closed, l -> {
                 engine.close();
+                assertTrue("the engine was closed before the listener was completed", listenerCompleted.get());
                 l.onResponse(null);
             })).start();
 
@@ -170,6 +172,7 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
             assertFalse(closed.isDone());
 
             notification = null;
+            listenerCompleted.set(true);
             pending.listener().onResponse(null);
             safeGet(closed);
         } finally {

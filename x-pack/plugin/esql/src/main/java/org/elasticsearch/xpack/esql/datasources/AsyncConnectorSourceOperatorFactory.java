@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
@@ -78,9 +79,12 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      * later {@code get()} calls are still pending.
      */
     private final AtomicInteger operatorRefCount = new AtomicInteger();
+    private static final String FILTERED_LIMIT_RAMP_PROGRESS_PAGES_PROPERTY = "esql.filtered_limit_ramp_progress_pages";
     private final Object filteredLimitRampLock = new Object();
     private int filteredLimitRunning;
     private int filteredLimitCap = AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_READER_RAMP;
+    private int filteredLimitPagesSinceRamp;
+    private int filteredLimitProgressPages = readFilteredLimitRampProgressPages();
     private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
 
     public AsyncConnectorSourceOperatorFactory(
@@ -174,7 +178,16 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
                 completionListener.onFailure(e);
             }
             producerOwnsHold = true;
-            SourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext, operatorHold);
+            SourceOperator operator = new AsyncExternalSourceOperator(
+                buffer,
+                driverContext,
+                ExternalSourceMetrics.NOOP,
+                null,
+                null,
+                operatorHold,
+                null,
+                filteredLimitRamp() ? this::onFilteredLimitPagePolled : null
+            );
             succeeded = true;
             return operator;
         } finally {
@@ -261,14 +274,67 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         List<ParkedProducer> toStart = new ArrayList<>();
         List<ParkedProducer> toSkip = new ArrayList<>();
         synchronized (filteredLimitRampLock) {
-            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
-                filteredLimitCap *= 2;
-            } else {
-                filteredLimitCap = Integer.MAX_VALUE;
-            }
-            drainParkedLocked(toStart, toSkip);
+            doubleCapAndDrainLocked(toStart, toSkip);
         }
         dispatchParked(toStart, toSkip);
+    }
+
+    private void onFilteredLimitPagePolled() {
+        if (filteredLimitRamp() == false) {
+            return;
+        }
+        List<ParkedProducer> toStart = null;
+        List<ParkedProducer> toSkip = null;
+        synchronized (filteredLimitRampLock) {
+            if (noFurtherCandidates()) {
+                return;
+            }
+            filteredLimitPagesSinceRamp++;
+            if (filteredLimitPagesSinceRamp < progressPages()) {
+                return;
+            }
+            filteredLimitPagesSinceRamp = 0;
+            toStart = new ArrayList<>();
+            toSkip = new ArrayList<>();
+            doubleCapAndDrainLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void doubleCapAndDrainLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        if (filteredLimitCap < Integer.MAX_VALUE / 2) {
+            filteredLimitCap *= 2;
+        } else {
+            filteredLimitCap = Integer.MAX_VALUE;
+        }
+        drainParkedLocked(toStart, toSkip);
+    }
+
+    private int progressPages() {
+        return filteredLimitProgressPages;
+    }
+
+    void setFilteredLimitRampProgressPages(int pages) {
+        if (pages < 1) {
+            throw new IllegalArgumentException("filtered limit ramp progress pages must be at least 1, got: " + pages);
+        }
+        this.filteredLimitProgressPages = pages;
+    }
+
+    private static int readFilteredLimitRampProgressPages() {
+        String raw = System.getProperty(FILTERED_LIMIT_RAMP_PROGRESS_PAGES_PROPERTY);
+        if (raw == null || raw.isEmpty()) {
+            return AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_RAMP_PROGRESS_PAGES;
+        }
+        try {
+            int parsed = Integer.parseInt(raw);
+            if (parsed >= 1) {
+                return parsed;
+            }
+        } catch (NumberFormatException ignored) {
+            // fall through to the compiled default
+        }
+        return AsyncExternalSourceOperatorFactory.FILTERED_LIMIT_RAMP_PROGRESS_PAGES;
     }
 
     private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {

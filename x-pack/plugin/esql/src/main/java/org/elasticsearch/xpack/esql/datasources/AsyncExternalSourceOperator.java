@@ -83,6 +83,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Nullable
     private final String datasetLabel;
     /**
+     * Optional hook fired from {@link #getOutput()} for a non-empty polled page. The filtered-LIMIT
+     * reader ramp uses this to double the producer cap without waiting for unit EOF.
+     */
+    @Nullable
+    private final Runnable onPagePolled;
+    /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
      * proxy: a query with several external-source scans records one observation per scan.
@@ -133,6 +139,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         Releasable onOperatorClose,
         @Nullable String datasetLabel
     ) {
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, onOperatorClose, datasetLabel, null);
+    }
+
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        String format,
+        Releasable onOperatorClose,
+        @Nullable String datasetLabel,
+        @Nullable Runnable onPagePolled
+    ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
@@ -140,6 +159,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         this.format = format;
         this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
         this.datasetLabel = datasetLabel;
+        this.onPagePolled = onPagePolled;
     }
 
     @Override
@@ -148,18 +168,29 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         try {
             final var page = buffer.pollPage();
             if (page != null) {
-                if (pagesEmitted == 0) {
-                    // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
-                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme, format);
+                Page owned = page;
+                try {
+                    if (pagesEmitted == 0) {
+                        // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
+                        externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme, format);
+                    }
+                    pagesEmitted++;
+                    rowsEmitted += page.getPositionCount();
+                    // What the format reader decoded, measured as the page is handed on: the read that filled the
+                    // buffer ran on another thread, so this is the first place on the driver's that sees it.
+                    for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                        bytesDecoded += ValueBytes.of(page.getBlock(channel));
+                    }
+                    if (onPagePolled != null && page.getPositionCount() > 0) {
+                        onPagePolled.run();
+                    }
+                    owned = null;
+                    return page;
+                } finally {
+                    if (owned != null) {
+                        owned.releaseBlocks();
+                    }
                 }
-                pagesEmitted++;
-                rowsEmitted += page.getPositionCount();
-                // What the format reader decoded, measured as the page is handed on: the read that filled the
-                // buffer ran on another thread, so this is the first place on the driver's that sees it.
-                for (int channel = 0; channel < page.getBlockCount(); channel++) {
-                    bytesDecoded += ValueBytes.of(page.getBlock(channel));
-                }
-                return page;
             }
             if (buffer.failure() != null) {
                 throw propagateFailure(buffer.failure());

@@ -19,11 +19,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
  * Internal function that keeps selected dimension names of a keyword {@code _timeseries} metadata container, or with {@code exclude}
- * removes them. Objects keep their nesting, and an object left with no dimension is left out, as in the source of a series without
+ * removes them, at every path holding them. Objects keep their nesting, and an object left with no dimension is left out, as in the source of a series without
  * it. Naming an absent dimension changes nothing.
  */
 public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFunction {
@@ -35,8 +36,8 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     private final boolean exclude;
 
-    public TimeSeriesMetadataFilter(Source source, Expression metadata, List<Expression> keys, boolean exclude) {
-        super(source, Stream.concat(Stream.of(metadata), keys.stream()).toList());
+    public TimeSeriesMetadataFilter(Source source, Expression metadata, List<Expression> keys, boolean exclude, List<String> passthrough) {
+        super(source, Stream.concat(Stream.of(metadata), keys.stream()).toList(), passthrough);
         this.exclude = exclude;
     }
 
@@ -70,18 +71,19 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
         return new TimeSeriesMetadataFilterEvaluator.Factory(
             toEvaluator.apply(children().getFirst()),
             keys().stream().map(key -> foldKey(key, toEvaluator)).toList(),
-            exclude
+            exclude,
+            Set.copyOf(passthrough())
         );
     }
 
     @Override
     public TimeSeriesMetadataFilter replaceChildren(List<Expression> children) {
-        return new TimeSeriesMetadataFilter(source(), children.getFirst(), children.subList(1, children.size()), exclude);
+        return new TimeSeriesMetadataFilter(source(), children.getFirst(), children.subList(1, children.size()), exclude, passthrough());
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataFilter> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), keys(), exclude);
+        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), keys(), exclude, passthrough());
     }
 
     @Override

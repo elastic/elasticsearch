@@ -21,7 +21,8 @@ public class TimeSeriesMetadataFilterSerializationTests extends AbstractExpressi
             randomSource(),
             randomChild(),
             randomList(0, 10, AbstractExpressionSerializationTests::randomChild),
-            randomBoolean()
+            randomBoolean(),
+            TimeSeriesMetadataPathSerializationTests.randomPassthrough()
         );
     }
 
@@ -31,12 +32,14 @@ public class TimeSeriesMetadataFilterSerializationTests extends AbstractExpressi
         Expression metadata = instance.children().getFirst();
         List<Expression> keys = instance.keys();
         boolean exclude = instance.exclude();
-        switch (between(0, 2)) {
+        List<String> passthrough = instance.passthrough();
+        switch (between(0, 3)) {
             case 0 -> metadata = randomValueOtherThan(metadata, AbstractExpressionSerializationTests::randomChild);
             case 1 -> keys = randomValueOtherThan(keys, () -> randomList(0, 10, AbstractExpressionSerializationTests::randomChild));
             case 2 -> exclude = exclude == false;
+            case 3 -> passthrough = randomValueOtherThan(passthrough, TimeSeriesMetadataPathSerializationTests::randomPassthrough);
             default -> throw new AssertionError();
         }
-        return new TimeSeriesMetadataFilter(source, metadata, keys, exclude);
+        return new TimeSeriesMetadataFilter(source, metadata, keys, exclude, passthrough);
     }
 }

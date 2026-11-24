@@ -19,8 +19,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
-/** Internal function that accesses a selected dimension value on a keyword {@code _timeseries} metadata container. */
+/**
+ * Internal function that accesses a selected dimension value on a keyword {@code _timeseries} metadata container: the value of the
+ * first field holding the key, in the container's order.
+ */
 public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -28,8 +32,8 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
         TimeSeriesMetadataPath::new
     );
 
-    public TimeSeriesMetadataPath(Source source, Expression metadata, Expression key) {
-        super(source, List.of(metadata, key));
+    public TimeSeriesMetadataPath(Source source, Expression metadata, Expression key, List<String> passthrough) {
+        super(source, List.of(metadata, key), passthrough);
     }
 
     private TimeSeriesMetadataPath(StreamInput in) throws IOException {
@@ -48,7 +52,11 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new TimeSeriesMetadataPathEvaluator.Factory(toEvaluator.apply(children().get(0)), foldKey(children().get(1), toEvaluator));
+        return new TimeSeriesMetadataPathEvaluator.Factory(
+            toEvaluator.apply(children().get(0)),
+            foldKey(children().get(1), toEvaluator),
+            Set.copyOf(passthrough())
+        );
     }
 
     @Override
@@ -58,11 +66,11 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
 
     @Override
     public TimeSeriesMetadataPath replaceChildren(List<Expression> children) {
-        return new TimeSeriesMetadataPath(source(), children.get(0), children.get(1));
+        return new TimeSeriesMetadataPath(source(), children.get(0), children.get(1), passthrough());
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataPath> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataPath::new, children().get(0), children().get(1));
+        return NodeInfo.create(this, TimeSeriesMetadataPath::new, children().get(0), children().get(1), passthrough());
     }
 }

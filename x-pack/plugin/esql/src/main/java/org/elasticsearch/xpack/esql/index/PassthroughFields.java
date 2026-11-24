@@ -7,20 +7,18 @@
 package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 /**
  * The root-level aliases of the fields below passthrough objects, as the resolved mappings show them. A field below a
  * passthrough object can be named by its name below the innermost one, as a root-level field, so code that holds a field
- * by its full name and code that names it by its alias meet here.
+ * by its full name and code that names it by its alias meet here. The coordinator sees no passthrough priorities, so an
+ * alias here names every field that has it rather than the one a shard resolves it to.
  */
 public final class PassthroughFields {
     private PassthroughFields() {}
@@ -48,18 +46,6 @@ public final class PassthroughFields {
         return fieldName;
     }
 
-    /** The fields below a passthrough object in the mappings of the valid {@code resolutions}, keyed by their alias. */
-    public static Map<String, Set<String>> fieldsByAlias(Collection<IndexResolution> resolutions) {
-        Set<String> passthroughPaths = passthroughPaths(resolutions);
-        Map<String, Set<String>> fields = new HashMap<>();
-        for (IndexResolution resolution : resolutions) {
-            if (resolution != null && resolution.isValid()) {
-                collectFieldsByAlias(null, resolution.get().mapping(), passthroughPaths, fields);
-            }
-        }
-        return fields;
-    }
-
     private static void collectPassthroughPaths(@Nullable String parentPath, Map<String, EsField> mapping, Set<String> passthroughPaths) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String path = parentPath == null ? entry.getKey() : parentPath + "." + entry.getKey();
@@ -67,24 +53,6 @@ public final class PassthroughFields {
                 passthroughPaths.add(path);
             }
             collectPassthroughPaths(path, entry.getValue().getProperties(), passthroughPaths);
-        }
-    }
-
-    private static void collectFieldsByAlias(
-        @Nullable String parentPath,
-        Map<String, EsField> mapping,
-        Set<String> passthroughPaths,
-        Map<String, Set<String>> fields
-    ) {
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String path = parentPath == null ? entry.getKey() : parentPath + "." + entry.getKey();
-            if (entry.getValue().getDataType() != DataType.OBJECT) {
-                String alias = withoutPassthroughParents(path, passthroughPaths);
-                if (alias.equals(path) == false) {
-                    fields.computeIfAbsent(alias, k -> new TreeSet<>()).add(path);
-                }
-            }
-            collectFieldsByAlias(path, entry.getValue().getProperties(), passthroughPaths, fields);
         }
     }
 }

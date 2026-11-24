@@ -19,7 +19,6 @@ import java.util.EnumSet;
  * Golden tests for PromQL to ESQL plan translation.
  */
 public class PromqlGoldenTests extends GoldenTestCase {
-    private static final String ESQL_TIMESERIES_METADATA_FUNCTIONS = "esql_timeseries_metadata_functions";
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
@@ -38,7 +37,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1h network.bytes_in").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -51,7 +49,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -78,10 +75,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             | GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}"
             | URI_PARTS parts = _timeseries
             | DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
-            | LIMIT 1""").expectationChangesAt(DIMENSION_VALUES)
-            .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
-            .run();
+            | LIMIT 1""").expectationChangesAt(DIMENSION_VALUES).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testImplicitLastOverTimeOfLong() {
@@ -119,7 +113,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(topk(3, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -128,7 +121,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL topk support", EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -147,7 +139,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limitk(3, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -156,7 +147,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -175,7 +165,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -184,7 +173,6 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(PACK_DIMS_AGG)
-            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 

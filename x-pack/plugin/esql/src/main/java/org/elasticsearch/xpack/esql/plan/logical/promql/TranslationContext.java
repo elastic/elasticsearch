@@ -101,8 +101,8 @@ public record TranslationContext(
     TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
     Expression time,
-    /* The fields below a passthrough object in the queried indices, keyed by their alias, see PassthroughFields. */
-    Map<String, Set<String>> passthroughFields
+    /* The paths of the passthrough objects in the queried indices, in name order, see PassthroughFields. */
+    List<String> passthroughPaths
 ) {
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end): TStep requires explicit bounds,
     // so pass the widest representable range. EPOCH/MAX_MILLIS_BEFORE_9999 avoid time boundary handling in the engine.
@@ -111,7 +111,14 @@ public record TranslationContext(
 
     /** The command exposes every label of the result series: the full open label space. */
     public TranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
-        this(cmd, analyzer, null, open(), null, PassthroughFields.fieldsByAlias(analyzer.indexResolution().values()));
+        this(
+            cmd,
+            analyzer,
+            null,
+            open(),
+            null,
+            PassthroughFields.passthroughPaths(analyzer.indexResolution().values()).stream().sorted().toList()
+        );
     }
 
     /**
@@ -128,7 +135,7 @@ public record TranslationContext(
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
-        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, passthroughFields);
+        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, passthroughPaths);
     }
 
     /**
@@ -162,7 +169,7 @@ public record TranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, passthroughFields);
+        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, passthroughPaths);
         return run.translateIntermediate(branch, valueId);
     }
 
@@ -234,6 +241,10 @@ public record TranslationContext(
                 }
             }
             value = unset(packed, promoted.stream());
+        }
+        if (skip.isEmpty() && value == packed) {
+            // The packing of every label is _timeseries itself, and no label is left out of it.
+            return table.plan();
         }
         return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, value, id)));
     }
@@ -508,27 +519,24 @@ public record TranslationContext(
     }
 
     /**
-     * {@code packing} leaving {@code labels} out as well: the label container of the remaining labels. The container holds a
-     * label at the path of its field, so a label named by the alias of a passthrough field, such as {@code state} for
-     * {@code attributes.state}, is left out at that path too, as the source leaves it out of the packing it loads.
+     * {@code packing} leaving {@code labels} out as well: the label container of the remaining labels, {@code packing} itself
+     * when there are none.
      */
     private Expression unset(Expression packing, Stream<String> labels) {
-        List<Expression> names = labels.flatMap(label -> Stream.concat(Stream.of(label), passthroughFields(label)))
+        List<Expression> names = labels.map(this::labelName)
             .distinct()
             .sorted()
             .<Expression>map(label -> Literal.keyword(packing.source(), label))
             .toList();
-        return new TimeSeriesMetadataFilter(packing.source(), packing, names, true);
+        return names.isEmpty() ? packing : new TimeSeriesMetadataFilter(packing.source(), packing, names, true, passthroughPaths);
     }
 
     /**
-     * The fields below a passthrough object whose alias is {@code label}. A field the metadata functions already read by its
-     * alias, as they read one below {@code labels}, is left out.
+     * The PromQL label {@code name} names: {@code foo}, {@code labels.foo} and {@code attributes.foo} are one label {@code foo},
+     * as the label container functions match it at the root and below any passthrough object.
      */
-    private Stream<String> passthroughFields(String label) {
-        return passthroughFields.getOrDefault(label, Set.of())
-            .stream()
-            .filter(field -> PromqlLabels.labelName(field).equals(label) == false);
+    public String labelName(String name) {
+        return PassthroughFields.withoutPassthroughParents(name, Set.copyOf(passthroughPaths));
     }
 
     /**

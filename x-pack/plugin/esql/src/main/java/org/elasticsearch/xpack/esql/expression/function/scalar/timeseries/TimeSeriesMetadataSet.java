@@ -18,17 +18,17 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Internal function that mutates a keyword {@code _timeseries} metadata container; the value replaces the dimension values, and a
  * missing or empty value removes the dimension. Several values write a multi-valued dimension. The key is written at {@code path},
  * the source field that holds it, one name per object, such as {@code [labels, pod]}, so a key written back into a container where the
- * source held it reads as the source does; a field holding the key elsewhere is removed.
+ * source held it reads as the source does; every other field with the key's label name is removed.
  */
 public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -39,8 +39,15 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
 
     private final List<String> path;
 
-    public TimeSeriesMetadataSet(Source source, Expression metadata, Expression key, Expression value, List<String> path) {
-        super(source, List.of(metadata, key, value));
+    public TimeSeriesMetadataSet(
+        Source source,
+        Expression metadata,
+        Expression key,
+        Expression value,
+        List<String> path,
+        List<String> passthrough
+    ) {
+        super(source, List.of(metadata, key, value), passthrough);
         this.path = path;
     }
 
@@ -83,7 +90,8 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
             toEvaluator.apply(children().getFirst()),
             foldKey(key(), toEvaluator),
             path,
-            toEvaluator.apply(value())
+            toEvaluator.apply(value()),
+            Set.copyOf(passthrough())
         );
     }
 
@@ -101,19 +109,19 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
             return resolution;
         }
         String key = ((BytesRef) key().fold(FoldContext.small())).utf8ToString();
-        return path.isEmpty() == false && PromqlLabels.labelName(String.join(".", path)).equals(key)
+        return path.isEmpty() == false && labelName(String.join(".", path), Set.copyOf(passthrough())).equals(key)
             ? resolution
             : new TypeResolution("[" + sourceText() + "] writes key [" + key + "] to path " + path + " of another key");
     }
 
     @Override
     public TimeSeriesMetadataSet replaceChildren(List<Expression> children) {
-        return new TimeSeriesMetadataSet(source(), children.get(0), children.get(1), children.get(2), path);
+        return new TimeSeriesMetadataSet(source(), children.get(0), children.get(1), children.get(2), path, passthrough());
     }
 
     @Override
     protected NodeInfo<TimeSeriesMetadataSet> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), key(), value(), path);
+        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), key(), value(), path, passthrough());
     }
 
     @Override

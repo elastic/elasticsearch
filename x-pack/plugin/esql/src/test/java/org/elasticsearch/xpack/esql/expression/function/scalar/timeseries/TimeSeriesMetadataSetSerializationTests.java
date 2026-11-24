@@ -15,16 +15,44 @@ import java.util.List;
 public class TimeSeriesMetadataSetSerializationTests extends AbstractExpressionSerializationTests<TimeSeriesMetadataSet> {
     @Override
     protected TimeSeriesMetadataSet createTestInstance() {
-        return new TimeSeriesMetadataSet(randomSource(), randomChild(), randomChild(), randomChild(), randomPath());
+        return new TimeSeriesMetadataSet(
+            randomSource(),
+            randomChild(),
+            randomChild(),
+            randomChild(),
+            randomPath(),
+            TimeSeriesMetadataPathSerializationTests.randomPassthrough()
+        );
     }
 
     @Override
     protected TimeSeriesMetadataSet mutateInstance(TimeSeriesMetadataSet instance) {
         var children = new ArrayList<>(instance.children());
-        int index = randomInt(children.size());
+        int index = randomInt(children.size() + 1);
         if (index == children.size()) {
             List<String> path = randomValueOtherThan(instance.path(), TimeSeriesMetadataSetSerializationTests::randomPath);
-            return new TimeSeriesMetadataSet(instance.source(), children.get(0), children.get(1), children.get(2), path);
+            return new TimeSeriesMetadataSet(
+                instance.source(),
+                children.get(0),
+                children.get(1),
+                children.get(2),
+                path,
+                instance.passthrough()
+            );
+        }
+        if (index == children.size() + 1) {
+            List<String> passthrough = randomValueOtherThan(
+                instance.passthrough(),
+                TimeSeriesMetadataPathSerializationTests::randomPassthrough
+            );
+            return new TimeSeriesMetadataSet(
+                instance.source(),
+                children.get(0),
+                children.get(1),
+                children.get(2),
+                instance.path(),
+                passthrough
+            );
         }
         children.set(index, mutateExpression(children.get(index)));
         return instance.replaceChildren(children);

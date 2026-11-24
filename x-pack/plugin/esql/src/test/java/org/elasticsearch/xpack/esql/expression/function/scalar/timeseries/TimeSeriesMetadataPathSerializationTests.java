@@ -10,18 +10,30 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class TimeSeriesMetadataPathSerializationTests extends AbstractExpressionSerializationTests<TimeSeriesMetadataPath> {
     @Override
     protected TimeSeriesMetadataPath createTestInstance() {
-        return new TimeSeriesMetadataPath(randomSource(), randomChild(), randomChild());
+        return new TimeSeriesMetadataPath(randomSource(), randomChild(), randomChild(), randomPassthrough());
     }
 
     @Override
     protected TimeSeriesMetadataPath mutateInstance(TimeSeriesMetadataPath instance) {
         var children = new ArrayList<>(instance.children());
-        int index = randomInt(children.size() - 1);
+        int index = randomInt(children.size());
+        if (index == children.size()) {
+            List<String> passthrough = randomValueOtherThan(
+                instance.passthrough(),
+                TimeSeriesMetadataPathSerializationTests::randomPassthrough
+            );
+            return new TimeSeriesMetadataPath(instance.source(), children.get(0), children.get(1), passthrough);
+        }
         children.set(index, mutateExpression(children.get(index)));
         return instance.replaceChildren(children);
+    }
+
+    static List<String> randomPassthrough() {
+        return randomList(0, 3, () -> randomAlphaOfLength(5));
     }
 }

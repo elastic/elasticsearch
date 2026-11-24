@@ -160,7 +160,20 @@ public final class ScalbIntEvaluator implements ExpressionEvaluator {
 
     @Override
     public ScalbIntEvaluator get(DriverContext context) {
-      return new ScalbIntEvaluator(source, d.get(context), scaleFactor.get(context), context);
+      ExpressionEvaluator d = null;
+      ExpressionEvaluator scaleFactor = null;
+      boolean success = false;
+      try {
+        d = this.d.get(context);
+        scaleFactor = this.scaleFactor.get(context);
+        ScalbIntEvaluator result = new ScalbIntEvaluator(source, d, scaleFactor, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(d, scaleFactor);
+        }
+      }
     }
 
     @Override

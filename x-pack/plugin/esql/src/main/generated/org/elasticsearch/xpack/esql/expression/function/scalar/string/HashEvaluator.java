@@ -173,7 +173,22 @@ public final class HashEvaluator implements ExpressionEvaluator {
 
     @Override
     public HashEvaluator get(DriverContext context) {
-      return new HashEvaluator(source, scratch.apply(context), algorithm.get(context), input.get(context), context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator algorithm = null;
+      ExpressionEvaluator input = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        algorithm = this.algorithm.get(context);
+        input = this.input.get(context);
+        HashEvaluator result = new HashEvaluator(source, scratch, algorithm, input, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, algorithm, input);
+        }
+      }
     }
 
     @Override

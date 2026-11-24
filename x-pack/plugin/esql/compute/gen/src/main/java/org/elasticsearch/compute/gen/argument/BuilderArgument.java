@@ -48,7 +48,7 @@ public record BuilderArgument(ClassName type, String name) implements Argument {
     }
 
     @Override
-    public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+    public String factoryInvocation(boolean guarded) {
         return null; // Not used in the factory
     }
 

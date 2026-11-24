@@ -119,7 +119,20 @@ public final class SpatialWithinCartesianSourceAndSourceEvaluator implements Exp
 
     @Override
     public SpatialWithinCartesianSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinCartesianSourceAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        SpatialWithinCartesianSourceAndSourceEvaluator result = new SpatialWithinCartesianSourceAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

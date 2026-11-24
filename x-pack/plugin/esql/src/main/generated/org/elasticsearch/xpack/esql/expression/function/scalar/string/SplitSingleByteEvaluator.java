@@ -136,7 +136,18 @@ public final class SplitSingleByteEvaluator implements ExpressionEvaluator {
 
     @Override
     public SplitSingleByteEvaluator get(DriverContext context) {
-      return new SplitSingleByteEvaluator(source, str.get(context), delim, scratch.apply(context), context);
+      ExpressionEvaluator str = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        SplitSingleByteEvaluator result = new SplitSingleByteEvaluator(source, str, delim, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str);
+        }
+      }
     }
 
     @Override

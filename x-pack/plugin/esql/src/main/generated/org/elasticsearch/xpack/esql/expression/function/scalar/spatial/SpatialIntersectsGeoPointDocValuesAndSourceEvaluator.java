@@ -120,7 +120,20 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceEvaluator implemen
 
     @Override
     public SpatialIntersectsGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoPointDocValuesAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        SpatialIntersectsGeoPointDocValuesAndSourceEvaluator result = new SpatialIntersectsGeoPointDocValuesAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

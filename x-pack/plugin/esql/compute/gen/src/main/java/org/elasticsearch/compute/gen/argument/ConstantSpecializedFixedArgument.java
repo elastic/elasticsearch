@@ -137,7 +137,7 @@ public record ConstantSpecializedFixedArgument(TypeName type, String name, boole
      * (see EvaluatorImplementer.factoryGetWithJitConstants).
      */
     @Override
-    public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+    public String factoryInvocation(boolean guarded) {
         return null;
     }
 

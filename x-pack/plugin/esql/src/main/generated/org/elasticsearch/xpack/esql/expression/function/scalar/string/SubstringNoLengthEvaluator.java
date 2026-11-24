@@ -152,7 +152,20 @@ public final class SubstringNoLengthEvaluator implements ExpressionEvaluator {
 
     @Override
     public SubstringNoLengthEvaluator get(DriverContext context) {
-      return new SubstringNoLengthEvaluator(source, str.get(context), start.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator start = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        start = this.start.get(context);
+        SubstringNoLengthEvaluator result = new SubstringNoLengthEvaluator(source, str, start, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, start);
+        }
+      }
     }
 
     @Override

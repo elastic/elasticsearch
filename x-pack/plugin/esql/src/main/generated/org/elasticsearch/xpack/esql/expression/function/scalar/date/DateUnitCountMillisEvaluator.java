@@ -191,7 +191,22 @@ public final class DateUnitCountMillisEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateUnitCountMillisEvaluator get(DriverContext context) {
-      return new DateUnitCountMillisEvaluator(source, toUnit.get(context), fromUnit.get(context), date.get(context), zoneId, context);
+      ExpressionEvaluator toUnit = null;
+      ExpressionEvaluator fromUnit = null;
+      ExpressionEvaluator date = null;
+      boolean success = false;
+      try {
+        toUnit = this.toUnit.get(context);
+        fromUnit = this.fromUnit.get(context);
+        date = this.date.get(context);
+        DateUnitCountMillisEvaluator result = new DateUnitCountMillisEvaluator(source, toUnit, fromUnit, date, zoneId, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(toUnit, fromUnit, date);
+        }
+      }
     }
 
     @Override

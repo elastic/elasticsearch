@@ -113,7 +113,18 @@ public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
     @Override
     public StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds.apply(context), context);
+      ExpressionEvaluator encoded = null;
+      boolean success = false;
+      try {
+        encoded = this.encoded.get(context);
+        StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator result = new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded, bounds.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encoded);
+        }
+      }
     }
 
     @Override

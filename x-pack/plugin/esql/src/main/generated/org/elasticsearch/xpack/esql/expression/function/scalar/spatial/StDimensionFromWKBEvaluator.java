@@ -114,7 +114,18 @@ public final class StDimensionFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StDimensionFromWKBEvaluator get(DriverContext context) {
-      return new StDimensionFromWKBEvaluator(source, wkbBlock.get(context), scratch.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StDimensionFromWKBEvaluator result = new StDimensionFromWKBEvaluator(source, wkbBlock, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

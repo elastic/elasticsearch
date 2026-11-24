@@ -133,7 +133,20 @@ public final class ToRangeLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public ToRangeLongEvaluator get(DriverContext context) {
-      return new ToRangeLongEvaluator(source, from.get(context), to.get(context), context);
+      ExpressionEvaluator from = null;
+      ExpressionEvaluator to = null;
+      boolean success = false;
+      try {
+        from = this.from.get(context);
+        to = this.to.get(context);
+        ToRangeLongEvaluator result = new ToRangeLongEvaluator(source, from, to, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(from, to);
+        }
+      }
     }
 
     @Override

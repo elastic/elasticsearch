@@ -141,8 +141,20 @@ public final class GreatestBooleanEvaluator implements ExpressionEvaluator {
 
     @Override
     public GreatestBooleanEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new GreatestBooleanEvaluator(source, values, context);
+      ExpressionEvaluator[] values = new ExpressionEvaluator[this.values.length];
+      boolean success = false;
+      try {
+        for (int i = 0; i < values.length; i++) {
+          values[i] = this.values[i].get(context);
+        }
+        GreatestBooleanEvaluator result = new GreatestBooleanEvaluator(source, values, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(() -> Releasables.close(values));
+        }
+      }
     }
 
     @Override

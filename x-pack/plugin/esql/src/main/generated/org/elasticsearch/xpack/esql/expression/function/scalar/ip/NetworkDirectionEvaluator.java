@@ -168,7 +168,22 @@ public final class NetworkDirectionEvaluator implements ExpressionEvaluator {
 
     @Override
     public NetworkDirectionEvaluator get(DriverContext context) {
-      return new NetworkDirectionEvaluator(source, scratch.apply(context), netScratch.apply(context), sourceIp.get(context), destinationIp.get(context), networks.get(context), context);
+      ExpressionEvaluator sourceIp = null;
+      ExpressionEvaluator destinationIp = null;
+      ExpressionEvaluator networks = null;
+      boolean success = false;
+      try {
+        sourceIp = this.sourceIp.get(context);
+        destinationIp = this.destinationIp.get(context);
+        networks = this.networks.get(context);
+        NetworkDirectionEvaluator result = new NetworkDirectionEvaluator(source, scratch.apply(context), netScratch.apply(context), sourceIp, destinationIp, networks, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(sourceIp, destinationIp, networks);
+        }
+      }
     }
 
     @Override

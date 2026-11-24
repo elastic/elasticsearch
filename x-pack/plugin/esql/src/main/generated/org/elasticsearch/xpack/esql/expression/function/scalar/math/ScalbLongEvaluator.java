@@ -160,7 +160,20 @@ public final class ScalbLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public ScalbLongEvaluator get(DriverContext context) {
-      return new ScalbLongEvaluator(source, d.get(context), scaleFactor.get(context), context);
+      ExpressionEvaluator d = null;
+      ExpressionEvaluator scaleFactor = null;
+      boolean success = false;
+      try {
+        d = this.d.get(context);
+        scaleFactor = this.scaleFactor.get(context);
+        ScalbLongEvaluator result = new ScalbLongEvaluator(source, d, scaleFactor, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(d, scaleFactor);
+        }
+      }
     }
 
     @Override

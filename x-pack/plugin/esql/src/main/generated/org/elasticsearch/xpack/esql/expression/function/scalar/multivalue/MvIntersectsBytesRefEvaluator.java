@@ -101,7 +101,20 @@ public final class MvIntersectsBytesRefEvaluator implements ExpressionEvaluator 
 
     @Override
     public MvIntersectsBytesRefEvaluator get(DriverContext context) {
-      return new MvIntersectsBytesRefEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        MvIntersectsBytesRefEvaluator result = new MvIntersectsBytesRefEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

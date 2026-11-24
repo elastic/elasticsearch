@@ -101,7 +101,20 @@ public final class MvIntersectsLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvIntersectsLongEvaluator get(DriverContext context) {
-      return new MvIntersectsLongEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        MvIntersectsLongEvaluator result = new MvIntersectsLongEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

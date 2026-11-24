@@ -127,7 +127,20 @@ public final class SpatialDisjointGeoSourceAndSourceGridEvaluator implements Exp
 
     @Override
     public SpatialDisjointGeoSourceAndSourceGridEvaluator get(DriverContext context) {
-      return new SpatialDisjointGeoSourceAndSourceGridEvaluator(source, wkb.get(context), gridId.get(context), gridType, context);
+      ExpressionEvaluator wkb = null;
+      ExpressionEvaluator gridId = null;
+      boolean success = false;
+      try {
+        wkb = this.wkb.get(context);
+        gridId = this.gridId.get(context);
+        SpatialDisjointGeoSourceAndSourceGridEvaluator result = new SpatialDisjointGeoSourceAndSourceGridEvaluator(source, wkb, gridId, gridType, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkb, gridId);
+        }
+      }
     }
 
     @Override

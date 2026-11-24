@@ -126,7 +126,18 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
 
     @Override
     public KnnRuntimeFilterEvaluator get(DriverContext context) {
-      return new KnnRuntimeFilterEvaluator(source, fieldBlock.get(context), queryVector, similarityMetric, similarityThreshold, scratchVector.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        KnnRuntimeFilterEvaluator result = new KnnRuntimeFilterEvaluator(source, fieldBlock, queryVector, similarityMetric, similarityThreshold, scratchVector.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

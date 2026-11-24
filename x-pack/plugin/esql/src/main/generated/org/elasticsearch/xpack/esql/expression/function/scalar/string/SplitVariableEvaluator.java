@@ -160,7 +160,20 @@ public final class SplitVariableEvaluator implements ExpressionEvaluator {
 
     @Override
     public SplitVariableEvaluator get(DriverContext context) {
-      return new SplitVariableEvaluator(source, str.get(context), delim.get(context), scratch.apply(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator delim = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        delim = this.delim.get(context);
+        SplitVariableEvaluator result = new SplitVariableEvaluator(source, str, delim, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, delim);
+        }
+      }
     }
 
     @Override

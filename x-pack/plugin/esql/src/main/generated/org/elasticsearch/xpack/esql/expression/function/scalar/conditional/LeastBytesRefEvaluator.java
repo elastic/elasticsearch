@@ -150,8 +150,20 @@ public final class LeastBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public LeastBytesRefEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new LeastBytesRefEvaluator(source, values, context);
+      ExpressionEvaluator[] values = new ExpressionEvaluator[this.values.length];
+      boolean success = false;
+      try {
+        for (int i = 0; i < values.length; i++) {
+          values[i] = this.values[i].get(context);
+        }
+        LeastBytesRefEvaluator result = new LeastBytesRefEvaluator(source, values, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(() -> Releasables.close(values));
+        }
+      }
     }
 
     @Override

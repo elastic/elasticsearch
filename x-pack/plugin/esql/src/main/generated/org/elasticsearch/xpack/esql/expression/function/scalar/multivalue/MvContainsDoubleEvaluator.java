@@ -101,7 +101,20 @@ public final class MvContainsDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvContainsDoubleEvaluator get(DriverContext context) {
-      return new MvContainsDoubleEvaluator(source, superset.get(context), subset.get(context), context);
+      ExpressionEvaluator superset = null;
+      ExpressionEvaluator subset = null;
+      boolean success = false;
+      try {
+        superset = this.superset.get(context);
+        subset = this.subset.get(context);
+        MvContainsDoubleEvaluator result = new MvContainsDoubleEvaluator(source, superset, subset, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(superset, subset);
+        }
+      }
     }
 
     @Override

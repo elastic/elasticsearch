@@ -152,7 +152,22 @@ public final class MvSliceBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvSliceBytesRefEvaluator get(DriverContext context) {
-      return new MvSliceBytesRefEvaluator(source, field.get(context), start.get(context), end.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator start = null;
+      ExpressionEvaluator end = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        start = this.start.get(context);
+        end = this.end.get(context);
+        MvSliceBytesRefEvaluator result = new MvSliceBytesRefEvaluator(source, field, start, end, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, start, end);
+        }
+      }
     }
 
     @Override

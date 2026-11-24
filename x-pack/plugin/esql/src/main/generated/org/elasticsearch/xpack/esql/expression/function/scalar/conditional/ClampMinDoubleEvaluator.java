@@ -147,7 +147,20 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMinDoubleEvaluator get(DriverContext context) {
-      return new ClampMinDoubleEvaluator(source, field.get(context), min.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator min = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        min = this.min.get(context);
+        ClampMinDoubleEvaluator result = new ClampMinDoubleEvaluator(source, field, min, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, min);
+        }
+      }
     }
 
     @Override

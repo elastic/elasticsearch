@@ -113,7 +113,18 @@ public final class StEnvelopeFromDocValuesEvaluator implements ExpressionEvaluat
 
     @Override
     public StEnvelopeFromDocValuesEvaluator get(DriverContext context) {
-      return new StEnvelopeFromDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StEnvelopeFromDocValuesEvaluator result = new StEnvelopeFromDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

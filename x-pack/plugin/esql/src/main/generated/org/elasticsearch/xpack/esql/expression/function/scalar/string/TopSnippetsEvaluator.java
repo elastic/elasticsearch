@@ -156,7 +156,18 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
     @Override
     public TopSnippetsEvaluator get(DriverContext context) {
-      return new TopSnippetsEvaluator(source, field.get(context), queryString, chunkingSettings, scorer, numSnippets, docOrder, highlightFormatter, scratch.apply(context), context);
+      ExpressionEvaluator field = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        TopSnippetsEvaluator result = new TopSnippetsEvaluator(source, field, queryString, chunkingSettings, scorer, numSnippets, docOrder, highlightFormatter, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field);
+        }
+      }
     }
 
     @Override

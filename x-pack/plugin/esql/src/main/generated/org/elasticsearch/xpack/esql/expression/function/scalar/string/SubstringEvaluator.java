@@ -181,7 +181,22 @@ public final class SubstringEvaluator implements ExpressionEvaluator {
 
     @Override
     public SubstringEvaluator get(DriverContext context) {
-      return new SubstringEvaluator(source, str.get(context), start.get(context), length.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator start = null;
+      ExpressionEvaluator length = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        start = this.start.get(context);
+        length = this.length.get(context);
+        SubstringEvaluator result = new SubstringEvaluator(source, str, start, length, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, start, length);
+        }
+      }
     }
 
     @Override

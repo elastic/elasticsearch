@@ -100,7 +100,20 @@ public final class MvIntersectsBooleanEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvIntersectsBooleanEvaluator get(DriverContext context) {
-      return new MvIntersectsBooleanEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        MvIntersectsBooleanEvaluator result = new MvIntersectsBooleanEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

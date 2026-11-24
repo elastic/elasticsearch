@@ -113,7 +113,18 @@ public final class StXMaxFromCartesianDocValuesEvaluator implements ExpressionEv
 
     @Override
     public StXMaxFromCartesianDocValuesEvaluator get(DriverContext context) {
-      return new StXMaxFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StXMaxFromCartesianDocValuesEvaluator result = new StXMaxFromCartesianDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

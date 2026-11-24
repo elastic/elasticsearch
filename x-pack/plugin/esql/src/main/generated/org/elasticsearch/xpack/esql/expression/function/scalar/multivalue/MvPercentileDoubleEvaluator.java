@@ -136,7 +136,20 @@ public final class MvPercentileDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvPercentileDoubleEvaluator get(DriverContext context) {
-      return new MvPercentileDoubleEvaluator(source, values.get(context), percentile.get(context), scratch.apply(context), context);
+      ExpressionEvaluator values = null;
+      ExpressionEvaluator percentile = null;
+      boolean success = false;
+      try {
+        values = this.values.get(context);
+        percentile = this.percentile.get(context);
+        MvPercentileDoubleEvaluator result = new MvPercentileDoubleEvaluator(source, values, percentile, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(values, percentile);
+        }
+      }
     }
 
     @Override

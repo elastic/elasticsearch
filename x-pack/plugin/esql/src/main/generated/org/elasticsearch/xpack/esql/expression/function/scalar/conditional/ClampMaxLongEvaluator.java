@@ -147,7 +147,20 @@ public final class ClampMaxLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMaxLongEvaluator get(DriverContext context) {
-      return new ClampMaxLongEvaluator(source, field.get(context), max.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator max = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        max = this.max.get(context);
+        ClampMaxLongEvaluator result = new ClampMaxLongEvaluator(source, field, max, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, max);
+        }
+      }
     }
 
     @Override

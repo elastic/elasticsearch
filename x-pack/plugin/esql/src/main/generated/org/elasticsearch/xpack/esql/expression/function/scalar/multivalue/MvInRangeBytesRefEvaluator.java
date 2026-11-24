@@ -125,7 +125,22 @@ public final class MvInRangeBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvInRangeBytesRefEvaluator get(DriverContext context) {
-      return new MvInRangeBytesRefEvaluator(source, field.get(context), lower.get(context), upper.get(context), includeLower, includeUpper, context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator lower = null;
+      ExpressionEvaluator upper = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        lower = this.lower.get(context);
+        upper = this.upper.get(context);
+        MvInRangeBytesRefEvaluator result = new MvInRangeBytesRefEvaluator(source, field, lower, upper, includeLower, includeUpper, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, lower, upper);
+        }
+      }
     }
 
     @Override

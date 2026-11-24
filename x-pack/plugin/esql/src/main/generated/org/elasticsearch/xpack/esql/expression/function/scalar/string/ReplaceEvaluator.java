@@ -193,7 +193,22 @@ public final class ReplaceEvaluator implements ExpressionEvaluator {
 
     @Override
     public ReplaceEvaluator get(DriverContext context) {
-      return new ReplaceEvaluator(source, str.get(context), regex.get(context), newStr.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator regex = null;
+      ExpressionEvaluator newStr = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        regex = this.regex.get(context);
+        newStr = this.newStr.get(context);
+        ReplaceEvaluator result = new ReplaceEvaluator(source, str, regex, newStr, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, regex, newStr);
+        }
+      }
     }
 
     @Override

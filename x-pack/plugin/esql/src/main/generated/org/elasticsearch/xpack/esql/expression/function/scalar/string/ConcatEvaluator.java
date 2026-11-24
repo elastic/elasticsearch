@@ -159,8 +159,22 @@ public final class ConcatEvaluator implements ExpressionEvaluator {
 
     @Override
     public ConcatEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new ConcatEvaluator(source, scratch.apply(context), values, context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator[] values = new ExpressionEvaluator[this.values.length];
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        for (int i = 0; i < values.length; i++) {
+          values[i] = this.values[i].get(context);
+        }
+        ConcatEvaluator result = new ConcatEvaluator(source, scratch, values, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, () -> Releasables.close(values));
+        }
+      }
     }
 
     @Override

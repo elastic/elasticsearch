@@ -164,7 +164,20 @@ public final class PowEvaluator implements ExpressionEvaluator {
 
     @Override
     public PowEvaluator get(DriverContext context) {
-      return new PowEvaluator(source, base.get(context), exponent.get(context), allowNonFinite, context);
+      ExpressionEvaluator base = null;
+      ExpressionEvaluator exponent = null;
+      boolean success = false;
+      try {
+        base = this.base.get(context);
+        exponent = this.exponent.get(context);
+        PowEvaluator result = new PowEvaluator(source, base, exponent, allowNonFinite, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(base, exponent);
+        }
+      }
     }
 
     @Override

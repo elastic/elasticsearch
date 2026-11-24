@@ -127,7 +127,20 @@ public final class SpatialIntersectsGeoSourceAndSourceGridEvaluator implements E
 
     @Override
     public SpatialIntersectsGeoSourceAndSourceGridEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoSourceAndSourceGridEvaluator(source, wkb.get(context), gridId.get(context), gridType, context);
+      ExpressionEvaluator wkb = null;
+      ExpressionEvaluator gridId = null;
+      boolean success = false;
+      try {
+        wkb = this.wkb.get(context);
+        gridId = this.gridId.get(context);
+        SpatialIntersectsGeoSourceAndSourceGridEvaluator result = new SpatialIntersectsGeoSourceAndSourceGridEvaluator(source, wkb, gridId, gridType, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkb, gridId);
+        }
+      }
     }
 
     @Override

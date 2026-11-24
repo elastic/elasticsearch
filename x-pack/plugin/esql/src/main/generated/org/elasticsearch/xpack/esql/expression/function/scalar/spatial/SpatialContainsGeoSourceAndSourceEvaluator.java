@@ -119,7 +119,20 @@ public final class SpatialContainsGeoSourceAndSourceEvaluator implements Express
 
     @Override
     public SpatialContainsGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialContainsGeoSourceAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        SpatialContainsGeoSourceAndSourceEvaluator result = new SpatialContainsGeoSourceAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

@@ -144,7 +144,18 @@ public final class WindowFilterDateNanosEvaluator implements ExpressionEvaluator
 
     @Override
     public WindowFilterDateNanosEvaluator get(DriverContext context) {
-      return new WindowFilterDateNanosEvaluator(source, window, bucket, nextTimestamps.apply(context), timestamp.get(context), context);
+      ExpressionEvaluator timestamp = null;
+      boolean success = false;
+      try {
+        timestamp = this.timestamp.get(context);
+        WindowFilterDateNanosEvaluator result = new WindowFilterDateNanosEvaluator(source, window, bucket, nextTimestamps.apply(context), timestamp, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(timestamp);
+        }
+      }
     }
 
     @Override

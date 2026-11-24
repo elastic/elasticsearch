@@ -150,8 +150,20 @@ public final class GreatestBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public GreatestBytesRefEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new GreatestBytesRefEvaluator(source, values, context);
+      ExpressionEvaluator[] values = new ExpressionEvaluator[this.values.length];
+      boolean success = false;
+      try {
+        for (int i = 0; i < values.length; i++) {
+          values[i] = this.values[i].get(context);
+        }
+        GreatestBytesRefEvaluator result = new GreatestBytesRefEvaluator(source, values, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(() -> Releasables.close(values));
+        }
+      }
     }
 
     @Override

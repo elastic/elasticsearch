@@ -149,7 +149,20 @@ public final class CopySignFloatEvaluator implements ExpressionEvaluator {
 
     @Override
     public CopySignFloatEvaluator get(DriverContext context) {
-      return new CopySignFloatEvaluator(source, magnitude.get(context), sign.get(context), context);
+      ExpressionEvaluator magnitude = null;
+      ExpressionEvaluator sign = null;
+      boolean success = false;
+      try {
+        magnitude = this.magnitude.get(context);
+        sign = this.sign.get(context);
+        CopySignFloatEvaluator result = new CopySignFloatEvaluator(source, magnitude, sign, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(magnitude, sign);
+        }
+      }
     }
 
     @Override

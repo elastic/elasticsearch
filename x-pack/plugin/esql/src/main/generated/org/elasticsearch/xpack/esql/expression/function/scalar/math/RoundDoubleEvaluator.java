@@ -149,7 +149,20 @@ public final class RoundDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public RoundDoubleEvaluator get(DriverContext context) {
-      return new RoundDoubleEvaluator(source, val.get(context), decimals.get(context), context);
+      ExpressionEvaluator val = null;
+      ExpressionEvaluator decimals = null;
+      boolean success = false;
+      try {
+        val = this.val.get(context);
+        decimals = this.decimals.get(context);
+        RoundDoubleEvaluator result = new RoundDoubleEvaluator(source, val, decimals, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(val, decimals);
+        }
+      }
     }
 
     @Override

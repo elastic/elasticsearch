@@ -114,7 +114,20 @@ public final class MvCompareDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvCompareDoubleEvaluator get(DriverContext context) {
-      return new MvCompareDoubleEvaluator(source, field.get(context), bound.get(context), greater, includeBound, context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator bound = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        bound = this.bound.get(context);
+        MvCompareDoubleEvaluator result = new MvCompareDoubleEvaluator(source, field, bound, greater, includeBound, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, bound);
+        }
+      }
     }
 
     @Override

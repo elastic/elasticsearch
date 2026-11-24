@@ -163,7 +163,20 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
 
     @Override
     public ToIntegerBaseEvaluator get(DriverContext context) {
-      return new ToIntegerBaseEvaluator(source, string.get(context), base.get(context), context);
+      ExpressionEvaluator string = null;
+      ExpressionEvaluator base = null;
+      boolean success = false;
+      try {
+        string = this.string.get(context);
+        base = this.base.get(context);
+        ToIntegerBaseEvaluator result = new ToIntegerBaseEvaluator(source, string, base, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(string, base);
+        }
+      }
     }
 
     @Override

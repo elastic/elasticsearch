@@ -178,7 +178,20 @@ public final class DateParseEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateParseEvaluator get(DriverContext context) {
-      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, locale, context);
+      ExpressionEvaluator val = null;
+      ExpressionEvaluator formatter = null;
+      boolean success = false;
+      try {
+        val = this.val.get(context);
+        formatter = this.formatter.get(context);
+        DateParseEvaluator result = new DateParseEvaluator(source, val, formatter, zoneId, locale, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(val, formatter);
+        }
+      }
     }
 
     @Override

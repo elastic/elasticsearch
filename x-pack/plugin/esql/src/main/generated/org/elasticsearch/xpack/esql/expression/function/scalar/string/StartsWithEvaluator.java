@@ -155,7 +155,20 @@ public final class StartsWithEvaluator implements ExpressionEvaluator {
 
     @Override
     public StartsWithEvaluator get(DriverContext context) {
-      return new StartsWithEvaluator(source, str.get(context), prefix.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator prefix = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        prefix = this.prefix.get(context);
+        StartsWithEvaluator result = new StartsWithEvaluator(source, str, prefix, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, prefix);
+        }
+      }
     }
 
     @Override

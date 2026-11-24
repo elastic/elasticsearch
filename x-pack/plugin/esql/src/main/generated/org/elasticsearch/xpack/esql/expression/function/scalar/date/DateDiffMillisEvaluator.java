@@ -202,7 +202,22 @@ public final class DateDiffMillisEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateDiffMillisEvaluator get(DriverContext context) {
-      return new DateDiffMillisEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), zoneId, context);
+      ExpressionEvaluator unit = null;
+      ExpressionEvaluator startTimestamp = null;
+      ExpressionEvaluator endTimestamp = null;
+      boolean success = false;
+      try {
+        unit = this.unit.get(context);
+        startTimestamp = this.startTimestamp.get(context);
+        endTimestamp = this.endTimestamp.get(context);
+        DateDiffMillisEvaluator result = new DateDiffMillisEvaluator(source, unit, startTimestamp, endTimestamp, zoneId, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(unit, startTimestamp, endTimestamp);
+        }
+      }
     }
 
     @Override

@@ -151,7 +151,20 @@ public final class UrlEncodeComponentEvaluator extends AbstractConvertFunction.A
 
     @Override
     public UrlEncodeComponentEvaluator get(DriverContext context) {
-      return new UrlEncodeComponentEvaluator(source, val.get(context), scratch.apply(context), context);
+      ExpressionEvaluator val = null;
+      BreakingBytesRefBuilder scratch = null;
+      boolean success = false;
+      try {
+        val = this.val.get(context);
+        scratch = this.scratch.apply(context);
+        UrlEncodeComponentEvaluator result = new UrlEncodeComponentEvaluator(source, val, scratch, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(val, scratch);
+        }
+      }
     }
 
     @Override

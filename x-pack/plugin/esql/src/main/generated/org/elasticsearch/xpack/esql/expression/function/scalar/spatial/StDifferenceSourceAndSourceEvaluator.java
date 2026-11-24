@@ -117,7 +117,20 @@ public final class StDifferenceSourceAndSourceEvaluator implements ExpressionEva
 
     @Override
     public StDifferenceSourceAndSourceEvaluator get(DriverContext context) {
-      return new StDifferenceSourceAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StDifferenceSourceAndSourceEvaluator result = new StDifferenceSourceAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

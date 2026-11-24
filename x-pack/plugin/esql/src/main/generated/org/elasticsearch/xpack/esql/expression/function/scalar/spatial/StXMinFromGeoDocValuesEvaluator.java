@@ -113,7 +113,18 @@ public final class StXMinFromGeoDocValuesEvaluator implements ExpressionEvaluato
 
     @Override
     public StXMinFromGeoDocValuesEvaluator get(DriverContext context) {
-      return new StXMinFromGeoDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StXMinFromGeoDocValuesEvaluator result = new StXMinFromGeoDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

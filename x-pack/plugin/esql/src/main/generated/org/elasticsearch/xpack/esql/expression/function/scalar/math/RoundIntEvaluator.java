@@ -160,7 +160,20 @@ public final class RoundIntEvaluator implements ExpressionEvaluator {
 
     @Override
     public RoundIntEvaluator get(DriverContext context) {
-      return new RoundIntEvaluator(source, val.get(context), decimals.get(context), context);
+      ExpressionEvaluator val = null;
+      ExpressionEvaluator decimals = null;
+      boolean success = false;
+      try {
+        val = this.val.get(context);
+        decimals = this.decimals.get(context);
+        RoundIntEvaluator result = new RoundIntEvaluator(source, val, decimals, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(val, decimals);
+        }
+      }
     }
 
     @Override

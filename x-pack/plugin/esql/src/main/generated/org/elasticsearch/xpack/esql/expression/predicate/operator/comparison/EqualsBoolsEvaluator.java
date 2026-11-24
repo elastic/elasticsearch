@@ -147,7 +147,20 @@ public final class EqualsBoolsEvaluator implements ExpressionEvaluator {
 
     @Override
     public EqualsBoolsEvaluator get(DriverContext context) {
-      return new EqualsBoolsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        EqualsBoolsEvaluator result = new EqualsBoolsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

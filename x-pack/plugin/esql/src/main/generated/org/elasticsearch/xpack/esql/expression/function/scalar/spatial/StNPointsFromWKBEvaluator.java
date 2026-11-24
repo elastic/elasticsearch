@@ -114,7 +114,18 @@ public final class StNPointsFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StNPointsFromWKBEvaluator get(DriverContext context) {
-      return new StNPointsFromWKBEvaluator(source, wkbBlock.get(context), scratch.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StNPointsFromWKBEvaluator result = new StNPointsFromWKBEvaluator(source, wkbBlock, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

@@ -149,7 +149,20 @@ public final class NotEqualsNanosMillisEvaluator implements ExpressionEvaluator 
 
     @Override
     public NotEqualsNanosMillisEvaluator get(DriverContext context) {
-      return new NotEqualsNanosMillisEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        NotEqualsNanosMillisEvaluator result = new NotEqualsNanosMillisEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

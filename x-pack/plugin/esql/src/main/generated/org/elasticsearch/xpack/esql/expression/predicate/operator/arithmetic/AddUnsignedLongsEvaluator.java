@@ -158,7 +158,20 @@ public final class AddUnsignedLongsEvaluator implements ExpressionEvaluator {
 
     @Override
     public AddUnsignedLongsEvaluator get(DriverContext context) {
-      return new AddUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        AddUnsignedLongsEvaluator result = new AddUnsignedLongsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

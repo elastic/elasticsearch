@@ -131,7 +131,20 @@ public final class EqualsTDigestEvaluator implements ExpressionEvaluator {
 
     @Override
     public EqualsTDigestEvaluator get(DriverContext context) {
-      return new EqualsTDigestEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        EqualsTDigestEvaluator result = new EqualsTDigestEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

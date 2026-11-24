@@ -113,7 +113,18 @@ public final class StYMaxFromCartesianDocValuesEvaluator implements ExpressionEv
 
     @Override
     public StYMaxFromCartesianDocValuesEvaluator get(DriverContext context) {
-      return new StYMaxFromCartesianDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StYMaxFromCartesianDocValuesEvaluator result = new StYMaxFromCartesianDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

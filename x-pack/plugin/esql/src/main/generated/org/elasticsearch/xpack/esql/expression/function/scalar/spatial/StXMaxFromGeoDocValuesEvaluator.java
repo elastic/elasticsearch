@@ -113,7 +113,18 @@ public final class StXMaxFromGeoDocValuesEvaluator implements ExpressionEvaluato
 
     @Override
     public StXMaxFromGeoDocValuesEvaluator get(DriverContext context) {
-      return new StXMaxFromGeoDocValuesEvaluator(source, encodedBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator encodedBlock = null;
+      boolean success = false;
+      try {
+        encodedBlock = this.encodedBlock.get(context);
+        StXMaxFromGeoDocValuesEvaluator result = new StXMaxFromGeoDocValuesEvaluator(source, encodedBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedBlock);
+        }
+      }
     }
 
     @Override

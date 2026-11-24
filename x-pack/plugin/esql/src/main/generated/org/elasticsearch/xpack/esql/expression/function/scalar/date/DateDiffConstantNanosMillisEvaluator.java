@@ -176,7 +176,20 @@ public final class DateDiffConstantNanosMillisEvaluator implements ExpressionEva
 
     @Override
     public DateDiffConstantNanosMillisEvaluator get(DriverContext context) {
-      return new DateDiffConstantNanosMillisEvaluator(source, datePartFieldUnit, startTimestampNanos.get(context), endTimestampMillis.get(context), zoneId, context);
+      ExpressionEvaluator startTimestampNanos = null;
+      ExpressionEvaluator endTimestampMillis = null;
+      boolean success = false;
+      try {
+        startTimestampNanos = this.startTimestampNanos.get(context);
+        endTimestampMillis = this.endTimestampMillis.get(context);
+        DateDiffConstantNanosMillisEvaluator result = new DateDiffConstantNanosMillisEvaluator(source, datePartFieldUnit, startTimestampNanos, endTimestampMillis, zoneId, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(startTimestampNanos, endTimestampMillis);
+        }
+      }
     }
 
     @Override

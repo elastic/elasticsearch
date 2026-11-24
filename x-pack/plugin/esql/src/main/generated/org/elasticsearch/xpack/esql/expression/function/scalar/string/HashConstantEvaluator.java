@@ -137,7 +137,20 @@ public final class HashConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public HashConstantEvaluator get(DriverContext context) {
-      return new HashConstantEvaluator(source, scratch.apply(context), algorithm.apply(context), input.get(context), context);
+      BreakingBytesRefBuilder scratch = null;
+      ExpressionEvaluator input = null;
+      boolean success = false;
+      try {
+        scratch = this.scratch.apply(context);
+        input = this.input.get(context);
+        HashConstantEvaluator result = new HashConstantEvaluator(source, scratch, algorithm.apply(context), input, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(scratch, input);
+        }
+      }
     }
 
     @Override

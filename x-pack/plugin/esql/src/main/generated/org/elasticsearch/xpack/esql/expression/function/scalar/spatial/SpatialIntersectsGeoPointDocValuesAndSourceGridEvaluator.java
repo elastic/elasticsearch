@@ -128,7 +128,20 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceGridEvaluator impl
 
     @Override
     public SpatialIntersectsGeoPointDocValuesAndSourceGridEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoPointDocValuesAndSourceGridEvaluator(source, encodedPoints.get(context), gridIds.get(context), gridType, context);
+      ExpressionEvaluator encodedPoints = null;
+      ExpressionEvaluator gridIds = null;
+      boolean success = false;
+      try {
+        encodedPoints = this.encodedPoints.get(context);
+        gridIds = this.gridIds.get(context);
+        SpatialIntersectsGeoPointDocValuesAndSourceGridEvaluator result = new SpatialIntersectsGeoPointDocValuesAndSourceGridEvaluator(source, encodedPoints, gridIds, gridType, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(encodedPoints, gridIds);
+        }
+      }
     }
 
     @Override

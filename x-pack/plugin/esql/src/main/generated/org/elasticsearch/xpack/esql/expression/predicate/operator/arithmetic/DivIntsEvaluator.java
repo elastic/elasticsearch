@@ -158,7 +158,20 @@ public final class DivIntsEvaluator implements ExpressionEvaluator {
 
     @Override
     public DivIntsEvaluator get(DriverContext context) {
-      return new DivIntsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        DivIntsEvaluator result = new DivIntsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

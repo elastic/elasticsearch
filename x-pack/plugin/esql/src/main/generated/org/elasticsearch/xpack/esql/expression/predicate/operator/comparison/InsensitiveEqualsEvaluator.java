@@ -154,7 +154,20 @@ public final class InsensitiveEqualsEvaluator implements ExpressionEvaluator {
 
     @Override
     public InsensitiveEqualsEvaluator get(DriverContext context) {
-      return new InsensitiveEqualsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        InsensitiveEqualsEvaluator result = new InsensitiveEqualsEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

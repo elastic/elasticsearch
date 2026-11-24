@@ -129,7 +129,18 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
 
     @Override
     public RuntimeSearchTextEvaluator get(DriverContext context) {
-      return new RuntimeSearchTextEvaluator(source, fieldBlock.get(context), matcher, candidates, analyzer, scratch.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        RuntimeSearchTextEvaluator result = new RuntimeSearchTextEvaluator(source, fieldBlock, matcher, candidates, analyzer, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

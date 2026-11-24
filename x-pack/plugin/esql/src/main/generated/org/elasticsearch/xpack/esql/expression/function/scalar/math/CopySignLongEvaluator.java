@@ -149,7 +149,20 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public CopySignLongEvaluator get(DriverContext context) {
-      return new CopySignLongEvaluator(source, magnitude.get(context), sign.get(context), context);
+      ExpressionEvaluator magnitude = null;
+      ExpressionEvaluator sign = null;
+      boolean success = false;
+      try {
+        magnitude = this.magnitude.get(context);
+        sign = this.sign.get(context);
+        CopySignLongEvaluator result = new CopySignLongEvaluator(source, magnitude, sign, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(magnitude, sign);
+        }
+      }
     }
 
     @Override

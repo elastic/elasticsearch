@@ -114,7 +114,18 @@ public final class StIsEmptyFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StIsEmptyFromWKBEvaluator get(DriverContext context) {
-      return new StIsEmptyFromWKBEvaluator(source, wkbBlock.get(context), scratch.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StIsEmptyFromWKBEvaluator result = new StIsEmptyFromWKBEvaluator(source, wkbBlock, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

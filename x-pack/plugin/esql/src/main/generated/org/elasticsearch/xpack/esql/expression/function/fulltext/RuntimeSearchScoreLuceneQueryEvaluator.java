@@ -123,7 +123,18 @@ public final class RuntimeSearchScoreLuceneQueryEvaluator implements ExpressionE
 
     @Override
     public RuntimeSearchScoreLuceneQueryEvaluator get(DriverContext context) {
-      return new RuntimeSearchScoreLuceneQueryEvaluator(source, fieldBlock.get(context), analyzer, query, memoryIndex.apply(context), scratch.apply(context), context);
+      ExpressionEvaluator fieldBlock = null;
+      boolean success = false;
+      try {
+        fieldBlock = this.fieldBlock.get(context);
+        RuntimeSearchScoreLuceneQueryEvaluator result = new RuntimeSearchScoreLuceneQueryEvaluator(source, fieldBlock, analyzer, query, memoryIndex.apply(context), scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(fieldBlock);
+        }
+      }
     }
 
     @Override

@@ -120,7 +120,20 @@ public final class SpatialWithinCartesianPointDocValuesAndSourceEvaluator implem
 
     @Override
     public SpatialWithinCartesianPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinCartesianPointDocValuesAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        SpatialWithinCartesianPointDocValuesAndSourceEvaluator result = new SpatialWithinCartesianPointDocValuesAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

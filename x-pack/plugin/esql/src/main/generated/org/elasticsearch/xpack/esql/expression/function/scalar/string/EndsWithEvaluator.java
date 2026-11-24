@@ -155,7 +155,20 @@ public final class EndsWithEvaluator implements ExpressionEvaluator {
 
     @Override
     public EndsWithEvaluator get(DriverContext context) {
-      return new EndsWithEvaluator(source, str.get(context), suffix.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator suffix = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        suffix = this.suffix.get(context);
+        EndsWithEvaluator result = new EndsWithEvaluator(source, str, suffix, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, suffix);
+        }
+      }
     }
 
     @Override

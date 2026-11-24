@@ -146,7 +146,20 @@ public final class Atan2Evaluator implements ExpressionEvaluator {
 
     @Override
     public Atan2Evaluator get(DriverContext context) {
-      return new Atan2Evaluator(source, y.get(context), x.get(context), context);
+      ExpressionEvaluator y = null;
+      ExpressionEvaluator x = null;
+      boolean success = false;
+      try {
+        y = this.y.get(context);
+        x = this.x.get(context);
+        Atan2Evaluator result = new Atan2Evaluator(source, y, x, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(y, x);
+        }
+      }
     }
 
     @Override

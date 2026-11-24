@@ -151,7 +151,22 @@ public final class MvSliceIntEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvSliceIntEvaluator get(DriverContext context) {
-      return new MvSliceIntEvaluator(source, field.get(context), start.get(context), end.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator start = null;
+      ExpressionEvaluator end = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        start = this.start.get(context);
+        end = this.end.get(context);
+        MvSliceIntEvaluator result = new MvSliceIntEvaluator(source, field, start, end, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, start, end);
+        }
+      }
     }
 
     @Override

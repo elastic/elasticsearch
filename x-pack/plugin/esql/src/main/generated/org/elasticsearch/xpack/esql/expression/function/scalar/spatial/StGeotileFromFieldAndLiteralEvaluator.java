@@ -114,7 +114,18 @@ public final class StGeotileFromFieldAndLiteralEvaluator implements ExpressionEv
 
     @Override
     public StGeotileFromFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, shapeTiler.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StGeotileFromFieldAndLiteralEvaluator result = new StGeotileFromFieldAndLiteralEvaluator(source, wkbBlock, precision, shapeTiler.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

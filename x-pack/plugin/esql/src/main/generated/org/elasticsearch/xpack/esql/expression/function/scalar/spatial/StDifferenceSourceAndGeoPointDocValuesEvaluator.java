@@ -119,7 +119,20 @@ public final class StDifferenceSourceAndGeoPointDocValuesEvaluator implements Ex
 
     @Override
     public StDifferenceSourceAndGeoPointDocValuesEvaluator get(DriverContext context) {
-      return new StDifferenceSourceAndGeoPointDocValuesEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StDifferenceSourceAndGeoPointDocValuesEvaluator result = new StDifferenceSourceAndGeoPointDocValuesEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

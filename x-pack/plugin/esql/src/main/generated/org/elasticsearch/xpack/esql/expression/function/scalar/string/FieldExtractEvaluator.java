@@ -164,7 +164,20 @@ public final class FieldExtractEvaluator implements ExpressionEvaluator {
 
     @Override
     public FieldExtractEvaluator get(DriverContext context) {
-      return new FieldExtractEvaluator(source, flattenedJson.get(context), path.get(context), context);
+      ExpressionEvaluator flattenedJson = null;
+      ExpressionEvaluator path = null;
+      boolean success = false;
+      try {
+        flattenedJson = this.flattenedJson.get(context);
+        path = this.path.get(context);
+        FieldExtractEvaluator result = new FieldExtractEvaluator(source, flattenedJson, path, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(flattenedJson, path);
+        }
+      }
     }
 
     @Override

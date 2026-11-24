@@ -113,7 +113,18 @@ public final class StYMinFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StYMinFromWKBEvaluator get(DriverContext context) {
-      return new StYMinFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StYMinFromWKBEvaluator result = new StYMinFromWKBEvaluator(source, wkbBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

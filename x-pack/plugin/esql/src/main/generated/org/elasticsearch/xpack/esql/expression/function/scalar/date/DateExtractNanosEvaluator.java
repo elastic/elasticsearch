@@ -170,7 +170,20 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateExtractNanosEvaluator get(DriverContext context) {
-      return new DateExtractNanosEvaluator(source, value.get(context), chronoField.get(context), zone, context);
+      ExpressionEvaluator value = null;
+      ExpressionEvaluator chronoField = null;
+      boolean success = false;
+      try {
+        value = this.value.get(context);
+        chronoField = this.chronoField.get(context);
+        DateExtractNanosEvaluator result = new DateExtractNanosEvaluator(source, value, chronoField, zone, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(value, chronoField);
+        }
+      }
     }
 
     @Override

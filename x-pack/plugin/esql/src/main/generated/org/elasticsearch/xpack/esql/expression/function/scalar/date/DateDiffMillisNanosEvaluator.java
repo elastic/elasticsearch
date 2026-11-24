@@ -202,7 +202,22 @@ public final class DateDiffMillisNanosEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateDiffMillisNanosEvaluator get(DriverContext context) {
-      return new DateDiffMillisNanosEvaluator(source, unit.get(context), startTimestampMillis.get(context), endTimestampNanos.get(context), zoneId, context);
+      ExpressionEvaluator unit = null;
+      ExpressionEvaluator startTimestampMillis = null;
+      ExpressionEvaluator endTimestampNanos = null;
+      boolean success = false;
+      try {
+        unit = this.unit.get(context);
+        startTimestampMillis = this.startTimestampMillis.get(context);
+        endTimestampNanos = this.endTimestampNanos.get(context);
+        DateDiffMillisNanosEvaluator result = new DateDiffMillisNanosEvaluator(source, unit, startTimestampMillis, endTimestampNanos, zoneId, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(unit, startTimestampMillis, endTimestampNanos);
+        }
+      }
     }
 
     @Override

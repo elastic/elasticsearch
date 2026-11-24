@@ -113,7 +113,18 @@ public final class StXMinFromWKBEvaluator implements ExpressionEvaluator {
 
     @Override
     public StXMinFromWKBEvaluator get(DriverContext context) {
-      return new StXMinFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StXMinFromWKBEvaluator result = new StXMinFromWKBEvaluator(source, wkbBlock, resultsBuilder.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

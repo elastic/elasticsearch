@@ -147,7 +147,24 @@ public final class MvZipEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvZipEvaluator get(DriverContext context) {
-      return new MvZipEvaluator(source, leftField.get(context), rightField.get(context), delim.get(context), work.apply(context), context);
+      ExpressionEvaluator leftField = null;
+      ExpressionEvaluator rightField = null;
+      ExpressionEvaluator delim = null;
+      BreakingBytesRefBuilder work = null;
+      boolean success = false;
+      try {
+        leftField = this.leftField.get(context);
+        rightField = this.rightField.get(context);
+        delim = this.delim.get(context);
+        work = this.work.apply(context);
+        MvZipEvaluator result = new MvZipEvaluator(source, leftField, rightField, delim, work, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(leftField, rightField, delim, work);
+        }
+      }
     }
 
     @Override

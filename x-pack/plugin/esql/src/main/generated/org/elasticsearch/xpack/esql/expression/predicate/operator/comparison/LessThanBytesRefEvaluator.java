@@ -154,7 +154,20 @@ public final class LessThanBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public LessThanBytesRefEvaluator get(DriverContext context) {
-      return new LessThanBytesRefEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        LessThanBytesRefEvaluator result = new LessThanBytesRefEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

@@ -110,7 +110,20 @@ public final class MvContainsBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvContainsBytesRefEvaluator get(DriverContext context) {
-      return new MvContainsBytesRefEvaluator(source, scratch.apply(context), superset.get(context), subset.get(context), context);
+      ExpressionEvaluator superset = null;
+      ExpressionEvaluator subset = null;
+      boolean success = false;
+      try {
+        superset = this.superset.get(context);
+        subset = this.subset.get(context);
+        MvContainsBytesRefEvaluator result = new MvContainsBytesRefEvaluator(source, scratch.apply(context), superset, subset, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(superset, subset);
+        }
+      }
     }
 
     @Override

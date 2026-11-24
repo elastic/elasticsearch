@@ -69,15 +69,28 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-        factoryMethodBuilder.addStatement(
-            "$T[] $L = Arrays.stream(this.$L).map(a -> a.get(context)).toArray($T[]::new)",
-            EXPRESSION_EVALUATOR,
-            name,
-            name,
-            EXPRESSION_EVALUATOR
-        );
+    public String factoryInvocation(boolean guarded) {
+        if (guarded == false) {
+            throw new IllegalStateException("building an array of evaluators must be guarded");
+        }
         return name;
+    }
+
+    @Override
+    public void declareFactoryLocal(MethodSpec.Builder builder) {
+        builder.addStatement("$T[] $L = new $T[this.$L.length]", EXPRESSION_EVALUATOR, name, EXPRESSION_EVALUATOR, name);
+    }
+
+    @Override
+    public void buildFactoryLocal(MethodSpec.Builder builder) {
+        builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
+        builder.addStatement("$L[i] = this.$L[i].get(context)", name, name);
+        builder.endControlFlow();
+    }
+
+    @Override
+    public String closeFactoryLocalInvocation() {
+        return "() -> Releasables.close(" + name + ")";
     }
 
     @Override

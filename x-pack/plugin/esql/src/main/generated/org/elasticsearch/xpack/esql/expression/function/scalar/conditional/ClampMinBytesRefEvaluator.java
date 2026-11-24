@@ -153,7 +153,20 @@ public final class ClampMinBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMinBytesRefEvaluator get(DriverContext context) {
-      return new ClampMinBytesRefEvaluator(source, field.get(context), min.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator min = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        min = this.min.get(context);
+        ClampMinBytesRefEvaluator result = new ClampMinBytesRefEvaluator(source, field, min, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, min);
+        }
+      }
     }
 
     @Override

@@ -119,7 +119,20 @@ public final class SpatialContainsCartesianSourceAndSourceEvaluator implements E
 
     @Override
     public SpatialContainsCartesianSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialContainsCartesianSourceAndSourceEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        SpatialContainsCartesianSourceAndSourceEvaluator result = new SpatialContainsCartesianSourceAndSourceEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

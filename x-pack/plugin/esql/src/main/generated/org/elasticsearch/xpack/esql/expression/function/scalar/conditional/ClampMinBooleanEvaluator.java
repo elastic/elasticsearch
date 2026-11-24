@@ -147,7 +147,20 @@ public final class ClampMinBooleanEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMinBooleanEvaluator get(DriverContext context) {
-      return new ClampMinBooleanEvaluator(source, field.get(context), min.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator min = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        min = this.min.get(context);
+        ClampMinBooleanEvaluator result = new ClampMinBooleanEvaluator(source, field, min, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, min);
+        }
+      }
     }
 
     @Override

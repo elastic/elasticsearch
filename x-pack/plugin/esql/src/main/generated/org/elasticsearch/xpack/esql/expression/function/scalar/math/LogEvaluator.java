@@ -164,7 +164,20 @@ public final class LogEvaluator implements ExpressionEvaluator {
 
     @Override
     public LogEvaluator get(DriverContext context) {
-      return new LogEvaluator(source, base.get(context), value.get(context), allowNonFinite, context);
+      ExpressionEvaluator base = null;
+      ExpressionEvaluator value = null;
+      boolean success = false;
+      try {
+        base = this.base.get(context);
+        value = this.value.get(context);
+        LogEvaluator result = new LogEvaluator(source, base, value, allowNonFinite, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(base, value);
+        }
+      }
     }
 
     @Override

@@ -147,7 +147,20 @@ public final class ParseIpLeadingZerosAreOctalEvaluator extends AbstractConvertF
 
     @Override
     public ParseIpLeadingZerosAreOctalEvaluator get(DriverContext context) {
-      return new ParseIpLeadingZerosAreOctalEvaluator(source, string.get(context), scratch.apply(context), context);
+      ExpressionEvaluator string = null;
+      BreakingBytesRefBuilder scratch = null;
+      boolean success = false;
+      try {
+        string = this.string.get(context);
+        scratch = this.scratch.apply(context);
+        ParseIpLeadingZerosAreOctalEvaluator result = new ParseIpLeadingZerosAreOctalEvaluator(source, string, scratch, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(string, scratch);
+        }
+      }
     }
 
     @Override

@@ -149,7 +149,20 @@ public final class EqualsDoublesEvaluator implements ExpressionEvaluator {
 
     @Override
     public EqualsDoublesEvaluator get(DriverContext context) {
-      return new EqualsDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        EqualsDoublesEvaluator result = new EqualsDoublesEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

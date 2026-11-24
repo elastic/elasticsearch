@@ -149,7 +149,20 @@ public final class LessThanDoublesEvaluator implements ExpressionEvaluator {
 
     @Override
     public LessThanDoublesEvaluator get(DriverContext context) {
-      return new LessThanDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      ExpressionEvaluator lhs = null;
+      ExpressionEvaluator rhs = null;
+      boolean success = false;
+      try {
+        lhs = this.lhs.get(context);
+        rhs = this.rhs.get(context);
+        LessThanDoublesEvaluator result = new LessThanDoublesEvaluator(source, lhs, rhs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(lhs, rhs);
+        }
+      }
     }
 
     @Override

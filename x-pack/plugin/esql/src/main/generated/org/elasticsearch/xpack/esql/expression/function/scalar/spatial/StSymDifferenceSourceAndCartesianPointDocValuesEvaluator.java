@@ -119,7 +119,20 @@ public final class StSymDifferenceSourceAndCartesianPointDocValuesEvaluator impl
 
     @Override
     public StSymDifferenceSourceAndCartesianPointDocValuesEvaluator get(DriverContext context) {
-      return new StSymDifferenceSourceAndCartesianPointDocValuesEvaluator(source, left.get(context), right.get(context), context);
+      ExpressionEvaluator left = null;
+      ExpressionEvaluator right = null;
+      boolean success = false;
+      try {
+        left = this.left.get(context);
+        right = this.right.get(context);
+        StSymDifferenceSourceAndCartesianPointDocValuesEvaluator result = new StSymDifferenceSourceAndCartesianPointDocValuesEvaluator(source, left, right, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(left, right);
+        }
+      }
     }
 
     @Override

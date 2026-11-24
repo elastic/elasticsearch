@@ -183,7 +183,22 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
     @Override
     public LocateEvaluator get(DriverContext context) {
-      return new LocateEvaluator(source, str.get(context), substr.get(context), start.get(context), context);
+      ExpressionEvaluator str = null;
+      ExpressionEvaluator substr = null;
+      ExpressionEvaluator start = null;
+      boolean success = false;
+      try {
+        str = this.str.get(context);
+        substr = this.substr.get(context);
+        start = this.start.get(context);
+        LocateEvaluator result = new LocateEvaluator(source, str, substr, start, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(str, substr, start);
+        }
+      }
     }
 
     @Override

@@ -137,7 +137,20 @@ public final class MvPercentileLongEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvPercentileLongEvaluator get(DriverContext context) {
-      return new MvPercentileLongEvaluator(source, values.get(context), percentile.get(context), scratch.apply(context), context);
+      ExpressionEvaluator values = null;
+      ExpressionEvaluator percentile = null;
+      boolean success = false;
+      try {
+        values = this.values.get(context);
+        percentile = this.percentile.get(context);
+        MvPercentileLongEvaluator result = new MvPercentileLongEvaluator(source, values, percentile, scratch.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(values, percentile);
+        }
+      }
     }
 
     @Override

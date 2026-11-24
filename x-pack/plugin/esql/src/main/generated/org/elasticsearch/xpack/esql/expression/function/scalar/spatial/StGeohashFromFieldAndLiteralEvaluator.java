@@ -114,7 +114,18 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements ExpressionEv
 
     @Override
     public StGeohashFromFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, shapeTiler.apply(context), context);
+      ExpressionEvaluator wkbBlock = null;
+      boolean success = false;
+      try {
+        wkbBlock = this.wkbBlock.get(context);
+        StGeohashFromFieldAndLiteralEvaluator result = new StGeohashFromFieldAndLiteralEvaluator(source, wkbBlock, precision, shapeTiler.apply(context), context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(wkbBlock);
+        }
+      }
     }
 
     @Override

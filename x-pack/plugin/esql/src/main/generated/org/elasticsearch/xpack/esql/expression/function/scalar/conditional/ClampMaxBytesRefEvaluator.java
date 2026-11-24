@@ -153,7 +153,20 @@ public final class ClampMaxBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMaxBytesRefEvaluator get(DriverContext context) {
-      return new ClampMaxBytesRefEvaluator(source, field.get(context), max.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator max = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        max = this.max.get(context);
+        ClampMaxBytesRefEvaluator result = new ClampMaxBytesRefEvaluator(source, field, max, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, max);
+        }
+      }
     }
 
     @Override

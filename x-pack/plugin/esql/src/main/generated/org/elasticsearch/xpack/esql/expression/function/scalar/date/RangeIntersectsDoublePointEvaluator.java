@@ -131,7 +131,20 @@ public final class RangeIntersectsDoublePointEvaluator implements ExpressionEval
 
     @Override
     public RangeIntersectsDoublePointEvaluator get(DriverContext context) {
-      return new RangeIntersectsDoublePointEvaluator(source, point.get(context), range.get(context), context);
+      ExpressionEvaluator point = null;
+      ExpressionEvaluator range = null;
+      boolean success = false;
+      try {
+        point = this.point.get(context);
+        range = this.range.get(context);
+        RangeIntersectsDoublePointEvaluator result = new RangeIntersectsDoublePointEvaluator(source, point, range, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(point, range);
+        }
+      }
     }
 
     @Override

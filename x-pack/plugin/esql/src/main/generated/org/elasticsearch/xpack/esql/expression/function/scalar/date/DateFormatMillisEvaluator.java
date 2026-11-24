@@ -167,7 +167,20 @@ public final class DateFormatMillisEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateFormatMillisEvaluator get(DriverContext context) {
-      return new DateFormatMillisEvaluator(source, val.get(context), formatter.get(context), zoneId, locale, context);
+      ExpressionEvaluator val = null;
+      ExpressionEvaluator formatter = null;
+      boolean success = false;
+      try {
+        val = this.val.get(context);
+        formatter = this.formatter.get(context);
+        DateFormatMillisEvaluator result = new DateFormatMillisEvaluator(source, val, formatter, zoneId, locale, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(val, formatter);
+        }
+      }
     }
 
     @Override

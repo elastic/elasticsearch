@@ -114,7 +114,20 @@ public final class MvCompareBytesRefEvaluator implements ExpressionEvaluator {
 
     @Override
     public MvCompareBytesRefEvaluator get(DriverContext context) {
-      return new MvCompareBytesRefEvaluator(source, field.get(context), bound.get(context), greater, includeBound, context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator bound = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        bound = this.bound.get(context);
+        MvCompareBytesRefEvaluator result = new MvCompareBytesRefEvaluator(source, field, bound, greater, includeBound, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, bound);
+        }
+      }
     }
 
     @Override

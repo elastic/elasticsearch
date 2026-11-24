@@ -183,8 +183,22 @@ public final class CIDRMatchEvaluator implements ExpressionEvaluator {
 
     @Override
     public CIDRMatchEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context);
+      ExpressionEvaluator ip = null;
+      ExpressionEvaluator[] cidrs = new ExpressionEvaluator[this.cidrs.length];
+      boolean success = false;
+      try {
+        ip = this.ip.get(context);
+        for (int i = 0; i < cidrs.length; i++) {
+          cidrs[i] = this.cidrs[i].get(context);
+        }
+        CIDRMatchEvaluator result = new CIDRMatchEvaluator(source, ip, cidrs, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
+        }
+      }
     }
 
     @Override

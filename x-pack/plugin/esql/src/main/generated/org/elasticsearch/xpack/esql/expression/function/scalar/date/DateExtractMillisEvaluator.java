@@ -170,7 +170,20 @@ public final class DateExtractMillisEvaluator implements ExpressionEvaluator {
 
     @Override
     public DateExtractMillisEvaluator get(DriverContext context) {
-      return new DateExtractMillisEvaluator(source, value.get(context), chronoField.get(context), zone, context);
+      ExpressionEvaluator value = null;
+      ExpressionEvaluator chronoField = null;
+      boolean success = false;
+      try {
+        value = this.value.get(context);
+        chronoField = this.chronoField.get(context);
+        DateExtractMillisEvaluator result = new DateExtractMillisEvaluator(source, value, chronoField, zone, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(value, chronoField);
+        }
+      }
     }
 
     @Override

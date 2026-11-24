@@ -147,7 +147,20 @@ public final class ClampMaxDoubleEvaluator implements ExpressionEvaluator {
 
     @Override
     public ClampMaxDoubleEvaluator get(DriverContext context) {
-      return new ClampMaxDoubleEvaluator(source, field.get(context), max.get(context), context);
+      ExpressionEvaluator field = null;
+      ExpressionEvaluator max = null;
+      boolean success = false;
+      try {
+        field = this.field.get(context);
+        max = this.max.get(context);
+        ClampMaxDoubleEvaluator result = new ClampMaxDoubleEvaluator(source, field, max, context);
+        success = true;
+        return result;
+      } finally {
+        if (success == false) {
+          Releasables.closeExpectNoException(field, max);
+        }
+      }
     }
 
     @Override

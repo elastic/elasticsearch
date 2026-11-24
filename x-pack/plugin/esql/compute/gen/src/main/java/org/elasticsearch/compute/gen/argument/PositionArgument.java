@@ -50,7 +50,7 @@ public record PositionArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+    public String factoryInvocation(boolean guarded) {
         return null;
     }
 

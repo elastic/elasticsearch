@@ -255,6 +255,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             pauseFollow("index2");
             assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
         }
+        getFollowerCluster().assertNoLeakedAnalyzerReferences();
     }
 
     public void testFollowIndexWithRouting() throws Exception {

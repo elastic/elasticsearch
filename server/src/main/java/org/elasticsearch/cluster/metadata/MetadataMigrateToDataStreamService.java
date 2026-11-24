@@ -232,10 +232,12 @@ public class MetadataMigrateToDataStreamService {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
         }
 
-        MapperService mapperService = mapperSupplier.apply(im);
-        mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, TIMESTAMP_MAPPING, MapperService.MergeReason.MAPPING_UPDATE);
-        DocumentMapper mapper = mapperService.documentMapper();
+        DocumentMapper mapper;
+        try (MapperService mapperService = mapperSupplier.apply(im)) {
+            mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, TIMESTAMP_MAPPING, MapperService.MergeReason.MAPPING_UPDATE);
+            mapper = mapperService.documentMapper();
+        }
 
         var imb = IndexMetadata.builder(im);
         if (removeAlias) {

@@ -376,6 +376,20 @@ public final class AnalysisRegistry implements Closeable {
         return total;
     }
 
+    /** @return the references held on every cache entry, including detached ones. */
+    public long heldReferences() {
+        long total = 0;
+        for (Map<AnalyzerKey, CacheEntry> cache : List.of(analyzerCache, normalizerCache, whitespaceNormalizerCache)) {
+            for (CacheEntry entry : cache.values()) {
+                total += entry.refCount.get();
+            }
+        }
+        for (CacheEntry entry : detachedEntries) {
+            total += entry.refCount.get();
+        }
+        return total;
+    }
+
     /** @return cumulative count of cache hits since the node started. */
     public long cacheHits() {
         return cacheHits.sum();

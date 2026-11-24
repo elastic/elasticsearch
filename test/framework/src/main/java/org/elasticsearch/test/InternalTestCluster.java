@@ -1469,6 +1469,15 @@ public final class InternalTestCluster extends TestCluster {
         }, 60, TimeUnit.SECONDS);
     }
 
+    /** Asserts that no node's analyzer cache holds references beyond those of its indices, e.g. from an unclosed MapperService. */
+    public void assertNoLeakedAnalyzerReferences() throws Exception {
+        assertBusy(() -> {
+            for (IndicesService indicesService : getInstances(IndicesService.class)) {
+                assertEquals(0L, indicesService.leakedAnalyzerReferences());
+            }
+        });
+    }
+
     /**
      * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
      * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.

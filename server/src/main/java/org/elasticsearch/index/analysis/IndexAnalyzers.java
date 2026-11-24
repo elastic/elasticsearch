@@ -112,6 +112,11 @@ public interface IndexAnalyzers extends Closeable {
 
     default void close() throws IOException {}
 
+    /** @return the references this instance holds on {@link AnalysisRegistry} cache entries, released by {@link #close}. */
+    default int heldReferences() {
+        return 0;
+    }
+
     static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
         return of(analyzers, Map.of(), Map.of());
     }
@@ -152,6 +157,11 @@ public interface IndexAnalyzers extends Closeable {
             // re-releases every shared reference, dropping refcounts a second time and falsely
             // evicting cache entries that other indices still reference.
             private final AtomicBoolean closed = new AtomicBoolean();
+
+            @Override
+            public int heldReferences() {
+                return closed.get() ? 0 : releasables.size();
+            }
 
             @Override
             public NamedAnalyzer getAnalyzer(AnalyzerType type, String name) {

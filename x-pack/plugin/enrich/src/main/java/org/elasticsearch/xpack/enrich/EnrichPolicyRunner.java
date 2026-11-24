@@ -377,25 +377,28 @@ public class EnrichPolicyRunner {
     private XContentBuilder createEnrichMapping(List<Map<String, Object>> sourceMappings) {
         Map<String, Map<String, Object>> fieldMappings = new HashMap<>();
         Map<String, Object> mappingForMatchField = mappingForMatchField(policy, sourceMappings);
-        MapperService mapperService = createMapperServiceForValidation(indicesService, enrichIndexName);
-        for (String enrichField : policy.getEnrichFields()) {
-            if (enrichField.equals(policy.getMatchField())) {
-                mappingForMatchField = new HashMap<>(mappingForMatchField);
-                mappingForMatchField.remove("doc_values"); // enable doc_values
-            } else {
-                var typeAndFormat = validateAndGetMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
-                if (typeAndFormat != null) {
-                    Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
-                    mapping.put("type", typeAndFormat.type);
-                    if (typeAndFormat.format != null) {
-                        mapping.put("format", typeAndFormat.format);
+        try (MapperService mapperService = createMapperServiceForValidation(indicesService, enrichIndexName)) {
+            for (String enrichField : policy.getEnrichFields()) {
+                if (enrichField.equals(policy.getMatchField())) {
+                    mappingForMatchField = new HashMap<>(mappingForMatchField);
+                    mappingForMatchField.remove("doc_values"); // enable doc_values
+                } else {
+                    var typeAndFormat = validateAndGetMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
+                    if (typeAndFormat != null) {
+                        Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
+                        mapping.put("type", typeAndFormat.type);
+                        if (typeAndFormat.format != null) {
+                            mapping.put("format", typeAndFormat.format);
+                        }
+                        if (isIndexableField(mapperService, enrichField, typeAndFormat.type, mapping)) {
+                            mapping.put("index", false);
+                        }
+                        fieldMappings.put(enrichField, mapping);
                     }
-                    if (isIndexableField(mapperService, enrichField, typeAndFormat.type, mapping)) {
-                        mapping.put("index", false);
-                    }
-                    fieldMappings.put(enrichField, mapping);
                 }
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
         fieldMappings.put(policy.getMatchField(), mappingForMatchField);
 

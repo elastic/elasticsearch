@@ -1755,6 +1755,18 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * For tests: analyzer cache references held by something other than this node's indices, such as a {@link MapperService}
+     * that was never closed. Zero once in-flight operations finish.
+     */
+    public long leakedAnalyzerReferences() {
+        long heldByIndices = 0;
+        for (IndexService indexService : this) {
+            heldByIndices += indexService.getIndexAnalyzers().heldReferences();
+        }
+        return analysisRegistry.heldReferences() - heldByIndices;
+    }
+
+    /**
      * FieldDataCacheCleaner is a scheduled Runnable used to clean a Guava cache
      * periodically. In this case it is the field data cache, because a cache that
      * has an entry invalidated may not clean up the entry if it is not read from

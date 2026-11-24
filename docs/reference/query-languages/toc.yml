@@ -124,6 +124,7 @@ toc:
                   - file: esql/commands/drop.md
                   - file: esql/commands/enrich.md
                   - file: esql/commands/eval.md
+                  - file: esql/commands/fillnull.md
                   - file: esql/commands/fork.md
                   - file: esql/commands/fuse.md
                   - file: esql/commands/grok.md

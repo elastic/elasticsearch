@@ -118,8 +118,9 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
                 file = "ints",
                 tag = "mv_in_range_open"
             ) },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvInRange(
         Source source,

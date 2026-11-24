@@ -93,6 +93,6 @@
     "ROW names = [\"Anna\", \"Bob\", \"Carl\"]\n| EVAL any_starts_with_a = mv_rlike(names, \"A.*\")",
     "ROW names = [\"Anna\", \"Bob\"]\n| EVAL has_three_letter_b_name = mv_rlike(names, \"[Bb]ob\")"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

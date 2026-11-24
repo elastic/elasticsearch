@@ -386,6 +386,6 @@
   "examples" : [
     "ROW values = [\"a\", \"b\", \"c\"], element = \"a\"\n| EVAL result = mv_difference(values, element)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

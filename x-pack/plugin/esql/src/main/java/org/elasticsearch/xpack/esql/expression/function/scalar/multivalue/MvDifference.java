@@ -77,9 +77,10 @@ public class MvDifference extends MvSetOperationFunction {
         briefSummary = "Returns values from first field not in second field.",
         description = "Returns the values that appear in the first field, except those that appear in the second. Returns `null` if the "
             + "first expression is null (nothing to remove) or the value of the first field if the second is null.",
-        preview = true,
         examples = { @Example(file = "mv_difference", tag = "mv_difference") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4-9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvDifference(
         Source source,

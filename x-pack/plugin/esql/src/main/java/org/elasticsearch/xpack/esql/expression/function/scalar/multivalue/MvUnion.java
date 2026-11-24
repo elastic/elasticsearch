@@ -76,14 +76,15 @@ public class MvUnion extends MvSetOperationFunction {
         briefSummary = "Returns all unique values from the combined multi-value fields.",
         description = "Returns all unique values from the combined input fields (set union). "
             + "Null values are treated as empty sets; returns `null` only if both fields are null.",
-        preview = true,
         examples = {
             @Example(file = "mv_union", tag = "testMvUnionWithIntValues"),
             @Example(file = "mv_union", tag = "testMvUnionWithLongValues"),
             @Example(file = "mv_union", tag = "testMvUnionWithBooleanValues"),
             @Example(file = "mv_union", tag = "testMvUnionWithDoubleValues"),
             @Example(file = "mv_union", tag = "testMvUnionWithBytesRefValues") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4-9.6"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.7+") }
     )
     public MvUnion(
         Source source,

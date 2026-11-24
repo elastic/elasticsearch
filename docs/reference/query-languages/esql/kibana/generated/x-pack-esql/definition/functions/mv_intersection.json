@@ -390,6 +390,6 @@
     "ROW a = [5.2, 10.5, 1.12345, 2.6928], b = [10.5, 2.6928]\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue",
     "ROW a = [\"one\", \"two\", \"three\", \"four\", \"five\"], b = [\"one\", \"four\"]\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

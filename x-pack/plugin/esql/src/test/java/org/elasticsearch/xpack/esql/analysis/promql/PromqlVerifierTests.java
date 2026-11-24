@@ -1166,6 +1166,11 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    // An absent metric is an empty result, as for sum, so count_values over it must not need its type to translate.
+    public void testNullifyMissingFieldInCountValuesResolves() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m count_values(\"v\", does_not_exist)").resolved());
+    }
+
     public void testCountValuesLabelCollidesWithBuiltInColumn() {
         tsdb.error(
             "PROMQL index=test step=5m value=(count_values(\"value\", network.connections))",

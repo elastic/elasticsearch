@@ -23,6 +23,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -51,6 +53,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution
  */
 public abstract class TestCluster {
+
+    /**
+     * How long to wait for a wipe to complete. Deleting indices waits for every node to acknowledge the deletion for up to
+     * {@link AcknowledgedRequest#DEFAULT_ACK_TIMEOUT}, which on a slow machine can exceed {@link ESTestCase#SAFE_AWAIT_TIMEOUT}. Waiting
+     * at least as long as the ack timeout means that a node which is slow to apply the deletion is reported as an unacked response
+     * rather than as a wipe which did not complete in time.
+     */
+    private static final TimeValue WIPE_TIMEOUT = TimeValue.timeValueMillis(
+        AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.millis() + ESTestCase.SAFE_AWAIT_TIMEOUT.millis()
+    );
 
     protected final Logger logger = LogManager.getLogger(getClass());
     private final long seed;
@@ -83,7 +95,7 @@ public abstract class TestCluster {
         // Wait for the master to drain its queue: otherwise we might compute the set of things to wipe incorrectly
         assertNoTimeout(internalClient().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID));
 
-        safeAwait((ActionListener<Void> done) -> {
+        safeAwait(SubscribableListener.newForked((ActionListener<Void> done) -> {
             try (RefCountingListener listeners = new RefCountingListener(done)) {
                 wipeAllTemplates(excludeTemplates, listeners);
                 // First delete data streams, because composable index templates can't be deleted if these templates are still used by data
@@ -107,7 +119,7 @@ public abstract class TestCluster {
                             })
                         )
                     )
-                    .andThenAccept(ElasticsearchAssertions::assertAcked)
+                    .andThenAccept(TestCluster::assertAcknowledged)
                     .andThenAccept(v -> {
                         SubscribableListener.<Void>newForked(ll -> wipeIndicesAsync(new String[] { "_all" }, ll))
                             .andThen(this::wipeRepositories)
@@ -118,7 +130,7 @@ public abstract class TestCluster {
                     .<Void>andThen((l, res) -> wipeViewsAsync(Strings.EMPTY_ARRAY, l))
                     .addListener(listeners.acquire());
             }
-        });
+        }), WIPE_TIMEOUT);
     }
 
     private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
@@ -157,7 +169,7 @@ public abstract class TestCluster {
                     internalClient().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
                 }
             })
-            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .andThenAccept(TestCluster::assertAcknowledged)
 
             // then delete component templates
             .<GetComponentTemplateAction.Response>andThen(getComponentTemplates::addListener)
@@ -177,7 +189,7 @@ public abstract class TestCluster {
                     );
                 }
             })
-            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .andThenAccept(TestCluster::assertAcknowledged)
 
             // and finish
             .addListener(listener);
@@ -245,7 +257,7 @@ public abstract class TestCluster {
      * all indices are removed.
      */
     public void wipeIndices(String... indices) {
-        safeAwait((ActionListener<Void> l) -> wipeIndicesAsync(indices, l));
+        safeAwait(SubscribableListener.newForked((ActionListener<Void> l) -> wipeIndicesAsync(indices, l)), WIPE_TIMEOUT);
     }
 
     private void wipeIndicesAsync(String[] indices, ActionListener<Void> listener) {
@@ -260,7 +272,19 @@ public abstract class TestCluster {
                     IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)
                 )
                 .execute(l.delegateResponse((ll, exception) -> handleWipeIndicesFailure(exception, "_all".equals(indices[0]), ll)))
-        ).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(listener);
+        ).andThenAccept(TestCluster::assertAcknowledged).addListener(listener);
+    }
+
+    /**
+     * Like {@link ElasticsearchAssertions#assertAcked(AcknowledgedResponse)}, but throws an {@link Exception} rather than an
+     * {@link AssertionError}, because it runs in listener callbacks which only pass {@link Exception}s on to the enclosing listener. An
+     * {@link AssertionError} would instead escape on whichever thread completed the listener, leaving the wipe incomplete, and the test
+     * framework would report it as an uncaught exception against whichever test happens to be running at the time.
+     */
+    static void assertAcknowledged(AcknowledgedResponse response) {
+        if (response.isAcknowledged() == false) {
+            throw new IllegalStateException(response.getClass().getSimpleName() + " failed - not acked");
+        }
     }
 
     public void wipeViews(String... views) {
@@ -333,7 +357,7 @@ public abstract class TestCluster {
                     internalClient().admin()
                         .indices()
                         .prepareDeleteTemplate(indexTemplate.getName())
-                        .execute(listeners.<AcknowledgedResponse>acquire(ElasticsearchAssertions::assertAcked).delegateResponse((l, e) -> {
+                        .execute(listeners.<AcknowledgedResponse>acquire(TestCluster::assertAcknowledged).delegateResponse((l, e) -> {
                             if (e instanceof IndexTemplateMissingException) {
                                 // ignore
                                 l.onResponse(AcknowledgedResponse.TRUE);
@@ -385,7 +409,7 @@ public abstract class TestCluster {
                         }
                     }))
             )
-            .andThenAccept(ElasticsearchAssertions::assertAcked)
+            .andThenAccept(TestCluster::assertAcknowledged)
             .addListener(listener);
     }
 

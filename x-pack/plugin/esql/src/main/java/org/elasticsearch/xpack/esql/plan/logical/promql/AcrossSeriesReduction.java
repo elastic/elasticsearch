@@ -35,13 +35,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
@@ -146,9 +144,8 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         // from the child nor materialized below.
         List<String> partitions = TranslationContext.mapFinite(groupings());
         boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
-        if (grouping() == WITHOUT && context.cmd().storesMetricName()) {
-            // Prometheus partitions a without by every label but the listed ones and the metric name.
-            partitions = Stream.concat(partitions.stream(), Stream.of(LabelMatcher.NAME)).distinct().toList();
+        if (grouping() == WITHOUT) {
+            partitions = context.withoutLabels(partitions);
         }
         TranslationSchema partitioning = grouping() == WITHOUT ? open(partitions) : finite(partitions);
         TranslationSchema childRequired = isLimitRatio
@@ -276,7 +273,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             // relabel derived. A label column the packing holds too adds nothing to the partition.
             Set<String> skip = Set.copyOf(partitions);
             Attribute packing = table.packed(skip);
-            assert packing != null : "invariant: packing " + skip + " must be carried by the reduced table";
+            if (packing == null) {
+                throw new IllegalStateException("packing " + skip + " must be carried by the reduced table");
+            }
             groupings.add(packing);
             for (String label : table.schema().labels()) {
                 Attribute carrier = table.label(label);

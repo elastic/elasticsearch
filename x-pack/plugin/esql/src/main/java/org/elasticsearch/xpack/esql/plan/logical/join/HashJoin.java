@@ -37,7 +37,7 @@ public class HashJoin extends Join implements SortPreserving {
 
     private final List<Attribute> addedFields;
     private final boolean unique;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public HashJoin(
         Source source,

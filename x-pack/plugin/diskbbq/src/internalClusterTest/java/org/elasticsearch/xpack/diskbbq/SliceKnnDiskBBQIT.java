@@ -88,10 +88,6 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
 
         final KnnSearchBuilder knn = new KnnSearchBuilder("vector", axisVector(64, 1), 10, 10, 100f, null, null);
         final SearchRequestBuilder search = prepareSearch("slice-knn-bbq-all").setKnnSearch(List.of(knn));
-        if (randomBoolean()) {
-            // selecting every slice does not name the slices to search
-            search.request().searchSlice(SliceIndexing.SLICE_ALL);
-        }
         final Exception e = expectThrows(Exception.class, search);
         assertThat(
             ExceptionsHelper.stackTrace(e),

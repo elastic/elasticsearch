@@ -111,7 +111,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         PARTIAL_AGG };
 
     private final JoinConfig config;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
     // Where this join executes — relevant only on the coordinating node, thus transient.
     private final transient ExecuteLocation mode;
 
@@ -375,7 +375,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             // The right side is an independent subquery; do not traverse into it.
             checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
         } else {

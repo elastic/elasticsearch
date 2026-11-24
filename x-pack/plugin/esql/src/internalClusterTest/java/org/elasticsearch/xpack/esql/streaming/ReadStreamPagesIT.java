@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -27,7 +28,6 @@ import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
@@ -59,6 +59,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -354,35 +355,50 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
      * or row.
      */
     public void testReadAcrossSkipperBlocks() {
-        String before = "a" + randomAlphaOfLength(11);
         String streamId = "b" + randomAlphaOfLength(11);
-        String after = "c" + randomAlphaOfLength(11);
         int pageCount = between(10_000, 20_000);
-        writePages(before, 1, sameSizeBlobs(between(1, 5_000), 1));
         writePages(streamId, 1, sameSizeBlobs(pageCount, 1));
-        writePages(after, 1, sameSizeBlobs(between(1, 5_000), 1));
-        refreshPages();
+        // the neighbors sort before and after the result, on its shard
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            clusterService().state().metadata().getProject().index(EsqlStreamResultsIndexDescriptor.INDEX)
+        );
+        int shardId = routing.getShard(streamId, streamId);
+        String before = randomValueOtherThanMany(id -> routing.getShard(id, id) != shardId, () -> "a" + randomAlphaOfLength(11));
+        String after = randomValueOtherThanMany(id -> routing.getShard(id, id) != shardId, () -> "c" + randomAlphaOfLength(11));
+        int beforeCount = between(1, 5_000);
+        int afterCount = between(1, 5_000);
+        writePages(before, 1, sameSizeBlobs(beforeCount, 1));
+        writePages(after, 1, sameSizeBlobs(afterCount, 1));
         ensureGreen(EsqlStreamResultsIndexDescriptor.INDEX);
+        assertNoFailures(
+            esqlClient().admin().indices().prepareForceMerge(EsqlStreamResultsIndexDescriptor.INDEX).setMaxNumSegments(1).get()
+        );
+        refreshPages();
+        int copies = 0;
         for (IndicesService indices : internalCluster().getInstances(IndicesService.class)) {
             for (IndexService index : indices) {
-                for (IndexShard shard : index) {
-                    try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                        for (LeafReaderContext leaf : searcher.getLeafContexts()) {
-                            for (String field : List.of(
-                                EsqlStreamResultsIndexDescriptor.PAGE_SEQ_FIELD,
-                                EsqlStreamResultsIndexDescriptor.PAGE_OFFSET_FIELD
-                            )) {
-                                assertThat(
-                                    field,
-                                    leaf.reader().getFieldInfos().fieldInfo(field).docValuesSkipIndexType(),
-                                    not(equalTo(DocValuesSkipIndexType.NONE))
-                                );
-                            }
-                        }
+                if (index.index().getName().equals(EsqlStreamResultsIndexDescriptor.INDEX) == false || index.hasShard(shardId) == false) {
+                    continue;
+                }
+                try (Engine.Searcher searcher = index.getShard(shardId).acquireSearcher("test")) {
+                    copies++;
+                    assertThat(searcher.getLeafContexts().size(), equalTo(1));
+                    LeafReaderContext leaf = searcher.getLeafContexts().getFirst();
+                    assertThat(leaf.reader().numDocs(), equalTo(beforeCount + pageCount + afterCount));
+                    for (String field : List.of(
+                        EsqlStreamResultsIndexDescriptor.PAGE_SEQ_FIELD,
+                        EsqlStreamResultsIndexDescriptor.PAGE_OFFSET_FIELD
+                    )) {
+                        assertThat(
+                            field,
+                            leaf.reader().getFieldInfos().fieldInfo(field).docValuesSkipIndexType(),
+                            not(equalTo(DocValuesSkipIndexType.NONE))
+                        );
                     }
                 }
             }
         }
+        assertThat(copies, greaterThan(0));
         for (int i = 0; i < 20; i++) {
             int fromSeq = between(1, pageCount);
             List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq, 3));

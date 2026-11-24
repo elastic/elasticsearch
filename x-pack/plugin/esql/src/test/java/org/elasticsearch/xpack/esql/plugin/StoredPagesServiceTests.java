@@ -208,13 +208,30 @@ public class StoredPagesServiceTests extends ESTestCase {
         assertThat(service.waitingReads(), equalTo(1));
     }
 
+    /**
+     * Reads with and without a timeout share the slots: once both kinds fill them, both kinds are rejected.
+     */
     public void testTooManyWaitsAreRejected() throws Exception {
-        for (int i = 0; i < StoredPagesService.MAX_WAITING_READS; i++) {
-            read(SHARD, TIMEOUT);
+        read(SHARD, TIMEOUT);
+        read(SHARD, TimeValue.ZERO);
+        for (int i = 2; i < StoredPagesService.MAX_WAITING_READS; i++) {
+            read(SHARD, randomBoolean() ? TIMEOUT : TimeValue.ZERO);
         }
-        Answers rejected = read(SHARD, randomBoolean() ? TIMEOUT : TimeValue.ZERO);
-        assertThat(rejected.failure, instanceOf(EsRejectedExecutionException.class));
         assertThat(service.waitingReads(), equalTo(StoredPagesService.MAX_WAITING_READS));
+        for (TimeValue timeout : List.of(TIMEOUT, TimeValue.ZERO)) {
+            Answers rejected = read(SHARD, timeout);
+            assertThat(rejected.failure, instanceOf(EsRejectedExecutionException.class));
+        }
+        assertThat(service.waitingReads(), equalTo(StoredPagesService.MAX_WAITING_READS));
+
+        // a slot frees once its read answers
+        while (running.isEmpty() == false) {
+            completeRefreshes();
+            queue.runAllRunnableTasks();
+        }
+        queue.runAllTasksInTimeOrder();
+        assertThat(service.waitingReads(), equalTo(0));
+        assertThat(unreleased, equalTo(0));
     }
 
     private Answers startWaiting(ShardId shardId) throws Exception {

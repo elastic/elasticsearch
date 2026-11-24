@@ -13,12 +13,14 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -195,25 +197,77 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
         }
     }
 
-    public void testFailingListenerDoesNotFailTheMerge() throws Exception {
+    public void testListenerFailureFailsTheEngine() throws Exception {
         final var failure = new IllegalStateException("simulated");
         final boolean throwsFailure = randomBoolean();
-        final Set<String> notified = ConcurrentCollections.newConcurrentSet();
         try (var engine = newEngine((segment, isAborted, listener) -> {
-            notified.add(segment.getSegmentName());
             if (throwsFailure) {
                 throw failure;
             }
             listener.onFailure(failure);
         })) {
-            indexDocs(engine, between(4, 20));
-            forceMerge(engine);
-
-            final var segments = segmentNames(engine);
-            assertThat(segments, hasSize(1));
-            assertThat(notified, hasItem(segments.iterator().next()));
-            assertNull(((CapturingEngineEventListener) engine.config().getEventListener()).exception.get());
+            indexDocs(engine, 2);
+            final var eventListener = (CapturingEngineEventListener) engine.config().getEventListener();
+            assertBusy(() -> assertNotNull(eventListener.exception.get()));
+            assertSame(failure, ExceptionsHelper.unwrap(eventListener.exception.get(), IllegalStateException.class));
         }
+    }
+
+    private record WarmResult(Exception thrown, MergePolicy.OneMerge merge) {}
+
+    /**
+     * Warms a segment that is tracked as the one of a merge, on the calling thread, which plays the merge thread.
+     */
+    private WarmResult warm(MergedSegmentListener listener) throws IOException {
+        final var warmer = newWarmer(new ShardId("index", "_na_", 0), listener);
+        try (var directory = newDirectory()) {
+            try (var writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                writer.addDocument(new Document());
+            }
+            try (var reader = DirectoryReader.open(directory)) {
+                final var leaf = reader.leaves().getFirst().reader();
+                final var mergedSegment = Lucene.segmentReader(leaf).getSegmentInfo();
+                final var merge = new MergePolicy.OneMerge(List.of(mergedSegment));
+                warmer.onMergeStarted(mergedSegment, merge);
+                try {
+                    warmer.warm(leaf);
+                    return new WarmResult(null, merge);
+                } catch (Exception e) {
+                    return new WarmResult(e, merge);
+                } finally {
+                    warmer.onMergeFinished(mergedSegment, merge);
+                }
+            }
+        }
+    }
+
+    public void testMergeAbortedFailureOfTheListenerIsPropagated() throws Exception {
+        // a MergeAbortedException is a checked exception, so a listener can only report it by failing
+        final var failure = new MergePolicy.MergeAbortedException("simulated");
+        final var result = warm((segment, isAborted, listener) -> listener.onFailure(failure));
+
+        assertSame(failure, result.thrown());
+    }
+
+    public void testOtherListenerFailuresArePropagated() throws Exception {
+        final Exception failure = randomFrom(
+            List.<Exception>of(
+                new IllegalStateException("simulated"),
+                new IOException("simulated"),
+                new AlreadyClosedException("simulated"),
+                new EsRejectedExecutionException("simulated", true)
+            )
+        );
+        final boolean throwsFailure = failure instanceof RuntimeException && randomBoolean();
+        final var result = warm((segment, isAborted, listener) -> {
+            if (throwsFailure) {
+                throw (RuntimeException) failure;
+            }
+            listener.onFailure(failure);
+        });
+
+        assertSame(failure, result.thrown());
+        assertFalse(result.merge().isAborted());
     }
 
     public void testInterruptWhileWaitingAbortsTheMerge() throws Exception {

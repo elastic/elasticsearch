@@ -17,8 +17,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -35,16 +33,15 @@ import static org.elasticsearch.core.Strings.format;
 /// thread, and the slot of the merge in the merge thread pool, until the listener is completed. The listener is asynchronous to let an
 /// implementation that does not need the merge thread to wait stop doing so without changing its callers.
 ///
-/// What the listener does is best effort: if it fails, the failure is logged and the merge continues, as a failure of the warmer would fail
-/// the merge, and with it the engine. The segment is then committed like any other. If the merge thread is interrupted while waiting,
-/// the merge is aborted instead, since the listener may still be pending.
+/// A failure of the listener is passed on as is, so that the engine handles it, and a failure that is not a
+/// [MergePolicy.MergeAbortedException] fails the merge, and with it the engine, as the segment was not processed as expected. A
+/// [MergePolicy.MergeAbortedException] aborts the merge instead, and so does an interrupt of the merge thread while it waits, since the
+/// listener may still be pending. An aborted merge is discarded, and does not fail the engine.
 ///
 /// Aborting the merge, e.g. when the engine is closed, does not stop the wait: the merge thread keeps waiting until the listener is
 /// completed, and closing the engine waits for it. The listener is told whether the merge is aborted, to stop early if it can. A merge
 /// that is already aborted when its segment is warmed is not passed to the listener.
 public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
-
-    private static final Logger logger = LogManager.getLogger(MergedSegmentWarmer.class);
 
     private final ShardId shardId;
     private final MergedSegmentListener listener;
@@ -103,23 +100,26 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
             listener.onNewSegmentMerged(segment, merge::isAborted, future);
             // TODO: bound the wait with a timeout
             future.get();
-        } catch (ExecutionException e) {
-            logger.warn(
-                () -> format("%s failed to process the merged segment [%s], continuing with the merge", shardId, segmentName),
-                e.getCause()
-            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             // the listener may still be pending, so the segment must not be committed as if it was completed
             // and the listener must see that the merge is aborted
             merge.setAborted();
             final var aborted = new MergePolicy.MergeAbortedException(
-                format("%s interrupted while waiting for the listener of the merged segment [%s]", shardId, segment.getSegmentName())
+                format("%s interrupted while waiting for the listener of the merged segment [%s]", shardId, segmentName)
             );
             aborted.addSuppressed(e);
             throw aborted;
-        } catch (Exception e) {
-            logger.warn(() -> format("%s failed to process the merged segment [%s], continuing with the merge", shardId, segmentName), e);
+        } catch (ExecutionException e) {
+            final var failure = e.getCause();
+            // a MergeAbortedException, which is an IOException, aborts the merge, any other failure fails it
+            if (failure instanceof IOException ioException) {
+                throw ioException;
+            }
+            if (failure instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IOException(failure);
         }
     }
 }

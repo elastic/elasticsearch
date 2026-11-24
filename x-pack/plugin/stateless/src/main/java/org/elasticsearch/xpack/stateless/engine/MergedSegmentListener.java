@@ -19,10 +19,10 @@ import java.util.function.BooleanSupplier;
 /// happened. This is a notification, not a guarantee that the segment is published: the merge can still be aborted or fail after the
 /// listener is completed, and its segment is then discarded.
 ///
-/// What a listener does is best effort: a failure does not fail the merge, it is logged and the segment is published like any other. An
-/// implementation must therefore treat what it was to do for a segment as not done if it fails, and must not rely on the merge failing.
-/// It reports a failure by failing the listener, never by throwing: a throw is treated as a failure, so any work it started would then
-/// run after the segment is released.
+/// A failure of the listener fails the merge, and with it the engine, which handles it as it does any failure of a merge. The merge is
+/// aborted and its segment discarded instead if the failure is a [org.apache.lucene.index.MergePolicy.MergeAbortedException]. It reports
+/// a failure by failing the listener, never by throwing: a throw is treated as a failure, so any work it started would then run after
+/// the segment is released.
 ///
 /// The segment is valid until the listener is completed, including when the merge is aborted meanwhile: an abort does not stop the merge
 /// thread from waiting. A merge that is already aborted when its segment is warmed is discarded without notifying the listener.

@@ -30,6 +30,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class SegmentTests extends ESTestCase {
     static SortField randomSortField() {
         return switch (between(0, 2)) {
@@ -128,18 +130,35 @@ public class SegmentTests extends ESTestCase {
         assertEquals(new Sort(sortedNumeric), deserialized.segmentSort);
     }
 
-    /** A computed index sort key reads back as a long sort on its text. */
     public void testSerializationOfComputedKeySortField() throws IOException {
         Segment segment = randomSegment();
-        boolean reverse = randomBoolean();
-        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", reverse, randomBoolean());
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", randomBoolean(), randomBoolean());
         segment.segmentSort = new Sort(sortField);
 
         BytesStreamOutput output = new BytesStreamOutput();
         segment.writeTo(output);
         Segment deserialized = new Segment(output.bytes().streamInput());
 
+        assertEquals(new Sort(sortField), deserialized.segmentSort);
+    }
+
+    /** Nodes that don't know computed keys read one as a long sort on its text. */
+    public void testSerializationOfComputedKeySortFieldOldVersion() throws IOException {
+        Segment segment = randomSegment();
+        boolean reverse = randomBoolean();
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", reverse, randomBoolean());
+        segment.segmentSort = new Sort(sortField);
+
+        var oldVersion = TransportVersionUtils.randomVersionNotSupporting(Segment.SEGMENT_COMPUTED_SORT_KEY);
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(oldVersion);
+        segment.writeTo(output);
+        StreamInput input = output.bytes().streamInput();
+        input.setTransportVersion(oldVersion);
+        Segment deserialized = new Segment(input);
+
         SortField field = deserialized.segmentSort.getSort()[0];
+        assertThat(field, instanceOf(SortedNumericSortField.class));
         assertEquals("DATE_TRUNC(1 hour, @timestamp)", field.getField());
         assertEquals(reverse, field.getReverse());
         assertEquals(sortField.getMissingValue(), field.getMissingValue());

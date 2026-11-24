@@ -33,6 +33,7 @@ import java.util.Objects;
 public class Segment implements Writeable {
 
     static final TransportVersion SEGMENT_AUTO_CALIBRATION = TransportVersion.fromName("segment_auto_calibration");
+    static final TransportVersion SEGMENT_COMPUTED_SORT_KEY = TransportVersion.fromName("segment_computed_sort_key");
 
     private String name;
     private long generation;
@@ -211,6 +212,7 @@ public class Segment implements Writeable {
     private static final byte SORT_DOUBLE = 3;
     private static final byte SORT_LONG = 4;
     private static final byte SORT_STRING_SINGLE = 5;
+    private static final byte SORT_COMPUTED_KEY = 6;
 
     private static Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
@@ -241,6 +243,10 @@ public class Segment implements Writeable {
                     : missingFirst ? SortedSetSortField.STRING_FIRST
                     : SortedSetSortField.STRING_LAST;
                 fields[i] = new SortField(field, SortField.Type.STRING, reverse, missingValue);
+            } else if (type == SORT_COMPUTED_KEY) {
+                boolean reverse = in.readBoolean();
+                boolean nullsFirst = in.readBoolean();
+                fields[i] = new ComputedKeySortField(field, reverse, nullsFirst);
             } else {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
@@ -292,8 +298,14 @@ public class Segment implements Writeable {
                 o.writeByte(SORT_STRING_SINGLE);
                 o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
                 o.writeBoolean(field.getReverse());
-            } else if (field instanceof ComputedKeySortField) {
-                // Reported as a long sort on the key's text
+            } else if (field instanceof ComputedKeySortField computedKey) {
+                if (o.getTransportVersion().supports(SEGMENT_COMPUTED_SORT_KEY)) {
+                    o.writeByte(SORT_COMPUTED_KEY);
+                    o.writeBoolean(field.getReverse());
+                    o.writeBoolean(computedKey.nullsFirst());
+                    return;
+                }
+                // Older nodes read it as a long sort on the key's text
                 o.writeByte(SORT_LONG);
                 o.writeGenericValue(field.getMissingValue());
                 o.writeBoolean(false);

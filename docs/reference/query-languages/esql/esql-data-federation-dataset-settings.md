@@ -182,7 +182,7 @@ $$$error-mode$$$
     {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` Under `null_field`, a multi-valued cell loses only the values that fail to parse, and is null only when none of its values can be read.
 
     :::{dropdown} When `null_field` drops rows
-    `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields, or one with more fields than the file's header width.
+    `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields, or one with more fields than the file's header width, or than a narrower schema pinned for the file, which bounds a row from above.
 
     {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` A CSV row with *fewer* fields than the file's header width is dropped as well; earlier versions read its missing fields as `null` and reported nothing. Setting [`pad_short_rows`](#csv-pad-short-rows) keeps that reading, with a warning naming the row.
 

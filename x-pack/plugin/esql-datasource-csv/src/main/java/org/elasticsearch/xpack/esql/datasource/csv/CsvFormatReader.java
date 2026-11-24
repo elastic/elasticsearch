@@ -5789,7 +5789,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
-                    RowWidthFault widthFault = rowWidthError(row.length);
+                    RowWidthFault widthFault = checkRowWidth(row.length);
                     if (widthFault != null) {
                         onRowError(widthFault.message(), null, row, widthFault.fault());
                         continue;
@@ -5837,7 +5837,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
-                    RowWidthFault widthFault = rowWidthError(row.length);
+                    RowWidthFault widthFault = checkRowWidth(row.length);
                     if (widthFault != null) {
                         onRowError(widthFault.message(), null, row, widthFault.fault());
                         continue;
@@ -6776,7 +6776,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * while a walker has to abandon the row it was midway through converting.
          */
         @Nullable
-        private RowWidthFault rowWidthError(int actualFields) {
+        private RowWidthFault checkRowWidth(int actualFields) {
             pendingPadNotice = null;
             if (actualFields > rowWidthLimit) {
                 return new RowWidthFault(
@@ -6822,7 +6822,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return null;
         }
 
-        /** Emits the notice {@link #rowWidthError} staged, at the point the row it describes is kept. */
+        /** Emits the notice {@link #checkRowWidth} staged, at the point the row it describes is kept. */
         private void flushPadNotice() {
             if (pendingPadNotice != null) {
                 padWarnings.add(pendingPadNotice);
@@ -6861,7 +6861,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return {@code true} if the row was accepted, {@code false} if the error policy rejected it
          */
         private boolean finishDirectRow(int totalFields) {
-            RowWidthFault widthFault = rowWidthError(totalFields);
+            RowWidthFault widthFault = checkRowWidth(totalFields);
             if (widthFault != null) {
                 // The structural error wins: a row of the wrong width has no meaningful columns to report field
                 // errors about.
@@ -7549,7 +7549,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // excludes a tokenization that produced no fields at all; blank lines are skipped before tokenization.
             boolean presentTrailingEmpty = fieldIndex > 0;
             int totalFields = (trailingFieldHasContent || presentTrailingEmpty) ? fieldIndex + 1 : fieldIndex;
-            RowWidthFault widthFault = rowWidthError(totalFields);
+            RowWidthFault widthFault = checkRowWidth(totalFields);
             if (widthFault != null) {
                 // The structural error wins: a row of the wrong width has no meaningful columns to report field
                 // errors about.
@@ -8094,7 +8094,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectionDependentDrop = true;
             }
             errorCount++;
-            skipWarnings.add("row [" + totalRowCount + "]: " + message);
+            if (skipWarnings.acceptsDetail()) {
+                skipWarnings.add("row [" + totalRowCount + "]: " + message);
+            }
             if (logErrors) {
                 logger.warn(
                     "Skipping malformed CSV row [{}] (error {}/{}): {}",

@@ -107,6 +107,7 @@ id:integer | name:keyword | score:integer
 // padding is reported whatever the error mode, so nothing is padded silently.
 shortRowPaddedWhenOptedIn
 required_capability: dataset_in_from_command
+required_capability: external_dataset_messages
 required_capability: external_csv_short_row_is_a_row_error
 dataset: ragged_short_padded: "{{ragged_short_rows}}" WITH {"pad_short_rows": true}
 

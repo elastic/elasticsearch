@@ -82,7 +82,9 @@ public final class ExternalStats {
      * this node itself reads by. A licence from another revision is no licence here.
      */
     public static boolean rowCountCrossesReadConfigs(@Nullable Map<String, Object> stats) {
-        return stats != null && ROW_COUNT_LICENCE.equals(stats.get(ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        return stats != null
+            && stats.get(ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) instanceof Number revision
+            && revision.intValue() == ROW_COUNT_LICENCE;
     }
 
     /**

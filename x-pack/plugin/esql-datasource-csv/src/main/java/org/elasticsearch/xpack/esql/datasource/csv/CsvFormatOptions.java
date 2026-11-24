@@ -283,47 +283,6 @@ public record CsvFormatOptions(
         );
     }
 
-    /**
-     * Pre-{@code pad_short_rows} constructor: callers that don't say otherwise read a row narrower than the file's
-     * width as a row error rather than null-padding it.
-     */
-    public CsvFormatOptions(
-        char delimiter,
-        char quoteChar,
-        char escapeChar,
-        String commentPrefix,
-        @Nullable String nullValue,
-        Charset encoding,
-        DateFormatter datetimeFormatter,
-        int maxFieldSize,
-        MultiValueSyntax multiValueSyntax,
-        boolean headerRow,
-        String columnPrefix,
-        boolean quoting,
-        boolean escaping,
-        boolean trimSpaces,
-        int skipRows
-    ) {
-        this(
-            delimiter,
-            quoteChar,
-            escapeChar,
-            commentPrefix,
-            nullValue,
-            encoding,
-            datetimeFormatter,
-            maxFieldSize,
-            multiValueSyntax,
-            headerRow,
-            columnPrefix,
-            quoting,
-            escaping,
-            trimSpaces,
-            skipRows,
-            false // padShortRows (default; see the record javadoc)
-        );
-    }
-
     public CsvFormatOptions {
         if (delimiter > 127) {
             throw new IllegalArgumentException("delimiter must be an ASCII character, got: " + (int) delimiter);

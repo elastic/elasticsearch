@@ -174,7 +174,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         PromqlContext promqlContext
     ) {
         ReductionGrouping grouping = reductionGrouping(context, table, partitions);
-        var order = (Order) buildEsqlFunction(table.value(), promqlContext);
+        var order = (Order) buildEsqlFunction(table.value(), promqlContext, context.minimumVersion());
         // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
         Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
         return new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k, grouping.groupings());

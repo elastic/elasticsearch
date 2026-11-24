@@ -346,32 +346,62 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     /**
      * Prometheus doesn't distinguish sample types, so the functions that only check whether samples exist take a counter as is.
      */
-    public void testCountAndPresenceFunctionsTakeCountersAsIs() {
+    public void testPresenceFunctionsTakeCountersAsIs() {
+        for (String function : List.of("present_over_time", "absent_over_time")) {
+            assertTakesCounterAsIs(function);
+        }
+    }
+
+    public void testCountOverTimeTakesCounterAsIs() {
+        assumeTrue("an older node only counts a gauge", countOverTimeTakesCounter());
+        assertTakesCounterAsIs("count_over_time");
+    }
+
+    private void assertTakesCounterAsIs(String function) {
         // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
-        for (String function : List.of("present_over_time", "absent_over_time", "count_over_time")) {
-            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + function + "(network.total_bytes_in[5m]))", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + function + "(network.total_bytes_in[5m]))", false);
 
-            List<ToGauge> toGauges = new ArrayList<>();
-            plan.forEachExpressionDown(ToGauge.class, toGauges::add);
-            assertThat(function, toGauges, empty());
+        List<ToGauge> toGauges = new ArrayList<>();
+        plan.forEachExpressionDown(ToGauge.class, toGauges::add);
+        assertThat(function, toGauges, empty());
 
-            List<AggregateFunction> aggregates = new ArrayList<>();
-            plan.forEachExpressionDown(AggregateFunction.class, agg -> {
-                if (agg instanceof Count
-                    || agg instanceof Present
-                    || agg instanceof Absent
-                    || agg instanceof CountOverTime
-                    || agg instanceof PresentOverTime
-                    || agg instanceof AbsentOverTime) {
-                    aggregates.add(agg);
-                }
-            });
-            assertThat(function + ": " + plan, aggregates, not(empty()));
-            for (AggregateFunction aggregate : aggregates) {
-                FieldAttribute field = as(aggregate.fields().getFirst(), FieldAttribute.class);
-                assertThat(function, field.name(), equalTo("network.total_bytes_in"));
-                assertTrue(function, isCounter(field.dataType()));
+        List<AggregateFunction> aggregates = new ArrayList<>();
+        plan.forEachExpressionDown(AggregateFunction.class, agg -> {
+            if (agg instanceof Count
+                || agg instanceof Present
+                || agg instanceof Absent
+                || agg instanceof CountOverTime
+                || agg instanceof PresentOverTime
+                || agg instanceof AbsentOverTime) {
+                aggregates.add(agg);
             }
+        });
+        assertThat(function + ": " + plan, aggregates, not(empty()));
+        for (AggregateFunction aggregate : aggregates) {
+            FieldAttribute field = as(aggregate.fields().getFirst(), FieldAttribute.class);
+            assertThat(function, field.name(), equalTo("network.total_bytes_in"));
+            assertTrue(function, isCounter(field.dataType()));
+        }
+    }
+
+    /** A node that rejects a counter in {@code COUNT} still counts its samples: it gets them as a gauge. */
+    public void testCountOverTimeOfCounterIsGaugeForOlderNodes() {
+        assumeFalse("every node counts a counter", countOverTimeTakesCounter());
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(count_over_time(network.total_bytes_in[5m]))", false);
+
+        List<AggregateFunction> counts = new ArrayList<>();
+        plan.forEachExpressionDown(AggregateFunction.class, agg -> {
+            if (agg instanceof Count || agg instanceof CountOverTime) {
+                counts.add(agg);
+            }
+        });
+        assertThat(plan.toString(), counts, not(empty()));
+        for (AggregateFunction count : counts) {
+            ToGauge toGauge = as(count.fields().getFirst(), ToGauge.class);
+            FieldAttribute field = as(toGauge.field(), FieldAttribute.class);
+            assertThat(field.name(), equalTo("network.total_bytes_in"));
+            assertTrue(isCounter(field.dataType()));
         }
     }
 

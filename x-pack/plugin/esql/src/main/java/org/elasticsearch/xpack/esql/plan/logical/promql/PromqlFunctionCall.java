@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -117,8 +118,9 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      *
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
      * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)
+     * @param minimumVersion the version of the oldest node that runs the query
      */
-    public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
+    public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx, TransportVersion minimumVersion) {
         try {
             // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
             // internally, so plain numerics are wrapped with to_counter() for counter-required
@@ -127,7 +129,8 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
                 var counterSupport = definition.counterSupport();
                 if (counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED && DataType.isCounter(target.dataType()) == false) {
                     target = new ToCounter(source(), target);
-                } else if (counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED && DataType.isCounter(target.dataType())) {
+                } else if (DataType.isCounter(target.dataType()) && definition.takesCounter(minimumVersion) == false) {
+                    // gauge-only can also mean that an older node of the query rejects a counter
                     target = new ToGauge(source(), target);
                 }
             }
@@ -169,6 +172,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
             window = context.cmd().resolveRangeWindow(rangeSelector.range());
         }
         var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration(), context.cmd().timestamp());
-        return context.eval(child, TranslationContext.emptyRangeAsNull(buildEsqlFunction(child.value(), promqlCtx), context.time()));
+        Expression function = buildEsqlFunction(child.value(), promqlCtx, context.minimumVersion());
+        return context.eval(child, TranslationContext.emptyRangeAsNull(function, context.time()));
     }
 }

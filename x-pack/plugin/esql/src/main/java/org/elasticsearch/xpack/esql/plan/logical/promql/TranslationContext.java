@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -126,6 +127,10 @@ public record TranslationContext(
 
     public Configuration configuration() {
         return analyzer.configuration();
+    }
+
+    public TransportVersion minimumVersion() {
+        return analyzer.minimumVersion();
     }
 
     public Attribute stepAttr() {

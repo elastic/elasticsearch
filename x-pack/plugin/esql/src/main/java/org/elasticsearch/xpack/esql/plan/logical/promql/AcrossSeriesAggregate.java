@@ -200,7 +200,7 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
         };
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
-        Expression function = buildEsqlFunction(ir.value(), promqlCtx);
+        Expression function = buildEsqlFunction(ir.value(), promqlCtx, context.minimumVersion());
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
         IntermediateResult result = ir.kind().afterInitialAggregation
             ? context.regroup(ir, schema, grouping() == WITHOUT, function)

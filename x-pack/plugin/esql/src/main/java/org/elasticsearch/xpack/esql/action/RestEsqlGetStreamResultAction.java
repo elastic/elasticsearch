@@ -4,30 +4,31 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xpack.esql.streaming.GetStreamResultRequest;
+import org.elasticsearch.xpack.esql.streaming.GetStreamResultResponse;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
- * {@code GET /_query/stream/{id}}: reads the stored result of a stream, from {@code offset}, limited by {@code max_rows} and
+ * {@code GET /_query/stream/{id}}: reads the stored result of a stream as NDJSON, from {@code offset}, limited by {@code max_rows} and
  * {@code max_bytes} when they are set. It is the counterpart of {@code RestEsqlGetAsyncResultAction}, and {@code wait_timeout} plays the
- * role of {@code wait_for_completion_timeout}. For now nothing is stored, so every id is not found.
+ * role of {@code wait_for_completion_timeout}.
  * <p>
  * {@code max_rows=0} and {@code max_bytes=0} are both accepted and return the status only. This differs from {@code POST /_query/stream},
  * which rejects {@code max_bytes=0} because its response always writes the first row.
@@ -54,15 +55,24 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             EsqlStreamGetResultAction.INSTANCE,
             get,
-            new RestActionListener<ActionResponse.Empty>(channel) {
-                @Override
-                protected void processResponse(ActionResponse.Empty response) {
-                    // Unreachable until streams are stored: every id is not found, so the action fails. The real implementation replaces
-                    // this with the body that streams the rows.
-                    channel.sendResponse(new RestResponse(RestStatus.OK, RestEsqlStreamQueryAction.NDJSON_MEDIA_TYPE, BytesArray.EMPTY));
-                }
-            }
+            responseListener(channel)
         );
+    }
+
+    /**
+     * The listener that writes the response to {@code channel}. It always closes the response after handing it over: once the body
+     * has taken the pages that is a no-op, but if the client disconnected first the response is never processed, and closing it here
+     * is what releases its pages.
+     */
+    public static ActionListener<GetStreamResultResponse> responseListener(RestChannel channel) {
+        ActionListener<GetStreamResultResponse> listener = new EsqlStreamResultListener(channel);
+        return listener.delegateFailure((l, response) -> {
+            try {
+                l.onResponse(response);
+            } finally {
+                response.close();
+            }
+        });
     }
 
     /**
@@ -103,4 +113,36 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
         }
     }
 
+    /**
+     * Sends the NDJSON body, or the error when the read itself failed, for example for an unknown id. A failed query is not a failed
+     * read: its failure is in the NDJSON body, and the body chooses the HTTP status.
+     */
+    private static final class EsqlStreamResultListener extends RestActionListener<GetStreamResultResponse> {
+        private final RestChannel restChannel;
+
+        EsqlStreamResultListener(RestChannel channel) {
+            super(channel);
+            this.restChannel = channel;
+        }
+
+        @Override
+        protected void processResponse(GetStreamResultResponse response) throws Exception {
+            StreamNdjsonBody body;
+            try {
+                body = new StreamNdjsonBody(restChannel, response);
+            } catch (Exception e) {
+                response.close();
+                throw e;
+            }
+            boolean sent = false;
+            try {
+                restChannel.sendResponse(RestResponse.chunked(body.httpStatus(), body.firstPart(), body));
+                sent = true;
+            } finally {
+                if (sent == false) {
+                    body.close();
+                }
+            }
+        }
+    }
 }

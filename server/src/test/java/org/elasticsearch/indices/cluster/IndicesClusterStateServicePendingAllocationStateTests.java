@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -95,7 +96,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/// Unit tests for the unified pending-allocation-state bookkeeping ([IndicesClusterStateService.ShardAllocationKey],
+/// Unit tests for the unified pending-allocation-state bookkeeping ([ShardAllocationId],
 /// [IndicesClusterStateService.PendingAllocationState]) and the ticket lifecycle built on top of it: claiming
 /// ownership of a shard-creation attempt, holding it through the whole recovery (not just construction), the
 /// cluster-state sweep that evicts stale tickets, the shard-lock-retry continuation re-resolving routing and
@@ -907,7 +908,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        // create failure path notifies master via failAndRemoveShard(sendShardFailure=true)
+        // create failure path notifies master via failAndRemoveShard
         verify(shardStateAction).localShardFailed(any(), anyString(), any(), any(), any());
         assertTrue(isFailureReported(shardRouting));
     }
@@ -1064,6 +1065,20 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertTrue(isFailureReported(shardRouting));
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testFailedShardHandlerNotifiesMasterWhenCauseIsNullAndShardRemovalThrows() {
+        final var shardRouting = applyInitializingPrimary();
+        final var onShardFailure = indicesService.lastOnShardFailure;
+        assertNotNull(onShardFailure);
+
+        // Looking up the index service is the first thing the removal does, so this makes it throw.
+        indicesService.failNextIndexServiceLookup = new IllegalStateException("simulated removal failure");
+        onShardFailure.accept(new IndexShard.ShardFailure(shardRouting, primaryTerm(shardRouting), "simulated engine failure", null));
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
     }
 
@@ -1366,8 +1381,8 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         return shardRouting;
     }
 
-    private static IndicesClusterStateService.ShardAllocationKey allocationKey(ShardRouting routing) {
-        return IndicesClusterStateService.ShardAllocationKey.fromRouting(routing);
+    private static ShardAllocationId allocationKey(ShardRouting routing) {
+        return ShardAllocationId.fromRouting(routing);
     }
 
     private IndicesClusterStateService.PendingAllocationState.InFlight currentInFlight(ShardRouting routing) {

@@ -1,0 +1,238 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, headers]
+      capabilities:
+        - method: PUT
+          path: /_ml/datafeeds/{datafeed_id}
+          capabilities: [ ml_datafeed_esql_query ]
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_command ]
+      reason: "ES|QL datafeeds validate their query with DESCRIBE"
+
+  - do:
+      indices.create:
+        index: esql-feed-data
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              event_time:
+                type: date
+              host:
+                type: keyword
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: esql-feed-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "@timestamp"
+            }
+          }
+
+---
+"Test put ES|QL datafeed with a mapped time column":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-mapped
+        body: >
+          {
+            "job_id": "esql-feed-job",
+            "esql_query": "FROM esql-feed-data | KEEP @timestamp, host",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-feed-mapped" }
+
+---
+"Test put ES|QL datafeed with a time column bucketed from the source time field":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-bucket
+        body: >
+          {
+            "job_id": "esql-feed-job",
+            "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-feed-bucket" }
+
+---
+"Test put ES|QL datafeed with a time column named differently from its source field":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-hour-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "hour"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-hour
+        body: >
+          {
+            "job_id": "esql-feed-hour-job",
+            "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY hour = BUCKET(@timestamp, 1 hour)",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-feed-hour" }
+
+---
+"Test put ES|QL datafeed with a bucket of a date field other than @timestamp":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-event-time-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "event_time"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-event-time
+        body: >
+          {
+            "job_id": "esql-feed-event-time-job",
+            "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY event_time = BUCKET(event_time, 1 hour)",
+            "source_time_field": "event_time",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+  - match: { datafeed_id: "esql-feed-event-time" }
+
+---
+"Test put ES|QL datafeed with a time column that is not a date":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-host-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "host"
+            }
+          }
+  - do:
+      catch: /time column \[host\] has type \[keyword\]\. It must be date or date_nanos/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-host
+        body: >
+          {
+            "job_id": "esql-feed-host-job",
+            "esql_query": "FROM esql-feed-data | KEEP host, @timestamp",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": false}
+          }
+
+---
+"Test put ES|QL datafeed that needs a time column and a summary count column":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-summary-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "summary_count_field_name": "doc_count",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "@timestamp"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-summary
+        body: >
+          {
+            "job_id": "esql-feed-summary-job",
+            "esql_query": "FROM esql-feed-data | STATS doc_count = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": true}
+          }
+  - match: { datafeed_id: "esql-feed-summary" }
+
+---
+"Test put ES|QL datafeed without the summary count column the delayed data check needs":
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_job:
+        job_id: esql-feed-summary-missing-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "summary_count_field_name": "doc_count",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "@timestamp"
+            }
+          }
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      ml.put_datafeed:
+        datafeed_id: esql-feed-summary-missing
+        body: >
+          {
+            "job_id": "esql-feed-summary-missing-job",
+            "esql_query": "FROM esql-feed-data | STATS c = COUNT(*) BY @timestamp = BUCKET(@timestamp, 1 hour)",
+            "source_time_field": "@timestamp",
+            "grouping_interval": "1h",
+            "delayed_data_check_config": {"enabled": true}
+          }
+  - match: { error.reason: "/doc_count/" }

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -81,6 +82,11 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
     private static final long INITIAL_DOCS = 500;
 
     private static final long DOCS_AFTER_HEAL = 50;
+
+    @BeforeClass
+    public static void checkFeatureFlagEnabled() {
+        assumeTrue("ES|QL datafeeds feature flag must be enabled", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -297,7 +303,6 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
      * (but does not start) an ES|QL datafeed for the job.
      */
     private ChurnScenario setUpChurnScenario() throws Exception {
-        assumeTrue("ES|QL datafeeds feature flag must be enabled", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
         internalCluster().ensureAtMostNumDataNodes(0);
         internalCluster().startMasterOnlyNode();
         String nodeA = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
@@ -343,12 +348,12 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(1));
         builder.setAnalysisConfig(analysisConfig);
-        builder.setDataDescription(new DataDescription.Builder().setTimeField("time").setTimeFormat(DataDescription.EPOCH_MS));
+        builder.setDataDescription(new DataDescription.Builder().setTimeField("@timestamp").setTimeFormat(DataDescription.EPOCH_MS));
         return builder;
     }
 
     private static DatafeedConfig buildEsqlDatafeed(String datafeedId, String jobId, String indexName, TimeValue groupingInterval) {
-        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP time")
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP @timestamp")
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(groupingInterval)
             .setFrequency(groupingInterval)

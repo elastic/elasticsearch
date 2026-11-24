@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * A cluster of nodes of the release before the label container functions and newer ones keeps running every {@code PROMQL}
- * query that release ran: the queries of its csv-spec files, frozen in {@code promql-9.6-queries.tsv}. A newer coordinator
+ * query that release ran: the queries of its csv-spec files, frozen in {@code promql-9.6-queries.txt}. A newer coordinator
  * translates them the same way at any version and runs the label container functions of the plan itself, so only what reaches
  * the older nodes matters: the data node fragments must not call a label container function, which the older nodes do not
  * know.
@@ -96,7 +96,7 @@ public class PromqlMixedClusterPlanTests extends AbstractPromqlPlanOptimizerTest
         List<String> failures = new ArrayList<>();
         int planned = 0;
         for (String line : queries()) {
-            String[] test = line.split("\t", 2);
+            String[] test = line.split(" ", 2);
             String query = test[1].replace("$now-1h", "\"2024-05-10T00:00:00Z\"").replace("$now", "\"2024-05-10T01:00:00Z\"");
             if (query.matches(".*index=\\S*[,*].*")) {
                 // an index pattern, which the mixed cluster csv-spec suite runs
@@ -146,7 +146,7 @@ public class PromqlMixedClusterPlanTests extends AbstractPromqlPlanOptimizerTest
 
     private static List<String> queries() throws IOException {
         try (
-            InputStream in = PromqlMixedClusterPlanTests.class.getResourceAsStream("promql-9.6-queries.tsv");
+            InputStream in = PromqlMixedClusterPlanTests.class.getResourceAsStream("promql-9.6-queries.txt");
             var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
         ) {
             return reader.lines().filter(line -> line.isBlank() == false && line.startsWith("#") == false).toList();

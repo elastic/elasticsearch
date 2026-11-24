@@ -1159,6 +1159,7 @@ public class IndexResolver {
             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
             false,
             // A flattened key can hold many values, so there is no single-value guarantee.
+            false,
             false
         );
     }

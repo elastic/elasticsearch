@@ -628,7 +628,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
-            fieldName -> mappingLookup.getMapper(fieldName) == null,
+            fieldName -> mappingLookup.getMapper(fieldName) == null && mappingLookup.nestedLookup().hasNestedParent(fieldName) == false,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
                 new FieldDataContext(

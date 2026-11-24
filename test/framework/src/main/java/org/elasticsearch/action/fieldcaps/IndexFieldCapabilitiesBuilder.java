@@ -33,6 +33,7 @@ public class IndexFieldCapabilitiesBuilder {
     private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
     private boolean indexLocalAnalyzer;
     private boolean isStaticallySingleValued;
+    private boolean isRuntimeField;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -107,6 +108,12 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    /** Whether the field is defined in the {@code runtime} section of the mapping; {@code false} is the default. */
+    public IndexFieldCapabilitiesBuilder isRuntimeField(boolean isRuntimeField) {
+        this.isRuntimeField = isRuntimeField;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -122,7 +129,8 @@ public class IndexFieldCapabilitiesBuilder {
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
             indexLocalAnalyzer,
-            isStaticallySingleValued
+            isStaticallySingleValued,
+            isRuntimeField
         );
     }
 }

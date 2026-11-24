@@ -1585,6 +1585,39 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    /** The sink is one of the driver's operators too: a failed blocked future on it fails the driver. */
+    public void testDriverFailsWhenSinkBlockedFutureAlreadyFailed() {
+        DriverContext driverContext = driverContext();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
+            @Override
+            public Page getOutput() {
+                return null;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return false;
+            }
+        };
+        Operator sink = new TestResultPageSinkOperator(page -> fail("sink should not receive output")) {
+            @Override
+            public IsBlockedResult isBlocked() {
+                return new IsBlockedResult(SubscribableListener.newFailed(new IllegalStateException("sink failed")), "sink blocked");
+            }
+        };
+        Driver driver = TestDriverFactory.create(driverContext, source, List.of(), (SinkOperator) sink);
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("sink failed"));
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
     /** Closing a driver that never ran only releases its operators: it does not read their status, as a failing driver does. */
     public void testClosingDriverThatNeverRanDoesNotReadOperatorStatus() {
         DriverContext driverContext = driverContext();

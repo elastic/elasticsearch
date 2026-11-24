@@ -101,6 +101,7 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 | 9 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `http_requests_total{path=~".*a~b.*"}`, `up{v=~".*<1-5>.*"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators, in a regex that is not rewritten to an exact, prefix or suffix match | RE2 syntax, where they are literals | - |
 | 10 | Unicode classes in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"\\pL+"}` | The classes of Unicode 6.0 | The classes of Unicode 15.0, which hold characters added since | - |
 | 11 | A backslash before a non-ASCII character in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"\\é"}` | Matches `é` | Rejected | - |
+| 12 | A regex matcher on a label mapped as a `keyword` with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md) {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"[A-Z]+"}`, where `l` has a `lowercase` normalizer | A regex that is not rewritten to an exact, prefix or suffix match is matched as written against the normalized values: `[A-Z]+` matches none of them. While the cluster has nodes on an earlier version, such a regex is normalized first | The values as ingested. {{prom}} has no normalizers | - |
 :::
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]
@@ -116,7 +117,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 12 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
+| 13 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
 :::
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]
@@ -132,7 +133,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 13 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
+| 14 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
 :::
 
 #### @ modifier [prometheus-compatibility-at-modifier]
@@ -144,7 +145,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 14 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
+| 15 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Subquery [prometheus-compatibility-subquery]
@@ -156,7 +157,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 15 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
+| 16 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Gotchas [prometheus-compatibility-gotchas]
@@ -174,7 +175,7 @@ A selector without a range, such as `http_requests_total`, returns the latest sa
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 16 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
-| 17 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
-| 18 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
+| 17 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
+| 18 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
+| 19 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
 :::

@@ -142,6 +142,10 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         }
     }
 
+    /**
+     * Unlike a {@code regexp} query, the pattern isn't run through the field's normalizer, which reads it as text rather
+     * than as a regex, so a normalized keyword is matched as written, as the compatibility docs say.
+     */
     private org.apache.lucene.search.Query automatonQuery(
         Automaton automaton,
         MappedFieldType fieldType,

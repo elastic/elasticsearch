@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -29,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -42,6 +48,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -51,8 +58,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -1593,6 +1602,166 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         }
     }
 
+    /**
+     * A read that harvests nothing must not probe the object's mtime. The probe exists only to key statistics,
+     * and on a store that carries no last-modified hint it costs a round trip per file — so it is bought for a
+     * result that will never be recorded. Counting the probe is the only assertion that discriminates this:
+     * the capture sink is empty under NONE either way, because publishing is separately scope-gated.
+     */
+    public void testNoneDoesNotProbeTheObjectMtime() throws Exception {
+        byte[] full = asciiCsv(1, 10);
+
+        AtomicInteger noneProbes = new AtomicInteger();
+        readChunkAligned(countingObject(full, noneProbes), StripeColumnScope.NONE);
+        assertEquals("a read that harvests nothing must not probe lastModified()", 0, noneProbes.get());
+
+        // Control: the same read that DOES harvest must probe.
+        AtomicInteger projectedProbes = new AtomicInteger();
+        readChunkAligned(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED);
+        assertThat("a harvesting read pins the mtime, so it must probe", projectedProbes.get(), greaterThan(0));
+    }
+
+    /**
+     * The give-up line names the object, and an {@code https} dataset's resource is the user's own URL: a
+     * pre-signed one carries its signature in the query string, so the location the log names IS the credential.
+     * {@code ExternalFailuresTests} pins the redaction itself; this pins that both of this reader's call sites
+     * apply it, which no test of {@code redactHttpUrl} can. A store's own exception can quote the signed URL
+     * back, so each expectation also requires that no throwable rode along -- which is why the double throws
+     * with its own path in the message, as a storage SDK does.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader:DEBUG",
+        reason = "the give-up is a debug line, and this asserts neither its location nor a throwable carries the signature"
+    )
+    public void testAFailedMtimeProbeDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        byte[] full = twoColumnCsv(10);
+        try (MockLog mockLog = MockLog.capture(CsvFormatReader.class)) {
+            mockLog.addExpectation(giveUpWithoutAThrowable("the schema-resolution site", "resolve.csv"));
+            mockLog.addExpectation(giveUpWithoutAThrowable("the scan site", "scan.csv"));
+            // Paired with those two, so neither of them can pass by the line never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any line",
+                    CsvFormatReader.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*" + signature + "*"
+                )
+            );
+            new CsvFormatReader(blockFactory, "csv", List.of(".csv")).metadata(
+                failingMtimeObject(full, SIGNED_BASE + "resolve.csv?" + signature)
+            );
+            readChunkAligned(failingMtimeObject(full, SIGNED_BASE + "scan.csv?" + signature), StripeColumnScope.PROJECTED);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    private static final String SIGNED_BASE = "https://bucket.s3.example.com/data/";
+
+    /** Matches the give-up line for one object, and only on an event that carries no throwable. */
+    private static MockLog.LoggingExpectation giveUpWithoutAThrowable(String site, String objectName) {
+        return new MockLog.SeenEventExpectation(
+            site + ", naming the location without its query string",
+            CsvFormatReader.class.getCanonicalName(),
+            Level.DEBUG,
+            "*no last-modified for [" + SIGNED_BASE + objectName + "];*"
+        ) {
+            @Override
+            public boolean innerMatch(LogEvent event) {
+                return event.getThrown() == null; // the store's own message is not ours to redact
+            }
+        };
+    }
+
+    /** Serves the bytes but fails the mtime probe, as a store that carries no last-modified header does. */
+    private StorageObject failingMtimeObject(byte[] bytes, String path) {
+        return memoryObject(bytes, path, () -> { throw new IOException("this store serves no last-modified: " + path); });
+    }
+
+    /**
+     * COUNT is documented as the row count alone, and on the direct-block path — the CSV default — nothing but
+     * the scope kept per-column statistics out of its publish: the accumulator was built from the projected
+     * attributes whenever the file was cacheable, and a whole-file publish is the one consumer that reads it.
+     * <p>
+     * The header is TYPED so the read actually takes that path: an untyped header leaves the schema unresolved,
+     * inference samples more rows than this fixture holds, and the direct batch is then reached only at EOF with
+     * nothing in it.
+     * <p>
+     * Each arm pairs the per-column assertion with the row count, because "no column stats" is also what a read
+     * that published nothing at all looks like.
+     */
+    public void testCountScopePublishesNoColumnStatsOnTheDirectPath() throws Exception {
+        int rows = 10;
+        byte[] full = concat("n:integer\n".getBytes(StandardCharsets.UTF_8), asciiCsv(0, rows));
+
+        List<Map<String, Object>> countFrags = readWholeFile(memoryObject(full), StripeColumnScope.COUNT, List.of("n"));
+        assertEquals("COUNT must still publish the row count", rows, foldedRowCount(countFrags));
+        assertFalse("COUNT must publish no per-column stats, on the direct path as anywhere else", hasAnyColumnStat(countFrags, "n"));
+
+        // Control: PROJECTED over the same read publishes them, so the assertion above is about the scope and
+        // not about a read that published nothing at all.
+        List<Map<String, Object>> projFrags = readWholeFile(memoryObject(full), StripeColumnScope.PROJECTED, List.of("n"));
+        assertEquals("PROJECTED must publish the row count too", rows, foldedRowCount(projFrags));
+        assertTrue("PROJECTED must publish per-column stats for n", hasAnyColumnStat(projFrags, "n"));
+    }
+
+    /** A whole-file (non-chunk) read: firstSplit and lastSplit with no record alignment, so the iterator publishes a full summary. */
+    private List<Map<String, Object>> readWholeFile(StorageObject o, StripeColumnScope scope, List<String> projectedColumns)
+        throws Exception {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(1000)
+            .recordAligned(false)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0L)
+            .stats(0L, -1L, true)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, projectedColumns != null)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** A record-aligned chunk read with a positive grid, so the scope is the only thing that can stop the harvest. */
+    private List<Map<String, Object>> readChunkAligned(StorageObject o, StripeColumnScope scope) throws Exception {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0L)
+            .stats(0L, 64L, true)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** Delegates to the in-memory object, counting every mtime probe. */
+    private StorageObject countingObject(byte[] bytes, AtomicInteger probes) {
+        return new CountingMtimeStorageObject(memoryObject(bytes), probes);
+    }
+
     private static byte[] slice(byte[] src, int from, int to) {
         byte[] out = new byte[to - from];
         System.arraycopy(src, from, out, 0, to - from);
@@ -1604,7 +1773,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     private StorageObject memoryObject(byte[] bytes, Instant fixedMtime) {
-        String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
+        return memoryObject(bytes, "memory://" + UUID.randomUUID() + ".csv", () -> fixedMtime);
+    }
+
+    /** The mtime arrives through a supplier, so a case can make the probe fail as a store serving none does. */
+    private StorageObject memoryObject(byte[] bytes, String path, CheckedSupplier<Instant, IOException> mtime) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -1630,8 +1803,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             }
 
             @Override
-            public Instant lastModified() {
-                return fixedMtime;
+            public Instant lastModified() throws IOException {
+                return mtime.get();
             }
 
             @Override
@@ -1641,7 +1814,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of(uniquePath);
+                return StoragePath.of(path);
             }
         };
     }

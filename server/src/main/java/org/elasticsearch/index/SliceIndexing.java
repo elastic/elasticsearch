@@ -232,6 +232,8 @@ public final class SliceIndexing {
      * no index, so it cannot carry the slice as a {@code /{index}/{_slice}/_search} path segment; instead the slice is provided as
      * the {@code _slice} field of the {@code pit} object. The value may be a single slice or a
      * comma-separated list. Requires the slice feature flag to be enabled.
+     * <p>
+     * Also used for the {@code _slice} in an {@code _msearch} metadata line, which is likewise a body-supplied value.
      */
     public static ParsedRouting parsePitSearchSlice(String slice) {
         if (SLICE_FEATURE_FLAG.isEnabled() == false) {

@@ -38,11 +38,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
-import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
@@ -126,28 +126,55 @@ final class ParquetPushedExpressions {
 
     /**
      * Compiled form of a {@link WildcardLike}: the runnable matcher, a flag indicating that the
-     * source automaton accepts every input, and an optional shape decomposition extracted from
-     * case-sensitive patterns of the affix-contains family (see {@link WildcardLikeShape}). The
-     * {@link #matchesAll} flag is computed against the case-aware automaton (the same one passed
-     * to {@link ByteRunAutomaton}), so the fast path in {@link #evaluateWildcardLike} is
-     * consistent with the runtime case-sensitivity setting — it does not silently fall through
-     * to the per-row loop just because the pattern's internal case-insensitive cache disagrees
-     * with the requested flag.
+     * source automaton accepts every input, and optional UTF-8 affix slices mapped once from
+     * {@link WildcardPattern#shape()}. The {@link #matchesAll} flag is computed against the
+     * case-aware automaton (the same one passed to {@link ByteRunAutomaton}), so the fast path
+     * in {@link #evaluateWildcardLike} is consistent with the runtime case-sensitivity setting
+     * — it does not silently fall through to the per-row loop just because the pattern's
+     * internal case-insensitive cache disagrees with the requested flag.
      *
      * <p>{@code matcher} is {@code null} when the pattern failed to determinize; the caller treats
      * that as "fall back to FilterExec" (return {@code null} from evaluateWildcardLike).
      *
-     * <p>{@code shape} is non-null only for case-sensitive patterns of the form
-     * {@code prefix*literal*suffix} (and all degenerate forms — {@code prefix*}, {@code *suffix},
-     * {@code *literal*}, {@code prefix*suffix}, {@code prefix*literal*}, {@code *literal*suffix}).
-     * When present, {@link #evaluateWildcardLike} dispatches to
+     * <p>{@code shape} is non-null only for case-sensitive patterns that {@code shape()} classifies
+     * as prefix/suffix/contains/affix. When present, {@link #evaluateWildcardLike} dispatches to
      * {@link ByteMatchers#affixContains} instead of the per-byte automaton: short JDK-intrinsified
      * affix equality checks reject the bulk of non-matching values cheaply, and the SIMD-backed
      * substring scan handles the literal middle. Byte-substring against UTF-8 is codepoint-correct
      * because UTF-8 is self-synchronizing on valid inputs (the KEYWORD contract).
      */
-    private record CompiledWildcard(ByteRunAutomaton matcher, boolean matchesAll, @Nullable WildcardLikeShape shape) {
+    private record CompiledWildcard(ByteRunAutomaton matcher, boolean matchesAll, @Nullable AffixBytes shape) {
         static final CompiledWildcard FAILED = new CompiledWildcard(null, false, null);
+    }
+
+    /**
+     * UTF-8 slices for {@link ByteMatchers#affixContains}. Empty pattern segments are
+     * {@code null} so the matcher skips them. Built once per compiled pattern.
+     */
+    private record AffixBytes(@Nullable BytesRef prefix, @Nullable BytesRef literal, @Nullable BytesRef suffix) {}
+
+    /**
+     * Map {@link WildcardPattern#shape()} onto UTF-8 affix slices. {@link WildcardPattern.Shape.General}
+     * has no fast path. The case-insensitive gate stays in the caller.
+     */
+    @Nullable
+    private static AffixBytes affixBytes(WildcardPattern.Shape shape) {
+        return switch (shape) {
+            case WildcardPattern.Shape.Prefix(String lit) -> new AffixBytes(emptyToNull(lit), null, null);
+            case WildcardPattern.Shape.Suffix(String lit) -> new AffixBytes(null, null, emptyToNull(lit));
+            case WildcardPattern.Shape.Contains(String lit) -> new AffixBytes(null, emptyToNull(lit), null);
+            case WildcardPattern.Shape.Affix(String prefix, String middle, String suffix) -> new AffixBytes(
+                emptyToNull(prefix),
+                emptyToNull(middle),
+                emptyToNull(suffix)
+            );
+            case WildcardPattern.Shape.General ignored -> null;
+        };
+    }
+
+    @Nullable
+    private static BytesRef emptyToNull(String s) {
+        return s.isEmpty() ? null : new BytesRef(s);
     }
 
     /**
@@ -2744,7 +2771,7 @@ final class ParquetPushedExpressions {
     }
 
     private static Predicate<BytesRef> matcherFor(CompiledWildcard compiled) {
-        WildcardLikeShape shape = compiled.shape();
+        AffixBytes shape = compiled.shape();
         if (shape != null) {
             BytesRef prefix = shape.prefix();
             BytesRef literal = shape.literal();
@@ -2924,7 +2951,7 @@ final class ParquetPushedExpressions {
                 // Affix-contains shape detection is opt-in for case-sensitive patterns. Skip the
                 // matchesAll case (already handled by an upstream shortcut) so the shape only
                 // exists on the SIMD-eligible path; this keeps the dispatcher contract trivial.
-                WildcardLikeShape shape = (wl.caseInsensitive() || matchesAll) ? null : WildcardLikeShape.of(wl.pattern().pattern());
+                AffixBytes shape = (wl.caseInsensitive() || matchesAll) ? null : affixBytes(wl.pattern().shape());
                 compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll, shape);
             } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
                 logger.debug(

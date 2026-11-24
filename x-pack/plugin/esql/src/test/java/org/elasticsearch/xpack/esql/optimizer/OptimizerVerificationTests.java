@@ -438,6 +438,34 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         }
     }
 
+    /**
+     * A filter is pushed below an ENRICH that runs on the coordinator, to the shards, unless it needs the fields that
+     * the ENRICH adds. That goes for a WHERE and for the filter shared by all the aggregate functions of a STATS, which
+     * becomes one.
+     */
+    public void testFullTextAfterCoordinatorEnrich() {
+        String enrich = "FROM test | EVAL language_code = id | ENRICH _coordinator:languages ON language_code";
+        String match = "match(title, \"Meditation\")";
+        String both = match + " OR language_name == \"English\"";
+
+        optimize(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + match));
+        optimize(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match));
+
+        String error = "[MATCH] function cannot be used in a filter that references both index and enrich fields after ENRICH";
+        assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + both)), containsString(error));
+        assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + both)), containsString(error));
+        // not shared by all the aggregate functions, so it stays in the aggregation
+        assertThat(
+            error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match + ", d = COUNT(*)")),
+            containsString("[MATCH] function cannot be used after ENRICH when it targets an indexed field")
+        );
+    }
+
+    private TestAnalyzer coordinatorEnrichAnalyzer() {
+        return analyzer().addIndex("test", "mapping-full_text_search.json")
+            .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+    }
+
     public void testFullTextInStatsFilterAfterFork() {
         String fork = "FROM test | FORK (WHERE id > 0) (WHERE id > 1) | STATS c = COUNT(*) WHERE ";
         for (String ftf : List.of("kql(\"title: Meditation\")", "qstr(\"title: Meditation\")")) {

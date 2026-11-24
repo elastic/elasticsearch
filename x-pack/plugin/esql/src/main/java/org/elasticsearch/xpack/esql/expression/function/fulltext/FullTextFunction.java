@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -1018,6 +1019,19 @@ public abstract class FullTextFunction extends Function
                             this,
                             "[{}] {} cannot be used in a WHERE clause that references both data-side and lookup-side "
                                 + "fields after LOOKUP JOIN _coordinator:",
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
+                // The same goes for an ENRICH that runs on the coordinator, when the filter also needs the fields it adds.
+                // This is also where the filter shared by all the aggregate functions of a STATS ends up.
+                if (isRuntimeSearch() == false
+                    && f.anyMatch(p -> p instanceof Enrich enrich && enrich.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot be used in a filter that references both index and enrich fields after ENRICH _coordinator:",
                             functionName(),
                             functionType()
                         )

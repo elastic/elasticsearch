@@ -155,11 +155,11 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         action.shardOperation(request, oldVersion, future);
         assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(40_000L));
 
-        // Elapsed exceeds host uptime -> clamped to 0
+        // Elapsed exceeds host uptime -> clamped to 1 (avoid sending the 0 "never searched" sentinel)
         when(indexShard.tryWithEngineOrNull(any())).thenReturn(1_700_000_000_000L - 100_000L);
         future = new PlainActionFuture<>();
         action.shardOperation(request, oldVersion, future);
-        assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(0L));
+        assertThat(future.actionGet().getLastSearcherAcquiredTime(), equalTo(1L));
 
         // Small positive clock skew (lastAbs > absNow) -> elapsed clamped to 0 -> relativeNow
         when(indexShard.tryWithEngineOrNull(any())).thenReturn(1_700_000_005_000L);

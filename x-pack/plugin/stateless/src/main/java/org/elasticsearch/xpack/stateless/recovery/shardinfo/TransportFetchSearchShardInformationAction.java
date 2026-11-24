@@ -207,7 +207,7 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             if (lastSearcherAcquired > 0L && transportVersion.supports(ABSOLUTE_LAST_SEARCHER_ACQUIRED_TIME) == false) {
                 // Convert from absolute time to relative time.
                 long elapsedMillis = Math.max(0L, nowSupplier.getAsLong() - lastSearcherAcquired);
-                lastSearcherAcquired = Math.max(0L, relativeNowSupplier.getAsLong() - elapsedMillis);
+                lastSearcherAcquired = Math.max(1L, relativeNowSupplier.getAsLong() - elapsedMillis);
             }
 
             return new Response(lastSearcherAcquired);

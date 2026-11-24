@@ -1,4 +1,4 @@
-area: ES|QL
+area: Aggregations
 issues: []
 pr: 166943
 summary: Sample each shard with its own random stream

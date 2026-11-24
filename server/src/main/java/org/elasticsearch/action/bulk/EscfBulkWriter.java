@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -115,6 +116,14 @@ public final class EscfBulkWriter implements Releasable {
          * The request that indexes row {@code row}. The writer sets its source.
          */
         IndexRequest request(int row);
+
+        /**
+         * Whether the bulk that carries these rows refreshes the index when it is acknowledged. Rows added to the same batch
+         * share that bulk, so they are refreshed with them. The bulk is sent when it normally would be.
+         */
+        default boolean refresh() {
+            return false;
+        }
     }
 
     /**
@@ -153,6 +162,7 @@ public final class EscfBulkWriter implements Releasable {
         private boolean contextCounted;
         // its rows tripped the breaker or indexing pressure
         private boolean tripped;
+        private boolean refresh;
 
         long bytes() {
             return builderBytes + requestBytes;
@@ -255,6 +265,7 @@ public final class EscfBulkWriter implements Releasable {
             chunk.requests.addAll(requests);
             chunk.requestBytes += requestBytes;
             chunk.tripped |= tripped;
+            chunk.refresh |= rows.refresh();
             if (chunk.tripped || chunk.bytes() >= policy.targetBulkBytes()) {
                 giveBack();
             }
@@ -549,6 +560,9 @@ public final class EscfBulkWriter implements Releasable {
             }
         });
         BulkRequest bulk = new BulkRequest();
+        if (chunk.refresh) {
+            bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        }
         // the rows are counted in indexing pressure already
         bulk.incrementalState(new BulkRequest.IncrementalState(Map.of(), true));
         try (chunk) {

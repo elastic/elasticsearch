@@ -925,8 +925,8 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * A single-shard index with one dropped row is scattered like any other. The dropped row goes to the discard partition; the remaining rows land
-     * on the single shard and must be aligned with the routed items.
+     * A single-shard index with one dropped row is scattered like any other. The dropped row goes to the discard partition; the remaining
+     * rows land on the single shard and must be aligned with the routed items.
      */
     public void testSingleShardWithDroppedRowUsesDiscardPartition() throws IOException {
         int numDocs = randomIntBetween(2, 20);

@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
-import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.RowKeyHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -180,32 +178,26 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     }
 
     /**
-     * The LIMIT BY and DEDUP key path must encode every groupable type: equal values must produce identical
-     * key bytes, and different values different ones, with a multivalue compared as an ordered list. This is
-     * the row-key counterpart of {@link #testGroupableTypesCanBuildBlockHash}; dense_vector, which
-     * {@link BlockHash} cannot group, is covered here through its multivalued FLOAT keys.
+     * The LIMIT BY and DEDUP key path must group every groupable type: {@link RowKeyHash} must put equal
+     * values into one group and different values into different ones, with a multivalue compared as an
+     * ordered list. This is the row-key counterpart of {@link #testGroupableTypesCanBuildBlockHash};
+     * dense_vector, which {@link BlockHash} cannot group, is covered here through its multivalued FLOAT keys.
      */
-    public void testGroupableTypesEncodeRowKeys() {
+    public void testGroupableTypesGroupRowKeys() {
         BlockFactory blockFactory = blockFactory();
         for (DataType type : DataType.values()) {
             if (type.isGroupable() == false) {
                 continue;
             }
             ElementType elementType = PlannerUtils.toElementType(type);
-            PagedBytesBuilder row = new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "test", 64);
             try (
                 Block block = keyBlock(elementType, blockFactory);
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(elementType), row)
+                RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(elementType), blockFactory)
             ) {
-                Page page = new Page(block);
-                BytesRef first = keyBytes(encoder, page, 0);
-                assertThat("equal [" + type.typeName() + "] values must encode to equal keys", keyBytes(encoder, page, 1), equalTo(first));
+                int[] ids = hash.add(new Page(block));
+                assertThat("equal [" + type.typeName() + "] values must share a group", ids[1], equalTo(ids[0]));
                 if (elementType != ElementType.NULL) {
-                    assertThat(
-                        "different [" + type.typeName() + "] values must encode to different keys",
-                        keyBytes(encoder, page, 2),
-                        not(equalTo(first))
-                    );
+                    assertThat("different [" + type.typeName() + "] values must not share a group", ids[2], not(equalTo(ids[0])));
                 }
             }
         }
@@ -249,15 +241,6 @@ public class GroupableTypesTests extends AnalyzerTestCase {
                 .build();
             default -> throw new AssertionError("no key values for groupable element type [" + elementType + "]");
         };
-    }
-
-    private static BytesRef keyBytes(GroupKeyEncoder encoder, Page page, int position) {
-        PagedBytesCursor cursor = encoder.encode(page, position);
-        byte[] bytes = new byte[cursor.remaining()];
-        for (int i = 0; i < bytes.length; i++) {
-            bytes[i] = cursor.readByte();
-        }
-        return new BytesRef(bytes);
     }
 
     private static List<DataType> matrixTypes() {

@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
-import org.junit.After;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -109,16 +108,6 @@ public class GlobExpanderTests extends ESTestCase {
         ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
         List.of()
     );
-
-    @After
-    public void resetExactTemplateSplice() {
-        GlobExpander.TEMPLATE_EXACT_SPLICE = false;
-    }
-
-    /** Turns on the gated exact-string TEMPLATE splice. Production default is {@code false}. */
-    private static void enableExactTemplateSplice() {
-        GlobExpander.TEMPLATE_EXACT_SPLICE = true;
-    }
 
     /** The settings map a PartitionConfig-shaped test intent resolves from. */
     private static Map<String, Object> configMapOf(PartitionConfig config) {
@@ -1590,7 +1579,6 @@ public class GlobExpanderTests extends ESTestCase {
     // -- template-based glob rewriting --
 
     public void testRewriteGlobWithTemplateHints() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
@@ -1598,17 +1586,8 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
     }
 
-    /** Production default: integer year still splices until #2739 deletes {@code TEMPLATE_EXACT_SPLICE}. */
-    public void testRewriteGlobWithTemplateSplicesIntegerWhenExactSpliceOff() {
-        GlobExpander.TEMPLATE_EXACT_SPLICE = false;
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
-        assertEquals("s3://bucket/2024/*/*.parquet", GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config));
-    }
-
     /** A string is the folder name itself, so a TEMPLATE placeholder splices it. */
     public void testRewriteGlobWithTemplateSplicesExactString() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{account}/{region}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
@@ -1617,7 +1596,6 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** A leading-zero account string is the folder name; it is spliced as written, not as a number. */
     public void testRewriteGlobWithTemplateSplicesPaddedAccountString() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("account", PartitionFilterHintExtractor.Operator.EQUALS, "012345678901"));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "AWSLogs/{account}/vpcflowlogs/{region}");
         assertEquals(
@@ -1633,7 +1611,6 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** Boolean {@code true} is one spelling ({@code TRUE} is another). Leave the slot. */
     public void testRewriteGlobWithTemplateDoesNotSpliceBoolean() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("flag", PartitionFilterHintExtractor.Operator.EQUALS, true));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{flag}");
         assertEquals("s3://bucket/*/*.parquet", GlobExpander.rewriteGlobWithHints("s3://bucket/*/*.parquet", hints, config));
@@ -1664,7 +1641,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     public void testRewriteGlobWithTemplateThreeColumns() {
-        enableExactTemplateSplice();
         var hints = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
             hint("day", PartitionFilterHintExtractor.Operator.EQUALS, 15)
@@ -1675,7 +1651,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     public void testRewriteGlobLiteralIsPinned() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/junk/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
@@ -1683,7 +1658,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     public void testRewriteGlobSpelledLeadingLiteralStillRewrites() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{region}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/logs/*/*/*.parquet", hints, config);
@@ -1691,7 +1665,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     public void testRewriteGlobDoesNotTreatALeadingStarAsALiteral() {
-        enableExactTemplateSplice();
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{region}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/logs/*/*/*.parquet", hints, config);
@@ -1699,7 +1672,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     public void testRewriteGlobDeclinesWhenTheBucketIsNotAPathSlot() {
-        enableExactTemplateSplice();
         // A string that would splice when alignment works. Integer year never splices after exact-string
         // TEMPLATE, so it cannot prove the bucket-is-not-a-path-slot decline.
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"));
@@ -2661,11 +2633,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Integer {@code month == 7} is not spliced. The glob lists {@code data/} once; the typed filter keeps
-     * {@code 07} and drops {@code 11}. The dataset root is never listed.
+     * Integer {@code month == 7} is not spliced. The walk lists {@code data/} children, keeps padded {@code 07},
+     * and never lists the dataset root.
      */
     public void testTemplateSpellingMissKeepsPaddedSegment() throws IOException {
-        enableExactTemplateSplice();
         List<StorageEntry> tree = List.of(
             ListingWalkHarness.entry("s3://bucket/data/07/a.parquet"),
             ListingWalkHarness.entry("s3://bucket/data/11/b.parquet")
@@ -2677,8 +2648,9 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(List.of("s3://bucket/data/07/a.parquet"), paths(result));
         assertEquals(typedTemplateMatches(tree, "{month}", hints), paths(result));
-        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes());
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/data/"));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/data/11/")));
     }
 
     /**
@@ -2686,7 +2658,6 @@ public class GlobExpanderTests extends ESTestCase {
      * Replaces the previous assertion that a hit on {@code 7} silently skipped {@code 07}.
      */
     public void testTemplateIntegerMonthKeepsUnpaddedAndPaddedFolders() throws IOException {
-        enableExactTemplateSplice();
         List<StorageEntry> tree = List.of(
             ListingWalkHarness.entry("s3://bucket/data/7/a.parquet"),
             ListingWalkHarness.entry("s3://bucket/data/07/b.parquet")
@@ -2704,7 +2675,6 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** Integer {@code hour == 7} keeps padded {@code 07} and does not list the dataset root. */
     public void testTemplateHourSevenKeepsPaddedFolder() throws IOException {
-        enableExactTemplateSplice();
         List<StorageEntry> tree = List.of(
             ListingWalkHarness.entry("s3://bucket/data/07/a.parquet"),
             ListingWalkHarness.entry("s3://bucket/data/11/b.parquet")
@@ -2716,8 +2686,9 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/*/*.parquet", provider, hints, config, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/07/a.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes());
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/data/"));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/data/11/")));
     }
 
     /**
@@ -2725,7 +2696,6 @@ public class GlobExpanderTests extends ESTestCase {
      * /accounts are not, and {@code AWSLogs/} is never listed.
      */
     public void testTemplateAwsLogsExactPrefixKeepsPaddedJuneDay() throws IOException {
-        enableExactTemplateSplice();
         List<StorageEntry> tree = awsVpcTree();
         ListingWalkHarness provider = new ListingWalkHarness(tree);
         var hints = List.of(
@@ -2747,9 +2717,10 @@ public class GlobExpanderTests extends ESTestCase {
             )
         );
         assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz"), paths(result));
-        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/"), provider.listedPrefixes());
+        assertThat(provider.childListedPrefixes(), hasItem("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/"));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+        assertThat(provider.listChildrenRequests(), lessThanOrEqualTo(10));
     }
 
     /**
@@ -2757,7 +2728,6 @@ public class GlobExpanderTests extends ESTestCase {
      * list {@code AWSLogs/}.
      */
     public void testTemplateEmptySpliceRetryKeepsExactAccountPrefix() throws IOException {
-        enableExactTemplateSplice();
         ListingWalkHarness provider = new ListingWalkHarness(awsVpcTree());
         var hints = List.of(
             hint("account", PartitionFilterHintExtractor.Operator.EQUALS, "012345678901"),
@@ -2777,7 +2747,6 @@ public class GlobExpanderTests extends ESTestCase {
      * maps that throw to empty and still does not list {@code AWSLogs/}.
      */
     public void testTemplateMissingLocalPrefixIsEmptyNotOriginalGlob() throws IOException {
-        enableExactTemplateSplice();
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/AWSLogs/",
@@ -2805,7 +2774,6 @@ public class GlobExpanderTests extends ESTestCase {
      * must not flatten onto {@code AWSLogs/}.
      */
     public void testTemplateOtherListingIoStillFails() {
-        enableExactTemplateSplice();
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of("s3://bucket/AWSLogs/", List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1)))
         );
@@ -2830,7 +2798,6 @@ public class GlobExpanderTests extends ESTestCase {
      * the exact spliced prefix unbounded and must not list the parent.
      */
     public void testTemplateTruncatedEmptyRetryListsExactPrefix() throws IOException {
-        enableExactTemplateSplice();
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/logs/us-east-1/",
@@ -2872,7 +2839,6 @@ public class GlobExpanderTests extends ESTestCase {
      * must not splice. The typed filter keeps the encoded match.
      */
     public void testTemplateDoesNotSplicePercentDecodedFolderName() throws IOException {
-        enableExactTemplateSplice();
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}");
         String glob = "s3://bucket/data/*/*.parquet";
         var space = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "a b"));
@@ -2890,8 +2856,8 @@ public class GlobExpanderTests extends ESTestCase {
             List.of("s3://bucket/data/a%20b/f.parquet"),
             paths(GlobExpander.expand(glob, spaceProvider, space, configMapOf(config), MAX, MAX))
         );
-        assertEquals(List.of("s3://bucket/data/"), spaceProvider.listedPrefixes());
         assertThat(spaceProvider.listedPrefixes(), not(hasItem("s3://bucket/data/a b/")));
+        assertThat(spaceProvider.listedPrefixes(), not(hasItem("s3://bucket/")));
 
         ListingWalkHarness plusProvider = new ListingWalkHarness(tree);
         assertEquals(
@@ -2906,7 +2872,6 @@ public class GlobExpanderTests extends ESTestCase {
      * not a rewritten prefix we invented.
      */
     public void testTemplateBoundMissingPrefixWithoutRewriteStillThrows() {
-        enableExactTemplateSplice();
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of());
         provider.throwOnUnknownPrefix = true;
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
@@ -2928,7 +2893,6 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** Async copy of {@link #testTemplateMissingLocalPrefixIsEmptyNotOriginalGlob}. */
     public void testTemplateMissingLocalPrefixIsEmptyAsync() throws Exception {
-        enableExactTemplateSplice();
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/AWSLogs/",
@@ -2953,7 +2917,6 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** Async copy of {@link #testTemplateOtherListingIoStillFails}. */
     public void testTemplateOtherListingIoStillFailsAsync() {
-        enableExactTemplateSplice();
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of("s3://bucket/AWSLogs/", List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1)))
         );
@@ -5562,7 +5525,6 @@ public class GlobExpanderTests extends ESTestCase {
      * discriminator test; EQUALS is the case exact-string splice actually moved off the pattern.
      */
     public void testListingCacheDiscriminatorSeparatesTemplateEqualsValues() {
-        enableExactTemplateSplice();
         String pattern = "s3://bucket/logs/*/*.parquet";
         var seven = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 7));
         var eight = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 8));
@@ -5697,6 +5659,40 @@ public class GlobExpanderTests extends ESTestCase {
         );
         // finishSurvivors listed year=2024/month=06/ recursively before type check rejected the walk; flat listing ran.
         assertEquals(List.of("s3://bucket/data/year=2024/month=06/", "s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /**
+     * Same type-widening as {@link #testGlobstarPrunedSubtreeSoleSourceOfTypeWideningCausesFlat}, but a TEMPLATE
+     * identity folder sits between placeholders. Clearing {@code pendingPeeks} at {@code data/} would peek
+     * {@code 2023/}'s children as month values ({@code "data"}) and miss {@code abc}. Advancing peeks through
+     * the identity lists {@code 2023/data/} and discovers the widening folder.
+     */
+    public void testTemplateIdentityPreservesPendingPeeksForTypeWidening() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/logs/2023/data/abc/a.parquet", 100), entry("s3://bucket/logs/2024/data/06/b.parquet", 100))
+        );
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6)
+        );
+        Map<String, Object> config = configMapOf(new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/data/{month}"));
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/data/*/*.parquet", provider, hints, config, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/logs/2023/data/abc/a.parquet", "s3://bucket/logs/2024/data/06/b.parquet"), paths(result));
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+        // year, identity data under the survivor, identity advance under the pruned year, month, then month peek.
+        assertEquals(
+            List.of(
+                "s3://bucket/logs/",
+                "s3://bucket/logs/2024/",
+                "s3://bucket/logs/2023/",
+                "s3://bucket/logs/2024/data/",
+                "s3://bucket/logs/2023/data/"
+            ),
+            provider.childListedPrefixes
+        );
+        assertEquals(List.of("s3://bucket/logs/2024/data/06/", "s3://bucket/logs/"), provider.listedPrefixes);
     }
 
     /**
@@ -7051,24 +7047,23 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(provider.listedPrefixes.stream().anyMatch(p -> p.contains("city=New York/")));
     }
 
-    /** TEMPLATE does not walk. The flat filter still drops the other year. */
-    public void testTemplateInFiltersWithoutWalking() throws IOException {
+    /** Fixed-depth TEMPLATE IN walks year folders; 2025 is never finished. */
+    public void testTemplateInFiltersWalksFixedDepth() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(entry("s3://bucket/logs/2024/a.parquet", 100), entry("s3://bucket/logs/2025/b.parquet", 100))
         );
-        // Two values so the template placeholder stays *.
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024, 2030));
 
         FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, TEMPLATE_YEAR, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/logs/2024/a.parquet"), paths(result));
-        assertTrue(provider.childListedPrefixes.isEmpty());
-        assertEquals(List.of("s3://bucket/logs/"), provider.listedPrefixes);
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/logs/"));
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/logs/2025/")));
     }
 
     /**
-     * The discovery cap counts files the template filter keeps. Non-matching years listed first must not trip it
-     * before the matching file is reached. A brace used to hide those years from the cap.
+     * The discovery cap counts files the walk keeps. Non-matching years must be pruned before the cap
+     * sees them.
      */
     public void testTemplateValueFilterAppliesBeforeDiscoveredFilesCap() throws IOException {
         List<StorageEntry> entries = new ArrayList<>();
@@ -7082,8 +7077,22 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, TEMPLATE_YEAR, 1, MAX);
 
         assertEquals(List.of("s3://bucket/logs/2025/a.parquet"), paths(result));
-        assertTrue(provider.childListedPrefixes.isEmpty());
-        assertEquals(List.of("s3://bucket/logs/"), provider.listedPrefixes);
+        assertThat(provider.childListedPrefixes, hasItem("s3://bucket/logs/"));
+        assertEquals(1, result.fileCount());
+    }
+
+    /** All-pruned TEMPLATE walk keeps one inference-anchor file. */
+    public void testTemplateAllPrunedKeepsOneAnchor() throws IOException {
+        List<StorageEntry> tree = List.of(entry("s3://bucket/logs/2024/a.parquet", 100), entry("s3://bucket/logs/2025/b.parquet", 100));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList walked = GlobExpander.expand("s3://bucket/logs/*/*.parquet", new TreeStubProvider(tree), hints, TEMPLATE_YEAR, 1, MAX);
+        assertEquals(1, walked.fileCount());
+        assertTrue(walked.isInferenceAnchor());
+        TreeStubProvider flat = new TreeStubProvider(tree);
+        flat.childrenUnsupported = true;
+        FileList flattened = GlobExpander.expand("s3://bucket/logs/*/*.parquet", flat, hints, TEMPLATE_YEAR, 1, MAX);
+        assertEquals(1, flattened.fileCount());
+        assertTrue(flattened.isInferenceAnchor());
     }
 
     /** {@code partition_detection: none} does not walk and does not value-filter. */

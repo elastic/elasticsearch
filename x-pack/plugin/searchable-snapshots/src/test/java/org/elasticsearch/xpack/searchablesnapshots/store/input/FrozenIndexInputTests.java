@@ -399,7 +399,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
      * Runs the check on a {@code .vec} file in a cache that is not mmap-backed, the default, optionally populating the cache first.
      */
     private void withInputWithoutMmap(boolean populate, CheckedBiConsumer<FrozenIndexInput, byte[], IOException> check) throws IOException {
-        final byte[] rawData = randomByteArrayOfLength(randomIntBetween(2000, 5000));
+        // at least twice the buffer size (1024), so that reading everything past the first buffer is still a read of at least a buffer
+        final byte[] rawData = randomByteArrayOfLength(randomIntBetween(2048, 5000));
         final Tuple<String, byte[]> bytes = randomChecksumBytes(rawData);
         final byte[] fileData = bytes.v2();
         final String checksum = bytes.v1();

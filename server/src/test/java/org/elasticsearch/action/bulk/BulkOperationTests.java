@@ -305,7 +305,7 @@ public class BulkOperationTests extends ESTestCase {
     /**
      * A document whose {@code @timestamp} falls outside all backing index time ranges of a TSDB data stream with a failure store enabled
      * should be redirected to the failure store during pre-routing, exercising the {@code catch (DataStream.TimestampError)} path in
-     * {@code groupRequestsByShards}. Too-new timestamps are counted even when the documents are redirected successfully.
+     * {@code groupRequestsByShards}. Out-of-bounds timestamps are counted even when the documents are redirected successfully.
      */
     public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore() throws Exception {
         assertTsdbTimestampRoutingMetrics(true);
@@ -316,14 +316,16 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     private void assertTsdbTimestampRoutingMetrics(boolean failureStoreEnabled) throws Exception {
-        Instant start = Instant.parse("2020-01-01T00:00:00Z");
-        Instant end = Instant.parse("2021-01-01T00:00:00Z");
+        Instant firstStart = Instant.parse("2020-01-01T00:00:00Z");
+        Instant firstEnd = Instant.parse("2021-01-01T00:00:00Z");
+        Instant secondStart = Instant.parse("2022-01-01T00:00:00Z");
+        Instant secondEnd = Instant.parse("2023-01-01T00:00:00Z");
         String tsdbStreamName = "my_tsdb_stream";
 
         ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStream(
             projectId,
             tsdbStreamName,
-            List.of(Tuple.tuple(start, end))
+            List.of(Tuple.tuple(firstStart, firstEnd), Tuple.tuple(secondStart, secondEnd))
         );
         IndexMetadata tsdbFailureStore = DataStreamTestHelper.createFailureStore(tsdbStreamName, 1, millis).numberOfShards(1).build();
 
@@ -338,14 +340,25 @@ public class BulkOperationTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(project).put(tsdbFailureStore, false).put(tsdbDataStream))
             .build();
 
-        // The timestamps are at the end of the writable range (in the past), in the future, and before the writable range.
-        List<String> timestamps = List.of("2021-01-01T00:00:00Z", "2100-01-01T00:00:00Z", "2019-01-01T00:00:00Z");
+        List<String> timestamps = List.of(
+            secondEnd.toString(),
+            "2100-01-01T00:00:00Z",
+            "2019-01-01T00:00:00Z",
+            firstEnd.toString(),
+            "invalid"
+        );
         BulkRequest bulkRequest = new BulkRequest();
         for (String timestamp : timestamps) {
             bulkRequest.add(new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", timestamp)));
         }
 
-        NodeClient client = getNodeClient(acceptAllShardWrites());
+        NodeClient client = getNodeClient((request, listener) -> {
+            for (BulkItemRequest item : request.items()) {
+                Map<?, ?> error = (Map<?, ?>) ((IndexRequest) item.request()).sourceAsMap().get("error");
+                assertThat(error.get("type"), equalTo("timestamp_error"));
+            }
+            acceptAllShardWrites().accept(request, listener);
+        });
         BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, tsdbState, mockObserver(tsdbState), l).run());
 
         assertThat(response.hasFailures(), is(failureStoreEnabled == false));
@@ -357,12 +370,18 @@ public class BulkOperationTests extends ESTestCase {
         for (BulkItemResponse item : response.getItems()) {
             assertThat(item.getIndex(), equalTo(expectedIndex));
             assertThat(item.getFailureStoreStatus(), equalTo(expectedStatus));
+            if (failureStoreEnabled == false) {
+                assertThat(ElasticsearchException.getExceptionName(item.getFailure().getCause()), equalTo("timestamp_error"));
+            }
         }
+        String reason = "es_data_stream_timestamp_out_of_bounds_reason";
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, TimeSeriesRoutingMetrics.TIMESTAMP_TOO_NEW),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, TimeSeriesRoutingMetrics.TIMESTAMP_OUT_OF_BOUNDS),
             contains(
-                new Measurement(1L, Map.of("es_data_stream_timestamp_in_future", false), false),
-                new Measurement(1L, Map.of("es_data_stream_timestamp_in_future", true), false)
+                new Measurement(1L, Map.of(reason, "beyond_end_time_in_past"), false),
+                new Measurement(1L, Map.of(reason, "beyond_end_time_in_future"), false),
+                new Measurement(1L, Map.of(reason, "before_earliest_range"), false),
+                new Measurement(1L, Map.of(reason, "between_ranges"), false)
             )
         );
     }

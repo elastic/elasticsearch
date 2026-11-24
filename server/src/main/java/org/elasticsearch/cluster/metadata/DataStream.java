@@ -1934,33 +1934,42 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         Instant timestamp = getTimeSeriesTimestamp(request);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
-            boolean tooNew = getIndices().stream()
-                .map(project::index)
-                .filter(index -> IndexMode.isTsdb(index.getIndexMode()))
-                .map(IndexMetadata::getTimeSeriesEnd)
-                .max(Comparator.naturalOrder())
-                .map(end -> timestamp.compareTo(end) >= 0)
-                .orElse(false);
-            String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
-            String writeableIndicesString = getIndices().stream()
-                .map(project::index)
-                .map(IndexMetadata::getSettings)
-                .map(
-                    settings -> "["
-                        + settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
-                        + ","
-                        + settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
-                        + "]"
-                )
-                .collect(Collectors.joining());
-            throw new TimestampError(
-                tooNew ? timestamp : null,
-                "the document timestamp ["
-                    + timestampAsString
-                    + "] is outside of ranges of currently writable indices ["
-                    + writeableIndicesString
-                    + "]"
-            );
+            StringBuilder writableRanges = new StringBuilder();
+            Instant earliestStartTime = null;
+            for (Index index : getIndices()) {
+                IndexMetadata metadata = project.index(index);
+                Settings settings = metadata.getSettings();
+                writableRanges.append('[')
+                    .append(settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()))
+                    .append(',')
+                    .append(settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey()))
+                    .append(']');
+
+                Instant startTime = metadata.getTimeSeriesStart();
+                if (startTime != null && (earliestStartTime == null || startTime.isBefore(earliestStartTime))) {
+                    earliestStartTime = startTime;
+                }
+            }
+            String message = "the document timestamp ["
+                + DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp)
+                + "] is outside of ranges of currently writable indices ["
+                + writableRanges
+                + "]";
+
+            // Rollover and range updates use the write index as the head of the time series.
+            Instant endTime = project.index(getWriteIndex()).getTimeSeriesEnd();
+            if (earliestStartTime == null || endTime == null) {
+                throw new TimestampError(message);
+            }
+            TimestampOutOfBounds.Position position;
+            if (timestamp.isBefore(earliestStartTime)) {
+                position = TimestampOutOfBounds.Position.BEFORE_EARLIEST_RANGE;
+            } else if (timestamp.isBefore(endTime) == false) {
+                position = TimestampOutOfBounds.Position.BEYOND_END_TIME;
+            } else {
+                position = TimestampOutOfBounds.Position.BETWEEN_RANGES;
+            }
+            throw new TimestampError(new TimestampOutOfBounds(timestamp, position), message);
         }
         return result;
     }
@@ -2395,30 +2404,40 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static class TimestampError extends IllegalArgumentException {
 
         @Nullable
-        private final Instant tooNewTimestamp;
+        private final TimestampOutOfBounds outOfBounds;
 
         public TimestampError(String message, Exception cause) {
             super(message, cause);
-            this.tooNewTimestamp = null;
+            this.outOfBounds = null;
         }
 
         public TimestampError(String message) {
             this(null, message);
         }
 
-        private TimestampError(@Nullable Instant tooNewTimestamp, String message) {
+        private TimestampError(@Nullable TimestampOutOfBounds outOfBounds, String message) {
             super(message);
-            this.tooNewTimestamp = tooNewTimestamp;
+            this.outOfBounds = outOfBounds;
         }
 
         /**
-         * The document timestamp if it is at or after the end of the newest TSDB backing index's time range, i.e. the document is too
-         * new to be written to any existing backing index. {@code null} for any other timestamp error (unparsable or missing timestamp,
-         * a timestamp before the oldest backing index, or a timestamp that falls into a gap between backing indices).
+         * Returns routing details when a parsed timestamp falls outside the configured writable ranges.
          */
         @Nullable
-        public Instant tooNewTimestamp() {
-            return tooNewTimestamp;
+        public TimestampOutOfBounds outOfBounds() {
+            return outOfBounds;
+        }
+    }
+
+    /**
+     * Describes where an unroutable timestamp falls relative to the writable ranges while preserving the timestamp error type.
+     */
+    public record TimestampOutOfBounds(Instant timestamp, Position position) {
+        /** The position of the rejected timestamp relative to the writable ranges. */
+        public enum Position {
+            BEFORE_EARLIEST_RANGE,
+            BETWEEN_RANGES,
+            BEYOND_END_TIME
         }
     }
 

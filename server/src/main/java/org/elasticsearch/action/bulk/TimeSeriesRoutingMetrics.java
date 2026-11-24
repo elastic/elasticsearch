@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -22,28 +23,32 @@ public final class TimeSeriesRoutingMetrics {
 
     public static final TimeSeriesRoutingMetrics NOOP = new TimeSeriesRoutingMetrics(MeterRegistry.NOOP);
 
-    static final String TIMESTAMP_TOO_NEW = "es.data_stream.ingest.documents.time_series.timestamp_too_new.total";
+    static final String TIMESTAMP_OUT_OF_BOUNDS = "es.data_stream.ingest.documents.time_series.timestamp_out_of_bounds.total";
 
-    private static final String TIMESTAMP_IN_FUTURE = "es_data_stream_timestamp_in_future";
-    private static final Map<String, Object> FUTURE_TIMESTAMP_ATTRIBUTES = Map.of(TIMESTAMP_IN_FUTURE, true);
-    private static final Map<String, Object> NON_FUTURE_TIMESTAMP_ATTRIBUTES = Map.of(TIMESTAMP_IN_FUTURE, false);
+    private static final String OUT_OF_BOUNDS_REASON = "es_data_stream_timestamp_out_of_bounds_reason";
 
-    private final LongCounter timestampTooNew;
+    private final LongCounter timestampOutOfBounds;
 
     public TimeSeriesRoutingMetrics(MeterRegistry meterRegistry) {
-        timestampTooNew = meterRegistry.registerLongCounter(
-            TIMESTAMP_TOO_NEW,
-            "Number of documents whose timestamp was at or after the end of the latest TSDB backing index's time range",
+        timestampOutOfBounds = meterRegistry.registerLongCounter(
+            TIMESTAMP_OUT_OF_BOUNDS,
+            "Number of documents whose timestamp did not match any writable TSDB backing index time range",
             "documents"
         );
     }
 
     /**
-     * Records whether a too-new timestamp is in the future according to the coordinating node's clock. A timestamp at or before
-     * this time points to an end time that was not advanced in time.
+     * Records where the timestamp fell outside the writable ranges. Beyond the end time, the past bucket includes timestamps equal
+     * to the coordinating node's current time.
      */
-    void recordTooNewTimestamp(Instant timestamp, long nowMillis) {
-        boolean inFuture = timestamp.isAfter(Instant.ofEpochMilli(nowMillis));
-        timestampTooNew.incrementBy(1, inFuture ? FUTURE_TIMESTAMP_ATTRIBUTES : NON_FUTURE_TIMESTAMP_ATTRIBUTES);
+    void recordTimestampOutOfBounds(DataStream.TimestampOutOfBounds outOfBounds, long nowMillis) {
+        String reason = switch (outOfBounds.position()) {
+            case BEFORE_EARLIEST_RANGE -> "before_earliest_range";
+            case BETWEEN_RANGES -> "between_ranges";
+            case BEYOND_END_TIME -> outOfBounds.timestamp().isAfter(Instant.ofEpochMilli(nowMillis))
+                ? "beyond_end_time_in_future"
+                : "beyond_end_time_in_past";
+        };
+        timestampOutOfBounds.incrementBy(1, Map.of(OUT_OF_BOUNDS_REASON, reason));
     }
 }

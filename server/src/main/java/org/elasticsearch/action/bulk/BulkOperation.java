@@ -65,7 +65,6 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -402,9 +401,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             } catch (DataStream.TimestampError timestampError) {
                 // DataStream#getWriteIndex also serves simulate bulk. Record the metric here to count only actual writes
                 // and classify the timestamp using the coordinating node's clock.
-                Instant tooNewTimestamp = timestampError.tooNewTimestamp();
-                if (tooNewTimestamp != null) {
-                    timeSeriesRoutingMetrics.recordTooNewTimestamp(tooNewTimestamp, threadPool.absoluteTimeInMillis());
+                DataStream.TimestampOutOfBounds outOfBounds = timestampError.outOfBounds();
+                if (outOfBounds != null) {
+                    timeSeriesRoutingMetrics.recordTimestampOutOfBounds(outOfBounds, threadPool.absoluteTimeInMillis());
                 }
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
                 BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), timestampError);

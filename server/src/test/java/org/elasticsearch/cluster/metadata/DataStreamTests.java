@@ -1321,7 +1321,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
     }
 
-    public void testGetWriteIndexDistinguishesLatestEndFromGap() {
+    public void testGetWriteIndexClassifiesOutOfBoundsTimestamps() {
         Instant start1 = Instant.parse("2020-01-01T00:00:00Z");
         Instant end1 = start1.plus(1, ChronoUnit.HOURS);
         Instant start2 = end1.plus(1, ChronoUnit.HOURS);
@@ -1335,11 +1335,24 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         );
         DataStream dataStream = project.dataStreams().get(dataStreamName);
 
-        var tooNew = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(end2), project));
-        assertThat(tooNew.tooNewTimestamp(), equalTo(end2));
+        assertEquals(dataStream.getIndices().getFirst(), dataStream.getWriteIndex(timestampedRequest(start1), project));
 
+        Instant beforeStart = start1.minusSeconds(1);
+        var before = expectThrows(
+            DataStream.TimestampError.class,
+            () -> dataStream.getWriteIndex(timestampedRequest(beforeStart), project)
+        );
+        assertEquals(
+            new DataStream.TimestampOutOfBounds(beforeStart, DataStream.TimestampOutOfBounds.Position.BEFORE_EARLIEST_RANGE),
+            before.outOfBounds()
+        );
         var gap = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(end1), project));
-        assertThat(gap.tooNewTimestamp(), nullValue());
+        assertEquals(new DataStream.TimestampOutOfBounds(end1, DataStream.TimestampOutOfBounds.Position.BETWEEN_RANGES), gap.outOfBounds());
+        var beyond = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(end2), project));
+        assertEquals(
+            new DataStream.TimestampOutOfBounds(end2, DataStream.TimestampOutOfBounds.Position.BEYOND_END_TIME),
+            beyond.outOfBounds()
+        );
     }
 
     private static IndexRequest timestampedRequest(Instant timestamp) {

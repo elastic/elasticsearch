@@ -1530,8 +1530,9 @@ public class DriverTests extends ESTestCase {
             assertThat(failure.getMessage(), equalTo("blocked failed"));
             assertFinishedWithUsage(driver, 3, 0, 0);
         } finally {
-            driver.close();
+            driver.cancel("test finished");
             terminate(threadPool);
+            driver.close();
         }
     }
 
@@ -1580,8 +1581,9 @@ public class DriverTests extends ESTestCase {
             IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
             assertThat(failure.getMessage(), equalTo("blocked failed"));
         } finally {
-            driver.close();
+            driver.cancel("test finished");
             terminate(threadPool);
+            driver.close();
         }
     }
 
@@ -1613,8 +1615,9 @@ public class DriverTests extends ESTestCase {
             IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
             assertThat(failure.getMessage(), equalTo("sink failed"));
         } finally {
-            driver.close();
+            driver.cancel("test finished");
             terminate(threadPool);
+            driver.close();
         }
     }
 

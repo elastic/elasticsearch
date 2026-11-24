@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -217,7 +218,10 @@ public class UnmappedFieldsWalkTests extends MapperServiceTestCase {
         for (String json : List.of("""
             { "a": 1, "a": 2 }""", """
             { "o": { "a": { "b": 1 }, "a": { "c": 2 } } }""")) {
-            expectThrows(Exception.class, () -> unmappedFields.extract(new BytesArray(json), XContentType.JSON));
+            expectThrows(
+                Exception.class,
+                () -> unmappedFields.extract(new BytesArray(json), XContentType.JSON, NoopCircuitBreaker.INSTANCE)
+            );
         }
     }
 
@@ -346,8 +350,13 @@ public class UnmappedFieldsWalkTests extends MapperServiceTestCase {
                 return false;
             }
         };
-        BytesRef written = unmappedFields.extract(new BytesArray("""
-            { "skip": { "x": { "y": [ 6, { "z": 7 } ] } }, "arr": [ { "q": 1 }, 2 ], "keep": 1 }"""), XContentType.JSON, keep);
+        BytesRef written = unmappedFields.extract(
+            new BytesArray("""
+                { "skip": { "x": { "y": [ 6, { "z": 7 } ] } }, "arr": [ { "q": 1 }, 2 ], "keep": 1 }"""),
+            XContentType.JSON,
+            keep,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertThat(written.utf8ToString(), equalTo("""
             {"keep":1}"""));
         assertThat(asked, equalTo(List.of("skip.", "arr", "arr.", "keep")));
@@ -401,12 +410,12 @@ public class UnmappedFieldsWalkTests extends MapperServiceTestCase {
     @Nullable
     private String walk(BytesReference source, XContentType type, @Nullable Set<String> included) throws IOException {
         if (included == null) {
-            BytesRef written = unmappedFields.extract(source, type);
-            assertThat(unmappedFields.extract(source, type, true), equalTo(written));
+            BytesRef written = unmappedFields.extract(source, type, NoopCircuitBreaker.INSTANCE);
+            assertThat(unmappedFields.extract(source, type, true, NoopCircuitBreaker.INSTANCE), equalTo(written));
             return written == null ? null : written.utf8ToString();
         }
-        BytesRef written = unmappedFields.extract(source, type, filter(included));
-        assertThat(unmappedFields.extract(source, type, filter(included), true), equalTo(written));
+        BytesRef written = unmappedFields.extract(source, type, filter(included), NoopCircuitBreaker.INSTANCE);
+        assertThat(unmappedFields.extract(source, type, filter(included), true, NoopCircuitBreaker.INSTANCE), equalTo(written));
         return written == null ? null : written.utf8ToString();
     }
 }

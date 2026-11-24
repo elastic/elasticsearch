@@ -142,6 +142,49 @@ public class WarningsTests extends ESTestCase {
         assertThat(collected(dc), contains("Line 1:1 [foo] (in view [view1]): some custom warning"));
     }
 
+    public void testRegisterWarningWithoutSourceTextCollect() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        warnings.registerWarningWithoutSourceText("some custom warning");
+        assertThat(collected(dc), contains("Line 1:1: some custom warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextWithView() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo", "view1"));
+        warnings.registerWarningWithoutSourceText("some custom warning");
+        assertThat(collected(dc), contains("Line 1:1 (in view [view1]): some custom warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextDeduplication() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        warnings.registerWarningWithoutSourceText("duplicate warning");
+        warnings.registerWarningWithoutSourceText("duplicate warning");
+        assertThat(collected(dc), contains("Line 1:1: duplicate warning"));
+    }
+
+    public void testRegisterWarningWithoutSourceTextCollectFilled() {
+        DriverContext dc = collectingContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
+            warnings.registerWarningWithoutSourceText("warning " + i);
+        }
+
+        String[] expected = new String[Warnings.MAX_ADDED_WARNINGS];
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS; i++) {
+            expected[i] = "Line 1:1: warning " + i;
+        }
+        assertThat(collected(dc), contains(expected));
+    }
+
+    public void testRegisterWarningWithoutSourceTextIgnore() {
+        DriverContext dc = ignoringContext();
+        Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));
+        warnings.registerWarningWithoutSourceText("some custom warning");
+        assertThat(collected(dc), empty());
+    }
+
     public void testMixedRegisterExceptionThenWarning() {
         DriverContext dc = collectingContext();
         Warnings warnings = dc.createWarnings(new TestWarningsSource("foo"));

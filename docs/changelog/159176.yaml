@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159176
+pr: 165358
+summary: Reject non-time_duration windows on time-series aggregate functions instead of failing with an internal error
+type: bug

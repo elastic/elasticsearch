@@ -290,6 +290,41 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         }
     }
 
+    public void testInstantQuerySortByLabelOrdersByPod() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_by_label(" + METRIC + ", \"pod\")");
+        // p1 before p2; ties broken by remaining identity (cluster a before b in _timeseries).
+        assertThat(series, contains(LABELLED_SERIES.get(0), LABELLED_SERIES.get(2), LABELLED_SERIES.get(1), LABELLED_SERIES.get(3)));
+        assertMetricObjectUnchanged(series);
+        assertNoSyntheticSortLabels(series);
+    }
+
+    public void testInstantQuerySortByLabelDescOrdersByPodReversed() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_by_label_desc(" + METRIC + ", \"pod\")");
+        assertThat(series, contains(LABELLED_SERIES.get(3), LABELLED_SERIES.get(1), LABELLED_SERIES.get(2), LABELLED_SERIES.get(0)));
+        assertMetricObjectUnchanged(series);
+        assertNoSyntheticSortLabels(series);
+    }
+
+    private static void assertMetricObjectUnchanged(List<PromqlResponseSeries> series) {
+        for (PromqlResponseSeries s : series) {
+            assertEquals("duplicate labels in metric object: " + s.labels(), LABELLED_SERIES_LABELS.size(), s.labels().size());
+            assertTrue(s.labels().keySet().containsAll(LABELLED_SERIES_LABELS));
+        }
+    }
+
+    private static void assertNoSyntheticSortLabels(List<PromqlResponseSeries> series) {
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
+    }
+
     private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
         return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
     }
@@ -708,6 +743,42 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         )) {
             assertBinopInstantValues(query, 10);
         }
+    }
+
+    /**
+     * Prometheus does not distinguish sample types: the count and presence functions over a counter return one value per
+     * series, whatever other metric shares the series' labels. {@code req_total} has five samples a minute apart per pod;
+     * {@code err_total} shares the {@code p1} labels and must neither fail nor count for it. Every series of a counter
+     * has samples, so {@code absent_over_time} has no element.
+     */
+    public void testInstantOverTimeFunctionsOverACounter() throws Exception {
+        ingestCounters(QUERY_TIME);
+        assertBinopInstantValues("count_over_time(req_total[5m])", 5, 5);
+        assertBinopInstantValues("count_over_time(err_total[5m])", 5);
+        assertBinopInstantValues("present_over_time(req_total[5m])", 1, 1);
+        assertBinopInstantValues("absent_over_time(req_total[5m])");
+        assertBinopInstantValues("absent_over_time(err_total[5m])");
+        assertBinopInstantValues("sum_over_time(req_total[5m])", 100, 100);
+    }
+
+    /** Five samples a minute apart ending at {@code at}: {@code req_total} for pods p1 and p2, {@code err_total} for p1. */
+    private void ingestCounters(Instant at) throws Exception {
+        RemoteWrite.WriteRequest.Builder request = RemoteWrite.WriteRequest.newBuilder();
+        for (int i = 0; i < 5; i++) {
+            long timestamp = at.minusSeconds(60L * (4 - i)).toEpochMilli();
+            request.addTimeseries(counterSample("req_total", "p1", 10.0 * i, timestamp));
+            request.addTimeseries(counterSample("req_total", "p2", 10.0 * i, timestamp));
+            request.addTimeseries(counterSample("err_total", "p1", i, timestamp));
+        }
+        ingestTestData(request.build(), at);
+    }
+
+    private static RemoteWrite.TimeSeries counterSample(String metric, String pod, double value, long timestamp) {
+        return RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("pod", pod))
+            .addSamples(RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build())
+            .build();
     }
 
     /** Prometheus converts k with an integer cast: {@code topk(1.5, tx)} keeps one series and {@code topk(0.5, tx)} none. */

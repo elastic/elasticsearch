@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -46,7 +49,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AlignMergeBranches;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -59,9 +62,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
@@ -548,11 +552,37 @@ public class TestAnalyzer {
     /**
      * Set external source resolution from a bare data-only schema, mirroring the production path in
      * {@link ExternalSourceResolver}: the schema is used as-is, with no {@code _file.*} auto-attach.
-     * External metadata columns are request-driven now — they reach the relation only through the
-     * METADATA clause (FROM path) or the temporary EXTERNAL-command shim that injects {@code _file.*}
-     * into the relation's metadataFields at parse time.
+     * External metadata columns are request-driven: they reach the relation only through a METADATA
+     * clause, which puts them in the relation's metadataFields at parse time.
+     * <p>
+     * Keyed under an <b>empty</b> configuration, which only matches a relation built by hand with one — see
+     * {@link #externalSourceResolution(ProjectMetadata, String, List, FileList)} for a plan the
+     * {@code DatasetRewriter} produced, whose relations carry the dataset's config and so key on it.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
+        return externalSourceResolution(
+            new ExternalSourceResolution(Map.of(new ExternalSourceSpec(path, Map.of()), source(path, schema, fileSet)))
+        );
+    }
+
+    /**
+     * As {@link #externalSourceResolution(String, List, FileList)}, for a plan rewritten from {@code projectMetadata}
+     * by {@code DatasetRewriter}: the resolution is keyed on the configuration that rewrite puts on the relation, so
+     * the analyzer's lookup hits. Builds the keys through {@link EsqlTestUtils#externalResolutionFor}.
+     */
+    public TestAnalyzer externalSourceResolution(
+        ProjectMetadata projectMetadata,
+        String resource,
+        List<Attribute> schema,
+        FileList fileSet
+    ) {
+        return externalSourceResolution(
+            EsqlTestUtils.externalResolutionFor(projectMetadata, Map.of(resource, source(resource, schema, fileSet)))
+        );
+    }
+
+    /** A resolved source over {@code schema} and {@code fileSet}, reporting {@code path} as its location. */
+    private static ExternalSourceResolution.ResolvedSource source(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -569,15 +599,20 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet, java.util.Map.of());
-        return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
+        return new ExternalSourceResolution.ResolvedSource(metadata, fileSet, Map.of());
     }
 
     /**
-     * Sets an "unresolved" external source.
+     * Sets an "unresolved" external source. Keyed under an empty configuration; see
+     * {@link #externalSourceResolution(String, List, FileList)}.
      */
     public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
         return externalSourceResolution(path, schema, FileList.UNRESOLVED);
+    }
+
+    /** As {@link #externalSourceUnresolved(String, List)}, keyed for a plan rewritten from {@code projectMetadata}. */
+    public TestAnalyzer externalSourceUnresolved(ProjectMetadata projectMetadata, String resource, List<Attribute> schema) {
+        return externalSourceResolution(projectMetadata, resource, schema, FileList.UNRESOLVED);
     }
 
     /**
@@ -682,7 +717,7 @@ public class TestAnalyzer {
             // No views to expand, resolve and validate IN subqueries directly
             return InSubqueryResolver.resolve(plan);
         }
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        PlanSize planSize = PlanSize.unlimited();
         LogicalPlan resolved = resolveViews(plan, planSize);
         InSubqueryResolver.verify(resolved);
         return resolved;
@@ -753,25 +788,25 @@ public class TestAnalyzer {
             var view = viewDefinitions.get(indexPattern);
             return view == null
                 ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
-                : new NamedSubquery(view.source(), view, indexPattern);
+                : new ViewSubquery(view.source(), view, indexPattern);
         }).toList();
         boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
         if (resolved.size() == 1 && keepViewIdentity == false) {
             var subplan = resolved.get(0);
-            if (subplan instanceof NamedSubquery n) {
+            if (subplan instanceof ViewSubquery n) {
                 return keepViewWrapper ? n : n.child();
             }
             return subplan;
         }
         List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
-        List<NamedSubquery> namedSubqueries = new ArrayList<>();
+        List<ViewSubquery> namedSubqueries = new ArrayList<>();
         for (LogicalPlan l : resolved) {
             if (l instanceof UnresolvedRelation u) {
                 unresolvedRelations.add(u);
-            } else if (l instanceof NamedSubquery n) {
+            } else if (l instanceof ViewSubquery n) {
                 namedSubqueries.add(n);
             } else {
-                throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
+                throw new IllegalArgumentException("Only support UnresolvedRelation and ViewSubquery in Views Analyzer Tests");
             }
         }
         LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
@@ -782,7 +817,7 @@ public class TestAnalyzer {
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
         LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
-        for (NamedSubquery namedSubquery : namedSubqueries) {
+        for (ViewSubquery namedSubquery : namedSubqueries) {
             subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
             identities.put(namedSubquery.name(), BranchIdentity.view(namedSubquery.name()));
         }
@@ -850,7 +885,8 @@ public class TestAnalyzer {
                 new QueryParams(),
                 new InferenceSettings(Settings.EMPTY),
                 entry.getKey(),
-                EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+                QueryPragmas.EMPTY,
+                EsqlFlags.DEFAULTS
             );
             viewSettings.put(entry.getKey(), ViewQuerySettings.from(statement, Settings.EMPTY, Settings.EMPTY));
             parsedViews.put(entry.getKey(), statement.plan());
@@ -894,7 +930,9 @@ public class TestAnalyzer {
         wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
-        analyzed.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        // The analyzer leaves merge branches unaligned with the merge's output; the optimizer aligns them first thing. Check the
+        // plan as the optimizer will see it, which also checks that the merge outputs the analyzer computed can be aligned with.
+        new AlignMergeBranches().apply(analyzed).forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
@@ -1122,7 +1160,8 @@ public class TestAnalyzer {
             // preserveViewBoundaries, as EsqlSession derives it: view branches must survive compaction for ResolveUnmapped.
             ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings),
             Map.copyOf(viewSettings),
-            flags
+            flags,
+            Map.of()
         );
     }
 
@@ -1136,7 +1175,7 @@ public class TestAnalyzer {
             new EsIndex(
                 indexName,
                 EsqlTestUtils.loadMapping(resource),
-                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                Map.of(indexName, new IndexProperties(indexMode, 1, IndexVersion.current().id())),
                 grouped,
                 grouped
             )

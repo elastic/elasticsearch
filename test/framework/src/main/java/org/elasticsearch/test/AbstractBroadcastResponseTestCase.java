@@ -33,6 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastResponse> extends AbstractXContentTestCase<T> {
 
@@ -95,14 +96,14 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         assertThat(response.getTotalShards(), equalTo(parsedResponse.getTotalShards()));
         assertThat(response.getSuccessfulShards(), equalTo(parsedResponse.getSuccessfulShards()));
         assertThat(response.getFailedShards(), equalTo(parsedResponse.getFailedShards()));
-        DefaultShardOperationFailedException[] originalFailures = response.getShardFailures();
-        DefaultShardOperationFailedException[] parsedFailures = parsedResponse.getShardFailures();
-        assertThat(originalFailures.length, equalTo(parsedFailures.length));
-        for (int i = 0; i < originalFailures.length; i++) {
-            assertThat(originalFailures[i].index(), equalTo(parsedFailures[i].index()));
-            assertThat(originalFailures[i].shardId(), equalTo(parsedFailures[i].shardId()));
-            assertThat(originalFailures[i].status(), equalTo(parsedFailures[i].status()));
-            assertThat(parsedFailures[i].getCause().getMessage(), containsString(originalFailures[i].getCause().getMessage()));
+        List<DefaultShardOperationFailedException> originalFailures = response.getShardFailures();
+        List<DefaultShardOperationFailedException> parsedFailures = parsedResponse.getShardFailures();
+        assertThat(originalFailures.size(), equalTo(parsedFailures.size()));
+        for (int i = 0; i < originalFailures.size(); i++) {
+            assertThat(originalFailures.get(i).index(), equalTo(parsedFailures.get(i).index()));
+            assertThat(originalFailures.get(i).shardId(), equalTo(parsedFailures.get(i).shardId()));
+            assertThat(originalFailures.get(i).status(), equalTo(parsedFailures.get(i).status()));
+            assertThat(parsedFailures.get(i).getCause().getMessage(), containsString(originalFailures.get(i).getCause().getMessage()));
         }
     }
 
@@ -142,16 +143,16 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
             assertNull(parser.nextToken());
         }
 
-        assertThat(parsedResponse.getShardFailures().length, equalTo(2));
-        DefaultShardOperationFailedException[] parsedFailures = parsedResponse.getShardFailures();
-        assertThat(parsedFailures[0].index(), equalTo("test"));
-        assertThat(parsedFailures[0].shardId(), anyOf(equalTo(0), equalTo(1)));
-        assertThat(parsedFailures[0].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(parsedFailures[0].getCause().getMessage(), containsString("foo"));
-        assertThat(parsedFailures[1].index(), equalTo("test"));
-        assertThat(parsedFailures[1].shardId(), equalTo(2));
-        assertThat(parsedFailures[1].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(parsedFailures[1].getCause().getMessage(), containsString("fizz"));
+        assertThat(parsedResponse.getShardFailures(), hasSize(2));
+        List<DefaultShardOperationFailedException> parsedFailures = parsedResponse.getShardFailures();
+        assertThat(parsedFailures.get(0).index(), equalTo("test"));
+        assertThat(parsedFailures.get(0).shardId(), anyOf(equalTo(0), equalTo(1)));
+        assertThat(parsedFailures.get(0).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(parsedFailures.get(0).getCause().getMessage(), containsString("foo"));
+        assertThat(parsedFailures.get(1).index(), equalTo("test"));
+        assertThat(parsedFailures.get(1).shardId(), equalTo(2));
+        assertThat(parsedFailures.get(1).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(parsedFailures.get(1).getCause().getMessage(), containsString("fizz"));
     }
 
     public void testToXContent() throws IOException {

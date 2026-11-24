@@ -10,17 +10,25 @@ package org.elasticsearch.xpack.esql.datasources;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
@@ -177,6 +185,25 @@ public class FormatReaderRegistryTests extends ESTestCase {
         expectThrows(ExternalClientException.class, () -> zst.metadata(highlyCompressibleZstd));
     }
 
+    public void testCloseDoesNotMaterializeUnusedReaders() throws Exception {
+        CountingReader created = new CountingReader("csv", ".csv");
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("csv", (s, bf) -> created, Settings.EMPTY, null);
+        registry.close();
+        assertEquals(0, created.closes.get());
+    }
+
+    public void testCloseClosesMaterializedPrototypes() throws Exception {
+        CountingReader created = new CountingReader("csv", ".csv");
+        FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        registry.registerLazy("csv", (s, bf) -> created, Settings.EMPTY, null);
+        assertSame(created, registry.byName("csv"));
+        registry.close();
+        assertEquals(1, created.closes.get());
+        registry.close();
+        assertEquals(1, created.closes.get());
+    }
+
     /**
      * Mockito stub deliberately: the registry touches only {@code formatName()} and {@code fileExtensions()};
      * a full {@link FormatReader} implementation ({@code metadata}/{@code read}/{@code withConfigTrackingConsumedKeys})
@@ -187,5 +214,46 @@ public class FormatReaderRegistryTests extends ESTestCase {
         when(reader.formatName()).thenReturn(format);
         when(reader.fileExtensions()).thenReturn(List.of(extensions));
         return reader;
+    }
+
+    private static final class CountingReader implements NoConfigFormatReader {
+        private final String format;
+        private final List<String> extensions;
+        final AtomicInteger closes = new AtomicInteger();
+
+        CountingReader(String format, String... extensions) {
+            this.format = format;
+            this.extensions = List.of(extensions);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String formatName() {
+            return format;
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return extensions;
+        }
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
     }
 }

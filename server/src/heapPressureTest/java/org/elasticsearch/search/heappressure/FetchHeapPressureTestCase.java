@@ -11,6 +11,7 @@ package org.elasticsearch.search.heappressure;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 
 import java.io.IOException;
 

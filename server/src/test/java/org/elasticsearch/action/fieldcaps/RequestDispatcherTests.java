@@ -853,6 +853,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             true,
             IndexMode.STANDARD,
             1,
+            0,
             indexMetadata.getSettingsVersion(),
             indexMetadata.getMappingVersion()
         );
@@ -1132,6 +1133,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         FieldCapabilitiesIndexResponseTests.randomFieldCaps(),
                         true,
                         randomFrom(IndexMode.availableModes()),
+                        0,
                         0,
                         0,
                         0

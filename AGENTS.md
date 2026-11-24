@@ -93,6 +93,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
+- Do not use fully qualified imports where avoidable
 - In `switch` statements, do not use `default` as a branch for valid or expected options. Enumerate those cases explicitly and reserve `default` for throwing an exception for unexpected values, or an assertion error if this code branch is unreachable.
 
 ## Types, Generics, and Suppressions
@@ -104,6 +105,11 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - REST handlers typically use the `Rest*Action` pattern; transport-layer handlers mirror them with `Transport*Action` classes.
 - REST classes expose routes via `RestHandler#routes`; when adding endpoints ensure naming matches existing REST/Transport patterns to aid discoverability.
 - Transport `ActionType` strings encode scope (`indices:data/read/...`, `cluster:admin/...`, etc.); align new names with these conventions to integrate with privilege resolution.
+
+## Liveness
+- Listeners must be completed eventually.
+- Resources (file handles, reference-count increments, circuit-breaker reservations, pooled memory allocations, etc) must be released eventually.
+- When writing or reviewing asynchronous code, consult `docs/internal/Liveness.md` for guidance.
 
 ## Logging & Error Handling
 - Elasticsearch should prefer its own logger `org.elasticsearch.logging.LogManager` & `org.elasticsearch.logging.Logger`; declare `private static final Logger logger = LogManager.getLogger(Class.class)`.
@@ -153,7 +159,7 @@ To confirm: `grep ClassName muted-tests.yml`. To verify the migration/test actua
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
-- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Your harness may introduce a hook that automatically adds attributions trailers to relevant git commands. Use `bash -lc` or a similar approach in this case to conform to the rule.
+- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Your harness may introduce a hook that automatically adds attributions trailers to relevant git commands. Use `bash -lc` or a similar approach in this case to conform to the rule. On Windows, do not use `bash -lc` for this, unless explicitly asked for.
 
 ## Methods with Required Javadoc Reading
 If you encounter any of the following methods, you must go and read their javadoc before taking any other actions:
@@ -189,3 +195,6 @@ Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this
 
 ## Documentation
 When building or editing docs, read `docs/AGENTS.md` first.
+
+## Benchmarks
+When working on mappers, the columnar or batch indexing path, or asked about indexing performance or its benchmarks, read `benchmarks/AGENTS.md` first.

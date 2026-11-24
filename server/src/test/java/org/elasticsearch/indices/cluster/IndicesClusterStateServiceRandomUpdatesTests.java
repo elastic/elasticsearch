@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -49,10 +51,15 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -65,6 +72,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -88,6 +97,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -308,6 +318,19 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             )
         );
 
+        // Complete the initial recovery for real (releasing its InFlight ticket) before simulating,
+        // below, that master has observed the shard started -- master can only learn that after this
+        // node actually sends shardStarted, which happens once the ticket is released.
+        final RecordingIndicesService recordingIndicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
+        final RecoveryState initialRecoveryState = recordingIndicesService.indexService(initializingPrimary.index())
+            .getShardOrNull(initializingPrimary.id())
+            .recoveryState();
+        recordingIndicesService.lastRecoveryListener.onRecoveryDone(
+            initialRecoveryState,
+            ShardLongFieldRange.UNKNOWN,
+            ShardLongFieldRange.UNKNOWN
+        );
+
         // start the primary so that the restore transition below replaces an active routing, as an in-place restore does
         final ClusterState stateWithOpenIndex = cluster.applyStartedShards(
             ClusterState.builder(stateWithInitializingIndex)
@@ -328,8 +351,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ShardRouting startedPrimary = stateWithOpenIndex.routingTable().index(indexName).shard(0).primaryShard();
         assertThat(startedPrimary.state(), equalTo(ShardRoutingState.STARTED));
 
-        final RecordingIndicesService indicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
-        final MockIndexService indexServiceBeforeRestore = indicesService.indexService(index);
+        final MockIndexService indexServiceBeforeRestore = recordingIndicesService.indexService(index);
         assertNotNull(indexServiceBeforeRestore);
 
         // the state that the atomic open-index restore initialization publishes: same index UUID, still open, new history UUID
@@ -368,7 +390,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             )
         );
 
-        final MockIndexService indexServiceAfterRestore = indicesService.indexService(index);
+        final MockIndexService indexServiceAfterRestore = recordingIndicesService.indexService(index);
         assertNotNull("index service should have been recreated for the restored index", indexServiceAfterRestore);
         assertNotSame(
             "index service should have been recreated rather than updated in place",
@@ -381,8 +403,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         );
         assertNotNull("restoring shard should have been created", indexServiceAfterRestore.getShardOrNull(startedPrimary.id()));
         // REOPENED keeps the shard store on disk so that the restore file diff can reuse identical local Lucene files
-        assertThat(indicesService.removalReason(index), equalTo(IndexRemovalReason.REOPENED));
-        assertFalse(indicesService.isDeleted(index));
+        assertThat(recordingIndicesService.removalReason(index), equalTo(IndexRemovalReason.REOPENED));
+        assertFalse(recordingIndicesService.isDeleted(index));
 
         // reapplying the same restore state must not recreate the index service a second time
         final IndexMetadata unchangedIndexMetadata = IndexMetadata.builder(restoredIndexMetadata)
@@ -403,7 +425,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         assertSame(
             "an update that leaves the history UUID alone must not recreate the index service",
             indexServiceAfterRestore,
-            indicesService.indexService(index)
+            recordingIndicesService.indexService(index)
         );
     }
 
@@ -439,11 +461,29 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
 
-        // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), FAIL_SILENT, primaryTerm, new Exception("dummy"));
+        final var key = ShardAllocationId.fromRouting(shardRouting);
+        final var inFlightTicket = indicesCSSvc.pendingAllocationStates.get(key);
+        assertThat(inFlightTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
+
+        // check that failing an unrelated allocation does not remove the shard, even when presented
+        // with this allocation's own live ticket: reinitializeReplicaShard's allocation id means the
+        // key computed from it can never match where that ticket actually lives.
+        indicesCSSvc.handleRecoveryFailure(
+            shardRouting.reinitializeReplicaShard(),
+            FAIL_SILENT,
+            primaryTerm,
+            new Exception("dummy"),
+            (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
+        );
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, FAIL_SILENT, primaryTerm, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT,
+            primaryTerm,
+            new Exception("dummy"),
+            (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
+        );
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
@@ -665,6 +705,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         DiscoveryNode discoveryNode,
         final Supplier<MockIndicesService> indicesServiceSupplier
     ) {
+        return createIndicesClusterStateService(discoveryNode, indicesServiceSupplier, mock(ShardStateAction.class));
+    }
+
+    private IndicesClusterStateService createIndicesClusterStateService(
+        DiscoveryNode discoveryNode,
+        final Supplier<MockIndicesService> indicesServiceSupplier,
+        ShardStateAction shardStateAction
+    ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         final MockIndicesService indicesService = indicesServiceSupplier.get();
@@ -703,7 +751,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             mock(SnapshotFilesProvider.class)
         );
-        final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
             settings,
@@ -729,6 +776,46 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private class RecordingIndicesService extends MockIndicesService {
         private Set<Index> deletedIndices = Collections.emptySet();
         private final Map<Index, IndexRemovalReason> removalReasons = new HashMap<>();
+        private volatile RecoveryListener lastRecoveryListener;
+
+        @Override
+        protected boolean autoCompleteRecovery() {
+            // These tests inspect the InFlight ticket immediately after shard creation, before recovery
+            // would have completed in production; auto-completing here would release it too early.
+            return false;
+        }
+
+        @Override
+        public void createShard(
+            ProjectId projectId,
+            ShardRouting shardRouting,
+            PeerRecoveryTargetService recoveryTargetService,
+            RecoveryListener recoveryListener,
+            RepositoriesService repositoriesService,
+            Consumer<IndexShard.ShardFailure> onShardFailure,
+            GlobalCheckpointSyncer globalCheckpointSyncer,
+            RetentionLeaseSyncer retentionLeaseSyncer,
+            DiscoveryNode targetNode,
+            DiscoveryNode sourceNode,
+            long clusterStateVersion,
+            int localRecoveryRetries
+        ) throws IOException {
+            lastRecoveryListener = recoveryListener;
+            super.createShard(
+                projectId,
+                shardRouting,
+                recoveryTargetService,
+                recoveryListener,
+                repositoriesService,
+                onShardFailure,
+                globalCheckpointSyncer,
+                retentionLeaseSyncer,
+                targetNode,
+                sourceNode,
+                clusterStateVersion,
+                localRecoveryRetries
+            );
+        }
 
         @Override
         public synchronized void removeIndex(

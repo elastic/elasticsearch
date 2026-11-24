@@ -14,6 +14,7 @@ import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xpack.stateless.objectstore.UploadDurationBuckets;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -31,7 +32,12 @@ public class BccUploadMetrics {
     static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
+    static final String BCC_UPLOAD_DURATION_HISTOGRAM_METRIC = "es.bcc.upload.duration.histogram";
+    static final String BCC_UPLOAD_ATTEMPTS_HISTOGRAM_METRIC = "es.bcc.upload.attempts.histogram";
+    static final String BCC_UPLOAD_GENERATION_QUEUE_DURATION_HISTOGRAM_METRIC = "es.bcc.upload.generation_queue.duration.histogram";
+    public static final String BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC = "es.bcc.upload.object_store.duration.histogram";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
+    public static final String BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY = "es_upload_success";
 
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccHeadersSizeInBytesHistogram;
@@ -41,6 +47,9 @@ public class BccUploadMetrics {
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
+    private final LongHistogram bccUploadDurationHistogram;
+    private final LongHistogram bccUploadAttemptsHistogram;
+    private final LongHistogram bccUploadGenerationQueueDurationHistogram;
 
     public BccUploadMetrics(final TelemetryProvider telemetryProvider) {
         final var meterRegistry = telemetryProvider.getMeterRegistry();
@@ -87,6 +96,34 @@ public class BccUploadMetrics {
             "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
             "count"
         );
+        this.bccUploadDurationHistogram = meterRegistry.registerLongHistogram(
+            BCC_UPLOAD_DURATION_HISTOGRAM_METRIC,
+            "total time (includes time spent on failed attempts and queueing) until a batched compound commit is uploaded to the "
+                + "object store, broken down by the ["
+                + BCC_SIZE_ATTRIBUTE_KEY
+                + "] size bucket",
+            "milliseconds",
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
+        );
+        this.bccUploadAttemptsHistogram = meterRegistry.registerLongHistogram(
+            BCC_UPLOAD_ATTEMPTS_HISTOGRAM_METRIC,
+            "number of attempts it took to upload a batched compound commit to the object store",
+            "count"
+        );
+        this.bccUploadGenerationQueueDurationHistogram = meterRegistry.registerLongHistogram(
+            BCC_UPLOAD_GENERATION_QUEUE_DURATION_HISTOGRAM_METRIC,
+            "time the successful attempt of a batched compound commit upload waited for earlier uploads of the same shard "
+                + "before calling the object store",
+            "milliseconds",
+            UploadDurationBuckets.BOUNDARIES_IN_MILLIS
+        );
+    }
+
+    /// Records the total duration, the number of attempts and the generation queue wait of a successful BCC upload.
+    public void recordBccUploadCompleted(long totalSizeInBytes, BccUploadResult result) {
+        bccUploadDurationHistogram.record(result.totalUploadTimeMs(), Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(totalSizeInBytes)));
+        bccUploadAttemptsHistogram.record(result.attempts().getLast().attempt());
+        bccUploadGenerationQueueDurationHistogram.record(result.attempts().getLast().generationQueueWaitMs());
     }
 
     /// Records all BCC upload metrics: size, number of commits, age before freeze, and timestamp range.

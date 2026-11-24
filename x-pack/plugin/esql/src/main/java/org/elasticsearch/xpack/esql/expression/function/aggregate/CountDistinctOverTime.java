@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -32,7 +33,7 @@ import java.util.List;
 /**
  * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
  */
-public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, UnitAware.Unitless {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",

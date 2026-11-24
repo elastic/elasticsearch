@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.test.TestUtil
 import org.elasticsearch.gradle.internal.idea.EnablePreviewFeaturesTask
 import org.elasticsearch.gradle.internal.idea.IdeaXmlUtil
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryCollectionPlugin
 import org.jetbrains.gradle.ext.JUnit
 
 import java.nio.file.Files
@@ -165,6 +166,20 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     }
   }
 
+  // The JUnit run configuration defaults below take es.nativelibs.path as one fixed string, the directory this
+  // task fills with the native libraries of all the projects that build them. Only the root project of the
+  // Elasticsearch build has them to collect; a build that includes Elasticsearch applies this script too.
+  if (project == rootProject && file('build-tools-internal/version.properties').exists()) {
+    project.apply(plugin: NativeLibraryCollectionPlugin)
+    tasks.register('collectNativeLibraries', Sync) {
+      group = 'ide'
+      description = 'Copies the native libraries built in this build into one directory, for tests run from the IDE'
+      from configurations.allNativeLibraries
+      into layout.buildDirectory.dir('native-libraries')
+      includeEmptyDirs = false
+    }
+  }
+
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
@@ -173,12 +188,12 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:native:native-libraries:extractLibs',
+      ':collectNativeLibraries',
       ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
-  // this path is produced by the extractLibs task above
-  String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
+  // The directory the collectNativeLibraries task of the Elasticsearch root project fills (see above)
+  String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/build/native-libraries")
   def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
   def delegateToGradle = providers.gradleProperty("org.elasticsearch.idea-delegate-to-gradle").getOrElse("false").toBoolean()
   idea {

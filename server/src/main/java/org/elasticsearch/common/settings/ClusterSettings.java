@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -102,6 +103,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -160,6 +163,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -230,7 +235,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+    private static final Set<Setting<?>> RELEASED_CLUSTER_SETTINGS = Set.of(
         AllocationService.PRESERVE_DECISION_LABELS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
@@ -395,6 +400,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
         ClusterService.USER_DEFINED_METADATA,
+        MetadataMappingService.PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING,
         MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING,
@@ -592,6 +598,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         SearchService.FETCH_PHASE_CHUNKED_ENABLED,
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
+        DocValuesBatchPrefetcher.BUDGET_SETTING,
         SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
@@ -631,6 +638,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
         SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
         SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING,
+        SnapshotsService.ENCRYPTED_DATA_REQUIRED_SETTING,
         RepositoriesService.DEFAULT_REPOSITORY_SETTING,
         RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
         FsHealthService.ENABLED_SETTING,
@@ -730,4 +738,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SystemIndices.NUMBER_OF_REPLICAS_SETTING,
         SystemIndices.AUTO_EXPAND_REPLICAS_SETTING
     );
+
+    /**
+     * The escape hatch for the not-yet-released analyzer sharing feature is registered only while its feature flag is on, so it is
+     * not exposed publicly before the feature ships.
+     */
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
+        ? Stream.concat(RELEASED_CLUSTER_SETTINGS.stream(), Stream.of(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING))
+            .collect(Collectors.toUnmodifiableSet())
+        : RELEASED_CLUSTER_SETTINGS;
 }

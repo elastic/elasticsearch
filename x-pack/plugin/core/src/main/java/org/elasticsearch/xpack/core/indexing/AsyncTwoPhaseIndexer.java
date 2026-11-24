@@ -523,7 +523,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
 
             // allowPartialSearchResults is set to false, so we should never see shard failures here
-            assert (searchResponse.getShardFailures().length == 0);
+            assert (searchResponse.getShardFailures().isEmpty());
             stats.markStartProcessing();
             stats.incrementNumPages(1);
 

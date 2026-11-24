@@ -52,6 +52,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     randomFrom(IndexMode.availableModes()),
                     0,
                     0,
+                    0,
                     0
                 )
             );
@@ -83,6 +84,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                     randomFrom(IndexMode.availableModes()),
                     0,
                     0,
+                    0,
                     0
                 )
             );
@@ -102,6 +104,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         randomFrom(IndexMode.availableModes()),
                         0,
                         0,
+                        0,
                         0
                     )
                 );
@@ -118,6 +121,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         true,
                         randomFrom(IndexMode.availableModes()),
                         resp.getNumberOfShards(),
+                        resp.getCreatedVersion(),
                         resp.getIndexSettingsVersion(),
                         resp.getMappingVersion()
                     )
@@ -173,6 +177,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         assumeTrue(
             "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
             hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+        );
+        final boolean hasSingleValued = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isStaticallySingleValued);
+        assumeTrue(
+            "single valued flag requires transport version " + FieldCapabilities.FIELD_CAPS_SINGLE_VALUED,
+            hasSingleValued == false || version.supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
         );
 
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);

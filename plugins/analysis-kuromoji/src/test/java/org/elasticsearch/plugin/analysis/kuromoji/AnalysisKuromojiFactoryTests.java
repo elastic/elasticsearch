@@ -56,7 +56,7 @@ public class AnalysisKuromojiFactoryTests extends AnalysisFactoryTestCase {
         return settings(Map.of("user_dictionary_rules", USER_DICTIONARY_RULES)).affects(
             "user_dictionary_rules",
             OTHER_USER_DICTIONARY_RULES
-        ).ignored("lenient", "true", "false");
+        ).ignored("lenient", "true", "false").covered("user_dictionary", "file content keyed via rules SHA; KuromojiAnalyzerSharingTests");
     }
 
     @Override

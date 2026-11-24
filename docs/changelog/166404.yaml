@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 157190
+pr: 166404
+summary: Support TS, METRICS_INFO and TS_INFO with LOAD_ALL
+type: enhancement

@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.activity.QueryLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -31,7 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
-import org.elasticsearch.xpack.eql.logging.EqlLogContext;
+import org.elasticsearch.xpack.eql.logging.EqlCaptureContext;
 import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -103,7 +103,7 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(response.isRunning(), is(false));
             assertThat(response.isPartial(), is(false));
             var message = getMessageData(appender.getLastEventAndReset());
-            assertMessageSuccess(message, EqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EqlCaptureContext.TYPE, query);
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
         } finally {
@@ -124,10 +124,10 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
         try {
             var message = getMessageData(appender.getLastEventAndReset());
-            assertMessageSuccess(message, EqlLogContext.TYPE, query);
+            assertMessageSuccess(message, EqlCaptureContext.TYPE, query);
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("5"));
-            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
         } finally {
             decRef(response);
         }
@@ -143,14 +143,14 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
         expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, EqlLogContext.TYPE, query, IndexNotFoundException.class, "Unknown index [test]");
+        assertMessageFailure(message, EqlCaptureContext.TYPE, query, IndexNotFoundException.class, "Unknown index [test]");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
     }
 
     /**
      * When the request succeeds with partial results (some shards fail), the activity log records
-     * shards.failed from EqlLogContext.shardInfo() (EQL only logs failed shard count).
+     * shards.failed from EqlCaptureContext.shardInfo() (EQL only logs failed shard count).
      */
     public void testEqlLoggingPartialShardFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -223,10 +223,10 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
 
                 var message = appender.events.stream()
                     .map(ActivityLoggingUtils::getMessageData)
-                    .filter(m -> EqlLogContext.TYPE.equals(m.get(ES_QUERY_FIELDS_PREFIX + "type")))
+                    .filter(m -> EqlCaptureContext.TYPE.equals(m.get(ES_QUERY_FIELDS_PREFIX + "type")))
                     .findFirst()
                     .orElseThrow(() -> new AssertionError("expected EQL log event not found"));
-                assertMessageSuccess(message, EqlLogContext.TYPE, query);
+                assertMessageSuccess(message, EqlCaptureContext.TYPE, query);
                 assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
                 assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
 

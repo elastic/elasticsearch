@@ -105,6 +105,14 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     }
 
     /**
+     * A placeholder in a static map of factories, for a {@code type} whose factory needs the configuration, so each instance
+     * builds it in {@link #factories()}. It throws if used, which would mean the factory was taken from the static map.
+     */
+    protected static BuildFactory builtInFactories(DataType type) {
+        return (source, field) -> { throw new IllegalStateException("the evaluator for [" + type + "] is built in factories()"); };
+    }
+
+    /**
      * A map from input type to {@link ExpressionEvaluator} ctor. Usually implemented like:
      * <pre>{@code
      *     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(

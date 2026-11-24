@@ -1,0 +1,87 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.esql-release'
+
+base {
+  archivesName = 'esql-profile-schema'
+}
+
+dependencies {
+  implementation project(':server')
+  implementation project(xpackModule('core'))
+  implementation project(xpackModule('esql'))
+  implementation project(xpackModule('esql:compute'))
+  implementation project(xpackModule('esql-core'))
+  implementation(project(xpackModule('esql-datasource-csv'))) {
+    transitive = false
+  }
+  implementation(project(xpackModule('esql-datasource-ndjson'))) {
+    transitive = false
+  }
+  implementation(project(xpackModule('esql-datasource-orc'))) {
+    transitive = false
+  }
+  implementation(project(xpackModule('esql-datasource-parquet'))) {
+    transitive = false
+  }
+
+  testImplementation project(':test:x-content')
+}
+
+def schemaPath = 'esql_profile.schema.json'
+def generatedSchema = layout.buildDirectory.file("generated-resources/esql-profile/${schemaPath}")
+def checkedInSchema = rootProject.layout.projectDirectory.file(
+  "docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/${schemaPath}"
+)
+
+def realCommonsLang = configurations.testRuntimeClasspath.filter { it.name.startsWith('commons-lang3-') }
+tasks.named('test').configure {
+  // The ORC plugin contains a minimal same-FQN StringUtils stub for its isolated production
+  // classloader. NetworkNT needs the complete library, so put it first on this flat test classpath.
+  classpath = realCommonsLang + (classpath - realCommonsLang)
+}
+
+def generateProfileSchema = tasks.register('generateProfileSchema', JavaExec) {
+  group = 'Build'
+  description = 'Generates the complete ES|QL profile response JSON Schema.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.profileschema.GenerateProfileSchema'
+  args generatedSchema.get().asFile
+  outputs.file(generatedSchema)
+}
+
+def updateProfileSchema = tasks.register('updateProfileSchema', JavaExec) {
+  group = 'Build'
+  description = 'Updates the checked-in ES|QL profile response JSON Schema.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.profileschema.GenerateProfileSchema'
+  args checkedInSchema.asFile
+  outputs.file(checkedInSchema)
+  outputs.upToDateWhen { false }
+}
+
+def checkProfileSchema = tasks.register('checkProfileSchema') {
+  group = 'Verification'
+  description = 'Checks that the ES|QL profile response JSON Schema is up to date.'
+  dependsOn generateProfileSchema
+  mustRunAfter updateProfileSchema
+  inputs.file(generatedSchema)
+  inputs.file(checkedInSchema)
+  // a plain string, so the configuration cache doesn't have to store the updateProfileSchema task
+  def updateProfileSchemaPath = "${project.path}:${updateProfileSchema.name}"
+  doLast {
+    if (java.nio.file.Files.mismatch(generatedSchema.get().asFile.toPath(), checkedInSchema.asFile.toPath()) != -1) {
+      throw new GradleException("ES|QL profile schema is stale. Run ${updateProfileSchemaPath}")
+    }
+  }
+}
+
+tasks.register('exportProfileSchema') {
+  group = 'Build'
+  description = 'Exports the checked-in ES|QL profile response JSON Schema.'
+  dependsOn checkProfileSchema
+  outputs.file(checkedInSchema)
+}
+
+tasks.named('check').configure {
+  dependsOn checkProfileSchema
+}

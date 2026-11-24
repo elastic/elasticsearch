@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
@@ -485,7 +486,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                         newIndexRoutingTable.addShard(
                             shardRouting.moveToUnassigned(
                                 new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"),
-                                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                RecoveryPriority.UNASSIGNED_UNEXPECTED
                             )
                         );
                         alreadyFailedPrimary = true;

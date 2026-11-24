@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -35,7 +36,7 @@ public class EsIndexGenerator {
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
         Map<String, IndexProperties> props = new HashMap<>(indexNameWithModes.size());
-        indexNameWithModes.forEach((k, v) -> props.put(k, new IndexProperties(v, 0)));
+        indexNameWithModes.forEach((k, v) -> props.put(k, new IndexProperties(v, 0, IndexVersion.current().id())));
         return new EsIndex(name, mapping, props, Map.of(), Map.of());
     }
 

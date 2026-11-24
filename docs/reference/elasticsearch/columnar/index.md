@@ -117,7 +117,32 @@ The `logsdb_columnar` index mode, like `logsdb` index mode, uses by default the 
 Hosts typically emit similar logs, so storing log entries from the same host sequentially on disk improves the efficiency of compression techniques such as run-length and delta encoding.
 The `@timestamp` field is also used as the index sort field with recent log entries appearing first, improving query performance for queries over recent data.
 
-The `columnar` index mode doesn't enable index sorting by default. If you collect logs from different agents, sorting by agent ID and timestamp might be a good choice:
+{applies_to}`stack: preview 9.7+` The `columnar` index mode doesn't enable index sorting by default. If you collect logs from different agents, sorting by agent ID and timestamp might be a good choice:
+
+```console
+PUT my-index
+{
+  "settings": {
+    "mode": "columnar",
+    "sort": "agent.id, @timestamp DESC"
+  }
+}
+```
+
+If query latency is more important than storage efficiency, sorting by just `@timestamp` might improve query response times:
+
+```console
+PUT my-logs-index
+{
+  "settings": {
+    "mode": "logsdb_columnar",
+    "sort": "@timestamp DESC"
+  }
+}
+```
+
+::::{dropdown} Configure the sort with separate settings
+Use `index.sort.field` and `index.sort.order` instead of the `index.sort` expression.
 
 ```console
 PUT my-index
@@ -130,8 +155,6 @@ PUT my-index
 }
 ```
 
-If query latency is more important than storage efficiency, sorting by just `@timestamp` might improve query response times:
-
 ```console
 PUT my-logs-index
 {
@@ -142,6 +165,7 @@ PUT my-logs-index
   }
 }
 ```
+::::
 
 ## Dynamic mappings [dynamic-mappings]
 
@@ -334,7 +358,9 @@ The following features are not supported in columnar index modes:
 
 - **Nested field type**: The [nested field type](/reference/elasticsearch/mapping-reference/nested.md) is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
-- **Turning off doc values**: Mapped fields cannot turn off doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
+- **Turning off doc values**:
+  - {applies_to}`stack: preview 9.7` Doc values are always on, including for multi-fields. `doc_values: true` and `doc_values: false` are ignored and not stored in the mapping, and `doc_values: false` returns a deprecation warning.
+  - In indices created before 9.7, setting `doc_values: false` on a root field leads to mapping errors. Multi-fields may still turn off doc values.
 - **Multi-field independence from parent constraints**: A parent field's [`multi_value: false` or `nullability: false`](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-on-failure-multi-fields) constraint is **not** inherited by its sub-fields. Each multi-field applies its own configuration independently. As a result, a value rejected (and redirected to `._on_failure`) by the parent may still be indexed by the multi-field, so the two can hold different value sets. Configure `multi_value: false` on the sub-field itself if you need the same constraint there.
 - **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (for example, `search_as_you_type`).
 - **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.

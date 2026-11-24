@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
@@ -99,7 +100,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 TransportSearchAction.TYPE.name(),
                 searchRequest
             );
-            searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
+            // If the search runs past wait_for_completion_timeout, the submit responds first, so the search holds the parsed request's
+            // charge until it ends. The task keeps the request uncharged until its result is stored.
+            searchAction.execute(
+                searchTask,
+                searchRequest,
+                ActionListener.releaseAfter(searchTask.getSearchProgressActionListener(), ParsedContentReservation.hold(threadContext))
+            );
 
             ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
                 threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");

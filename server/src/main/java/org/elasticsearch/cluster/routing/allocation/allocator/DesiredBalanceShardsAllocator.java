@@ -115,9 +115,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface RecoveryDirectCancellationCallback {
-        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation) -> {};
+        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation, convergedWithLatestInput) -> {};
 
-        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation);
+        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation, boolean convergedWithLatestInput);
     }
 
     @FunctionalInterface
@@ -231,12 +231,17 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         index
                     );
                     // We cancel even on a partial (not-yet-converged) balance to avoid delaying freeing recovery slots
-                    // on data nodes. This is consistent with reconciling on the same partial balance below, but comes at
-                    // the cost of potential cancellation/allocation back and forth if the final balance reverses the
-                    // decision.
+                    // on data nodes. This is consistent with reconciling on the same partial balance below. The
+                    // cancellation service restricts which recoveries it cancels when the balance has not converged.
+                    //
+                    // Skip the restricted pass if the assignments did not change. It never escalates a cancellation, so
+                    // a rerun on the same assignments can only find something new if a canRemain decision flipped
+                    // without any assignment change. The cause of such a flip (e.g. a shutdown or an allocation filter)
+                    // usually moves other shards too (so `hasChanges` is true), and the unconditional full pass on
+                    // convergence covers the remaining cases.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
                     }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
@@ -244,17 +249,29 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
+
+                    // Unlike the non-converged branches, run the full cancellation pass even if the assignments did not
+                    // change. The same assignments may previously only have been seen by the restricted pass (e.g. when
+                    // they were computed from an input that was then superseded), and `canRemain` decisions may have
+                    // changed without the assignments changing.
+                    //
                     // TODO: A reconcile round from a recent balance could be in progress while a new balance gets computed,
                     // in which case the currentAllocation captured below could miss an initializing shard created by
                     // that concurrent reconciliation. This is not a correctness problem, as recovery cancellation
                     // is best-effort, but we should find a way to catch those cases.
-                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
-                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
-                    }
+                    final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                    recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, true);
                     submitReconcileTask(currentDesiredBalance);
                 } else {
-                    logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
+                    logger.debug("Desired balance computation for [{}] is superseded by newer input", index);
+                    // Trigger cancellation even if the desired balance computation got superseded by a newer input.
+                    // On a large busy cluster with a steady stream of new input (e.g. during a rolling upgrade) a
+                    // computation may not converge for a long time. As for STOP_EARLY above, the cancellation service
+                    // restricts which recoveries it cancels, and the pass is skipped if the assignments did not change.
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
+                    }
                 }
             }
 

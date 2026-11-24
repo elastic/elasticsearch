@@ -16,33 +16,72 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Status of an {@link Operator}.
  *
  * @param operator String representation of the {@link Operator}.
  * @param status Status as reported by the {@link Operator}.
+ * @param planNodeId Id of the physical plan node that created this operator, or null when there is none
+ *                   (output, exchange plumbing, tests). Omitted on the wire before {@link PlanProfile#JSON_PLANS_VERSION}.
+ * @param exchangeId Name of the exchange an exchange sink or source operator is one side of, the same name its plan node carries and
+ *                   the operator on the other side of the hop reports, or null for every other operator. Omitted on the wire before
+ *                   {@link PlanProfile#JSON_PLANS_VERSION}.
  */
-public record OperatorStatus(String operator, @Nullable Operator.Status status) implements Writeable, ToXContentObject {
+public record OperatorStatus(String operator, @Nullable Operator.Status status, @Nullable String planNodeId, @Nullable String exchangeId)
+    implements
+        Writeable,
+        ToXContentObject {
+
+    /** Operators profiled before plan-node ids existed. */
+    public OperatorStatus(String operator, @Nullable Operator.Status status) {
+        this(operator, status, null, null);
+    }
+
+    public static final ProfileSchema<OperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(OperatorStatus.class, (builder, value, params) -> {
+        builder.startObject();
+        builder.field("operator", value.operator);
+        if (value.planNodeId != null) {
+            builder.field("plan_node_id", value.planNodeId);
+        }
+        if (value.exchangeId != null) {
+            builder.field("exchange_id", value.exchangeId);
+        }
+        if (value.status != null) {
+            builder.field("status", value.status);
+        }
+        return builder.endObject();
+    })
+        .required("operator", ProfileSchema.string())
+        .optional("plan_node_id", ProfileSchema.string())
+        .optional("exchange_id", ProfileSchema.string())
+        .optional("status", ProfileSchema.dynamicObject(Map.of()))
+        .build();
 
     public static OperatorStatus readFrom(StreamInput in) throws IOException {
-        return new OperatorStatus(in.readString(), in.readOptionalNamedWriteable(Operator.Status.class));
+        boolean hasIds = in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION);
+        return new OperatorStatus(
+            in.readString(),
+            in.readOptionalNamedWriteable(Operator.Status.class),
+            hasIds ? in.readOptionalString() : null,
+            hasIds ? in.readOptionalString() : null
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(operator);
         out.writeOptionalNamedWriteable(status != null && status.supportsVersion(out.getTransportVersion()) ? status : null);
+        if (out.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
+            out.writeOptionalString(planNodeId);
+            out.writeOptionalString(exchangeId);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("operator", operator);
-        if (status != null) {
-            builder.field("status", status);
-        }
-        return builder.endObject();
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
     @Override

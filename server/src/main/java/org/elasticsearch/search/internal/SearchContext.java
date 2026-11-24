@@ -86,6 +86,7 @@ public abstract class SearchContext implements Releasable {
         }
     }
     private InnerHitsContext innerHitsContext;
+    private volatile boolean fetchChargedByPool;
 
     protected Query rewriteQuery;
 
@@ -104,6 +105,17 @@ public abstract class SearchContext implements Releasable {
             return timeoutRunnable == null ? List.of(c) : List.of(c, timeoutRunnable);
         }
         return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
+    }
+
+    /**
+     * Whether the pool task the fetch phase started on charges its time, since the fetch can complete on another thread.
+     */
+    public final boolean fetchChargedByPool() {
+        return fetchChargedByPool;
+    }
+
+    public final void fetchChargedByPool(boolean fetchChargedByPool) {
+        this.fetchChargedByPool = fetchChargedByPool;
     }
 
     public abstract void setTask(CancellableTask task);

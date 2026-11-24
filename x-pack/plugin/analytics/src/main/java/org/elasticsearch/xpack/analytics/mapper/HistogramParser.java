@@ -30,7 +30,7 @@ public class HistogramParser {
     private static final ParseField COUNTS_FIELD = new ParseField("counts");
     private static final ParseField VALUES_FIELD = new ParseField("values");
 
-    private static final Set<String> ROOT_FIELD_NAMES = Set.of(COUNTS_FIELD.getPreferredName(), VALUES_FIELD.getPreferredName());
+    public static final Set<String> ROOT_FIELD_NAMES = Set.of(COUNTS_FIELD.getPreferredName(), VALUES_FIELD.getPreferredName());
 
     public static boolean isHistogramSubFieldName(String subFieldName) {
         return ROOT_FIELD_NAMES.contains(subFieldName);
@@ -154,9 +154,9 @@ public class HistogramParser {
      * order. Wherever {@link #parse} would fail, this throws what {@code onUnsupported} builds, so that the caller can
      * hand the batch to the row path instead.
      *
-     * <p>That includes a duplicate relative key, which {@code ShardBatchMapper#resolveMappers} lets through for
-     * group mappers on the grounds that {@code flattened} can merge aliased leaves; a histogram has nowhere to
-     * put a second {@code values} array.
+     * <p>A batch whose keys are not exactly {@link #ROOT_FIELD_NAMES}, or whose histogram is spread over more than
+     * one object, falls back before reaching this, so the key checks here only guard against callers that skip
+     * those checks.
      *
      * <p>{@code consumer} receives each document's centroids with its row; the iterator is reused, so it is only valid
      * during the call.

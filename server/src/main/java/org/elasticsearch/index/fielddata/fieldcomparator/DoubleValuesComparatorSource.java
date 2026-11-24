@@ -108,8 +108,8 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         int bucketSize,
         BucketedSort.ExtraData extra
     ) {
+        final double dMissingValue = (Double) missingObject(missingValue, sortOrder == SortOrder.DESC);
         return new BucketedSort.ForDoubles(bigArrays, sortOrder, format, bucketSize, extra) {
-            private final double dMissingValue = (Double) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {

@@ -108,6 +108,18 @@ public class ExternalSourceResolverDiscoveryFailureTelemetryTests extends ESTest
         assertThat(accumulator.discoveryFailures(), equalTo(0L));
     }
 
+    /** A deleted object on the first resolution pass is retried the same way, so it is not a discovery failure yet. */
+    public void testObjectNotFoundOnTheFirstPassIsNotCounted() {
+        resolver.objectChangeRetryAhead(true);
+        RuntimeException mapped = resolver.mapResolveFailure(
+            PATH_STRING,
+            new ExternalClientException(Condition.OBJECT_NOT_FOUND, PATH, "", "")
+        );
+
+        assertTrue(mapped instanceof ExternalClientException);
+        assertThat(accumulator.discoveryFailures(), equalTo(0L));
+    }
+
     /** Any other failure on the first pass is not retried, so it is counted as before. */
     public void testOtherFailureOnTheFirstPassIsCounted() {
         resolver.objectChangeRetryAhead(true);

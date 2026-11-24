@@ -668,6 +668,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertThat(updateProcessMessage.getDetectorUpdates(), equalTo(detectorUpdates));
     }
 
+    public void testWriteUpdateProcessMessage_givenDetectorUpdateWithoutRules() {
+        AutodetectProcessManager manager = createSpyManagerAndCallProcessData("foo");
+        ModelPlotConfig modelConfig = mock(ModelPlotConfig.class);
+        // a description-only detector update has null rules
+        List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
+            new JobUpdate.DetectorUpdate(0, "new description", null)
+        );
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        UpdateParams updateParams = UpdateParams.builder("foo").modelPlotConfig(modelConfig).detectorUpdates(detectorUpdates).build();
+
+        manager.writeUpdateProcessMessage(jobTask, updateParams, e -> {});
+
+        // the model plot config change must still reach the process
+        ArgumentCaptor<UpdateProcessMessage> captor = ArgumentCaptor.forClass(UpdateProcessMessage.class);
+        verify(autodetectCommunicator).writeUpdateProcessMessage(captor.capture(), any());
+        assertThat(captor.getValue().getModelPlotConfig(), equalTo(modelConfig));
+        assertThat(captor.getValue().getDetectorUpdates(), equalTo(detectorUpdates));
+    }
+
     public void testJobHasActiveAutodetectProcess() {
         AutodetectProcessManager manager = createSpyManager();
         JobTask jobTask = mock(JobTask.class);

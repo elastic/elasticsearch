@@ -95,7 +95,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     // Range query constructor
     public PromqlCommand(
@@ -329,14 +329,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     @Override
     public List<Attribute> output() {
-        if (output == null) {
+        List<Attribute> result = output;
+        if (result == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
             List<Attribute> additionalOutput = promqlPlan.output();
-            output = new ArrayList<>(additionalOutput.size() + 2);
-            output.add(valueAttribute());
-            output.add(stepAttribute());
-            output.addAll(additionalOutput);
+            result = new ArrayList<>(additionalOutput.size() + 2);
+            result.add(valueAttribute());
+            result.add(stepAttribute());
+            result.addAll(additionalOutput);
+            output = result;
         }
-        return output;
+        return result;
     }
 
     @Override
@@ -469,39 +472,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                 }
-                case AcrossSeriesAggregate agg -> {
-                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
-                        failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
-                    }
-                    // Reject labels whose name collides with the built-in step column.
-                    // If this proves too restrictive, we could add an option to rename the built-in step column.
-                    for (Attribute grouping : agg.groupings()) {
-                        if (stepColumnName().equals(grouping.name())) {
-                            failures.add(
-                                fail(
-                                    agg,
-                                    "label [{}] collides with the built-in [{}] output column [{}]",
-                                    stepColumnName(),
-                                    stepColumnName(),
-                                    agg.sourceText()
-                                )
-                            );
-                        }
-                    }
+                case CountValuesAggregate countValues -> {
+                    verifyAcrossSeriesAggregate(countValues, failures);
+                    verifyCountValues(countValues, failures);
                 }
+                case AcrossSeriesAggregate agg -> verifyAcrossSeriesAggregate(agg, failures);
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
-                        if (stepColumnName().equals(grouping.name())) {
-                            failures.add(
-                                fail(
-                                    reduction,
-                                    "label [{}] collides with the built-in [{}] output column [{}]",
-                                    stepColumnName(),
-                                    stepColumnName(),
-                                    reduction.sourceText()
-                                )
-                            );
-                        }
+                        checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
                     }
                 }
                 case HistogramFunctionCall histogram -> {
@@ -621,7 +599,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                     if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator);
-                    }
+                    } else if (binaryOperator instanceof VectorBinarySet == false
+                        && binaryOperator.match() == VectorMatch.NONE
+                        && (pairsCountValuesWithRawOperand(binaryOperator.left(), binaryOperator.right())
+                            || pairsCountValuesWithRawOperand(binaryOperator.right(), binaryOperator.left()))) {
+                                failures.add(
+                                    fail(
+                                        binaryOperator,
+                                        "binary operations between an aggregated and a raw vector are not supported at this time [{}]",
+                                        binaryOperator.sourceText()
+                                    )
+                                );
+                            }
                     // Arithmetic/comparison binary operators merge both source-backed operands into a single
                     // TimeSeriesAggregate (one shared time bucket and timestamp), which cannot represent two
                     // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
@@ -652,15 +641,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * Enforces the supported scope for {@code label_replace}/{@code label_join}: because a derived label is materialized as a
-     * concrete column (never by rewriting the series-identity blob), it must be consumed by an enclosing {@code by(...)}
-     * aggregation. Walking down the plan, each relabel is checked against the nearest enclosing <i>identity consumer</i> - the
-     * aggregate, reduction, or binary operator whose output identity it would feed. Only an {@link AcrossSeriesAggregate} with
-     * {@link AcrossSeriesAggregate.Grouping#BY} can consume it; a bare (non-aggregated) call, a {@code without(...)} grouping,
-     * a {@code topk}/{@code bottomk} reduction, or a binary operator would require identity-blob rewriting and is rejected.
+     * concrete column (never by rewriting the series-identity blob), it must either be consumed by an enclosing
+     * {@code by(...)} aggregation, or merely add a new label to an identity that an enclosed {@code by(...)} aggregation has
+     * already reduced to concrete columns (see {@link #identitySource} and {@link #overwritesLabel}). Walking down the plan, each relabel
+     * is checked against the nearest enclosing <i>identity consumer</i> - the aggregate, reduction, or binary operator whose
+     * output identity it would feed. An {@link AcrossSeriesAggregate} with {@link AcrossSeriesAggregate.Grouping#BY} always
+     * consumes it; a bare (non-aggregated) call or an {@link AcrossSeriesReduction} only when the relabel refines an
+     * aggregated identity; a {@code without(...)} grouping or a binary operator would require identity-blob rewriting and is
+     * rejected.
      *
      * @param consumer the nearest enclosing identity consumer for a relabel at this position, or {@code null} at the root
      */
-    private static void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
+    private void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
         if (node instanceof MetadataManipulationFunction relabel) {
             checkRelabelConsumer(relabel, consumer, failures);
             // A relabel passes identity through unchanged, so a nested relabel is consumed by the same enclosing consumer.
@@ -675,7 +667,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
     }
 
-    private static void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
+    private void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
         String name = relabel.definition().name();
         if (consumer instanceof AcrossSeriesAggregate agg) {
             if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
@@ -695,21 +687,174 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             );
             return;
         }
-        String context = switch (consumer) {
-            case null -> "as a top-level (non-aggregated) expression";
-            case AcrossSeriesReduction reduction -> "under [" + reduction.definition().name() + "]";
-            case VectorBinaryOperator binaryOperator -> "as an operand of a binary operator";
-            default -> "in an unsupported position";
-        };
+        if (consumer instanceof VectorBinaryOperator) {
+            failures.add(
+                fail(
+                    relabel,
+                    "[{}] is only supported inside a `by(...)` aggregation, but was used as an operand of a binary operator [{}]",
+                    name,
+                    relabel.sourceText()
+                )
+            );
+            return;
+        }
+        // No consumer (top-level) or a topk-style reduction: the relabel is supported when it merely adds a new label to an
+        // identity that an enclosed `by(...)` aggregation has already reduced to concrete columns.
+        String position = consumer instanceof AcrossSeriesReduction reduction
+            ? "under [" + reduction.definition().name() + "]"
+            : "as a top-level expression";
+        LogicalPlan identitySource = identitySource(relabel.child());
+        if (identitySource instanceof AcrossSeriesAggregate agg
+            && (agg.grouping() == AcrossSeriesAggregate.Grouping.BY || agg instanceof CountValuesAggregate)) {
+            // Compare by label name, not attribute name: a destination written as `labels.pod` names the same label as the
+            // aggregation's `pod`, which is how the analyzer shadows it and how translation resolves it.
+            String destination = PromqlLabels.labelName(relabel.destination());
+            if (overwritesLabel(relabel, destination)) {
+                String source = agg instanceof CountValuesAggregate ? "[" + agg.definition().name() + "]" : "a `by(...)` aggregation";
+                failures.add(
+                    fail(
+                        relabel,
+                        "[{}] used {} over {} must add a new label, but destination [{}] overwrites a label of the aggregation [{}]",
+                        name,
+                        position,
+                        source,
+                        destination,
+                        relabel.sourceText()
+                    )
+                );
+                return;
+            }
+            // On this path the derived label is not consumed by a grouping but becomes an output column of its own, so
+            // it must be checked against the built-in output columns just like a `by(...)` label.
+            checkBuiltInColumnCollision(relabel, destination, failures);
+            return;
+        }
         failures.add(
             fail(
                 relabel,
-                "[{}] is only supported inside a `by(...)` aggregation, but was used {} [{}]",
+                "[{}] is only supported inside a `by(...)` aggregation or over the result of one, but was used {} over {} [{}]",
                 name,
-                context,
+                position,
+                describeIdentitySource(identitySource),
                 relabel.sourceText()
             )
         );
+    }
+
+    private void verifyAcrossSeriesAggregate(AcrossSeriesAggregate agg, Failures failures) {
+        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
+            failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
+        }
+        // Reject labels whose name collides with a built-in output column.
+        // If this proves too restrictive, we could add an option to rename the built-in step column.
+        for (Attribute grouping : agg.groupings()) {
+            checkBuiltInColumnCollision(agg, PromqlLabels.labelName(grouping), failures);
+        }
+    }
+
+    /**
+     * Rejects the {@code count_values} shapes that are not supported yet: a {@code without(...)} grouping, whose output keeps
+     * the opaque series identity the value label would have to be added to, and a value label that names a column the command
+     * reserves - the step or value column, or {@code _timeseries}, which the Prometheus response format reads as the
+     * series' label set.
+     */
+    private void verifyCountValues(CountValuesAggregate agg, Failures failures) {
+        String name = agg.definition().name();
+        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+            failures.add(fail(agg, "function [{}] is not yet supported with [{}] [{}]", name, agg.grouping(), agg.sourceText()));
+            return;
+        }
+        String label = PromqlLabels.labelName(agg.valueLabel());
+        checkBuiltInColumnCollision(agg, label, failures);
+        if (MetadataAttribute.isTimeSeriesAttributeName(label)) {
+            failures.add(
+                fail(agg, "label [{}] in call to function [{}] collides with a reserved column [{}]", label, name, agg.sourceText())
+            );
+        }
+    }
+
+    /**
+     * Whether {@code countValues} contains a {@code count_values} aggregation and {@code other} is a vector without a
+     * concrete label set. Such an operator translates as a join, which matches operands on their label columns.
+     */
+    private static boolean pairsCountValuesWithRawOperand(LogicalPlan countValues, LogicalPlan other) {
+        return CountValuesAggregate.usesCountValues(countValues)
+            && PromqlPlan.returnsScalar(other) == false
+            && hasConcreteLabels(other) == false;
+    }
+
+    /**
+     * Rejects a label that would surface as an output column under the same name as one of the command's built-in output
+     * columns - the step column or the value column - since the two would end up as duplicate output attributes and fail
+     * in the optimizer rather than with a client error. {@code labelName} is the PromQL label name (see
+     * {@link PromqlLabels#labelName}), so a passthrough-prefixed {@code labels.step} is caught as well.
+     */
+    private void checkBuiltInColumnCollision(LogicalPlan node, String labelName, Failures failures) {
+        for (String builtIn : List.of(stepColumnName(), valueColumnName())) {
+            if (builtIn.equals(labelName)) {
+                failures.add(
+                    fail(node, "label [{}] collides with the built-in [{}] output column [{}]", labelName, builtIn, node.sourceText())
+                );
+            }
+        }
+    }
+
+    /**
+     * The node that produces {@code plan}'s series identity: the nearest non-identity-transparent node (see
+     * {@link PromqlPlan#isIdentityTransparent}) below, or {@code null} when the walk reaches raw series without passing one.
+     * <p>
+     * A relabel over an aggregate is only correct when this is a {@code by(...)} aggregation: that both makes the label set
+     * enumerable (an unaggregated vector still carries the opaque {@code _timeseries} identity) and materializes the source
+     * labels as columns the derived expression can read. A binary operator or a {@code topk}-style reduction reshapes
+     * identity in ways that do not leave the relabel's source labels readable as columns.
+     */
+    private static LogicalPlan identitySource(LogicalPlan plan) {
+        LogicalPlan node = plan;
+        while (node instanceof PromqlPlan promqlPlan) {
+            if (promqlPlan.isIdentityTransparent() == false) {
+                return node;
+            }
+            if (node.children().size() != 1) {
+                return null;
+            }
+            node = node.children().get(0);
+        }
+        return null;
+    }
+
+    /**
+     * A human-readable name for an {@link #identitySource} in a verification failure. Only called for the sources that
+     * {@link #checkRelabelConsumer} rejects, so a {@code by(...)} aggregation never reaches this method.
+     */
+    private static String describeIdentitySource(LogicalPlan identitySource) {
+        return switch (identitySource) {
+            case null -> "raw (non-aggregated) series";
+            case AcrossSeriesAggregate agg -> switch (agg.grouping()) {
+                case WITHOUT -> "a `without(...)` aggregation";
+                case NONE -> "an aggregation without a `by(...)` grouping";
+                case BY -> throw new AssertionError("a relabel over a `by(...)` aggregation is accepted before reaching here");
+            };
+            case AcrossSeriesReduction reduction -> "[" + reduction.definition().name() + "]";
+            case VectorBinaryOperator binaryOperator -> "a binary operator";
+            // These are the only nodes for which PromqlPlan#isIdentityTransparent returns false, so identitySource never
+            // yields anything else.
+            default -> throw new AssertionError("unexpected identity source [" + identitySource.nodeName() + "]");
+        };
+    }
+
+    /**
+     * Whether the relabel's destination (given as a PromQL label name, see {@link PromqlLabels#labelName}) names a label its
+     * input already carries. The derived value is a function of the input's labels, so adding a new label strictly refines
+     * the identity - series that differ before the relabel still differ after it - whereas overwriting one can collapse two
+     * series onto a shared label set and would need Prometheus' duplicate-label-set handling.
+     */
+    private static boolean overwritesLabel(MetadataManipulationFunction relabel, String destination) {
+        for (Attribute label : relabel.child().output()) {
+            if (PromqlLabels.labelName(label).equals(destination)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

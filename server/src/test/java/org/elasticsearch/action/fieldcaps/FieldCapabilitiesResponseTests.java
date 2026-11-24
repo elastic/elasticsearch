@@ -50,7 +50,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode, 0, 0, 0));
+            responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode, 0, 0, 0, 0));
         }
         randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
         return randomResponse;
@@ -167,9 +167,9 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         var response = FieldCapabilitiesResponse.builder()
             .withIndexResponses(
                 List.of(
-                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD, 0, 0, 0),
-                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0),
-                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0)
+                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD, 0, 0, 0, 0),
+                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0, 0),
+                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD, 0, 0, 0, 0)
                 )
             )
             .build();
@@ -238,6 +238,13 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         assumeTrue(
             "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
             hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+        );
+        final boolean hasSingleValued = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isStaticallySingleValued);
+        assumeTrue(
+            "single valued flag requires transport version " + FieldCapabilities.FIELD_CAPS_SINGLE_VALUED,
+            hasSingleValued == false || version.supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
         );
 
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);

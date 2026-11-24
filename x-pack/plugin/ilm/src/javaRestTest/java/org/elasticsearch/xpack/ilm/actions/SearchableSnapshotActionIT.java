@@ -947,6 +947,40 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         );
     }
 
+    public void testSearchableSnapshotUnboundedTotalShardsPerNodeOverridesInheritedLimit() throws Exception {
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), -1, null, null))
+            ),
+            null,
+            null
+        );
+
+        createIndex(index, Settings.builder().put(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build());
+        ensureGreen(index);
+        indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        final String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
+        TimeSeriesRestDriver.awaitStepKey(client(), restoredIndexName, "cold", null, PhaseCompleteStep.NAME);
+        awaitIndexDoesNotExist(index);
+
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(restoredIndexName);
+        assertEquals("-1", indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+    }
+
     public void testSearchableSnapshotReplicateFor() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 

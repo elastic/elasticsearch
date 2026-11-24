@@ -74,7 +74,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         assert queryVector.length == values.getVectorByteLength();
         this.vectorByteSize = values.getVectorByteLength();
         this.vectorPitch = vectorByteSize + Float.BYTES;
-        this.query = MemorySegment.ofArray(queryVector);
+        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
         this.queryCorrection = queryCorrection;
         this.scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
         this.scratch = new FixedSizeSegmentScratch(vectorPitch);

@@ -20,6 +20,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -309,6 +310,142 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
             }
         }
+    }
+
+    private enum NumericShape {
+        /** {@code NumericDocValuesField}: always written through a singleton wrapper. */
+        NUMERIC,
+        /** {@code SortedNumericDocValuesField} with exactly one value in every document that has the field. */
+        SORTED_NUMERIC_SINGLE,
+        /** {@code SortedNumericDocValuesField} with one or more values per document, and at least one document with several. */
+        SORTED_NUMERIC_MULTI
+    }
+
+    /**
+     * The numeric writer walks single-valued fields directly and multi-valued fields through the sorted-numeric API. Both
+     * paths build the skip index and encode the blocks, so check that for each shape, dense and sparse, flushed and merged,
+     * the values read back, and every skip index interval, match what was indexed.
+     */
+    public void testNumericValuesAndSkipIndex() throws Exception {
+        for (NumericShape shape : NumericShape.values()) {
+            for (boolean sparse : new boolean[] { false, true }) {
+                for (boolean merge : new boolean[] { false, true }) {
+                    doTestNumericValuesAndSkipIndex(shape, sparse, merge);
+                }
+            }
+        }
+    }
+
+    private void doTestNumericValuesAndSkipIndex(NumericShape shape, boolean sparse, boolean merge) throws Exception {
+        final String field = "value";
+        final int numDocs = randomIntBetween(1, 3 * 4096);
+        // Indexed by the position the document was added at; null when the document has no value.
+        final long[][] expectedByPosition = new long[numDocs][];
+        int docsWithValue = 0;
+        var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, BASE_TIMESTAMP + 1000L * i));
+                if (i == 0 || sparse == false || randomIntBetween(0, 3) != 0) {
+                    final int count = switch (shape) {
+                        case NUMERIC, SORTED_NUMERIC_SINGLE -> 1;
+                        case SORTED_NUMERIC_MULTI -> docsWithValue == 0 ? 2 : randomIntBetween(1, 4);
+                    };
+                    final long[] values = new long[count];
+                    for (int j = 0; j < count; j++) {
+                        values[j] = randomLong();
+                    }
+                    Arrays.sort(values);
+                    for (long v : values) {
+                        switch (shape) {
+                            case NUMERIC -> d.add(NumericDocValuesField.indexedField(field, v));
+                            case SORTED_NUMERIC_SINGLE, SORTED_NUMERIC_MULTI -> d.add(SortedNumericDocValuesField.indexedField(field, v));
+                        }
+                    }
+                    expectedByPosition[i] = values;
+                    docsWithValue++;
+                }
+                iw.addDocument(d);
+                // Several segments, so that the merge below has something to merge.
+                if (merge && i % 1000 == 999) {
+                    iw.commit();
+                }
+            }
+            if (merge) {
+                iw.forceMerge(1);
+            }
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = getOnlyLeafReader(reader);
+                assertEquals(numDocs, leaf.maxDoc());
+
+                // The index is sorted on the timestamp, so map each document back to the position it was added at.
+                final long[][] expectedByDocId = new long[numDocs][];
+                var timestamps = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
+                // Reads a NUMERIC field as sorted-numeric too, so that every shape is checked the same way.
+                var dv = DocValues.getSortedNumeric(leaf, field);
+                for (int doc = timestamps.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = timestamps.nextDoc()) {
+                    final int position = Math.toIntExact((timestamps.longValue() - BASE_TIMESTAMP) / 1000L);
+                    final long[] indexedValues = expectedByPosition[position];
+                    expectedByDocId[doc] = indexedValues;
+                    if (indexedValues == null) {
+                        assertFalse(dv.advanceExact(doc));
+                    } else {
+                        assertTrue(dv.advanceExact(doc));
+                        assertEquals(indexedValues.length, dv.docValueCount());
+                        for (long v : indexedValues) {
+                            assertEquals(v, dv.nextValue());
+                        }
+                    }
+                }
+
+                var skipper = leaf.getDocValuesSkipper(field);
+                assertNotNull(skipper);
+                assertSkipIntervals(skipper, expectedByDocId, docsWithValue);
+            }
+        }
+    }
+
+    /** Checks the global statistics, and each level-0 interval, of a skip index against the values per document. */
+    private static void assertSkipIntervals(DocValuesSkipper skipper, long[][] expectedByDocId, int docsWithValue) throws IOException {
+        assertEquals(docsWithValue, skipper.docCount());
+        assertEquals(minValue(expectedByDocId, 0, expectedByDocId.length - 1), skipper.minValue());
+        assertEquals(maxValue(expectedByDocId, 0, expectedByDocId.length - 1), skipper.maxValue());
+        int covered = 0;
+        for (skipper.advance(0); skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS; skipper.advance(skipper.maxDocID(0) + 1)) {
+            final int from = skipper.minDocID(0);
+            final int to = skipper.maxDocID(0);
+            assertEquals(minValue(expectedByDocId, from, to), skipper.minValue(0));
+            assertEquals(maxValue(expectedByDocId, from, to), skipper.maxValue(0));
+            int docs = 0;
+            for (int doc = from; doc <= to; doc++) {
+                docs += expectedByDocId[doc] != null ? 1 : 0;
+            }
+            assertEquals(docs, skipper.docCount(0));
+            covered += docs;
+        }
+        assertEquals(docsWithValue, covered);
+    }
+
+    private static long minValue(long[][] expectedByDocId, int from, int to) {
+        long min = Long.MAX_VALUE;
+        for (int doc = from; doc <= to; doc++) {
+            if (expectedByDocId[doc] != null) {
+                min = Math.min(min, expectedByDocId[doc][0]); // sorted ascending
+            }
+        }
+        return min;
+    }
+
+    private static long maxValue(long[][] expectedByDocId, int from, int to) {
+        long max = Long.MIN_VALUE;
+        for (int doc = from; doc <= to; doc++) {
+            if (expectedByDocId[doc] != null) {
+                max = Math.max(max, expectedByDocId[doc][expectedByDocId[doc].length - 1]);
+            }
+        }
+        return max;
     }
 
     public void testForceMergeDenseCase() throws Exception {

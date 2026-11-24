@@ -276,6 +276,12 @@ public class SplitTargetService {
             advance(currentState);
         }
 
+        /// The state machine is cancelled when its shard closes, but only once that close has started. The shard itself is marked as closed
+        /// sooner than that, and the shard's cluster state listeners can run in between.
+        private boolean isCancelled() {
+            return cancelled.get() || shard.state() == IndexShardState.CLOSED;
+        }
+
         void cancel() {
             final boolean isFirstCancellation = cancelled.getAndSet(true) == false;
             assert isFirstCancellation : "split for " + shard.shardId() + " cancelled twice";
@@ -583,6 +589,9 @@ public class SplitTargetService {
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
+                        if (isCancelled()) {
+                            return;
+                        }
                         final Index index = shardId.getIndex();
                         final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
                         if (projectMetadata != null) {
@@ -600,12 +609,16 @@ public class SplitTargetService {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
+                        if (isCancelled()) {
+                            return;
+                        }
                         // After the timeout we proceed to SPLIT anyway.
                         // The timeout is just best effort to ensure search shards are running to prevent downtime.
                         advance(new State.SearchShardsOnline());
                     }
                 },
-                state -> searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
+                // A closed shard has nothing to wait for
+                state -> isCancelled() || searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
                 searchShardsOnlineTimeout,
                 logger
             );
@@ -697,7 +710,7 @@ public class SplitTargetService {
             var deleteUnowned = new DeleteUnowned(
                 clusterService,
                 reshardIndexService,
-                shard.shardId(),
+                shard,
                 new StateAdvancingListener<>(new State.UnownedDataDeleted()),
                 cancelled
             );
@@ -943,6 +956,7 @@ public class SplitTargetService {
         public void tryAction(ActionListener<ActionResponse> listener) {
             if (cancelled.get()) {
                 listener.onFailure(new CancellationException());
+                return;
             }
 
             var request = new SplitStateRequest(split.shardId(), state, split.sourcePrimaryTerm(), split.targetPrimaryTerm());
@@ -957,6 +971,21 @@ public class SplitTargetService {
             boolean isCancelled = cancelled.get();
             return isCancelled == false;
         }
+    }
+
+    // visible for tests
+    RetryableAction<Void> createDeleteUnownedAction(IndexShard shard, ActionListener<Void> listener, AtomicBoolean cancelled) {
+        return new DeleteUnowned(clusterService, reshardIndexService, shard, listener, cancelled);
+    }
+
+    // visible for tests
+    RetryableAction<ActionResponse> createChangeStateAction(
+        Split split,
+        IndexReshardingState.Split.TargetShardState state,
+        AtomicBoolean cancelled,
+        ActionListener<ActionResponse> listener
+    ) {
+        return new ChangeState(clusterService, client, split, state, cancelled, listener);
     }
 
     // visible for tests
@@ -1054,13 +1083,13 @@ public class SplitTargetService {
     // If something unexpected happens on this code path it would (likely) fail the engine and lead to shard being closed anyway.
     private static class DeleteUnowned extends RetryableAction<Void> {
         private final ReshardIndexService reshardIndexService;
-        private final ShardId shardId;
+        private final IndexShard shard;
         private final AtomicBoolean cancelled;
 
         DeleteUnowned(
             ClusterService clusterService,
             ReshardIndexService reshardIndexService,
-            ShardId shardId,
+            IndexShard shard,
             ActionListener<Void> listener,
             AtomicBoolean cancelled
         ) {
@@ -1075,7 +1104,7 @@ public class SplitTargetService {
                 clusterService.threadPool().generic()
             );
             this.reshardIndexService = reshardIndexService;
-            this.shardId = shardId;
+            this.shard = shard;
             this.cancelled = cancelled;
         }
 
@@ -1083,8 +1112,11 @@ public class SplitTargetService {
         public void tryAction(ActionListener<Void> listener) {
             if (cancelled.get()) {
                 listener.onFailure(new CancellationException());
+                return;
             }
-            reshardIndexService.deleteUnownedDocuments(shardId, listener);
+            // Work on this action's own shard instance. If the shard has been closed and replaced (e.g. by a restore over the index) the
+            // shard with the same id must not be touched, and this fails because the shard is closed.
+            reshardIndexService.deleteUnownedDocuments(shard, listener);
         }
 
         @Override
@@ -1102,7 +1134,8 @@ public class SplitTargetService {
         }
     }
 
-    private static boolean searchShardsOnlineOrNewPrimaryTerm(ClusterState state, ShardId shardId, long primaryTerm) {
+    // package-private for testing
+    static boolean searchShardsOnlineOrNewPrimaryTerm(ClusterState state, ShardId shardId, long primaryTerm) {
         final Index index = shardId.getIndex();
         final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
         if (projectMetadata == null) {
@@ -1113,8 +1146,14 @@ public class SplitTargetService {
         return newPrimaryTerm(index, projectMetadata, shardId, primaryTerm) || isShardGreen(state, projectMetadata, shardId);
     }
 
-    private static boolean newPrimaryTerm(Index index, ProjectMetadata projectMetadata, ShardId shardId, long primaryTerm) {
-        long currentPrimaryTerm = projectMetadata.index(index).primaryTerm(shardId.id());
+    // package-private for testing
+    static boolean newPrimaryTerm(Index index, ProjectMetadata projectMetadata, ShardId shardId, long primaryTerm) {
+        final var indexMetadata = projectMetadata.index(index);
+        if (indexMetadata == null || shardId.id() >= indexMetadata.getNumberOfShards()) {
+            // The shard is gone, e.g. a restore replaced the index with one that has fewer shards. It is not the shard we are waiting for.
+            return true;
+        }
+        long currentPrimaryTerm = indexMetadata.primaryTerm(shardId.id());
         return currentPrimaryTerm > primaryTerm;
     }
 
@@ -1130,7 +1169,10 @@ public class SplitTargetService {
             return false;
         }
         var shardRoutingTable = indexRoutingTable.shard(shardId.id());
-        assert shardRoutingTable != null;
+        if (shardRoutingTable == null) {
+            // As above, this can be a state in which the shard no longer exists, e.g. after a restore over the index
+            return false;
+        }
         return new ClusterShardHealth(shardId.getId(), shardRoutingTable).getStatus() == ClusterHealthStatus.GREEN;
     }
 }

@@ -8,11 +8,12 @@ products:
   - id: elasticsearch
 ---
 
-# PromQL operators [promql-operators]
+# {{promql}} operators [promql-operators]
 
-These operators are based on the [Prometheus operators](https://prometheus.io/docs/prometheus/latest/querying/operators/). Refer to the Prometheus documentation for the full semantics, and note any {{es}}-specific differences called out per operator.
+These operators are based on the [{{prom}} operators](https://prometheus.io/docs/prometheus/latest/querying/operators/). Refer to the {{prom}} documentation for the full semantics.
+Each operator entry lists its differences from {{prom}}, including the uses that aren't supported yet.
 
-## Operators overview [promql-operators-overview]
+## Supported operators [promql-operators-overview]
 
 ### Arithmetic operators
 
@@ -66,7 +67,7 @@ Operators used inside instant vector selectors (`{...}`) to match series by labe
 
 ## Binary operator precedence [promql-operators-precedence]
 
-PromQL follows the same binary operator precedence as Prometheus. The following list orders operators from highest to lowest precedence; operators listed together share the same precedence level:
+{{promql}} follows the same binary operator precedence as {{prom}}. The following list orders operators from highest to lowest precedence; operators listed together share the same precedence level:
 
 1. `^`
 2. `*`, `/`, `%`, `atan2`
@@ -78,14 +79,14 @@ PromQL follows the same binary operator precedence as Prometheus. The following 
 `^` is right-associative; all other binary operators are left-associative. Use parentheses to override the default precedence.
 
 ::::{note}
-Operators listed under [Not yet supported](#promql-operators-not-supported) are included here for completeness, but are not evaluated yet in {{es}}. See also [PromQL limitations](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+This list also includes the operators that are [not supported yet](#promql-operators-not-supported) in {{es}}. Also refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-operators).
 ::::
 
 ## Vector matching [promql-operators-vector-matching]
 
-When a binary operator is applied between two instant vectors, PromQL matches samples that have identical label sets (one-to-one matching). Prometheus provides modifiers that change which labels are considered (`on(...)` and `ignoring(...)`) and that enable many-to-one and one-to-many matching (`group_left` and `group_right`).
+When a binary operator is applied between two instant vectors, {{promql}} matches samples that have identical label sets (one-to-one matching). {{prom}} provides modifiers that change which labels are considered (`on(...)` and `ignoring(...)`) and that enable many-to-one and one-to-many matching (`group_left` and `group_right`).
 
-For the vector matching modifiers that {{es}} supports, see [PromQL limitations](/reference/query-languages/promql/promql-limitations.md#promql-limitations-unsupported-constructs).
+For the vector matching modifiers that {{es}} supports, refer to [{{prom}} compatibility](/reference/query-languages/promql/prometheus-compatibility.md#prometheus-compatibility-vector-matching).
 
 ## The `bool` modifier [promql-operators-bool-modifier]
 
@@ -99,11 +100,11 @@ requests_total > bool 256
 
 ## Aggregation operators [promql-operators-aggregation]
 
-Prometheus documents aggregation operators (such as `sum`, `avg`, `min`, `max`, and `count`) on its operators page. In {{es}} PromQL, these are documented as [aggregation functions](functions/aggregation.md).
+{{prom}} documents aggregation operators (such as `sum`, `avg`, `min`, `max`, and `count`) on its operators page. In {{es}} {{promql}}, these are documented as [aggregation functions](functions/aggregation.md).
 
-## Not yet supported [promql-operators-not-supported]
+## Not supported yet [promql-operators-not-supported]
 
-The following Prometheus operators are not supported in {{es}} PromQL yet:
+The following {{prom}} operators are not supported yet in {{es}}:
 
 :::{include} _snippets/generated/x-pack-esql/operators/not-supported.md
 :::

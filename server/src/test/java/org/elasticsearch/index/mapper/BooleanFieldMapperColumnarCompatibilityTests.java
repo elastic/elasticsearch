@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Parity tests for {@link BooleanFieldMapper#mapColumnBatch} against the row path.
@@ -369,7 +370,7 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
         assertFalse(
             "a dimension whose routing is extracted while mapping must not be columnar",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 
@@ -444,6 +445,18 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":true}", "{\"f\":null}"));
+    }
+
+    /**
+     * A nullability=false field missing from a document goes in _ignored under on_failure=ignore, as on the row path, and the batch path
+     * keeps the batch. A null would pack the column as a UNION, which this mapper refuses, so such a batch falls back instead.
+     */
+    public void testRequiredFieldMissingIsIgnored() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("missing", 1L, doc("d1", 1L, "{\"f\":" + randomBoolean() + "}"), doc("d2", 2L, "{}"))
+        );
     }
 
     public void testBooleanParentWithKeywordSubField() throws IOException {

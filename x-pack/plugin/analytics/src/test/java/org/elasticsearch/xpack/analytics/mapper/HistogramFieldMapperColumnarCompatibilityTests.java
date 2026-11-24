@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -363,11 +364,6 @@ public class HistogramFieldMapperColumnarCompatibilityTests extends AbstractColu
      * ones, so asserting only that <em>something</em> threw would let them mask every later check.
      */
     public void testGroupBailOuts() throws IOException {
-        // Key dispatch.
-        assertGroupBailOut("{\"h\":{\"values\":[1.0],\"counts\":[1],\"extra\":3}}", "unexpected relative key [extra]");
-        assertGroupBailOut("{\"h\":{\"values\":[1.0]}}", "is missing [counts]");
-        assertGroupBailOut("{\"h\":{\"counts\":[1]}}", "is missing [values]");
-
         // Failures of the array iterators, which are covered in full by their own tests.
         assertGroupBailOut("{\"h\":{\"values\":1.0,\"counts\":1}}", "[values] value in document [0] is [DOUBLE], not an array");
         assertGroupBailOut("{\"h\":{\"values\":[1.0],\"counts\":[1e30]}}", "[counts] element [1.0E30] is out of range for a long");
@@ -381,21 +377,34 @@ public class HistogramFieldMapperColumnarCompatibilityTests extends AbstractColu
     }
 
     /**
-     * Spelling the same key both nested and dotted gives the group two columns with one relative key.
-     * {@code ShardBatchMapper#resolveMappers} rejects that aliasing only for per-leaf mappers, so it does reach
-     * a group mapper, and a histogram has nowhere to put a second {@code values} array.
+     * Key sets the row path rejects. {@link HistogramFieldMapper#doSupportsColumnarParse} refuses them once the batch's keys are
+     * known, so the batch falls back before any of it is mapped.
      */
-    public void testDuplicateRelativeKeyFallsBack() throws IOException {
-        final UnsupportedOperationException e = assertFallsBack(
+    public void testUnsupportedKeysFallBackAtResolution() throws IOException {
+        assertResolutionRefuses(
             histogramMapping(),
-            "{\"h\":{\"values\":[1.0],\"counts\":[1]},\"h.values\":[2.0]}"
+            "of keys [counts, extra, values]",
+            "{\"h\":{\"values\":[1.0],\"counts\":[1],\"extra\":3}}"
         );
-        assertThat(e.getMessage(), containsString("duplicate [values] key"));
+        assertResolutionRefuses(histogramMapping(), "of keys [values]", "{\"h\":{\"values\":[1.0]}}");
+        assertResolutionRefuses(histogramMapping(), "of keys [counts]", "{\"h\":{\"counts\":[1]}}");
     }
 
     /**
-     * A document carrying only one of the two keys while another carries both. Both leaves exist here, so this
-     * covers the per-row presence check rather than the missing-key one in {@link #testGroupBailOuts}.
+     * Spelling the same key both nested and dotted puts a leaf outside the histogram's one object, so
+     * {@code ShardBatchMapper#resolveMappers} falls back before a histogram could see two {@code values} arrays.
+     */
+    public void testDuplicateRelativeKeyFallsBack() throws IOException {
+        assertResolutionRefuses(
+            histogramMapping(),
+            "leaf [h.values] is not directly in an object at the group mapper's path [h]",
+            "{\"h\":{\"values\":[1.0],\"counts\":[1]},\"h.values\":[2.0]}"
+        );
+    }
+
+    /**
+     * A document carrying only one of the two keys while another carries both. Both keys are in the batch, so this
+     * covers the per-row presence check rather than the key check in {@link #testUnsupportedKeysFallBackAtResolution}.
      */
     public void testPartialHistogramInMixedBatchFallsBack() throws IOException {
         final UnsupportedOperationException e = assertFallsBack(
@@ -426,8 +435,9 @@ public class HistogramFieldMapperColumnarCompatibilityTests extends AbstractColu
      */
     public void testExponentialHistogramFormFallsBack() throws IOException {
         for (boolean coerce : List.of(true, false)) {
-            assertFallsBack(
+            assertResolutionRefuses(
                 histogramMapping(b -> b.field("coerce", coerce)),
+                "does not support columnar parse of keys",
                 "{\"h\":{\"scale\":0,\"sum\":3.0,\"positive\":{\"counts\":[1,2]}}}"
             );
         }
@@ -447,7 +457,7 @@ public class HistogramFieldMapperColumnarCompatibilityTests extends AbstractColu
         final HistogramFieldMapper mapper = (HistogramFieldMapper) ms.mappingLookup().getMapper(FIELD);
         assertFalse(
             "histogram must not take the columnar path in [" + mode + "] index mode",
-            mapper.supportsColumnarParse(ms.getIndexSettings())
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
         );
     }
 
@@ -463,7 +473,7 @@ public class HistogramFieldMapperColumnarCompatibilityTests extends AbstractColu
         final HistogramFieldMapper mapper = (HistogramFieldMapper) ms.mappingLookup().getMapper(FIELD);
         assertFalse(
             "histogram must not take the columnar path when [fields] is present",
-            mapper.supportsColumnarParse(ms.getIndexSettings())
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
         );
     }
 
@@ -478,14 +488,32 @@ public class HistogramFieldMapperColumnarCompatibilityTests extends AbstractColu
      * path. The batch runs through the full harness, so it must pass {@code ShardBatchMapper.resolveMappers} and reach the mapper.
      */
     private UnsupportedOperationException assertFallsBack(XContentBuilder mapping, String... sources) {
+        return expectThrows(
+            UnsupportedOperationException.class,
+            String.join(", ", sources),
+            () -> assertColumnarMatchesXContent(mapping, escfEligibleSettings(), batch("falls back", 1L, histogramDocs(sources)))
+        );
+    }
+
+    /**
+     * Asserts that {@code ShardBatchMapper.resolveMappers} refuses {@code sources}, one document each, so the batch falls back to the
+     * row path before any mapper sees it, and that the harness names {@code expectedCause} among the reasons.
+     */
+    private void assertResolutionRefuses(XContentBuilder mapping, String expectedCause, String... sources) {
+        final AssertionError e = expectThrows(
+            AssertionError.class,
+            String.join(", ", sources),
+            () -> assertColumnarMatchesXContent(mapping, escfEligibleSettings(), batch("falls back", 1L, histogramDocs(sources)))
+        );
+        assertThat(e.getMessage(), containsString("resolveMappers refused"));
+        assertThat(e.getMessage(), containsString(expectedCause));
+    }
+
+    private Doc[] histogramDocs(String... sources) {
         final Doc[] docs = new Doc[sources.length];
         for (int i = 0; i < sources.length; i++) {
             docs[i] = histogramDoc(i + 1, sources[i]);
         }
-        return expectThrows(
-            UnsupportedOperationException.class,
-            String.join(", ", sources),
-            () -> assertColumnarMatchesXContent(mapping, escfEligibleSettings(), batch("falls back", 1L, docs))
-        );
+        return docs;
     }
 }

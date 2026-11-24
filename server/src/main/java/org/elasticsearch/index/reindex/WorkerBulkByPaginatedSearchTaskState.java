@@ -22,12 +22,11 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -53,7 +52,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
      */
     private final Integer sliceId;
 
-    private final SetOnce<Supplier<Optional<String>>> nodeToRelocateToSupplier;
+    private final SetOnce<BooleanSupplier> hasNodeToRelocateToSupplier;
 
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
@@ -89,7 +88,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
-        this.nodeToRelocateToSupplier = new SetOnce<>();
+        this.hasNodeToRelocateToSupplier = new SetOnce<>();
     }
 
     public BulkByPaginatedSearchTask getTask() {
@@ -189,16 +188,16 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
         searchRetries.incrementAndGet();
     }
 
-    public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {
-        this.nodeToRelocateToSupplier.set(Objects.requireNonNull(nodeToRelocateToSupplier));
+    public void setHasNodeToRelocateToSupplier(BooleanSupplier hasNodeToRelocateToSupplier) {
+        this.hasNodeToRelocateToSupplier.set(Objects.requireNonNull(hasNodeToRelocateToSupplier));
     }
 
-    public Optional<String> getNodeToRelocateTo() {
-        final Supplier<Optional<String>> supplier = this.nodeToRelocateToSupplier.get();
+    public boolean hasNodeToRelocateTo() {
+        final BooleanSupplier supplier = this.hasNodeToRelocateToSupplier.get();
         if (supplier == null) {
             throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
         }
-        return supplier.get();
+        return supplier.getAsBoolean();
     }
 
     float getRequestsPerSecond() {

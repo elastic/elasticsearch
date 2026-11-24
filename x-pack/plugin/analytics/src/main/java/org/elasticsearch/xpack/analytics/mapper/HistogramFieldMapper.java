@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -81,10 +82,6 @@ public class HistogramFieldMapper extends FieldMapper {
 
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
-
-    private static HistogramFieldMapper toType(FieldMapper in) {
-        return (HistogramFieldMapper) in;
-    }
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -101,14 +98,9 @@ public class HistogramFieldMapper extends FieldMapper {
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexSettings indexSettings) {
             super(name);
             this.indexSettings = indexSettings;
-            this.ignoreMalformed = Parameter.explicitBoolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
-            );
-            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+            this.ignoreMalformed = Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
+            this.coerce = Parameter.explicitBoolParam("coerce", true, coerceByDefault);
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.HISTOGRAM);
         }
 
         public Builder metric(TimeSeriesParams.MetricType metric) {
@@ -143,21 +135,15 @@ public class HistogramFieldMapper extends FieldMapper {
     );
 
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
 
     private final Explicit<Boolean> coerce;
-    private final boolean coerceByDefault;
-    private final TimeSeriesParams.MetricType metricType;
     private final IndexSettings indexSettings;
 
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.indexSettings = builder.indexSettings;
         this.coerce = builder.coerce.getValue();
-        this.coerceByDefault = builder.coerce.getDefaultValue().value();
-        this.metricType = builder.metric.get();
     }
 
     @Override
@@ -172,11 +158,6 @@ public class HistogramFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexSettings).metric(metricType).init(this);
     }
 
     @Override
@@ -440,14 +421,18 @@ public class HistogramFieldMapper extends FieldMapper {
 
     /** The encoder explodes the histogram object into {@code <field>.values} and {@code <field>.counts}, which have no mapper. */
     @Override
-    public boolean resolvesColumnGroup() {
-        return true;
+    public ColumnGroup resolvesColumnGroup() {
+        return ColumnGroup.SINGLE_OBJECT;
     }
 
+    /**
+     * No mapping option changes what {@link #parse} writes. A batch whose histogram objects carry any key but
+     * {@code values} and {@code counts} falls back here; other unsupported shapes are refused per batch in
+     * {@link #mapColumnGroupBatch}.
+     */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        // No mapping option changes what parse() writes, so unsupported shapes are refused per batch instead.
-        return true;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        return relativeKeys.isEmpty() || HistogramParser.ROOT_FIELD_NAMES.equals(relativeKeys);
     }
 
     /**

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.ColumnMetadata;
@@ -102,7 +103,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     StringColumnMetadata withSummary(Summary summary);
 
     /** Writes what this layout has, after the fields both layouts share. */
-    void writeBody(DataOutput out) throws IOException;
+    void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException;
 
     /** Whether this column recorded what it surveyed. */
     default boolean hasSummary() {
@@ -165,6 +166,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      *                          it: values that did not cover enough of the column to earn one do not repeat
      *                          enough for a page to earn one either. A column written under no dictionary
      *                          policy was never surveyed, and leaves the page to decide as it always has
+     * @param skipper      where the bounds on the values each chunk owns are in the skip-index file;
+     *                     null for a column that wrote none
      */
     record Plain(
         ColumnIteratorMetadata iterator,
@@ -178,8 +181,66 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming,
+        Skipper skipper,
         Summary summary
     ) implements StringColumnMetadata {
+
+        /**
+         * Where the skip-index region of a column is: {@code kind} is the id of the {@link PlainSkipKind} that wrote it and
+         * so reads it, followed in the skip-index file by {@code entryCount} directory entries, then {@code payloadLength}
+         * bytes.
+         */
+        record Skipper(byte kind, long dataOffset, int entryCount, long payloadLength) {
+
+            static final byte NONE = 0;
+
+            void writeTo(DataOutput out) throws IOException {
+                out.writeByte(kind);
+                out.writeVLong(dataOffset);
+                out.writeVInt(entryCount);
+                out.writeVLong(payloadLength);
+            }
+
+            static Skipper readOptionally(DataInput in, long numValues) throws IOException {
+                final byte kind = in.readByte();
+                return kind == NONE ? null : readFrom(kind, in, numValues);
+            }
+
+            static Skipper readFrom(DataInput in, long numValues) throws IOException {
+                return readFrom(in.readByte(), in, numValues);
+            }
+
+            private static Skipper readFrom(byte kind, DataInput in, long numValues) throws IOException {
+                try {
+                    PlainSkipKind.forId(kind);
+                } catch (IllegalArgumentException e) {
+                    throw new CorruptIndexException(e.getMessage(), in, e);
+                }
+                final Skipper skipper = new Skipper(kind, in.readVLong(), in.readVInt(), in.readVLong());
+                if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.entryCount < 1 || skipper.entryCount > numValues) {
+                    throw new CorruptIndexException("invalid plain skipper " + skipper + " for [" + numValues + "] values", in);
+                }
+                return skipper;
+            }
+        }
+
+        public Plain withSkipper(Skipper skipper) {
+            return new Plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                valueBytes,
+                minLength,
+                maxLength,
+                addressing,
+                values,
+                valuesSorted,
+                valuesWorthNaming,
+                skipper,
+                summary
+            );
+        }
 
         @Override
         public StringColumnLayout layout() {
@@ -200,14 +261,24 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 values,
                 valuesSorted,
                 valuesWorthNaming,
+                skipper,
                 summary
             );
         }
 
         @Override
-        public void writeBody(DataOutput out) throws IOException {
+        public void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException {
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
+            if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+                if (skipper == null) {
+                    out.writeByte(Skipper.NONE);
+                } else {
+                    skipper.writeTo(out);
+                }
+            } else if (skipper != null) {
+                throw new IllegalStateException("format version [" + formatVersion.version() + "] has no room for a plain skipper");
+            }
         }
     }
 
@@ -291,10 +362,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         }
 
         @Override
-        public void writeBody(DataOutput out) throws IOException {
+        public void writeBody(DataOutput out, FormatVersion formatVersion) throws IOException {
             out.writeVInt(dictionarySize);
             dictionary.writeTo(out);
-            ordinals.writeTo(out);
+            ordinals.writeTo(out, formatVersion);
             escapes.writeTo(out);
             if (escapes.numValues() > 0) {
                 out.writeVInt(escapeRankBlockSize);
@@ -333,6 +404,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             values,
             valuesSorted,
             valuesWorthNaming,
+            null,
             null
         );
     }
@@ -376,7 +448,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     @Override
-    default void writeTo(DataOutput out) throws IOException {
+    default void writeTo(DataOutput out, FormatVersion formatVersion) throws IOException {
         iterator().writeTo(out);
         out.writeVInt(numDocsWithField());
         if (numDocsWithField() == 0) {
@@ -397,7 +469,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             addressing().writeTo(out);
         }
         out.writeByte(layout().id());
-        writeBody(out);
+        writeBody(out, formatVersion);
         final Summary summary = summary();
         out.writeByte((byte) (summary == null ? 0 : 1));
         if (summary != null) {
@@ -421,8 +493,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}. Fields added in a later
      * layout version are gated on it:
      * <pre>{@code
-     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
-     *     flags = in.readVInt();
+     * if (formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)) {
+     *     skipper = Plain.Skipper.readOptionally(in, numValues);
      * }
      * }</pre>
      */
@@ -444,6 +516,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             case PLAIN -> {
                 final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
+                final Plain.Skipper skipper = formatVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN)
+                    ? Plain.Skipper.readOptionally(in, values.numValues())
+                    : null;
                 yield plain(
                     iterator,
                     numDocsWithField,
@@ -456,7 +531,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     values,
                     valuesSorted,
                     valuesWorthNaming
-                );
+                ).withSkipper(skipper);
             }
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();

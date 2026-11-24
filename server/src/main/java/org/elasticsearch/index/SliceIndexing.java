@@ -213,21 +213,23 @@ public final class SliceIndexing {
     /**
      * Parses and validates slice routing for search APIs.
      * <p>
-     * Slice is encoded in the path as {@code /{index}/{_slice}/_search}. The {@code {_slice}} segment may be a single slice,
-     * a comma-separated list (for example {@code tenant-a,tenant-b}), or the reserved token {@code _all}.
+     * Slice is encoded in the path as {@code /{index}/{_slice}/_search}, or supplied as the {@code _slice} parameter. The value may
+     * be a single slice, a comma-separated list (for example {@code tenant-a,tenant-b}), or the reserved token {@code _all}.
+     *
+     * @param sliceSupported whether the calling handler supports slices, i.e. registers {@code {_slice}} path segment routes.
+     *                       Handlers that do not (for example plugin routes such as {@code /{prefix}/{index}/_search}) never
+     *                       read {@code _slice}.
      */
-    public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request) {
+    public static ParsedRouting parseSearchRoutingOrSliceWithProvenance(RestRequest request, boolean sliceSupported) {
         final String routing = request.param("routing");
-        if (isPathBasedSliceSearch(request)) {
+        if (sliceSupported && request.hasParam(FIELD_NAME)) {
             if (SLICE_FEATURE_FLAG.isEnabled() == false) {
                 throw new IllegalArgumentException("request does not support [" + FIELD_NAME + "]");
             }
             if (routing != null) {
                 throw new IllegalArgumentException("[routing] is not allowed together with [" + FIELD_NAME + "]");
             }
-            final String pathSlice = request.param(FIELD_NAME);
-            assert pathSlice != null : "path slice search must capture [" + FIELD_NAME + "] from the path";
-            return parseSearchPathSlice(pathSlice);
+            return parseSearchPathSlice(request.param(FIELD_NAME));
         }
         if (routing != null) {
             return new ParsedRouting(routing, false);
@@ -285,32 +287,6 @@ public final class SliceIndexing {
             return new ParsedRouting(routing, false);
         }
         return parseSearchPathSlice(slice);
-    }
-
-    /**
-     * Returns {@code true} when the request matched a path-based slice search endpoint. The supported shapes are
-     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_delete_by_query},
-     * {@code /{index}/{_slice}/_update_by_query}, {@code /{index}/{_slice}/_search/template}, and
-     * {@code /{index}/{_slice}/_fleet/_fleet_search}.
-     */
-    static boolean isPathBasedSliceSearch(RestRequest request) {
-        String rawPath = request.rawPath();
-        final int queryStart = rawPath.indexOf('?');
-        if (queryStart >= 0) {
-            rawPath = rawPath.substring(0, queryStart);
-        }
-        final String[] parts = Strings.tokenizeToStringArray(rawPath, "/");
-        if (parts.length == 3) {
-            return "_search".equals(parts[2])
-                || "_count".equals(parts[2])
-                || "_delete_by_query".equals(parts[2])
-                || "_update_by_query".equals(parts[2]);
-        }
-        if (parts.length == 4) {
-            return ("_search".equals(parts[2]) && "template".equals(parts[3]))
-                || ("_fleet".equals(parts[2]) && "_fleet_search".equals(parts[3]));
-        }
-        return false;
     }
 
     /**

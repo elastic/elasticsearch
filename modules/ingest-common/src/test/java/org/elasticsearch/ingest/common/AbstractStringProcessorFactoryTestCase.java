@@ -10,13 +10,16 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase {
@@ -39,9 +42,9 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
 
         AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
+        assertThat(processor.getField(), hasToString(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
-        assertThat(processor.getTargetField(), equalTo(fieldName));
+        assertThat(processor.getTargetField(), hasToString(fieldName));
         assertProcessor(processor);
     }
 
@@ -56,9 +59,9 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
 
         AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
+        assertThat(processor.getField(), hasToString(fieldName));
         assertThat(processor.isIgnoreMissing(), is(true));
-        assertThat(processor.getTargetField(), equalTo(fieldName));
+        assertThat(processor.getTargetField(), hasToString(fieldName));
         assertProcessor(processor);
     }
 
@@ -74,9 +77,9 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
 
         AbstractStringProcessor<?> processor = factory.create(null, processorTag, null, modifyConfig(config), null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(fieldName));
+        assertThat(processor.getField(), hasToString(fieldName));
         assertThat(processor.isIgnoreMissing(), is(false));
-        assertThat(processor.getTargetField(), equalTo(targetFieldName));
+        assertThat(processor.getTargetField(), hasToString(targetFieldName));
         assertProcessor(processor);
     }
 
@@ -89,5 +92,33 @@ public abstract class AbstractStringProcessorFactoryTestCase extends ESTestCase 
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() throws Exception {
+        AbstractStringProcessor.Factory factory = newFactory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+
+        AbstractStringProcessor<?> processor = factory.create(null, randomAlphaOfLength(10), null, modifyConfig(config), null);
+        assertThat(processor.getField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testCreateWithMalformedTargetField() throws Exception {
+        AbstractStringProcessor.Factory factory = newFactory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("target_field", "a..b");
+
+        AbstractStringProcessor<?> processor = factory.create(null, randomAlphaOfLength(10), null, modifyConfig(config), null);
+        assertThat(processor.getField(), hasToString("field1"));
+        assertThat(processor.getTargetField(), hasToString("a..b"));
     }
 }

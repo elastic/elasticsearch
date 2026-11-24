@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166171
+summary: "ESQL:DS: Preserve rows for widened pushed filters"
+type: bug

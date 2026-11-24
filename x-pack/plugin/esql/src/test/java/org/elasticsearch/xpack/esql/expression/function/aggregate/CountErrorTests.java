@@ -45,7 +45,7 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
             return typeErrorMessage(signature, 1, "double_range");
         }
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types or histogram"));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except histogram"));
     }
 
     @Override

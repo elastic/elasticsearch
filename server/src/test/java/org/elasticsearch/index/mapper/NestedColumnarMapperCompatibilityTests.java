@@ -592,10 +592,11 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     // ---------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * A dotted key that crosses the nested boundary, as in {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, makes the sequential path of the columnar modes trip an assertion in
-     * {@code DocumentParser#getLeafMapper}: the root finds no mapper for the dotted name, then finds the child's field type and takes
-     * it for a runtime field, which the assertion rejects. Reading the code, a production node, which runs without assertions, takes
-     * the no-op mapper for a runtime field and drops the value, so it is not indexed but stays in {@code _source}.
+     * A dotted key that crosses the nested boundary, as in {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, makes the
+     * sequential path of the columnar modes trip an assertion in {@code DocumentParser#getLeafMapper}: the root finds no mapper for
+     * the dotted name, then finds the child's field type and takes it for a runtime field, which the assertion rejects. Reading the
+     * code, a production node, which runs without assertions, takes the no-op mapper for a runtime field and drops the value, so it
+     * is not indexed but stays in {@code _source}.
      * <p>
      * Phase 1 must therefore refuse these shapes, which keeps today's behavior exactly, and not map them as the object spelling.
      * This probe fails when the sequential path starts to handle them; revisit the rule "a dotted key across the boundary falls back"

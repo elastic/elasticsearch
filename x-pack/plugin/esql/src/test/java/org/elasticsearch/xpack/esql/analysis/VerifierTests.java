@@ -190,8 +190,8 @@ public class VerifierTests extends AnalyzerTestCase {
             equalTo("1:23: Illegal leading_zeros [bad]")
         );
         analyzer.error(
-            "from test* | eval x = to_long(date_or_nanos, true)",
-            containsString("1:23: second argument of [to_long(date_or_nanos, true)] must be")
+            "from test* | eval x = to_ip(date_or_nanos, {\"unknown\": \"x\"})",
+            equalTo("1:23: Invalid option [unknown] in [to_ip(date_or_nanos, {\"unknown\": \"x\"})], expected one of [leading_zeros]")
         );
         analyzer.query("from test* | eval x = to_ip(ip_or_keyword, {\"leading_zeros\": \"octal\"})");
     }

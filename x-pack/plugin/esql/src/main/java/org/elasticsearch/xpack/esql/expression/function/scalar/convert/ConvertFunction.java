@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 
 import java.util.Set;
 
@@ -39,6 +40,18 @@ public interface ConvertFunction {
      */
     default boolean isNoop() {
         return field().dataType() == dataType();
+    }
+
+    /**
+     * Whether this conversion can be one of the per-source-type conversions of a {@link UnionTypeEsField}. Those run in
+     * {@code ValuesSourceReaderOperator} through {@code TypeConverter}, which binds every input of the conversion to the loaded
+     * block, so the field must be the only input the conversion evaluates. By default, when the field is the only child.
+     * <p>
+     * This default is the safe one: a new argument someone forgets to account for makes the conversion fail on union types,
+     * instead of silently reading the field's values as that argument.
+     */
+    default boolean canBeUnionTypeEsFieldConversion() {
+        return ((Expression) this).children().size() == 1;
     }
 
     /**

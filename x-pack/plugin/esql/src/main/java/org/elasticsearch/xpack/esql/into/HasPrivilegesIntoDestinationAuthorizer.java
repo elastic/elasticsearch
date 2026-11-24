@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.into;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -54,11 +53,6 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
     private final PrivilegeChecker checker;
     private final Executor executor;
 
-    /**
-     * @param principal supplies the name of the authenticated user, or {@code null} if the request has no authentication, in which
-     *                  case {@link #authorize} fails with an {@link IllegalStateException}
-     * @param executor  where the decision is delivered
-     */
     public HasPrivilegesIntoDestinationAuthorizer(Supplier<String> principal, PrivilegeChecker checker, Executor executor) {
         this.principal = principal;
         this.checker = checker;
@@ -82,8 +76,6 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
         }
         HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(user);
-        request.clusterPrivileges(new String[0]);
-        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         request.indexPrivileges(
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destination)
@@ -100,15 +92,12 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
                 if (deniedAction == null) {
                     l.onResponse(null);
                 } else {
-                    l.onFailure(denial(deniedAction, user, destination));
+                    String format = "action [{}] is unauthorized for user [{}] on indices [{}]";
+                    l.onFailure(Exceptions.authorizationError(format, deniedAction, user, destination));
                 }
             })
         );
         checker.check(request, onDecision);
-    }
-
-    private static ElasticsearchSecurityException denial(String action, String user, String destination) {
-        return Exceptions.authorizationError("action [{}] is unauthorized for user [{}] on indices [{}]", action, user, destination);
     }
 
     /** The action to report as denied, or {@code null} when the caller may write. */
@@ -121,7 +110,6 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
             if (resource.isAllowed(WRITE) == false) {
                 return CREATE_DOCUMENT_ACTION;
             }
-            // Either privilege lets a write create the destination
             boolean mayCreate = destinationExists || resource.isAllowed(CREATE_INDEX) || resource.isAllowed(AUTO_CONFIGURE);
             return mayCreate ? null : AUTO_CREATE_ACTION;
         }

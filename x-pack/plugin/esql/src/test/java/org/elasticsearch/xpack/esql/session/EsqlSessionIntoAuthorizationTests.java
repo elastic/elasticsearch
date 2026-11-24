@@ -133,6 +133,7 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
+        assumeTrue("INTO needs a snapshot build", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         viewService = InMemoryViewService.makeViewService();
         threadPool = new TestThreadPool(getTestName());
         transportService = MockTransportService.createNewService(
@@ -196,17 +197,16 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         LogicalPlan authorized = authorize(authorizer(true), "ROW x = 1 | INTO <logs-{now/d}>");
 
         assertThat(asked.size(), equalTo(1));
-        assertThat(asked.get(0), startsWith("logs-"));
-        assertThat(asked.get(0), not(containsString("<")));
-        assertThat(asked.get(0), not(containsString("{")));
+        assertThat(asked.getFirst(), startsWith("logs-"));
+        assertThat(asked.getFirst(), not(containsString("<")));
+        assertThat(asked.getFirst(), not(containsString("{")));
         // Everything after this, on whichever node, writes to the name that was authorized
-        assertThat(authorized.collect(Into.class).get(0).destination(), equalTo(asked.get(0)));
+        assertThat(authorized.collect(Into.class).getFirst().destination(), equalTo(asked.getFirst()));
     }
 
     // Wiring: a real session and what a denied caller can learn from it
 
     public void testDeniedCallerIsToldNothingAboutTheDestinationThatHasAPipeline() throws Exception {
-        assumeInto();
         Exception denied = run("ROW x = 1 | INTO " + EXISTING, Set.of("read"));
 
         assertThat(denied, instanceOf(ElasticsearchSecurityException.class));
@@ -216,7 +216,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
     }
 
     public void testDeniedCallerIsForbiddenForAMissingDestination() throws Exception {
-        assumeInto();
         Exception missing = run("ROW x = 1 | INTO nothing", Set.of("read"));
 
         assertThat(missing, instanceOf(ElasticsearchSecurityException.class));
@@ -226,7 +225,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
 
     /** A caller who may write is told what a bulk would tell them: that the destination's pipeline cannot be used. */
     public void testWriterIsToldAboutThePipelineOfTheDestination() throws Exception {
-        assumeInto();
         Exception refusal = run("ROW x = 1 | INTO " + EXISTING, Set.of("create_doc"));
 
         assertThat(refusal, instanceOf(ElasticsearchStatusException.class));
@@ -239,7 +237,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
      * pool, which it asserts, so reaching the plan is the proof that the decision was moved there.
      */
     public void testWriterOfADestinationWithoutPipelinePlansOnTheSearchPool() throws Exception {
-        assumeInto();
         assertNull(run("ROW x = 1 | INTO " + WITHOUT_PIPELINE, Set.of("create_doc")));
 
         assertThat(asked, contains(WITHOUT_PIPELINE));
@@ -289,10 +286,6 @@ public class EsqlSessionIntoAuthorizationTests extends ESTestCase {
         } catch (ExecutionException e) {
             throw (Exception) e.getCause();
         }
-    }
-
-    private void assumeInto() {
-        assumeTrue("INTO needs a snapshot build", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
     }
 
     /** What the caller of {@code query} is told: the failure of the query, or {@code null} when it was planned. */

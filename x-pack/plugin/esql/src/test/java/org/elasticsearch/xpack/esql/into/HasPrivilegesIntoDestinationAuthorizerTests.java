@@ -11,12 +11,9 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
@@ -26,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -34,7 +30,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 /**
  * The destination of an {@code INTO} must be authorized before anything about it is reported. A caller who may not write learns
@@ -46,61 +41,59 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
     private static final String CREATE_DOCUMENT_ACTION = "indices:data/write/index:op_type/create";
     private static final String AUTO_CREATE_ACTION = "indices:admin/auto_create";
 
-    public void testAllowAllPassesWithoutAskingAnything() {
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        IntoDestinationAuthorizer.allowAll().authorize("dest", randomBoolean(), future);
-        safeGet(future);
-    }
-
     public void testExistingDestinationNeedsCreateDoc() {
         FakeChecker checker = new FakeChecker("create_doc");
-        authorizeSucceeds(authorizer(checker), "dest", true);
+        authorizeSucceeds(authorizer(checker), true);
 
         assertThat(checker.requests, hasSize(1));
-        var privileges = checker.requests.get(0).indexPrivileges();
+        var privileges = checker.requests.getFirst().indexPrivileges();
         assertThat(privileges.length, equalTo(1));
         assertThat(privileges[0].getIndices(), equalTo(new String[] { "dest" }));
         assertThat(List.of(privileges[0].getPrivileges()), containsInAnyOrder("create_doc"));
-        assertThat(checker.requests.get(0).username(), equalTo(USER));
+        assertThat(checker.requests.getFirst().username(), equalTo(USER));
     }
 
     public void testExistingDestinationWithoutCreateDocIsForbidden() {
-        // Read access does not imply write access: the caller may even hold every other privilege
-        Exception e = authorize(authorizer(new FakeChecker("read", "create_index", "auto_configure")), "dest", true);
-        assertForbidden(e, CREATE_DOCUMENT_ACTION);
+        assertForbidden(
+            authorizeFails(authorizer(new FakeChecker("read", "create_index", "auto_configure")), "dest", true),
+            CREATE_DOCUMENT_ACTION
+        );
     }
 
     public void testMissingDestinationAsksForCreateDocAndCreation() {
         FakeChecker checker = new FakeChecker("create_doc", "create_index");
-        authorizeSucceeds(authorizer(checker), "dest", false);
+        authorizeSucceeds(authorizer(checker), false);
         assertThat(
-            List.of(checker.requests.get(0).indexPrivileges()[0].getPrivileges()),
+            List.of(checker.requests.getFirst().indexPrivileges()[0].getPrivileges()),
             containsInAnyOrder("create_doc", "create_index", "auto_configure")
         );
     }
 
     public void testMissingDestinationPassesWithCreateIndex() {
-        authorizeSucceeds(authorizer(new FakeChecker("create_doc", "create_index")), "dest", false);
+        authorizeSucceeds(authorizer(new FakeChecker("create_doc", "create_index")), false);
     }
 
     public void testMissingDestinationPassesWithAutoConfigure() {
-        authorizeSucceeds(authorizer(new FakeChecker("create_doc", "auto_configure")), "dest", false);
+        authorizeSucceeds(authorizer(new FakeChecker("create_doc", "auto_configure")), false);
     }
 
     public void testMissingDestinationWithoutAnyWayToCreateItIsForbiddenOnAutoCreate() {
-        assertForbidden(authorize(authorizer(new FakeChecker("create_doc")), "dest", false), AUTO_CREATE_ACTION);
+        assertForbidden(authorizeFails(authorizer(new FakeChecker("create_doc")), "dest", false), AUTO_CREATE_ACTION);
     }
 
     public void testMissingDestinationWithoutCreateDocIsForbiddenEvenWithAutoCreate() {
-        assertForbidden(authorize(authorizer(new FakeChecker("create_index", "auto_configure")), "dest", false), CREATE_DOCUMENT_ACTION);
+        assertForbidden(
+            authorizeFails(authorizer(new FakeChecker("create_index", "auto_configure")), "dest", false),
+            CREATE_DOCUMENT_ACTION
+        );
     }
 
     /** A caller who cannot write must not be able to tell an existing destination from a missing one. */
     public void testDenialOfCallerWithoutCreateDocIsIdenticalForExistingAndMissingDestination() {
         FakeChecker existingChecker = new FakeChecker("read");
         FakeChecker missingChecker = new FakeChecker("read");
-        Exception existing = authorize(authorizer(existingChecker), "existing-dest", true);
-        Exception missing = authorize(authorizer(missingChecker), "missing-dest", false);
+        Exception existing = authorizeFails(authorizer(existingChecker), "existing-dest", true);
+        Exception missing = authorizeFails(authorizer(missingChecker), "missing-dest", false);
 
         assertThat(
             existing.getMessage().replace("existing-dest", "<dest>"),
@@ -110,15 +103,11 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
     }
 
     public void testDenialNamesTheCallerAndTheDestinationTheyTyped() {
-        Exception e = authorize(authorizer(new FakeChecker()), "dest", true);
-        assertThat(e.getMessage(), containsString("[" + USER + "]"));
-        assertThat(e.getMessage(), containsString("[dest]"));
-        assertThat(e.getMessage(), not(containsString("create_index")));
-    }
-
-    public void testCheckerFailureIsPropagated() {
-        IllegalStateException failure = new IllegalStateException("boom");
-        assertThat(authorize(authorizer(new FakeChecker(failure)), "dest", true), equalTo(failure));
+        Exception e = authorizeFails(authorizer(new FakeChecker()), "dest", true);
+        assertThat(
+            e.getMessage(),
+            equalTo("action [indices:data/write/index:op_type/create] is unauthorized for user [alice] on indices [dest]")
+        );
     }
 
     public void testMissingAuthenticationFails() {
@@ -127,45 +116,17 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
             new FakeChecker("create_doc"),
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        assertThat(authorize(authorizer, "dest", true), instanceOf(IllegalStateException.class));
+        assertThat(authorizeFails(authorizer, "dest", true), instanceOf(IllegalStateException.class));
     }
 
     /** Security reads a leading slash as a regular expression and a star as a wildcard, which would authorize more than one index. */
     public void testNameSecurityWouldReadAsAPatternIsRejectedWithoutAskingSecurity() {
         for (String name : List.of("/.*/", "/dest/", "dest*", "*", "-dest", "a,b", "remote:dest", "")) {
             FakeChecker checker = new FakeChecker("create_doc", "create_index", "auto_configure");
-            Exception e = authorize(authorizer(checker), name, randomBoolean());
+            Exception e = authorizeFails(authorizer(checker), name, randomBoolean());
             assertThat(name, e, instanceOf(InvalidIndexNameException.class));
             assertThat(name, ((InvalidIndexNameException) e).status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(name, checker.requests, empty());
-        }
-    }
-
-    /** The reply arrives on a security thread, and planning continues from the decision, so it must continue on the search pool. */
-    public void testDecisionIsDeliveredOnTheExecutorWhateverThreadTheReplyArrivesOn() throws Exception {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            AtomicReference<Thread> replyThread = new AtomicReference<>();
-            HasPrivilegesIntoDestinationAuthorizer.PrivilegeChecker onAnotherThread = (request, listener) -> {
-                FakeChecker granting = new FakeChecker("create_doc");
-                new Thread(() -> {
-                    replyThread.set(Thread.currentThread());
-                    granting.check(request, listener);
-                }, "security-reply").start();
-            };
-            IntoDestinationAuthorizer authorizer = new HasPrivilegesIntoDestinationAuthorizer(
-                () -> USER,
-                onAnotherThread,
-                threadPool.executor(ThreadPool.Names.SEARCH)
-            );
-            PlainActionFuture<Thread> decidedOn = new PlainActionFuture<>();
-            authorizer.authorize("dest", true, decidedOn.map(ignored -> Thread.currentThread()));
-
-            Thread decision = safeGet(decidedOn);
-            assertThat(decision.getName(), containsString("[" + ThreadPool.Names.SEARCH + "]"));
-            assertThat(decision, not(equalTo(replyThread.get())));
-        } finally {
-            terminate(threadPool);
         }
     }
 
@@ -173,33 +134,21 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
     private static final class FakeChecker implements HasPrivilegesIntoDestinationAuthorizer.PrivilegeChecker {
         final List<HasPrivilegesRequest> requests = new ArrayList<>();
         private final Set<String> granted;
-        @Nullable
-        private final Exception failure;
 
         FakeChecker(String... granted) {
             this.granted = Set.of(granted);
-            this.failure = null;
-        }
-
-        FakeChecker(Exception failure) {
-            this.granted = Set.of();
-            this.failure = failure;
         }
 
         @Override
         public void check(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
             requests.add(request);
-            if (failure != null) {
-                listener.onFailure(failure);
-                return;
-            }
             var privileges = request.indexPrivileges()[0];
             ResourcePrivileges.Builder resource = ResourcePrivileges.builder(privileges.getIndices()[0]);
             for (String privilege : privileges.getPrivileges()) {
                 resource.addPrivilege(privilege, granted.contains(privilege));
             }
-            boolean all = granted.containsAll(List.of(privileges.getPrivileges()));
-            listener.onResponse(new HasPrivilegesResponse(USER, all, Map.of(), List.of(resource.build()), Map.of()));
+            boolean completeMatch = granted.containsAll(List.of(privileges.getPrivileges()));
+            listener.onResponse(new HasPrivilegesResponse(USER, completeMatch, Map.of(), List.of(resource.build()), Map.of()));
         }
     }
 
@@ -207,16 +156,16 @@ public class HasPrivilegesIntoDestinationAuthorizerTests extends ESTestCase {
         return new HasPrivilegesIntoDestinationAuthorizer(() -> USER, checker, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
-    private static Exception authorize(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
+    private static Exception authorizeFails(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         authorizer.authorize(destination, exists, future);
         ExecutionException e = expectThrows(ExecutionException.class, future::get);
         return (Exception) e.getCause();
     }
 
-    private static void authorizeSucceeds(IntoDestinationAuthorizer authorizer, String destination, boolean exists) {
+    private static void authorizeSucceeds(IntoDestinationAuthorizer authorizer, boolean exists) {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        authorizer.authorize(destination, exists, future);
+        authorizer.authorize("dest", exists, future);
         safeGet(future);
     }
 

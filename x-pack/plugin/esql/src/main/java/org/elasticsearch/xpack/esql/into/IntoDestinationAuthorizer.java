@@ -27,7 +27,6 @@ import java.util.concurrent.Executor;
  * it exists, its ingest pipeline, its routing) from the errors.
  */
 public interface IntoDestinationAuthorizer {
-
     /**
      * Fails with a 403 if the caller may not write to {@code destination}.
      *
@@ -61,8 +60,8 @@ public interface IntoDestinationAuthorizer {
             executor
         );
         return (destination, destinationExists, listener) -> {
-            boolean securityInEffect = transportService.getRequestHandler(HasPrivilegesAction.NAME) != null;
-            (securityInEffect ? secured : allowAll()).authorize(destination, destinationExists, listener);
+            var authorizer = transportService.getRequestHandler(HasPrivilegesAction.NAME) != null ? secured : allowAll();
+            authorizer.authorize(destination, destinationExists, listener);
         };
     }
 }

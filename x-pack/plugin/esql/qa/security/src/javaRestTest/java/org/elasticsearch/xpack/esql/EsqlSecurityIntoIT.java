@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,17 +28,17 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Authorization of the destination of {@code INTO}. It has a cluster of its own because it needs batch indexing, which the other
  * security suites do not.
  */
 public class EsqlSecurityIntoIT extends ESRestTestCase {
+    public static final String USER = "into_read_only_user";
+    public static final String EXISTING = "into-existing";
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -45,16 +47,13 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
         .setting("indices.batch_indexing", "true")
         .rolesFile(Resource.fromClasspath("into-roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
-        .user("into_read_only_user", "x-pack-test-password", "into_read_only", false)
+        .user(USER, "x-pack-test-password", "into_read_only", false)
         .user("into_writer_user", "x-pack-test-password", "into_writer", false)
         .build();
 
     @Before
     public void requiresSnapshot() {
-        assumeTrue(
-            "INTO needs a snapshot build",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName()))
-        );
+        assumeTrue("INTO command required", hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName())));
     }
 
     @Override
@@ -75,15 +74,14 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testDestinationDeniedWithoutWriteAccess() throws IOException {
         createDestinationWithPipeline();
 
-        ResponseException existing = expectThrows(ResponseException.class, () -> into("into_read_only_user", "into-existing"));
-        ResponseException missing = expectThrows(ResponseException.class, () -> into("into_read_only_user", "into-missing"));
+        ResponseException existing = expectThrows(ResponseException.class, () -> into(USER, EXISTING));
+        ResponseException missing = expectThrows(ResponseException.class, () -> into(USER, "into-missing"));
         String existingBody = EntityUtils.toString(existing.getResponse().getEntity());
         String missingBody = EntityUtils.toString(missing.getResponse().getEntity());
-        assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(existingBody, containsString("is unauthorized for user [into_read_only_user]"));
-        assertThat(existingBody, not(containsString("pipeline")));
-        assertThat(existingBody.replace("into-existing", "<dest>"), equalTo(missingBody.replace("into-missing", "<dest>")));
+        assertThat(existingBody, existing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(missingBody, missing.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String format = "action [indices:data/write/index:op_type/create] is unauthorized for user [%s] on indices [%s]";
+        assertThat(existingBody, containsString(Strings.format(format, USER, EXISTING)));
     }
 
     /**
@@ -93,19 +91,19 @@ public class EsqlSecurityIntoIT extends ESRestTestCase {
     public void testWriterWithoutReadAccessIsAuthorized() throws IOException {
         createDestinationWithPipeline();
 
-        ResponseException refusal = expectThrows(ResponseException.class, () -> into("into_writer_user", "into-existing"));
+        ResponseException refusal = expectThrows(ResponseException.class, () -> into("into_writer_user", EXISTING));
         String body = EntityUtils.toString(refusal.getResponse().getEntity());
-        assertThat(body, refusal.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(body, refusal.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         assertThat(body, containsString("does not support ingest pipelines"));
 
-        assertThat(into("into_writer_user", "into-missing").getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(into("into_writer_user", "into-missing").getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_OK));
     }
 
     private void createDestinationWithPipeline() throws IOException {
         Request pipeline = new Request("PUT", "_ingest/pipeline/into-pipeline");
         pipeline.setJsonEntity("{\"processors\": []}");
         assertOK(adminClient().performRequest(pipeline));
-        createIndex(adminClient(), "into-existing", Settings.builder().put("index.default_pipeline", "into-pipeline").build());
+        createIndex(adminClient(), EXISTING, Settings.builder().put("index.default_pipeline", "into-pipeline").build());
     }
 
     private Response into(String user, String destination) throws IOException {

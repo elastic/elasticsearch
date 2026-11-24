@@ -42,8 +42,8 @@ dependencies {
   implementation 'com.google.cloud:google-cloud-storage:2.50.0'
   implementation 'com.google.cloud:google-cloud-core:2.53.1'
   implementation 'com.google.cloud:google-cloud-core-http:2.53.1'
-  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  runtimeOnly 'com.google.guava:guava:33.7.2-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   implementation 'com.google.api:api-common:2.46.1'
@@ -113,20 +113,12 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   )
 
   ignoreMissingClasses(

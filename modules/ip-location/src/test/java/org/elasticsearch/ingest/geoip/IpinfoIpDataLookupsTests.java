@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -610,8 +611,9 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         );
 
         IpinfoIpDataLookups.Plus lookup = new IpinfoIpDataLookups.Plus(properties);
-        IpLocationInfoMapCollector actual = new IpLocationInfoMapCollector();
-        lookup.transform(new InternalIpDataLookup.Result<>(response, "1.0.0.0", "1.0.0.0/31"), actual);
+        Map<String, Object> actual = new HashMap<>();
+        IpLocationInfoMapCollector collector = new IpLocationInfoMapCollector(actual);
+        lookup.transform(new InternalIpDataLookup.Result<>(response, "1.0.0.0", "1.0.0.0/31"), collector);
 
         assertThat(actual.keySet(), containsInAnyOrder("isp", "mobile_country_code", "mobile_network_code", "dma_code", "service"));
         assertThat(actual.get("isp"), equalTo("Verizon Wireless"));
@@ -752,8 +754,9 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         Set<String> knownMissingKeys
     ) {
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
-            IpLocationInfoMapCollector actual = new IpLocationInfoMapCollector();
-            lookup.getData(loader, ip, actual);
+            Map<String, Object> actual = new HashMap<>();
+            IpLocationInfoMapCollector collector = new IpLocationInfoMapCollector(actual);
+            lookup.getData(loader, ip, collector);
             assertThat(
                 "The set of keys in the result are not the same as the set of expected keys",
                 actual.keySet(),

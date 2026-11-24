@@ -60,6 +60,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -343,6 +344,14 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     .getProject()
                     .dataStreams()
                     .get(dataStreamName);
+                final long oldestIndexCreationDate = clusterStateBeforeRollover.metadata()
+                    .getProject()
+                    .getIndexSafe(dataStreamBeforeRollover.getIndices().getFirst())
+                    .getCreationDate();
+                assertTrue(
+                    "cached node clocks did not reach the oldest backing index's creation date",
+                    waitUntil(() -> haveAllNodesCachedClockReached(oldestIndexCreationDate))
+                );
                 String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
                     .index(dataStreamBeforeRollover.getWriteIndex())
                     .shard(0)
@@ -511,6 +520,18 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 );
             }
         }
+    }
+
+    /**
+     * Whether the cached clock on every node is at or past the given time.
+     */
+    private static boolean haveAllNodesCachedClockReached(long timeMillis) {
+        for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+            if (threadPool.absoluteTimeInMillis() < timeMillis) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ShardStats getShardStats(IndexMetadata indexMeta, int shardIndex, long targetWriteLoad, String assignedShardNodeId) {

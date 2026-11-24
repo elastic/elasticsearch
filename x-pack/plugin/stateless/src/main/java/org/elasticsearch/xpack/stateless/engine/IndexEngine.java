@@ -1128,11 +1128,14 @@ public class IndexEngine extends InternalEngine {
             @Override
             public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
                 isComplete = true;
-                final var mergeInfo = getMergeInfo();
-                if (warmer != null && mergeInfo != null) {
-                    warmer.onMergeFinished(mergeInfo, this);
+                try {
+                    final var mergeInfo = getMergeInfo();
+                    if (warmer != null && mergeInfo != null) {
+                        warmer.onMergeFinished(mergeInfo, this);
+                    }
+                } finally {
+                    super.mergeFinished(success, segmentDropped);
                 }
-                super.mergeFinished(success, segmentDropped);
             }
 
             // the index writer sets the merged segment before it warms it

@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -200,13 +201,20 @@ public class MergedSegmentWarmerTests extends AbstractEngineTestCase {
     public void testListenerFailureFailsTheEngine() throws Exception {
         final var failure = new IllegalStateException("simulated");
         final boolean throwsFailure = randomBoolean();
+        final var indexed = new CountDownLatch(1);
         try (var engine = newEngine((segment, isAborted, listener) -> {
+            // the merge is scheduled while the last refresh of indexDocs is running, which the failing engine must not interrupt
+            safeAwait(indexed);
             if (throwsFailure) {
                 throw failure;
             }
             listener.onFailure(failure);
         })) {
-            indexDocs(engine, 2);
+            try {
+                indexDocs(engine, 2);
+            } finally {
+                indexed.countDown();
+            }
             final var eventListener = (CapturingEngineEventListener) engine.config().getEventListener();
             assertBusy(() -> assertNotNull(eventListener.exception.get()));
             assertSame(failure, ExceptionsHelper.unwrap(eventListener.exception.get(), IllegalStateException.class));

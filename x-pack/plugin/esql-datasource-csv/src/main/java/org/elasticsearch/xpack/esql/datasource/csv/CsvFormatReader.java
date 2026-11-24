@@ -5595,10 +5595,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * The width this file states, which every row of it has to fill — {@link #rowWidthFloor}. Only the file's
-         * own header states one: its field count, the same number {@link #rowWidthLimit} bounds rows by from above,
-         * so a row of a headered file must be exactly that wide. It reaches this either as the schema's size, when
-         * an inferred schema was read off that header, or as the binding's width, when a pinned schema binds to it
-         * by name.
+         * own header states one: its field count, which is also the number {@link #rowWidthLimit} bounds rows by from
+         * above, except under a width-only binding, where that limit stays a pinned schema's own size. So a row of a
+         * headered file must be exactly that wide unless such a pin is narrower, in which case no row can pass.
+         * It reaches this either as the schema's size, when an inferred schema was read off that header, or as the
+         * binding's width, when a pinned schema binds to it by name.
          *
          * <p>The width is always THIS file's, never the pinned schema's: cross-file resolution can take the schema
          * from a wider sibling, and a complete row of a narrower file is not a short row.

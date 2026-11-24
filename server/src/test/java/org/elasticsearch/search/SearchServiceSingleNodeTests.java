@@ -3928,7 +3928,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             long charged = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
             assertThat(charged, greaterThan(0L));
-            assertThat(phaseLoad.nanos(), equalTo(charged));
+            assertThat(phaseLoad.snapshot().loadNanos(), equalTo(charged));
         });
     }
 
@@ -3971,7 +3971,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             long shardNanos = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
             assertThat(shardNanos, greaterThan(0L));
             assertThat(taskNanos.get(), greaterThan(0L));
-            assertThat(taskLoad.nanos(), equalTo(taskNanos.get() + shardNanos));
+            assertThat(taskLoad.snapshot().loadNanos(), equalTo(taskNanos.get() + shardNanos));
         });
     }
 

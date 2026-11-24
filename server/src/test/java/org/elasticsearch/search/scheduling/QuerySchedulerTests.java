@@ -142,8 +142,8 @@ public class QuerySchedulerTests extends ESTestCase {
         clock.set(25);
         pool.runNext();
         assertThat(first.total() + second.total(), equalTo(35L));
-        assertThat(firstLoad.waitingNanos(), equalTo(20L));
-        assertThat(secondLoad.waitingNanos(), equalTo(5L));
+        assertThat(firstLoad.snapshot().waitingNanos(), equalTo(20L));
+        assertThat(secondLoad.snapshot().waitingNanos(), equalTo(5L));
     }
 
     /**
@@ -158,10 +158,10 @@ public class QuerySchedulerTests extends ESTestCase {
         withLoad.execute(() -> {});
         clock.set(20);
         pool.runNext();
-        assertThat(load.waitingNanos(), equalTo(0L));
+        assertThat(load.snapshot().waitingNanos(), equalTo(0L));
         clock.set(25);
         pool.runNext();
-        assertThat(load.waitingNanos(), equalTo(25L));
+        assertThat(load.snapshot().waitingNanos(), equalTo(25L));
     }
 
     /**
@@ -177,7 +177,7 @@ public class QuerySchedulerTests extends ESTestCase {
         executor.execute(() -> {});
         clock.set(25);
         pool.runNext();
-        assertThat(load.waitingNanos(), equalTo(25L));
+        assertThat(load.snapshot().waitingNanos(), equalTo(25L));
     }
 
     /**

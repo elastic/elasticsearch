@@ -649,7 +649,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     1,
                     context -> ScoreMode.COMPLETE
                 );
-                return queryLoad.nanos();
+                return queryLoad.snapshot().loadNanos();
             }));
             assertThat(chargedInTask.get(10, TimeUnit.SECONDS), greaterThanOrEqualTo(rewriteNanos));
             assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));

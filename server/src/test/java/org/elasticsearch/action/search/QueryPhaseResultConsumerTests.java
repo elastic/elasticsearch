@@ -709,7 +709,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             for (int i = 0; i < 3; i++) {
                 QuerySearchResult result = queryResultWithAggs(i);
                 consumer.consumeResult(result, i < 2 ? () -> {} : () -> {
-                    loadWhenCompleted.set(load.nanos());
+                    loadWhenCompleted.set(load.snapshot().loadNanos());
                     completed.countDown();
                 });
                 result.decRef();

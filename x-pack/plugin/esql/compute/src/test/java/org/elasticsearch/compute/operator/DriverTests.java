@@ -161,7 +161,7 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().driverNanos(), greaterThan(0L));
         assertThat(charged.get(), equalTo(driver.status().driverNanos()));
-        assertThat(driver.searchLoad().nanos(), equalTo(charged.get()));
+        assertThat(driver.searchLoad().snapshot().loadNanos(), equalTo(charged.get()));
     }
 
     /**
@@ -216,8 +216,8 @@ public class DriverTests extends ESTestCase {
             }));
             long elapsedNanos = elapsed.get(10, TimeUnit.SECONDS);
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-            assertThat(driver.searchLoad().nanos(), greaterThan(0L));
-            assertThat(driver.searchLoad().nanos(), lessThanOrEqualTo(elapsedNanos));
+            assertThat(driver.searchLoad().snapshot().loadNanos(), greaterThan(0L));
+            assertThat(driver.searchLoad().snapshot().loadNanos(), lessThanOrEqualTo(elapsedNanos));
         } finally {
             ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
         }
@@ -238,7 +238,7 @@ public class DriverTests extends ESTestCase {
         };
         QueryLoad driverLoad = new QueryLoad();
         assertTrue(source.reportSearchLoad(400, System.nanoTime(), driverLoad));
-        assertThat(driverLoad.nanos(), equalTo(400L));
+        assertThat(driverLoad.snapshot().loadNanos(), equalTo(400L));
         assertThat(first.rowsEmitted(), equalTo(3L));
         assertThat(second.rowsEmitted(), equalTo(1L));
         assertThat(empty.rowsEmitted(), equalTo(0L));
@@ -285,7 +285,7 @@ public class DriverTests extends ESTestCase {
         assertThat(shardNanos, greaterThan(0L));
         assertThat(charged.get(), greaterThan(0L));
         assertThat(shardNanos + charged.get(), equalTo(driver.status().driverNanos()));
-        assertThat(driver.searchLoad().nanos(), equalTo(driver.status().driverNanos()));
+        assertThat(driver.searchLoad().snapshot().loadNanos(), equalTo(driver.status().driverNanos()));
     }
 
     /**

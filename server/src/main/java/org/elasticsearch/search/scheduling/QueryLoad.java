@@ -41,14 +41,6 @@ public final class QueryLoad {
         waitingNanos.add(nanos);
     }
 
-    public long nanos() {
-        return nanos.sum();
-    }
-
-    public long waitingNanos() {
-        return waitingNanos.sum();
-    }
-
     /**
      * The load, CPU time and waiting so far. The CPU time is read before the load, as each charge adds its load first, and
      * is at most the load.

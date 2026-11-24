@@ -42,6 +42,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -314,6 +315,10 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
                 b.endObject().endObject();
             }
             b.endObject().endObject();
+            // a disabled object keeps its source verbatim
+            b.startObject("disabled").field("enabled", false).startObject("properties");
+            b.startObject("v").field("type", "dense_vector").endObject();
+            b.endObject().endObject();
         })), false, XContentType.JSON).v2();
         @SuppressWarnings("unchecked") // the root of a mapping built by mapping(...) is {"_doc": {...}}
         Map<String, Object> root = (Map<String, Object>) mapping.get("_doc");
@@ -326,6 +331,10 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
             Set.of("plain", "keep_arrays", "keep_none", "obj_none.v"),
             DenseVectorFieldMapper.floatElementPaths(root, Mapper.SourceKeepMode.ARRAYS)
         );
+        // a disabled root keeps the whole source verbatim
+        Map<String, Object> disabledRoot = new HashMap<>(root);
+        disabledRoot.put("enabled", randomFrom(false, "false"));
+        assertEquals(Set.of(), DenseVectorFieldMapper.floatElementPaths(disabledRoot, Mapper.SourceKeepMode.NONE));
     }
 
     public void testSupportedConfigurations() throws IOException {
@@ -459,6 +468,17 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
             Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays").build(),
             inObjectArray
         );
+        // a disabled object, or a disabled root, keeps its source verbatim
+        assertKeepsSource(mapping(b -> {
+            b.startObject("obj").field("enabled", false).startObject("properties");
+            b.startObject(FIELD).field("type", "dense_vector").field("dims", DIMS).endObject();
+            b.endObject().endObject();
+        }), Settings.EMPTY, inObject);
+        assertKeepsSource(topMapping(b -> {
+            b.field("enabled", false).startObject("properties");
+            b.startObject(FIELD).field("type", "dense_vector").field("dims", DIMS).endObject();
+            b.endObject();
+        }), Settings.EMPTY, "{\"" + FIELD + "\":" + vector + "}");
     }
 
     /** A vector in an object, with the given {@code synthetic_source_keep} on the object and on the vector, {@code null} for none. */

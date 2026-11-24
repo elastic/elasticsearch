@@ -4457,6 +4457,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * source rebuilt from the batch, where an element parsed to float would be written out widened to double, such as
      * {@code 0.012299999594688416} for {@code 0.0123}. So these vectors are left out, and their elements are parsed as doubles,
      * which keep their text. An object that keeps arrays leaves out its vectors whether or not a document holds it in an array.
+     * Vectors in an object with {@code enabled: false}, or under a disabled root, are left out too: the row path keeps such an
+     * object's source verbatim, with any source mode.
      */
     public static Set<String> floatElementPaths(Map<String, ?> mapping, Mapper.SourceKeepMode indexKeepMode) {
         final Set<String> paths = new HashSet<>();
@@ -4481,6 +4483,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private static void collectFloatElementPaths(Map<?, ?> objectMapping, String prefix, String indexKeepMode, Set<String> paths) {
+        // An object with enabled: false, or a disabled root, keeps its source verbatim and parses none of its properties, so its
+        // vectors are never indexed and their text is kept in _source, or in _ignored_source with synthetic source.
+        if ("false".equals(String.valueOf(objectMapping.get("enabled")))) {
+            return;
+        }
         if (objectMapping.get("properties") instanceof Map<?, ?> properties) {
             for (Map.Entry<?, ?> entry : properties.entrySet()) {
                 if (entry.getValue() instanceof Map<?, ?> fieldMapping) {

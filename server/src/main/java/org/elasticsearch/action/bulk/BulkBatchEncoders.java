@@ -25,6 +25,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.Mapper;
@@ -220,7 +221,7 @@ final class BulkBatchEncoders implements Releasable {
                 key -> Set.copyOf(DenseVectorFieldMapper.floatElementPaths(mapping.sourceAsMap(), indexKeepMode))
             );
         } catch (ExecutionException | RuntimeException e) {
-            logger.debug(() -> "cannot read the dense_vector paths of the mapping of [" + indexMetadata.getIndex() + "]", e);
+            logger.debug(() -> Strings.format("cannot read the dense_vector paths of the mapping of [%s]", indexMetadata.getIndex()), e);
             return Set.of();
         }
     }

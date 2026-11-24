@@ -62,6 +62,9 @@ abstract class AbstractFixed64Column extends EscfColumn {
             BytesRef chunk;
             while ((chunk = chunks.next()) != null) {
                 // every chunk holds whole slots (see assertDataValid), and so does a slice starting on a slot
+                if ((chunk.length & 7) != 0) {
+                    throw new IllegalStateException("float column chunk length " + chunk.length + " is not a multiple of 8");
+                }
                 for (int off = chunk.offset, end = chunk.offset + chunk.length; off < end; off += 8) {
                     dst[i++] = toFloat(ByteUtils.readLongLE(chunk.bytes, off));
                 }

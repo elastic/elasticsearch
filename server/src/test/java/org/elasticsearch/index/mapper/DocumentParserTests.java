@@ -2457,6 +2457,28 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNoSubobjects(doc);
     }
 
+    /**
+     * With {@code subobjects: false} at the root, a dotted key is a literal leaf name, so {@code n.k} can not reach the field {@code k}
+     * of the nested object {@code n}. Strict columnar index modes must reject such a document instead of silently dropping the value.
+     */
+    public void testSubobjectsFalseRootDottedKeyIntoNestedStrictColumnar() throws Exception {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("n").field("type", "nested");
+                b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+                b.endObject();
+            })
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        // object notation keeps working
+        ParsedDocument doc = mapper.parse(source("{\"n\": {\"k\": \"a\"}}"));
+        assertEquals(2, doc.docs().size());
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("{\"n.k\": \"a\"}")));
+        assertThat(e.getMessage(), containsString("field [n.k] can not be indexed as a leaf field"));
+    }
+
     public void testSubobjectsFalseFlatPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())

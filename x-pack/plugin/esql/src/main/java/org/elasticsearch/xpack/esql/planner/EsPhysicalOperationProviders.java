@@ -1060,20 +1060,23 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts, boolean matchesAllDocs) throws IOException {
             Optional<SortAndFormats> sort = buildSort(sorts);
-            if (matchesAllDocs && sort.isPresent() && canMatchTail(sorts)) {
+            // The sort shape is checked here. maybeMarkAsMatchTail checks the index sort, and the comparator checks each segment.
+            if (matchesAllDocs && sort.isPresent() && hasMatchTailSortShape(sorts)) {
                 LongValuesComparatorSource.maybeMarkAsMatchTail(ctx.getIndexSettings().getIndexSortConfig(), sort.get().sort);
             }
             return sort;
         }
 
         /**
-         * Whether a sort can read only the end of a segment that is sorted by the reverse of the sort.
-         * That reads {@code LIMIT + 1} documents of the segment, so it is only correct when those documents are
-         * the top N. That holds for a single key, because a second key could prefer a document before the end that has the
-         * same timestamp. It also holds when documents without a timestamp sort last, because a document
-         * without a timestamp that sorts first is not at the end of the segment.
+         * Whether the shape of the sort allows the "match tail" optimization: a single ascending key, with documents without a
+         * value last. A second key, or documents without a value that sort first, can need documents outside the tail, which
+         * holds only {@code LIMIT + 1} documents of each segment.
+         * <p>
+         * This is not enough by itself. The optimization also needs an index sorted by descending {@code @timestamp}, and a sort
+         * on {@code @timestamp}. {@link LongValuesComparatorSource#maybeMarkAsMatchTail} checks that for the index, and the
+         * comparator checks each segment.
          */
-        private static boolean canMatchTail(List<SortBuilder<?>> sorts) {
+        private static boolean hasMatchTailSortShape(List<SortBuilder<?>> sorts) {
             return sorts.size() == 1
                 && sorts.get(0) instanceof FieldSortBuilder field
                 && field.order() == SortOrder.ASC

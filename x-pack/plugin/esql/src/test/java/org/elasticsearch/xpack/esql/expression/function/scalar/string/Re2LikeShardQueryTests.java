@@ -58,11 +58,14 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false."));
     }
 
-    /** A field without a terms index refuses it too, as it refuses a {@code regexp} query, through its own check. */
+    /**
+     * A field without a terms index refuses it too, as it refuses a {@code regexp} query: some, such as a flattened key,
+     * don't check the setting when given an automaton.
+     */
     public void testDocValuesOnlyFieldRefusesWhenExpensiveQueriesAreNotAllowed() throws IOException {
         SearchExecutionContext context = noExpensiveQueries(keyword(false));
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> query("a.*", context));
-        assertThat(e.getMessage(), containsString("since it is not indexed and 'search.allow_expensive_queries' is set to false"));
+        assertThat(e.getMessage(), equalTo("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false."));
     }
 
     public void testAutomatonIsChargedToTheShardBreaker() throws IOException {
@@ -99,6 +102,13 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
         expectThrows(CircuitBreakingException.class, () -> query("abc", limited));
         assertThat(small.getUsed(), equalTo(0L));
+    }
+
+    /** A regex Prometheus runs without an automaton can be too complex to build one for, as the compatibility docs say. */
+    public void testRefusesRegexTooComplexToDeterminize() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext(keyword(true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query(".*a.{20}", context));
+        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
     }
 
     private MapperService keyword(boolean indexed) throws IOException {

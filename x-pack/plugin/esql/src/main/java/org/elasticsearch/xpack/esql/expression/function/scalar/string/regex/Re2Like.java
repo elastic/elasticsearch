@@ -117,7 +117,8 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
                     + "] index level setting."
             );
         }
-        if (fieldType.indexType().hasTerms() && context.allowExpensiveQueries() == false) {
+        // whatever the field, as a regexp query is refused on any field type
+        if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
             );
@@ -165,7 +166,7 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
     public Expression forTransportVersion(TransportVersion minTransportVersion) {
         if (minTransportVersion.supports(ESQL_RE2_LIKE) == false) {
             RLikePattern lucene = new RLikePattern(pattern().pattern());
-            if (sameLanguage(pattern(), lucene) == false) {
+            if (sameLanguage(pattern(), lucene, source()) == false) {
                 throw new IllegalArgumentException(
                     "regex ["
                         + pattern().pattern()
@@ -179,13 +180,13 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
     }
 
     /**
-     * Whether both syntaxes give the pattern the same strings. The automata and the differences between them are built
-     * within a fold budget, as a label matcher's automaton is, so that the check is bounded on the coordinator; a pattern
-     * past it is taken to differ.
+     * Whether both syntaxes give the pattern the same strings, false if Lucene can't parse it. The automata and the
+     * differences between them are built within a fold budget, as a label matcher's automaton is, so that the check is
+     * bounded on the coordinator; a pattern past it is refused as one that can't be checked, which it is told apart from.
      */
-    private boolean sameLanguage(Re2Pattern re2, RLikePattern lucene) {
+    private static boolean sameLanguage(Re2Pattern re2, RLikePattern lucene, Source source) {
         // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
-        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source());
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source);
         try {
             Automaton a = re2.createAutomaton(false, breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
@@ -199,8 +200,16 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
             breaker.addEstimateBytesAndMaybeBreak(b.ramBytesUsed(), NAME);
             return Operations.isEmpty(CircuitBreakingOperations.minus(a, b, breaker, NAME))
                 && Operations.isEmpty(CircuitBreakingOperations.minus(b, a, breaker, NAME));
-        } catch (IllegalArgumentException | TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
+        } catch (IllegalArgumentException e) {
             return false;
+        } catch (TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
+            throw new IllegalArgumentException(
+                "regex ["
+                    + re2.pattern()
+                    + "] can't be matched until every node is upgraded: it is too complex to check that nodes on older versions,"
+                    + " which read it as a Lucene regexp, match the same strings",
+                e
+            );
         }
     }
 

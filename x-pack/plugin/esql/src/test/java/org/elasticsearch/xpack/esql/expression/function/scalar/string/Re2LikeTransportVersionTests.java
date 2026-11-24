@@ -58,6 +58,15 @@ public class Re2LikeTransportVersionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[" + regex + "] can't be matched until every node is upgraded"));
     }
 
+    /** A pattern past the budget of the check is refused as one that can't be checked, not as one read differently. */
+    public void testRefusesPatternTooComplexToCheck() {
+        String regex = ".*a.{20}";
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(regex));
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(ESQL_RE2_LIKE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> re2Like.forTransportVersion(version));
+        assertThat(e.getMessage(), containsString("[" + regex + "] can't be matched until every node is upgraded: it is too complex"));
+    }
+
     private static Re2Like re2Like() {
         return new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(randomFrom("a.*", "foo|bar", "[a-z]+_total")));
     }

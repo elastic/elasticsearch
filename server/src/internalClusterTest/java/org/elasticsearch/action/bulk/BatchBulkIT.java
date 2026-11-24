@@ -3959,6 +3959,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         createNestedIndex(sequential, mode, sourceMode);
 
         final Map<String, String> sources = nestedSources(mode, 50);
+        sources.put("doc-control", crossChildControlSource(mode));
         final String coordinatingNode = findCoordinatingNode();
         assertNoFailures(client(coordinatingNode).bulk(bulkOf(batched, sources)).actionGet());
         updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
@@ -3979,18 +3980,30 @@ public class BatchBulkIT extends ESIntegTestCase {
             ScoreMode.None
         );
         assertSameHits(batched, sequential, byAuthor, "nested term query");
-        assertSameHits(
-            batched,
-            sequential,
-            QueryBuilders.nestedQuery(
-                "comments",
-                QueryBuilders.boolQuery()
-                    .must(QueryBuilders.termQuery("comments.author", "author-1"))
-                    .must(QueryBuilders.rangeQuery("comments.votes").gte(2)),
-                ScoreMode.None
-            ),
-            "nested bool query within one child"
+        final QueryBuilder authorWithManyVotes = QueryBuilders.nestedQuery(
+            "comments",
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("comments.author", "author-1"))
+                .must(QueryBuilders.rangeQuery("comments.votes").gte(2)),
+            ScoreMode.None
         );
+        assertSameHits(batched, sequential, authorWithManyVotes, "nested bool query within one child");
+
+        // Comparing the two indices cannot tell if both are wrong in the same way. In "doc-control" no single child has author-1 and
+        // at least 2 votes, although one child has the author and another child has the votes, so a predicate that is evaluated across
+        // children matches it. It has to stay out of the hits on both indices, and its children have to be visible one by one.
+        final QueryBuilder onlyControl = QueryBuilders.idsQuery().addIds("doc-control");
+        final QueryBuilder authorWithFewVotes = QueryBuilders.nestedQuery(
+            "comments",
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("comments.author", "author-1"))
+                .must(QueryBuilders.rangeQuery("comments.votes").lte(1)),
+            ScoreMode.None
+        );
+        for (String index : List.of(batched, sequential)) {
+            assertHitIds(index, QueryBuilders.boolQuery().must(authorWithManyVotes).filter(onlyControl));
+            assertHitIds(index, QueryBuilders.boolQuery().must(authorWithFewVotes).filter(onlyControl), "doc-control");
+        }
         assertSameHits(batched, sequential, QueryBuilders.termQuery("host", "host-3"), "root term query");
         assertSameHits(batched, sequential, QueryBuilders.matchAllQuery(), "match all");
 
@@ -4000,17 +4013,24 @@ public class BatchBulkIT extends ESIntegTestCase {
             QueryBuilders.existsQuery("comments.author"),
             ScoreMode.None
         ).innerHit(new InnerHitBuilder().setSize(10).addSort(SortBuilders.fieldSort("comments.votes").order(SortOrder.ASC)));
-        assertThat("inner_hits", innerHitSources(batched, withInnerHits), equalTo(innerHitSources(sequential, withInnerHits)));
+        assertThat("inner_hits", innerHits(batched, withInnerHits), equalTo(innerHits(sequential, withInnerHits)));
     }
 
-    /** For every matching root document, the {@code _source} of its {@code comments} inner hits, in the order they come back. */
-    private Map<String, List<Map<String, Object>>> innerHitSources(String index, QueryBuilder query) {
-        final Map<String, List<Map<String, Object>>> result = new TreeMap<>();
+    /** An inner hit of a nested field: where the child sits within the nested field, and its {@code _source}. */
+    private record InnerHit(String nestedField, int offset, Map<String, Object> source) {}
+
+    /**
+     * For every matching root document, its {@code comments} inner hits in the order they come back, each with its nested field and
+     * offset, because the offset is the only difference between children with the same source.
+     */
+    private Map<String, List<InnerHit>> innerHits(String index, QueryBuilder query) {
+        final Map<String, List<InnerHit>> result = new TreeMap<>();
         assertResponse(prepareSearch(index).setQuery(query).setSize(100), response -> {
             for (SearchHit hit : response.getHits().getHits()) {
-                final List<Map<String, Object>> children = new ArrayList<>();
+                final List<InnerHit> children = new ArrayList<>();
                 for (SearchHit inner : hit.getInnerHits().get("comments").getHits()) {
-                    children.add(inner.getSourceAsMap());
+                    final SearchHit.NestedIdentity identity = inner.getNestedIdentity();
+                    children.add(new InnerHit(identity.getField().string(), identity.getOffset(), inner.getSourceAsMap()));
                 }
                 result.put(hit.getId(), children);
             }
@@ -4106,6 +4126,17 @@ public class BatchBulkIT extends ESIntegTestCase {
             }));
         }
         return sources;
+    }
+
+    /**
+     * A document in which the author {@code author-1} and 2 or more votes sit in different children, so that no single child has both.
+     * It is a negative control for a nested query that must match within one child.
+     */
+    private static String crossChildControlSource(IndexMode mode) {
+        return withTimestamp(
+            mode,
+            "\"host\":\"host-0\",\"comments\":[{\"author\":\"author-1\",\"votes\":0},{\"author\":\"author-2\",\"votes\":4}]"
+        );
     }
 
     /** {@code members} as a JSON object, with an {@code @timestamp} where the index mode needs one. */

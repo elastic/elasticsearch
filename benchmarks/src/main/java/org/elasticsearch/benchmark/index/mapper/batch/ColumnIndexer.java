@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.BatchMappingShardContext;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
@@ -31,28 +30,14 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
- * The columnar batch path without the engine: {@code mapColumnBatch} then {@code IndexWriter.addBatch}, or, in
- * {@link WriteMode#ROWS}, then one {@code addDocuments} per row from the {@code RowCursor}, which is how the engine writes a
- * sub-batch that cannot use {@code addBatch}. It mirrors
+ * The columnar batch path without the engine: {@code mapColumnBatch} then {@code IndexWriter.addBatch}. It mirrors
  * {@code ShardBatchIndexer} chunking at {@code BATCH_CHUNK_SIZE} and the seqno, primary term and version stamping
  * {@code InternalEngine} applies to the column slice, so the Lucene input matches production while version map, translog and
  * locking stay out of the measurement.
  */
 public final class ColumnIndexer {
-
-    /**
-     * How the mapped columns reach Lucene. {@link #BATCH} is the columnar path. {@link #ROWS} reads each row back from the columns
-     * and writes it as a document of its own, which is the engine's write for a sub-batch that needs the row path and the write that
-     * a nested batch gets before Lucene can take blocks; measuring it on flat shapes shows the most that mapping column-major can gain
-     * over {@code rowBatch} while Lucene still runs {@code processDocument} per document.
-     */
-    public enum WriteMode {
-        BATCH,
-        ROWS
-    }
 
     private final BenchShardContext ctx;
     private final Recycler<BytesRef> recycler;
@@ -125,10 +110,6 @@ public final class ColumnIndexer {
     }
 
     public int index(IndexWriter writer, SeqNoStamper stamper, RequestBatch[] requests) throws IOException {
-        return index(writer, stamper, requests, WriteMode.BATCH);
-    }
-
-    public int index(IndexWriter writer, SeqNoStamper stamper, RequestBatch[] requests, WriteMode mode) throws IOException {
         int docs = 0;
         for (RequestBatch request : requests) {
             BatchMapperResolution resolution = resolve(ctx, request);
@@ -138,7 +119,7 @@ public final class ColumnIndexer {
             int size = request.size();
             for (int chunkStart = 0; chunkStart < size; chunkStart += ShardBatchIndexer.BATCH_CHUNK_SIZE) {
                 int chunkEnd = Math.min(chunkStart + ShardBatchIndexer.BATCH_CHUNK_SIZE, size);
-                docs += indexChunk(writer, stamper, request, chunkStart, chunkEnd, resolution, mode);
+                docs += indexChunk(writer, stamper, request, chunkStart, chunkEnd, resolution);
             }
         }
         return docs;
@@ -150,8 +131,7 @@ public final class ColumnIndexer {
         RequestBatch request,
         int chunkStart,
         int chunkEnd,
-        BatchMapperResolution resolution,
-        WriteMode mode
+        BatchMapperResolution resolution
     ) throws IOException {
         try (
             EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
@@ -178,21 +158,8 @@ public final class ColumnIndexer {
                 slice.setSeqNo(i, stamper.nextSeqNo());
                 slice.setVersion(i, stamper.version());
             }
-            switch (mode) {
-                case BATCH -> writer.addBatch(slice.toColumnBatch());
-                case ROWS -> addRows(writer, slice, n);
-            }
+            writer.addBatch(slice.toColumnBatch());
             return n;
-        }
-    }
-
-    /** Mirrors {@code InternalEngine#indexColumnRowSubBatch}: each row of the slice as a one-document list for {@code addDocuments}. */
-    private static void addRows(IndexWriter writer, MappedColumns slice, int rows) throws IOException {
-        MappedColumns.RowCursor cursor = slice.rowCursor();
-        for (int i = 0; i < rows; i++) {
-            cursor.advance();
-            // The cursor reuses its field list and fields; addDocuments reads them before returning.
-            writer.addDocuments(List.of(new LuceneDocument(cursor.fields())));
         }
     }
 

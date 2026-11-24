@@ -30,7 +30,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,23 +58,13 @@ public final class IndexingFixture implements Closeable {
     private final IndexSettings indexSettings;
     private final Codec codec;
     private final RequestBatch[] requests;
-    private final int luceneDocs;
 
-    private IndexingFixture(BenchShape shape, MapperService mapperService, Codec codec, RequestBatch[] requests, int luceneDocs) {
+    private IndexingFixture(BenchShape shape, MapperService mapperService, Codec codec, RequestBatch[] requests) {
         this.shape = shape;
         this.mapperService = mapperService;
         this.indexSettings = mapperService.getIndexSettings();
         this.codec = codec;
         this.requests = requests;
-        this.luceneDocs = luceneDocs;
-    }
-
-    /**
-     * The Lucene documents that all requests index: one per input document, plus one per nested child. The benchmark states throughput
-     * per input document, but the writer holds children as documents of their own, so its document count is checked against this.
-     */
-    public int luceneDocs() {
-        return luceneDocs;
     }
 
     public record RequestBatch(int offset, BulkItemRequest[] items, BytesReference[] json, BulkShardBatch bulkShardBatch) {
@@ -131,7 +120,7 @@ public final class IndexingFixture implements Closeable {
                 BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
                 requests[r] = new RequestBatch(offset, items, sources, bulkShardBatch);
             }
-            IndexingFixture fixture = new IndexingFixture(shape, mapperService, codec, requests, countLuceneDocs(mapperService, ids, json));
+            IndexingFixture fixture = new IndexingFixture(shape, mapperService, codec, requests);
             success = true;
             return fixture;
         } finally {
@@ -140,18 +129,6 @@ public final class IndexingFixture implements Closeable {
                 IOUtils.closeWhileHandlingException(mapperService);
             }
         }
-    }
-
-    /** One Lucene document per input document, or, in a mapping with nested fields, as many as the sequential path parses. */
-    private static int countLuceneDocs(MapperService mapperService, String[] ids, BytesReference[] json) {
-        if (mapperService.mappingLookup().nestedLookup().getNestedMappers().isEmpty()) {
-            return json.length;
-        }
-        int docs = 0;
-        for (int i = 0; i < json.length; i++) {
-            docs += mapperService.documentMapper().parse(new SourceToParse(ids[i], json[i], XContentType.JSON)).docs().size();
-        }
-        return docs;
     }
 
     static String[] seededIds(long seed, int count) {

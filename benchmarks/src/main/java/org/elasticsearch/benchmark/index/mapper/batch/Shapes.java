@@ -103,8 +103,6 @@ public final class Shapes {
         );
         add(shapes, metrics4());
         add(shapes, dateStrings());
-        add(shapes, nestedComments("nested.comments", true));
-        add(shapes, nestedComments("nested.unused", false));
         return Collections.unmodifiableMap(shapes);
     }
 
@@ -139,37 +137,6 @@ public final class Shapes {
             Expect.COLUMN,
             List.of()
         );
-    }
-
-    /**
-     * Root fields next to a {@code nested} {@code comments} field. With {@code withComments} every document has zero to four comments;
-     * without it no document has one, which is a nested mapping that no document uses. Nested mappings fall back to the row path
-     * today, so both shapes are measured as fallbacks until the batch path takes them.
-     */
-    private static BenchShape nestedComments(String name, boolean withComments) {
-        try {
-            XContentBuilder b = JsonXContent.contentBuilder();
-            b.startObject().startObject("_doc").field("dynamic", false).startObject("properties");
-            b.startObject(TIMESTAMP).field("type", "date").endObject();
-            b.startObject("host").field("type", "keyword").endObject();
-            b.startObject("bytes").field("type", "long").endObject();
-            b.startObject("comments").field("type", "nested").startObject("properties");
-            b.startObject("author").field("type", "keyword").endObject();
-            b.startObject("votes").field("type", "long").endObject();
-            b.endObject().endObject();
-            b.endObject().endObject().endObject();
-            return new BenchShape(
-                name,
-                IndexMode.COLUMNAR,
-                Strings.toString(b),
-                new NestedCommentsDocs(withComments),
-                withComments ? EnumSet.of(Feature.NESTED) : EnumSet.of(Feature.DENSE),
-                Expect.FALLBACK_RESOLVE,
-                List.of()
-            );
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static String mapping(String[] names, String type, Map<String, Object> params) {
@@ -232,8 +199,7 @@ public final class Shapes {
         STRING_INPUT,
         DOUBLE_INPUT,
         NOT_INDEXED,
-        POINTS,
-        NESTED
+        POINTS
     }
 
     public enum JsonKind {
@@ -435,32 +401,6 @@ public final class Shapes {
             b.field("bytes_in", r.nextInt(10_000_000));
             b.field("bytes_out", r.nextInt(10_000_000));
             b.field("latency", r.nextInt(100_000));
-        }
-    }
-
-    private record NestedCommentsDocs(boolean withComments) implements DocGenerator {
-
-        private static final int MAX_COMMENTS = 4;
-
-        @Override
-        public JsonKind kind() {
-            return JsonKind.STRING;
-        }
-
-        @Override
-        public void write(XContentBuilder b, Random r, int doc) throws IOException {
-            b.field(TIMESTAMP, ValueDist.MONOTONIC_TS.nextLong(r, doc));
-            b.field("host", "host-" + r.nextInt(100));
-            b.field("bytes", r.nextInt(10_000_000));
-            if (withComments == false) {
-                return;
-            }
-            int count = r.nextInt(MAX_COMMENTS + 1);
-            b.startArray("comments");
-            for (int i = 0; i < count; i++) {
-                b.startObject().field("author", "author-" + r.nextInt(50)).field("votes", r.nextInt(100)).endObject();
-            }
-            b.endArray();
         }
     }
 

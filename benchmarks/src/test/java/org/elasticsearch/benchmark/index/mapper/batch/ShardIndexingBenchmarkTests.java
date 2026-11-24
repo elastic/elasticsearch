@@ -106,9 +106,6 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
         if (shape.has(Feature.ABSENT)) {
             assertTrue(name, anyColumn(batch, c -> batch.column(c).isDense() == false));
         }
-        if (shape.has(Feature.NESTED)) {
-            assertTrue(name, anyColumn(batch, c -> batch.schema().getFullPath(c).equals("comments")));
-        }
         if (shape.has(Feature.EXPLICIT_NULL)) {
             assertTrue(name, anyColumn(batch, c -> batch.column(c).kind() == EscfColumnKind.UNION));
         }
@@ -126,16 +123,6 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
                     );
                     column = snapshot(sink);
                 }
-                Snapshot columnRows;
-                try (LuceneSink sink = LuceneSink.open(fixture.codec(), fixture.mapperService(), createTempDir())) {
-                    new ColumnIndexer(shardContext(fixture), CountingRecycler.pooled()).index(
-                        sink.writer(),
-                        new SeqNoStamper(),
-                        fixture.requests(),
-                        ColumnIndexer.WriteMode.ROWS
-                    );
-                    columnRows = snapshot(sink);
-                }
                 Snapshot row;
                 try (LuceneSink sink = LuceneSink.open(fixture.codec(), fixture.mapperService(), createTempDir())) {
                     new RowIndexer(fixture.mapperService(), RowIndexer.RowSourceKind.BATCH_ROW).index(
@@ -147,7 +134,6 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
                 }
                 assertThat(shape.name(), column.numDocs(), equalTo(1000));
                 assertThat(shape.name(), column, equalTo(row));
-                assertThat(shape.name() + " written row by row from the columns", columnRows, equalTo(row));
             }
         }
     }
@@ -163,7 +149,7 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
             state.shape = shape;
             state.docsPerRequest = docsPerRequest;
             return state;
-        }, List.of(s -> bench.column(s, new PageCounters()), s -> bench.columnRowWrite(s, new PageCounters())));
+        }, List.of(s -> bench.column(s, new PageCounters())));
         runLifecycles(RowState.class, (shape, docsPerRequest) -> {
             RowState state = new RowState();
             state.shape = shape;

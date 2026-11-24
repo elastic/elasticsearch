@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165874
+summary: Preserve early termination when merging batched search results
+type: bug

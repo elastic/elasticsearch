@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -282,7 +282,7 @@ public class Enrich extends UnaryPlan
     }
 
     private void checkForRemoteEnrichBlockers(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof AbstractInSubqueryJoin subqueryJoin) {
             checkForRemoteEnrichBlockers(subqueryJoin.left(), failures);
             return;
         }
@@ -295,7 +295,7 @@ public class Enrich extends UnaryPlan
     }
 
     public static String remoteEnrichAfterEqlError(LogicalPlan plan) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof AbstractInSubqueryJoin subqueryJoin) {
             return remoteEnrichAfterEqlError(subqueryJoin.left());
         }
         if (plan instanceof EqlRelation) {

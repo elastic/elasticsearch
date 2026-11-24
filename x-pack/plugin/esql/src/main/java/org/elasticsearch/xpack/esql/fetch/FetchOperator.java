@@ -57,7 +57,7 @@ import java.util.Set;
  * fetch request to each node that holds some of their documents. Once every node answered, it appends the fetched columns
  * to the rows, in the order of the cut, and emits the pages of the cut one by one.
  * <p>
- * The cut of a {@code TopN} or a {@code LIMIT} holds no more rows than its limit, and the operator holds all of them.
+ * The cut of a {@code TopN} holds no more rows than its limit, and the operator holds all of them.
  * <p>
  * Each reader context appears in one request only, so every request asks its node to free the contexts it reads once it
  * answered, like the fetch phase of {@code _search}. Before the requests go out, the contexts that none of the rows read

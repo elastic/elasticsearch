@@ -407,7 +407,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
     }
 
     private ObjectPath buildDocument(Resource resource, InstrumentationScope scope, LogRecord logRecord) throws IOException {
-        TargetIndex targetIndex = TargetIndex.evaluate("logs", List.of(), null, List.of(), List.of());
+        TargetIndex targetIndex = TargetIndex.defaultForLogs();
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         documentBuilder.buildLogDocument(builder, resource, ByteString.EMPTY, scope, ByteString.EMPTY, targetIndex, logRecord);

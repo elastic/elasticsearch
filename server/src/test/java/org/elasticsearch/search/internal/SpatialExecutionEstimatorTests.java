@@ -29,6 +29,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
+import org.elasticsearch.lucene.search.cost.FixedBitSetCost;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -153,7 +154,7 @@ public class SpatialExecutionEstimatorTests extends ESTestCase {
                 Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
                 LeafReaderContext ctx = singleValued.leaves().getFirst();
                 long charged = ExecutionCharge.forQuery(query).estimator().bytesForLeaf(ctx, weight.scorerSupplier(ctx), Long.MAX_VALUE);
-                assertThat(charged, equalTo(PointsExecutionEstimator.bitSetBytes(ctx.reader().maxDoc())));
+                assertThat(charged, equalTo(FixedBitSetCost.scorerBytes(ctx.reader().maxDoc())));
             }
         }
     }

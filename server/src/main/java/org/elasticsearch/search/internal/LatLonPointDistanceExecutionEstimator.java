@@ -10,6 +10,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.lucene.search.cost.FixedBitSetCost;
 
 /**
  * The per-leaf execution RAM of a Lucene {@code LatLonPointDistanceQuery}. When every document of the leaf has exactly one point
@@ -25,7 +26,7 @@ final class LatLonPointDistanceExecutionEstimator extends PointsExecutionEstimat
     @Override
     long bytesForMatches(PointValues values, int maxDoc, long cost) {
         if (values.getDocCount() == maxDoc && values.getDocCount() == values.size() && cost > maxDoc / 2) {
-            return bitSetBytes(maxDoc);
+            return FixedBitSetCost.scorerBytes(maxDoc);
         }
         return super.bytesForMatches(values, maxDoc, cost);
     }

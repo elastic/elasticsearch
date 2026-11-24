@@ -62,7 +62,7 @@ public class PointRangeQueryCostEstimatorTests extends ESTestCase {
     public void testExecutionBytesDenseSingleValuedAllocatesFullBitset() {
         int maxDoc = 1000000;
         long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, true, false, 1, 4);
-        long expectedBitset = Math.ceilDiv(maxDoc, 64L) * 8L + PointRangeQueryCostEstimator.FIXED_BITSET_BASE_BYTES;
+        long expectedBitset = FixedBitSetCost.scorerBytes(maxDoc);
         long bkdScratch = PointRangeQueryCostEstimator.MAX_POINTS_IN_LEAF_NODE * 4L;
         assertEquals(expectedBitset + bkdScratch, dense);
     }

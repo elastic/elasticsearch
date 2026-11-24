@@ -12,7 +12,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
 
 import java.io.IOException;
@@ -25,12 +24,6 @@ import java.io.IOException;
 class PointsExecutionEstimator implements LeafExecutionEstimator {
 
     static final String BREAKER_LABEL = "points-execution";
-
-    /**
-     * Fixed overhead of a bit set the scorer keeps: the {@code FixedBitSet}, its {@code long[]} header and the
-     * {@code BitSetIterator} over it. Conservative without compressed oops.
-     */
-    static final long BIT_SET_BASE_BYTES = 96L;
 
     private final String field;
 
@@ -54,11 +47,6 @@ class PointsExecutionEstimator implements LeafExecutionEstimator {
     /** Sizes the set the query collects its matches in, on a leaf with points for the field and an estimated doc count above 0. */
     long bytesForMatches(PointValues values, int maxDoc, long cost) {
         return new DocIdSetBuilderCostEstimator(grownValues(cost, values), maxDoc).estimate();
-    }
-
-    /** The heap of a {@code FixedBitSet(maxDoc)} that a query builds directly rather than through a {@code DocIdSetBuilder}. */
-    static long bitSetBytes(int maxDoc) {
-        return BIT_SET_BASE_BYTES + (long) FixedBitSet.bits2words(maxDoc) * Long.BYTES;
     }
 
     /**

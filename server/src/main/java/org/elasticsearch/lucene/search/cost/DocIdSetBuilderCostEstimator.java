@@ -9,8 +9,6 @@
 
 package org.elasticsearch.lucene.search.cost;
 
-import org.apache.lucene.util.FixedBitSet;
-
 /**
  * Upper bound on the heap a Lucene {@code DocIdSetBuilder(maxDoc)} holds at its peak, from the first {@code grow} through
  * {@code build()} and the {@code DocIdSet} it returns, given an upper bound on the total count passed to {@code grow}. Points
@@ -91,8 +89,7 @@ public final class DocIdSetBuilderCostEstimator implements QueryCostEstimator {
 
     /** The bit set, plus the buffers it is filled from. */
     private long denseBytes() {
-        long bitSetBytes = (long) FixedBitSet.bits2words(maxDoc) * Long.BYTES;
-        return BUILDER_BASE_BYTES + bitSetBytes + bufferBytes(threshold, threshold);
+        return BUILDER_BASE_BYTES + FixedBitSetCost.bytes(maxDoc) + bufferBytes(threshold, threshold);
     }
 
     /** The buffers, with room for a copy of all of them, which a resize or {@code build()} may make. */

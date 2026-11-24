@@ -43,13 +43,6 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
     public static final long ARRAY_HEADER_BYTES = 16L;
 
     /**
-     * Fixed per-segment overhead charged for the dense result {@code FixedBitSet} (the {@code FixedBitSet}
-     * shallow object plus its {@code long[]} array header and the wrapping {@code BitDocIdSet}).
-     * Conservative on a compressed-oops JVM.
-     */
-    public static final long FIXED_BITSET_BASE_BYTES = 48L;
-
-    /**
      * Fixed per-segment overhead charged for the sparse {@code DocIdSetBuilder} path (the builder object
      * plus its growable {@code int[]} buffer header). Conservative on a compressed-oops JVM.
      */
@@ -70,8 +63,6 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
      */
     public static final long MAX_POINTS_IN_LEAF_NODE = 512L;
 
-    private static final long BITS_PER_WORD = 64L;
-    private static final long BYTES_PER_WORD = 8L;
     private static final long OBJECT_ALIGNMENT_BYTES = 8L;
 
     private final int numDims;
@@ -148,8 +139,7 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
             return 0L;
         }
         try {
-            long words = Math.ceilDiv(leafMaxDoc, BITS_PER_WORD);
-            long denseBytes = Math.addExact(Math.multiplyExact(words, BYTES_PER_WORD), FIXED_BITSET_BASE_BYTES);
+            long denseBytes = FixedBitSetCost.scorerBytes(leafMaxDoc);
 
             long docSetBytes;
             if (singleValued && cost > leafMaxDoc / 2L) {

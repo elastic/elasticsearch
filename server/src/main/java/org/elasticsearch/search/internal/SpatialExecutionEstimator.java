@@ -12,6 +12,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
+import org.elasticsearch.lucene.search.cost.FixedBitSetCost;
 
 import java.io.IOException;
 
@@ -41,6 +42,6 @@ final class SpatialExecutionEstimator implements LeafExecutionEstimator {
     }
 
     static long peakBytes(int maxDoc) {
-        return 2 * PointsExecutionEstimator.bitSetBytes(maxDoc) + DocIdSetBuilderCostEstimator.BUILDER_BASE_BYTES;
+        return 2 * FixedBitSetCost.scorerBytes(maxDoc) + DocIdSetBuilderCostEstimator.BUILDER_BASE_BYTES;
     }
 }

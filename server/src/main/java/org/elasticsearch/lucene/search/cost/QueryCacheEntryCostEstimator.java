@@ -9,8 +9,6 @@
 
 package org.elasticsearch.lucene.search.cost;
 
-import org.apache.lucene.util.FixedBitSet;
-
 /**
  * Upper bound on the heap that populating one query cache entry allocates, i.e. what
  * {@code LRUQueryCache.cacheImpl} builds for one query on one leaf. Lucene decides the entry's shape from the
@@ -30,10 +28,10 @@ import org.apache.lucene.util.FixedBitSet;
 public final class QueryCacheEntryCostEstimator implements QueryCostEstimator {
 
     /**
-     * Fixed overhead of a dense entry: the {@code CacheAndCount} holder, the {@code BitDocIdSet}, the
-     * {@code FixedBitSet} and its {@code long[]} header. Conservative on a compressed-oops JVM.
+     * What holds on to a dense entry's {@code FixedBitSet}: the {@code CacheAndCount} holder and the {@code BitDocIdSet}.
+     * Conservative without compressed oops.
      */
-    public static final long DENSE_BASE_BYTES = 96L;
+    public static final long DENSE_BASE_BYTES = 64L;
 
     /**
      * Fixed overhead of a sparse entry independent of its blocks: the {@code CacheAndCount} holder, the
@@ -100,7 +98,7 @@ public final class QueryCacheEntryCostEstimator implements QueryCostEstimator {
 
     /** Ceiling on a dense entry: a {@code FixedBitSet(maxDoc)} plus {@link #DENSE_BASE_BYTES}. */
     private long denseBytes() {
-        return (long) FixedBitSet.bits2words(maxDoc) * Long.BYTES + DENSE_BASE_BYTES;
+        return FixedBitSetCost.bytes(maxDoc) + DENSE_BASE_BYTES;
     }
 
     /**

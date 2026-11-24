@@ -30,8 +30,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
@@ -154,8 +156,16 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
             : context.collapse(ir, union(ir.schema(), finite(keys)), ir.value());
 
         Source source = source();
-        // an unresolved key is found by name, so it takes a name the formatted label does not share
-        String keyName = table.valueColumn().resolved() ? label : label + "$key";
+        // an unresolved key is found by name, so it takes a name no other column of the result shares
+        String keyName = label;
+        if (table.valueColumn().resolved() == false) {
+            Set<String> taken = new HashSet<>(List.of(label, table.valueColumn().name()));
+            table.plan().output().forEach(a -> taken.add(a.name()));
+            keyName = label + "$key";
+            while (taken.contains(keyName)) {
+                keyName += "$";
+            }
+        }
         Alias key = new Alias(source, keyName, groupingKey(table.valueColumn()));
         LogicalPlan keyed = new Eval(source, table.plan(), List.of(key));
         // the key replaces a stored label of the same name, which the regroup would otherwise prefer as its backing field

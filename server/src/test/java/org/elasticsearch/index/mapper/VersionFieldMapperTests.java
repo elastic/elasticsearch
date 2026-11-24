@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -90,7 +91,10 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         VersionFieldMapper mapper = (VersionFieldMapper) mapperService.documentMapper().mappers().getMapper(VersionFieldMapper.NAME);
         assertNotNull(mapper);
-        assertTrue("supportsColumnarParse must be true for _version", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        assertTrue(
+            "supportsColumnarParse must be true for _version",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
+        );
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
         IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);

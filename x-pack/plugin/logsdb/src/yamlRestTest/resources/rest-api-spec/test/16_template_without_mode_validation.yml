@@ -2,7 +2,7 @@
 "Data stream mappings are validated with the provider index mode when the template has no mode":
   - requires:
       test_runner_features: [ allowed_warnings ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "the effective mappings of a data stream are validated with the index mode of the next write index"
 
   # The template has no index mode, so the logsdb index setting provider sets logsdb or logsdb_columnar for logs-*-* data streams.
@@ -58,7 +58,7 @@
 "Data stream mappings are validated with the provider index mode after the template drops time_series":
   - requires:
       test_runner_features: [ allowed_warnings ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "the effective mappings of a data stream are validated with the index mode of the next write index"
 
   - do:

@@ -2,7 +2,7 @@
 "Switch to columnar through a component template with multi_value":
   - requires:
       test_runner_features: [ allowed_warnings ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "the effective mappings of a data stream are validated with the index mode of the template and its component templates"
 
   # The write index is created from a template without an index mode, so it is a standard index.
@@ -62,7 +62,7 @@
 "Switch the template from time_series to columnar with multi_value":
   - requires:
       test_runner_features: [ allowed_warnings ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "the effective mappings of a data stream are validated with the index mode of the template"
 
   # The write index is a time_series index with an index.routing_path, which columnar index modes reject.
@@ -131,7 +131,7 @@
 "Switch to logsdb with a routing partition size":
   - requires:
       test_runner_features: [ allowed_warnings ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "the effective mappings of a data stream are validated with the index mode of the template"
 
   - do:
@@ -182,7 +182,7 @@
 "Switch to time_series without a routing path":
   - requires:
       test_runner_features: [ allowed_warnings ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "the effective mappings of a data stream are validated with the index mode of the template"
 
   - do:

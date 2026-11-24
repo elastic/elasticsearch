@@ -2,7 +2,7 @@
 "Simulate with a columnar template that uses multi_value":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the index mode of the template"
 
   # multi_value is only valid in columnar index modes.
@@ -40,7 +40,7 @@
 "Simulate with a time_series template":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the index mode of the template"
 
   - do:
@@ -98,7 +98,7 @@
 "Simulate with an existing time_series index and a mapping addition":
   - requires:
       test_runner_features: [ headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate computes the routing hash of time_series documents"
 
   - do:
@@ -139,7 +139,7 @@
 "Simulate with a time_series data stream template and a timestamp outside the time range":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the index mode of the template"
 
   # The time_series index setting provider sets the time range of the first backing index to around now, as a real write does.
@@ -199,7 +199,7 @@
 "Simulate with a legacy template that sets the index mode":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the index mode of the template"
 
   # multi_value is only valid in columnar index modes.
@@ -236,7 +236,7 @@
 "Simulate with a legacy template that sets a routing partition size without a shard count":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the settings of the template"
 
   # Without a shard count, a partition size above 1 is valid, because index creation computes more routing shards than the partition size.
@@ -274,7 +274,7 @@
 "Simulate with a template that sets a routing partition size without a shard count":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the settings of the template"
 
   # Without a shard count, a partition size above 1 is valid, because index creation computes more routing shards than the partition size.
@@ -313,7 +313,7 @@
 "Simulate with a logsdb template that has no mappings":
   - requires:
       test_runner_features: [ allowed_warnings, headers ]
-      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      cluster_features: [ "mapper.template_index_mode_validation_fix" ]
       reason: "simulate validates the mappings with the index mode of the template"
 
   # Index creation adds the default mapping of logsdb, which requires @timestamp, even when the template has no mappings.

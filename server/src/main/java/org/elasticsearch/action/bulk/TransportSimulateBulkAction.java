@@ -382,7 +382,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         if (updatedMappings == null && (newIndex == false || indexMode == null || indexMode == IndexMode.STANDARD)) {
             return List.of(); // no validation to do, since a new standard index gets no default mapping
         }
-        if (IndexMode.isTsdb(originalIndexMetadata.getIndexMode())) {
+        if (IndexMode.isTsdb(indexMode)) {
             // time_series parsing needs the routing hash (and _tsid with index.dimensions) that a real write computes when routing.
             IndexRouting indexRouting = IndexRouting.fromIndexMetadata(originalIndexMetadata);
             request.preRoutingProcess(indexRouting);

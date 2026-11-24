@@ -565,9 +565,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
         String indexModeName = nextIndexSettings.get(IndexSettings.MODE.getKey());
-        if (indexModeName != null
-            && IndexMode.fromString(indexModeName) == IndexMode.TIME_SERIES
-            && IndexMetadata.INDEX_ROUTING_PATH.exists(nextIndexSettings) == false) {
+        if (IndexMode.isTsdbName(indexModeName) && IndexMetadata.INDEX_ROUTING_PATH.exists(nextIndexSettings) == false) {
             // The time_series index setting provider computes the routing path or dimensions. Use the same placeholder as the provider.
             tempIndexSettings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("path"));
         }

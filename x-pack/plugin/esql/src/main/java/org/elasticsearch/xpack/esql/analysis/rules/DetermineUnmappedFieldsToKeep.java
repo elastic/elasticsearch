@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -102,7 +102,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         LogicalPlan result;
-        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractInSubqueryJoin)) {
             result = stampAll(plan).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         } else if (pattern.isNone()) {
             // Exact KEEP/STATS above a merge must not stamp or pass _unmapped_fields through: replaceChild on a
@@ -199,7 +199,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * No {@link MergePlan} or {@link AbstractSubqueryJoin} in the plan: one pattern for the whole query,
+     * No {@link MergePlan} or {@link AbstractInSubqueryJoin} in the plan: one pattern for the whole query,
      * stamped onto every non-LOOKUP {@link EsRelation} in a single {@code transformUp}.
      */
     private static LogicalPlan stampAll(LogicalPlan plan) {
@@ -209,7 +209,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
 
     /**
      * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link MergePlan} is
-     * n-ary: each branch is annotated with its own pattern. {@link AbstractSubqueryJoin} is binary: join
+     * n-ary: each branch is annotated with its own pattern. {@link AbstractInSubqueryJoin} is binary: join
      * output is the left side. The right is an independently executed key subquery, so it is annotated
      * with {@link UnmappedFieldsPattern#NONE} rather than its own KEEP pattern, otherwise
      * {@code _unmapped_fields} becomes an extra output column after IN arity was already accepted.
@@ -232,7 +232,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             }
             return merge.replaceChildren(newChildren);
         }
-        if (plan instanceof AbstractSubqueryJoin join) {
+        if (plan instanceof AbstractInSubqueryJoin join) {
             return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
         }
         if (pattern.isNone()) {
@@ -241,7 +241,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractSubqueryJoin)) {
+        if (plan.noneMatch(p -> p instanceof MergePlan || p instanceof AbstractInSubqueryJoin)) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());

@@ -1217,7 +1217,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         failAndRemoveShard(
                             shardRouting,
                             primaryTerm,
-                            true,
                             "failed to create shard",
                             e,
                             state,
@@ -1231,7 +1230,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             failAndRemoveShard(
                 shardRouting,
                 primaryTerm,
-                true,
                 "failed to create shard",
                 e,
                 state,
@@ -1450,7 +1448,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             failAndRemoveShard(
                 shardRouting,
                 primaryTerm,
-                true,
                 "failed updating shard routing entry",
                 e,
                 clusterState,
@@ -1717,20 +1714,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
-            CloseUtils.executeDirectly(
-                l -> failAndRemoveShard(
-                    shardRouting,
-                    primaryTerm,
-                    finalStrategy.notifyMaster(),
-                    message,
-                    failure,
-                    clusterService.state(),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    l
-                )
-            );
+            // The code throughout this try block should not throw, except under fatal conditions.
+            // It is handling a recovery failure, and needs to swallow its own failures.
+            // Everything should either be exception-free or handle its own exceptions.
+            CloseUtils.executeDirectly(l -> {
+                // The removeShard call handles exceptions thrown synchronously, and never calls onFailure on its listener.
+                // (See the contract on AllocatedIndex.removeShard, which is where the listener is used.)
+                removeShard(shardRouting, message, failure, EsExecutors.DIRECT_EXECUTOR_SERVICE, l);
+            });
 
-            // FailedShardHandler's own call into failAndRemoveShard is synchronized on this same monitor
+            // FailedShardHandler's call into failAndRemoveShard is synchronized on this same monitor
             // (see FailedShardHandler#accept), so a concurrent engine failure can only interleave with
             // handleRecoveryFailure/retry-attempt in one of three ways:
             // 1. FailedShardHandler runs before handleRecoveryFailure: it overwrites the inFlightTicket
@@ -1743,45 +1736,61 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // Wasteful (a possibly successful retry gets thrown away) but not incorrect -- master will simply
             // reallocate.
             // TODO: Is it worth the extra plumbing to avoid this wasteful situation?
-            if (finalStrategy == FailureStrategy.RETRY) {
-                final int bumpedLocalRetries = inFlightTicket.localRecoveryRetries() + 1;
-                final Type type = shardRouting.recoverySource().getType();
-                logger.warn(
-                    () -> format("%s retrying %s recovery locally after failure, local retry [%d]", key, type, bumpedLocalRetries),
-                    failure
-                );
-                // Record the retry ticket before scheduling so the next createShard (from this retry path
-                // or the cluster state application) uses the retry context.
-                final var myRetryTicket = new PendingAllocationState.AwaitingRecoveryRetry(bumpedLocalRetries, primaryTerm);
-                boolean replace = pendingAllocationStates.replace(key, inFlightTicket, myRetryTicket);
-                assert replace : "expected our own InFlight ticket still present for " + key;
+            switch (finalStrategy) {
+                case RETRY -> {
+                    final int bumpedLocalRetries = inFlightTicket.localRecoveryRetries() + 1;
+                    final Type type = shardRouting.recoverySource().getType();
+                    logger.warn(
+                        () -> format("%s retrying %s recovery locally after failure, local retry [%d]", key, type, bumpedLocalRetries),
+                        failure
+                    );
+                    // Record the retry ticket before scheduling so the next createShard (from this retry path
+                    // or the cluster state application) uses the retry context.
+                    final var myRetryTicket = new PendingAllocationState.AwaitingRecoveryRetry(bumpedLocalRetries, primaryTerm);
+                    boolean replace = pendingAllocationStates.replace(key, inFlightTicket, myRetryTicket);
+                    assert replace : "expected our own InFlight ticket still present for " + key;
 
-                // Fork onto cluster state applier thread to retry attempt to create shard
-                clusterService.getClusterApplierService()
-                    .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
-                        retryRecovery(shardRouting, primaryTerm, currentState, key, myRetryTicket);
-                    }, ActionListener.noop());
-            } else if (finalStrategy == FailureStrategy.FAIL_SILENT) {
-                // sendFailShard (which would otherwise overwrite this entry with FailureReported) didn't run,
-                // so nothing else clears this ticket -- there's no further attempt coming for it.
-                logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
-                pendingAllocationStates.remove(key, inFlightTicket);
-            } else if (finalStrategy == FailureStrategy.FAIL_SILENT_AND_BLOCK) {
-                // Master isn't being told about this failure now, so it won't necessarily have removed the allocation by the next
-                // cluster state. Swap our InFlight ticket for a FailureReported one so that recreation of this allocation stays
-                // blocked, and so that updatePendingAllocationTracker sends the failure if master hasn't acted on it by then.
-                // Nothing else can have replaced the ticket (we hold the lock and checked it above), so this always succeeds.
-                final boolean blocked = pendingAllocationStates.replace(
-                    key,
-                    inFlightTicket,
-                    new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureTypeOf(failure))
-                );
-                assert blocked : "ticket for " + key + " was replaced while handling recovery failure";
+                    // Fork onto cluster state applier thread to retry attempt to create shard
+                    clusterService.getClusterApplierService()
+                        .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
+                            retryRecovery(shardRouting, primaryTerm, currentState, key, myRetryTicket);
+                        }, ActionListener.noop());
+                }
+                case FAIL_SILENT -> {
+                    // sendFailShard (which would otherwise overwrite this entry with FailureReported) didn't run,
+                    // so nothing else clears this ticket -- there's no further attempt coming for it.
+                    logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
+                    pendingAllocationStates.remove(key, inFlightTicket);
+                }
+                case FAIL_SILENT_AND_BLOCK -> {
+                    // Master isn't being told about this failure now, so it won't necessarily have removed the allocation by the next
+                    // cluster state. Swap our InFlight ticket for a FailureReported one so that recreation of this allocation stays
+                    // blocked, and so that updatePendingAllocationTracker sends the failure if master hasn't acted on it by then.
+                    // Nothing else can have replaced the ticket (we hold the lock and checked it above), so this always succeeds.
+                    final boolean blocked = pendingAllocationStates.replace(
+                        key,
+                        inFlightTicket,
+                        new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureTypeOf(failure))
+                    );
+                    assert blocked : "ticket for " + key + " was replaced while handling recovery failure";
+                }
+                case FAIL_SEND -> {
+                    // The sendFailShard() method handles its own exceptions.
+                    sendFailShard(shardRouting, primaryTerm, message, failure, clusterService.state());
+                }
+                case ABORT -> {
+                    // ShardRecoveryListener.onRecoveryFailure() returns early for ABORT and does not call handleRecoveryFailure()
+                    assert false : "handleRecoveryFailure called with ABORT strategy, which should not happen";
+                }
             }
         } catch (Exception e) {
-            // should not be possible
+            // Getting here should not be possible, see the comment at the very top of the try block.
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
+            // If we get here, something unexpected has happened. To be on the safe side, send a failure to the master: if it still thinks
+            // the shard is recovering, it should be told; if it does not, it will discard the spurious message.
+            failure.addSuppressed(e);
+            sendFailShard(shardRouting, primaryTerm, wrappedException.getMessage(), failure, clusterService.state());
             assert false : e;
         } finally {
             // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins), or we swapped it
@@ -1858,7 +1867,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             failAndRemoveShard(
                 shardRouting,
                 primaryTerm,
-                true,
                 "unexpected failure during recovery retry",
                 wrappedException,
                 currentState,
@@ -1868,13 +1876,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void failAndRemoveShard(
+    private void removeShard(
         ShardRouting shardRouting,
-        long primaryTerm,
-        boolean sendShardFailure,
         String message,
         @Nullable Exception failure,
-        ClusterState state,
         Executor shardCloseExecutor,
         ActionListener<Void> shardCloseListener
     ) {
@@ -1889,7 +1894,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (ShardNotFoundException e) {
             // the node got closed on us, ignore it
         } catch (Exception inner) {
-            inner.addSuppressed(failure);
+            if (failure != null) {
+                inner.addSuppressed(failure);
+            }
             logger.warn(
                 () -> format(
                     "[%s][%s] failed to remove shard after failure ([%s])",
@@ -1900,9 +1907,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 inner
             );
         }
-        if (sendShardFailure) {
-            sendFailShard(shardRouting, primaryTerm, message, failure, state);
-        }
+    }
+
+    private void failAndRemoveShard(
+        ShardRouting shardRouting,
+        long primaryTerm,
+        String message,
+        @Nullable Exception failure,
+        ClusterState state,
+        Executor shardCloseExecutor,
+        ActionListener<Void> shardCloseListener
+    ) {
+        removeShard(shardRouting, message, failure, shardCloseExecutor, shardCloseListener);
+        sendFailShard(shardRouting, primaryTerm, message, failure, state);
     }
 
     private void sendFailShard(
@@ -1963,7 +1980,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         l -> failAndRemoveShard(
                             shardRouting,
                             primaryTerm,
-                            true,
                             "shard failure, reason [" + shardFailure.reason() + "]",
                             shardFailure.cause(),
                             clusterService.state(),
@@ -2064,9 +2080,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Nullable
         T getShardOrNull(int shardId);
 
-        /**
-         * Removes shard with given id.
-         */
+        /// Removes shard with given id.
+        ///
+        /// This must never call [ActionListener#onFailure] on `closeListener`. It should call [ActionListener#onResponse] whether the
+        /// shard is removed successfully or not.
         void removeShard(int shardId, String message, Executor closeExecutor, ActionListener<Void> closeListener);
     }
 

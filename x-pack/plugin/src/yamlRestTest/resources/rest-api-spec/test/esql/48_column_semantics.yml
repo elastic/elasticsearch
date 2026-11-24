@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ describe_command, column_metadata_field_semantics ]
-      reason: "column_metadata reports field semantics as _meta.field"
+          capabilities: [ describe_command ]
+      reason: "DESCRIBE and column_metadata report field semantics"
 
   - do:
       indices.create:
@@ -64,6 +64,14 @@ setup:
 
 ---
 "Field semantics in column metadata":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -93,6 +101,14 @@ setup:
 
 ---
 "No field semantics without column_metadata":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -104,6 +120,14 @@ setup:
 
 ---
 "Standard indices report units but not time-series roles":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -154,6 +178,14 @@ setup:
 
 ---
 "Grouping keys keep the semantics of the field they read":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

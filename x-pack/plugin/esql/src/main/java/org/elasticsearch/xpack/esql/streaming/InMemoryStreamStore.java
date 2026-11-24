@@ -24,7 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Simple {@link StreamStorage} that keeps all streams on the heap.
  * <p>
  * Expired streams are not evicted. They stay until {@link #delete} is called.
- * Stored pages are owned by the store and released on delete.
+ * Stored pages are owned by the store and released on delete. The store allows a page to pass to other threads when it is
+ * appended, so a writer does not have to.
  * Pages returned from {@link #getPages} are shallow copies that the caller must close.
  * <p>
  * Offsets are row positions in the overall result. {@code expirationMillis} is an absolute epoch time.
@@ -63,6 +64,9 @@ public class InMemoryStreamStore implements StreamStorage {
     public void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             try {
+                // The store keeps the page and hands shallow copies of its blocks to readers on other threads. Block reference
+                // counts are not thread safe until this is called, so the store does it when it takes ownership, not the writer.
+                page.allowPassingToDifferentDriver();
                 get(streamId).append(offset, page);
             } catch (RuntimeException e) {
                 // The store takes ownership of the page even when the append is rejected.

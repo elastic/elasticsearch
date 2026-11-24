@@ -38,8 +38,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.esql.EsqlStreamActionNames;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -2136,7 +2138,43 @@ public class RBACEngineTests extends ESTestCase {
         });
     }
 
+    public void testStreamDeleteActionNeedsNoIndexPrivileges() {
+        final String[] indices = { "test-index" };
+        // a role that grants nothing
+        final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").build());
+
+        final String action = EsqlStreamActionNames.ESQL_STREAM_DELETE_ACTION_NAME;
+        // the request carries a stream id, not indices
+        final TransportRequest request = new AbstractTransportRequest() {};
+
+        authorizeIndicesAction(request, indices, role, action, null, new ActionListener<IndexAuthorizationResult>() {
+            @Override
+            public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
+                assertTrue(indexAuthorizationResult.isGranted());
+                // The action checks that the caller started the stream, so no index privilege is checked here.
+                Mockito.verify(role, never()).checkIndicesAction(action);
+                Mockito.verify(role, never()).authorize(eq(action), any(), any(), any());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail(e.getMessage());
+            }
+        });
+    }
+
     private void authorizeIndicesAction(
+        final String[] indices,
+        final Role role,
+        final String action,
+        final ParentActionAuthorization parentAuthorization,
+        final ActionListener<IndexAuthorizationResult> listener
+    ) {
+        authorizeIndicesAction(new SearchRequest(indices), indices, role, action, parentAuthorization, listener);
+    }
+
+    private void authorizeIndicesAction(
+        final TransportRequest request,
         final String[] indices,
         final Role role,
         final String action,
@@ -2146,8 +2184,7 @@ public class RBACEngineTests extends ESTestCase {
 
         final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
         final ResolvedIndices resolvedIndices = new ResolvedIndices(List.of(indices), List.of());
-        final TransportRequest searchRequest = new SearchRequest(indices);
-        final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
+        final RequestInfo requestInfo = createRequestInfo(request, action, parentAuthorization);
         final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = () -> SubscribableListener.newSucceeded(resolvedIndices);
 
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());

@@ -1496,6 +1496,45 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    /** A blocked future that has already failed when the driver reads it fails the driver instead of being treated as ready. */
+    public void testDriverFailsWhenBlockedFutureAlreadyFailed() {
+        DriverContext driverContext = driverContext();
+        SubscribableListener<Void> blocked = SubscribableListener.newFailed(new IllegalStateException("blocked failed"));
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
+            @Override
+            public Page getOutput() {
+                return null;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return false;
+            }
+
+            @Override
+            public IsBlockedResult isBlocked() {
+                return new IsBlockedResult(blocked, "test blocked");
+            }
+        };
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("blocked failed"));
+            assertFinishedWithUsage(driver, 3, 0, 0);
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
     /** Closing a driver that never ran only releases its operators: it does not read their status, as a failing driver does. */
     public void testClosingDriverThatNeverRanDoesNotReadOperatorStatus() {
         DriverContext driverContext = driverContext();

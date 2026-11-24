@@ -323,6 +323,9 @@ public class Driver implements Releasable, Describable {
                 );
                 return isBlocked.listener();
             }
+            if (isBlocked.listener().isSuccess() == false) {
+                return isBlocked.listener();
+            }
             if (isFinished()) {
                 finishNanos = now;
                 if (pendingFinalStatus.isEmpty()) {
@@ -472,7 +475,10 @@ public class Driver implements Releasable, Describable {
 
         if (movedPage == false) {
             blockedResults.clear();
-            activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.listener().isDone() == false).forEach(blockedResults::add);
+            activeOperators.stream()
+                .map(Operator::isBlocked)
+                .filter(laf -> laf.listener().isSuccess() == false)
+                .forEach(blockedResults::add);
             IsBlockedResult result = oneOf(blockedResults);
             onNoPagesMoved();
             return result;
@@ -707,7 +713,7 @@ public class Driver implements Releasable, Describable {
                     onComplete(listener);
                     return;
                 }
-                if (fut.isDone()) {
+                if (fut.isDone() && fut.isSuccess()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier, false);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
@@ -724,7 +730,9 @@ public class Driver implements Releasable, Describable {
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
-                    driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
+                    if (fut.isDone() == false) {
+                        driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
+                    }
                 }
             }
 

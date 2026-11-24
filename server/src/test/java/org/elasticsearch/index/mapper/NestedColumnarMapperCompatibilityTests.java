@@ -595,8 +595,9 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
      * A dotted key that crosses the nested boundary, as in {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, makes the
      * sequential path of the columnar modes trip an assertion in {@code DocumentParser#getLeafMapper}: the root finds no mapper for
      * the dotted name, then finds the child's field type and takes it for a runtime field, which the assertion rejects. Reading the
-     * code, a production node, which runs without assertions, takes the no-op mapper for a runtime field and drops the value, so it
-     * is not indexed but stays in {@code _source}.
+     * code, a production node, which runs without assertions, takes the no-op mapper for a runtime field and drops the value. It is
+     * lost for good: it is not indexed, and in these modes it is not in {@code _source} either, because the source is rebuilt from
+     * the mapped fields and the no-op mapper writes none. We did not run this without assertions to confirm it.
      * <p>
      * Phase 1 must therefore refuse these shapes, which keeps today's behavior exactly, and not map them as the object spelling.
      * This probe fails when the sequential path starts to handle them; revisit the rule "a dotted key across the boundary falls back"

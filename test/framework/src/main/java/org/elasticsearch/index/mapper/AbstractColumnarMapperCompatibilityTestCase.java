@@ -530,8 +530,11 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * batch path can refuse in two places: {@code resolveMappers} refuses the mapping and schema, or {@code mapColumnBatch} returns
      * {@code null} for the data. This helper accepts either, because a test that pins "falls back" must not also pin where; the
      * place changes when nested values are mapped on the columnar path (Phase 1 of elastic/elasticsearch#167077).
+     *
+     * @return the place of the refusal, for the tests of this harness that must prove that both places are reached
      */
-    protected final void assertBatchPathRefuses(MapperService mapperService, SourceEncoder encoder, String... sources) throws IOException {
+    protected final BatchRefusal assertBatchPathRefuses(MapperService mapperService, SourceEncoder encoder, String... sources)
+        throws IOException {
         final List<BytesReference> sourceBytes = Arrays.stream(sources)
             .<BytesReference>map(s -> new BytesArray(s.getBytes(StandardCharsets.UTF_8)))
             .toList();
@@ -544,7 +547,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 indexSettings
             );
             if (resolution == null) {
-                return;
+                return BatchRefusal.RESOLVE_MAPPERS;
             }
             final BulkItemRequest[] items = new BulkItemRequest[sources.length];
             for (int i = 0; i < items.length; i++) {
@@ -566,7 +569,16 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 mapped.close();
                 fail("the batch path mapped documents that production must index through the sequential path: " + Arrays.toString(sources));
             }
+            return BatchRefusal.MAP_COLUMN_BATCH;
         }
+    }
+
+    /** Where the batch path refused documents, see {@link #assertBatchPathRefuses}. */
+    protected enum BatchRefusal {
+        /** {@code resolveMappers} refused the mapping and schema. */
+        RESOLVE_MAPPERS,
+        /** {@code resolveMappers} accepted them and {@code mapColumnBatch} returned {@code null} for the data. */
+        MAP_COLUMN_BATCH
     }
 
     /**

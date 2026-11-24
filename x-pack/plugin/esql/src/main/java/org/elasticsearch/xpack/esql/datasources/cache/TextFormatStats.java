@@ -18,14 +18,13 @@ import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
- * Builds a {@link SourceStatistics} from a cached {@link ExternalStats.Stats} for the
- * line-oriented text-format readers (CSV / TSV / NDJSON).
+ * Builds a {@link SourceStatistics} for the line-oriented text-format readers (CSV / TSV / NDJSON).
  * <p>
- * Cache miss → row count + column statistics absent; {@code sizeInBytes} still published when
- * derivable from {@code StorageObject.length()}. Cache hit → row count populated, plus
- * stream-derived {@code bytesRead} fed into {@code sizeInBytes} when {@code length()} was
- * unknown at the time of metadata resolution (stream-only compression sources), plus per-column
- * statistics for every column whose name resolves to an attribute in the schema.
+ * Despite the parameter's name, what {@link #build} is handed is a measurement the current read just
+ * made, not a record read back from the cache: every caller is on the publish side, and the two that
+ * pass {@code Optional.empty()} are cold resolution. With a measurement the row count and the
+ * per-column statistics are published, plus stream-derived {@code bytesRead} fed into
+ * {@code sizeInBytes} when {@code StorageObject.length()} was unknown at metadata resolution.
  */
 public final class TextFormatStats {
 

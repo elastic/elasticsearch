@@ -24,6 +24,12 @@ import java.util.Arrays;
  */
 public final class SourceBatchEncodeHelper {
 
+    /**
+     * The longest rendering of a double, {@code -2.2250738585072014E-308}: the capacity of a buffer handed to
+     * {@link #lexicalForm} that never has to grow.
+     */
+    public static final int MAX_DOUBLE_RENDERING_LENGTH = 24;
+
     private SourceBatchEncodeHelper() {}
 
     /**
@@ -46,8 +52,9 @@ public final class SourceBatchEncodeHelper {
      * common case, so that nothing is stored for it.
      */
     @Nullable
-    public static XContentString.UTF8Bytes lexicalForm(String text, double value) {
-        if (Double.toString(value).equals(text)) {
+    public static XContentString.UTF8Bytes lexicalForm(String text, double value, StringBuilder rendering) {
+        rendering.setLength(0);
+        if (text.contentEquals(rendering.append(value))) {
             return null;
         }
         return new XContentString.UTF8Bytes(text.getBytes(StandardCharsets.UTF_8));

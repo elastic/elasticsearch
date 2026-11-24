@@ -53,7 +53,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
     private static byte[] encodeItemsArrayViaHandler(String objectJson) throws IOException {
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, new StringBuilder());
 
         handler.startArray("items");
         handler.arrayElemStartObject();
@@ -80,7 +80,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         byte[] bytes = doc.getBytes(StandardCharsets.UTF_8);
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, new StringBuilder());
 
         JsonDocumentParser docParser = SimdJsonParserPool.getDefault().forCurrentThread();
         docParser.parseDocument(bytes, 0, bytes.length, handler);
@@ -206,7 +206,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
     public void testRootScalarsGoToRowBuffer() {
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false, new StringBuilder());
 
         byte[] hello = "hello".getBytes(StandardCharsets.UTF_8);
         handler.longField("n", 42, true, new byte[] { '4', '2' }, 0, 2);
@@ -239,7 +239,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
             }
         };
 
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, true);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, true, new StringBuilder());
         handler.longField("n", 99, true, new byte[] { '9', '9' }, 0, 2);
         handler.booleanField("b", true, new byte[] { 't', 'r', 'u', 'e' }, 0, 4);
         row.finishRow();
@@ -266,7 +266,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
                 arrayEvents.incrementAndGet();
             }
         };
-        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, false);
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, false, new StringBuilder());
 
         byte[] tag = "a".getBytes(StandardCharsets.UTF_8);
         handler.startArray("tags");

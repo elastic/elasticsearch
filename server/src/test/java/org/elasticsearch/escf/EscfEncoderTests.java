@@ -254,6 +254,39 @@ public class EscfEncoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Whether a spelling is stored is decided against a rendering buffer that the encoder reuses from one value to
+     * the next. A run of values whose renderings have every length, spelled canonically or not, must store exactly
+     * the spellings that are not canonical, on both walks.
+     */
+    public void testSpellingIsStoredOnlyWhenNotCanonical() throws IOException {
+        int docs = between(50, 200);
+        String[] tokens = new String[docs];
+        List<BytesReference> sources = new ArrayList<>(docs);
+        for (int i = 0; i < docs; i++) {
+            // Half of the values render in a few characters (12.5), half in up to 24 (-1.2345678901234567E8).
+            double value = randomBoolean() ? between(-100_000, 100_000) / 100.0 : randomDoubleBetween(-1e9, 1e9, true);
+            String canonical = Double.toString(value);
+            if (randomBoolean()) {
+                tokens[i] = canonical;
+            } else {
+                // The same value, just add a 0 or replace E with e to make it non canonical.
+                tokens[i] = canonical.indexOf('E') < 0 ? canonical + "0" : canonical.replace('E', 'e');
+            }
+            sources.add(new BytesArray("{\"d\":" + tokens[i] + "}"));
+        }
+        for (boolean allowSimd : new boolean[] { true, false }) {
+            try (EscfBatch batch = encode(sources, allowSimd)) {
+                EscfDoubleColumn d = (EscfDoubleColumn) column(batch, "d");
+                for (int i = 0; i < docs; i++) {
+                    boolean canonical = tokens[i].equals(Double.toString(Double.parseDouble(tokens[i])));
+                    assertEquals(tokens[i], canonical ? null : new BytesRef(tokens[i]), d.lexicalForm(i));
+                    assertEquals(tokens[i], d.getStringValue(i).string());
+                }
+            }
+        }
+    }
+
     private static void assertRoundTrip(String... jsonDocs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(jsonDocs.length);
         for (String doc : jsonDocs) {
@@ -294,8 +327,12 @@ public class EscfEncoderTests extends ESTestCase {
      * {@link EscfEncoder#buildPartition}), and the returned batch owns and releases the pages when closed.
      */
     private static EscfBatch encode(List<BytesReference> sources) throws IOException {
+        return encode(sources, true);
+    }
+
+    private static EscfBatch encode(List<BytesReference> sources, boolean allowSimd) throws IOException {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+        try (EscfEncoder encoder = new EscfEncoder(recycler, allowSimd)) {
             for (BytesReference source : sources) {
                 encoder.addDocument(source, XContentType.JSON, 0);
             }

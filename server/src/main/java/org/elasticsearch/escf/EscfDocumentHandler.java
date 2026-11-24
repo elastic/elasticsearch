@@ -40,6 +40,11 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private final LeafSink sink;
     private final boolean rawTextMode;
     private final boolean firePathSink;
+    /**
+     * Where the canonical rendering of a floating-point value is written, to compare it with the value's token.
+     * It belongs to the encoder, which hands the same buffer to the handler of every document.
+     */
+    private final StringBuilder canonicalRendering;
 
     // ---- Array accumulation state ----
     private byte[] elemTypes;
@@ -78,12 +83,13 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int[] kvInlineArrayDepthStack;
     private int kvInlineArrayStackDepth;
 
-    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
+    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode, StringBuilder canonicalRendering) {
         this.row = row;
         this.backend = backend;
         this.sink = sink;
         this.rawTextMode = rawTextMode;
         this.firePathSink = sink != LeafSink.NO_OP;
+        this.canonicalRendering = canonicalRendering;
     }
 
     // ---- Object field events ----
@@ -277,16 +283,17 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
      * readers fall back to; else {@code null}, so that nothing is stored for the common case.
      */
     @Nullable
-    private static XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
+    private XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
         // Check if we need to store the spelling, comparing the rendering against the token bytes in place.
-        if (isCanonical(Double.toString(value), srcBuf, srcOff, srcLen)) {
+        canonicalRendering.setLength(0);
+        if (isCanonical(canonicalRendering.append(value), srcBuf, srcOff, srcLen)) {
             return null;
         }
         return new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
     }
 
     /** Whether the {@code len} ASCII bytes at {@code off} read exactly as {@code canonical}. */
-    private static boolean isCanonical(String canonical, byte[] bytes, int off, int len) {
+    private static boolean isCanonical(CharSequence canonical, byte[] bytes, int off, int len) {
         if (canonical.length() != len) {
             return false;
         }

@@ -435,6 +435,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163788):
+    // unmute when Lucene 11 int8 knn ranking of 8.x-written segments is settled.
     public void testQuantizedVectorSearch() throws Exception {
         assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
@@ -506,6 +508,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
     }
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163788):
+    // unmute when Lucene 11 int8 knn ranking of 8.x-written segments is settled.
     public void testFlatQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",

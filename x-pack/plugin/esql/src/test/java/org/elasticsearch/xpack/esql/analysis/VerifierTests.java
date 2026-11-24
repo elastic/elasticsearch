@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -51,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
@@ -5968,24 +5966,6 @@ public class VerifierTests extends AnalyzerTestCase {
             | STATS mc = max(network.cost) BY cluster, pod, region
             | STATS d = sum(mc) BY WITHOUT(region)
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
-    }
-
-    public void testSubqueryJoinNotSupported() {
-        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
-        // The unmapped_fields settings check that ResolveUnmapped neither rewrites nor rejects the unresolved keys first.
-        for (String setting : List.of("", "SET unmapped_fields=\"nullify\"; ", "SET unmapped_fields=\"load\"; ")) {
-            for (String key : List.of("language_code", "does_not_exist")) {
-                analyzer().addEmployees()
-                    .addLanguages()
-                    .statementError(
-                        setting + """
-                            FROM employees
-                            | EVAL language_code = languages
-                            | LEFT OUTER JOIN (FROM languages) ON\s""" + key,
-                        allOf(containsString("Found 1 problem"), containsString("line 3:3: JOIN on a subquery is not supported yet"))
-                    );
-            }
-        }
     }
 
     private TestAnalyzer defaultAnalyzer() {

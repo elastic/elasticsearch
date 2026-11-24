@@ -111,6 +111,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -139,6 +140,7 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -972,7 +974,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var destinationShardId = new ShardId(sourceShardId.getIndex(), node1.shardId.getId() + 1);
 
             var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
-            objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm);
+            objectStoreService.copyShard(
+                task,
+                sourceShardId,
+                destinationShardId,
+                new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE)
+            );
 
             // Shards should now have the same data, let's read from destination shard.
             var dir = SearchDirectory.unwrapDirectory(node2.searchStore.directory());
@@ -1069,7 +1076,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var destinationShardId = new ShardId(sourceShardId.getIndex(), node.shardId.getId() + 1);
             assertThrows(
                 TaskCancelledException.class,
-                () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
+                () -> objectStoreService.copyShard(
+                    task,
+                    sourceShardId,
+                    destinationShardId,
+                    new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE)
+                )
             );
             // Some threads might have already passed the cancellation check at the time of cancel
             if (blobCopyCount.get() > blobsToCopyBeforeCancel + numCopyThreads) {
@@ -1077,6 +1089,89 @@ public class ObjectStoreServiceTests extends ESTestCase {
             }
 
             releaseCopyThreads.ifPresent(CountDownLatch::countDown);
+        }
+    }
+
+    public void testCopyShardSkipsCommitsUploadedAfterLatestCommitToCopy() throws IOException {
+        final var primaryTerm = randomLongBetween(1, 42);
+        final var commitCount = between(3, 8);
+        final var copiedBlobs = new ConcurrentLinkedQueue<String>();
+        final var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
+
+        var node = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.allProjects()
+        ) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // the wait on commitCloseLatch below assumes every commit is released immediately, not true when delayed.
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize,
+                        @Nullable Executor executor
+                    ) throws IOException {
+                        copiedBlobs.add(blobName);
+                    }
+                };
+            }
+        };
+
+        try (node) {
+            var commitCloseLatch = new CountDownLatch(commitCount);
+            var commits = node.generateIndexCommits(commitCount, randomBoolean(), false, ignored -> commitCloseLatch.countDown());
+            for (var indexCommit : commits) {
+                node.commitService.onCommitCreation(indexCommit);
+            }
+            safeAwait(commitCloseLatch);
+
+            var uploadedBlobs = node.objectStoreService.getProjectBlobContainer(node.shardId, primaryTerm)
+                .listBlobs(OperationPurpose.INDICES)
+                .keySet()
+                .stream()
+                .sorted(Comparator.comparingLong(BccBlob::parseGenerationFromBlobName))
+                .toList();
+            assertThat(uploadedBlobs.size(), greaterThan(1));
+            var latestToCopyIndex = randomIntBetween(0, uploadedBlobs.size() - 2);
+            var latestCommitToCopy = new PrimaryTermAndGeneration(
+                primaryTerm,
+                BccBlob.parseGenerationFromBlobName(uploadedBlobs.get(latestToCopyIndex))
+            );
+
+            // Test commits with newer terms aren't copied
+            final var newerTermContainer = node.objectStoreService.getProjectBlobContainer(node.shardId, primaryTerm + 1);
+            newerTermContainer.writeBlob(
+                OperationPurpose.INDICES,
+                BccBlob.blobNameFromGeneration(latestCommitToCopy.generation() - 1),
+                randomBytesReference(between(1, 100)),
+                true
+            );
+
+            var destinationShardId = new ShardId(node.shardId.getIndex(), node.shardId.getId() + 1);
+            node.objectStoreService.copyShard(task, node.shardId, destinationShardId, latestCommitToCopy);
+
+            assertThat(new ArrayList<>(copiedBlobs), containsInAnyOrder(uploadedBlobs.subList(0, latestToCopyIndex + 1).toArray()));
         }
     }
 
@@ -1151,7 +1246,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             var failure = assertThrows(
                 Exception.class,
-                () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
+                () -> objectStoreService.copyShard(
+                    task,
+                    sourceShardId,
+                    destinationShardId,
+                    new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE)
+                )
             );
             assertThat(failure, instanceOf(throwIOE ? IOException.class : RuntimeException.class));
             assertThat(failure.getMessage(), equalTo("Fail copy"));

@@ -48,4 +48,30 @@ public interface HistogramBlock extends Block {
      * @return the block containing the specified component
      */
     DoubleBlock buildHistogramComponentBlock(Component component);
+
+    /**
+     * Returns the block holding the minimum of each histogram, null for empty or null histograms.
+     * <p>
+     * This is the block backing this histogram block: it is neither copied nor ref-counted on behalf of the caller, which must
+     * not close it and must not use it after this block is closed.
+     * </p>
+     * <p>
+     * The returned block is indexed by <em>value index</em>, not by position: the component of the histogram at value index
+     * {@code i}, as given by {@link #getFirstValueIndex(int)}, is at index {@code i}. Its position count therefore only
+     * equals the position count of this block if there are no multi-valued positions.
+     * </p>
+     */
+    DoubleBlock getMinBlock();
+
+    /** Returns the block holding the maximum of each histogram, with the same semantics as {@link #getMinBlock()}. */
+    DoubleBlock getMaxBlock();
+
+    /** Returns the block holding the sum of each histogram, with the same semantics as {@link #getMinBlock()}. */
+    DoubleBlock getSumBlock();
+
+    /**
+     * Returns the block holding the number of values summarized by each histogram, with the same ownership semantics as
+     * {@link #getMinBlock()}. Its type depends on the kind of histogram, hence the generic return type that subinterfaces refine.
+     */
+    Block getCountBlock();
 }

@@ -1644,7 +1644,7 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_TS,
 
         /**
-         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractInSubqueryJoin} nodes when their left side is an empty
          * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
          * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
          */
@@ -4524,6 +4524,13 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
          */
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
+
+        /**
+         * {@code FILLNULL ... ON *} leaves a column with a metadata name, such as {@code _index}, alone after a union of subqueries, where
+         * it filled it once the union had turned the metadata column into a plain one.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/165855">#165855</a>.
+         */
+        FILLNULL_ALL_COLUMNS_SKIPS_METADATA_AFTER_UNION(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the

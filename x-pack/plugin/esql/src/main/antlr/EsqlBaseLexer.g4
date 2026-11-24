@@ -29,16 +29,19 @@ options {
  * A. To add a development command (only available behind in snapshot/dev builds)
  *
  * Since the tokens/modes are in development, add a predicate like this:
- * DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand' -> ...
+ * DEV_MYCOMMAND : 'mycommand' {this.isDevVersion()}? -> ...
  *
- * IMPORTANT: this pattern is safe only for keyword tokens (alphabetic strings in
- * dedicated lexer modes). Do NOT place {this.isDevVersion()}? on tokens whose first
- * character is a common operator or symbol (e.g. '-', '+', '=', '~'). A lexer
- * predicate on such a token prevents ANTLR from caching the DFA transition for that
- * character, forcing ATN simulation on every occurrence and causing a severe
- * performance regression (~13x) for ALL queries — not just those that use the token.
- * For symbol tokens, keep the lexer rule unconditional and guard the parser rule
- * with {this.isDevVersion()}? instead. See the ARROW token as an example.
+ * IMPORTANT: put the predicate AFTER the literal, never before it (this goes for any
+ * predicate, e.g. EsqlCapabilities.Cap.X.isEnabled()):
+ *
+ * - Before ({this.isDevVersion()}? 'mycommand'): ANTLR cannot cache the mode's start
+ *   state, so ALL queries are lexed slowly, even those not using the command.
+ * - After ('mycommand' {this.isDevVersion()}?): only the transition on the literal's
+ *   last character is uncached, which keywords rarely hit.
+ *
+ * Symbols are the exception. A trailing predicate on '->' uncaches the '>' transition,
+ * which every query using '->' hits. For symbols, keep the lexer rule unconditional and
+ * guard the parser rule with {this.isDevVersion()}? instead. See the ARROW token.
  *
  * B. To add a new (production-ready) token
  *

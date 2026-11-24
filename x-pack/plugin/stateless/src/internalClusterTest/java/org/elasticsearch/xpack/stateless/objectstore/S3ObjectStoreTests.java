@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -835,7 +836,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
 
             final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
-            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm);
+            objectStoreService.copyShard(task, sourceShardId, destShardId, new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE));
 
             try (
                 var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")

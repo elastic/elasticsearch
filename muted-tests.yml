@@ -829,3 +829,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:test
   issue: https://github.com/elastic/elasticsearch/issues/167247
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRandomActivitiesStatelessSnapshotReadFromObjectStore
+  issue: https://github.com/elastic/elasticsearch/issues/167252

@@ -306,7 +306,10 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         }
     }
 
-    /** Empty overlay must delete the blob key - otherwise emptied destinations linger. */
+    /**
+     * An empty column is a label the query cleared, so it deletes the blob key. A null column is a label the row has no column
+     * for, as a union fills the column of a branch that holds the label in its blob, so the blob key stays.
+     */
     public void testConvertOverlayRemovesBlobLabelWhenConcreteEmpty() throws IOException {
         List<ColumnInfoImpl> columns = List.of(
             col("value", "double"),
@@ -319,7 +322,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             Arrays.asList(List.of(2.0), "{\"labels\":{\"__name__\":\"m\",\"job\":\"api\",\"dst\":\"old\"}}", null, List.of(1735689600000L))
         );
         assertMetric(List.of(rows.get(0)), columns, Map.of("__name__", "m", "job", "api"));
-        assertMetric(List.of(rows.get(1)), columns, Map.of("__name__", "m", "job", "api"));
+        assertMetric(List.of(rows.get(1)), columns, Map.of("__name__", "m", "job", "api", "dst", "old"));
     }
 
     private static void assertMetric(List<List<Object>> rows, List<ColumnInfoImpl> columns, Map<String, String> metric) throws IOException {

@@ -222,8 +222,9 @@ public record TranslationContext(
         assert packed != null : "invariant: packing " + skip + " must be carried by the finished table";
         Expression value = packed;
         if (containerFunctions()) {
-            // A label the command outputs as a column of its own is left out of _timeseries, so each label shows once; a
-            // sort_by_label key is a column only to sort by.
+            // A label the table outputs as a column of its own is left out of _timeseries, so each label shows once; a
+            // sort_by_label key is a column only to sort by. A label the command outputs that the table holds in its packing
+            // alone stays there: a union fills its column with null in this branch.
             var sortKeys = new HashSet<String>();
             for (SortByLabelFunction sort : cmd.promqlPlan().collect(SortByLabelFunction.class)) {
                 sort.usableSortLabels().forEach(label -> sortKeys.add(mapFinite(label)));
@@ -236,7 +237,8 @@ public record TranslationContext(
                     && name.equals(cmd.valueColumnName()) == false
                     && name.equals(cmd.stepColumnName()) == false
                     && skip.contains(label) == false
-                    && sortKeys.contains(label) == false) {
+                    && sortKeys.contains(label) == false
+                    && find(table.plan().output(), label) != null) {
                     promoted.add(label);
                 }
             }

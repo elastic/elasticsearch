@@ -35,11 +35,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
@@ -234,7 +234,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     ) throws IOException {
         int seriesCount = 0;
         BytesRef scratch = new BytesRef();
-        Set<String> columnLabels = columnLabels(columns, stepColIdx);
+        Map<String, Integer> labelColumns = labelColumns(columns, stepColIdx);
         StringBuilder valueBuffer = new StringBuilder(24);
 
         for (Page page : pages) {
@@ -271,7 +271,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 assert timestampsAreAscending(stepBlock, stepStart, count) : "PROMQL response step timestamps must be ascending";
 
                 builder.startObject();
-                buildMetricLabels(builder, timeseriesColIdx, columnLabels, page, position, stepColIdx, columns, zoneId, scratch);
+                buildMetricLabels(builder, timeseriesColIdx, labelColumns, page, position, stepColIdx, columns, zoneId, scratch);
                 buildMetricValues(mode, builder, valueBuffer, valueBlock, stepBlock, valueStart, stepStart, count);
                 builder.endObject(); // result entry
             }
@@ -289,21 +289,24 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return -1;
     }
 
-    /** The Prometheus names of the label columns, which take precedence over the labels of {@code _timeseries}. */
-    private static Set<String> columnLabels(List<ColumnInfoImpl> columns, int stepColIdx) {
-        Set<String> names = new HashSet<>();
+    /**
+     * The label columns by their Prometheus names. A label column holding a value takes precedence over the label of
+     * {@code _timeseries}; a null one does not, as a union fills the column of a branch that holds the label in its container.
+     */
+    private static Map<String, Integer> labelColumns(List<ColumnInfoImpl> columns, int stepColIdx) {
+        Map<String, Integer> labelColumns = new HashMap<>();
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
             String name = columns.get(i).name();
             if (isTimeseriesColumn(name) == false) {
-                names.add(prometheusLabelName(name));
+                labelColumns.put(prometheusLabelName(name), i);
             }
         }
-        return names;
+        return labelColumns;
     }
 
     /**
-     * Writes the labels of a series: those of its {@code _timeseries} that no label column names, then the label columns. A null
-     * or empty label is left out: Prometheus treats a label with an empty value as absent.
+     * Writes the labels of a series: those of its {@code _timeseries} that no label column holds a value for, then the label
+     * columns. A null or empty label is left out: Prometheus treats a label with an empty value as absent.
      * PromQL {@code by}-labels are almost always {@code keyword}-typed: that case writes the UTF-8 bytes straight
      * into the builder, avoiding a {@code utf8ToString()} allocation per label per row (profiling showed this was
      * a measurable cost once done correctly for every row of a wide-cardinality result). Other types (IP, VERSION,
@@ -314,7 +317,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     private static void buildMetricLabels(
         XContentBuilder builder,
         int timeseriesColIdx,
-        Set<String> columnLabels,
+        Map<String, Integer> labelColumns,
         Page page,
         int position,
         int stepColIdx,
@@ -327,7 +330,10 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             Block timeseries = page.getBlock(timeseriesColIdx);
             if (timeseries.isNull(position) == false) {
                 BytesRef json = ((BytesRefBlock) timeseries).getBytesRef(timeseries.getFirstValueIndex(position), scratch);
-                writeMetricFromSeriesJson(builder, json.utf8ToString(), columnLabels);
+                writeMetricFromSeriesJson(builder, json.utf8ToString(), name -> {
+                    Integer column = labelColumns.get(name);
+                    return column != null && page.getBlock(column).isNull(position) == false;
+                });
             }
         }
         for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
@@ -490,7 +496,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     /**
-     * Writes metric labels from a {@code _timeseries} JSON value, leaving out empty ones and those named in {@code skip}.
+     * Writes metric labels from a {@code _timeseries} JSON value, leaving out empty ones and those {@code skip} matches.
      * <ul>
      *   <li>The {@code labels} namespace is unwrapped without a prefix:
      *       {@code {"labels":{"__name__":"up","job":"prometheus"}}} -> fields {@code __name__}, {@code job}.</li>
@@ -498,10 +504,10 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      *       {@code {"attributes":{"resource":{"service.name":"foo"}}}} -> field {@code attributes.resource.service.name}.</li>
      * </ul>
      */
-    static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson, Set<String> skip) throws IOException {
+    static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson, Predicate<String> skip) throws IOException {
         forEachEntryFlattened(parseLabelsJson(seriesJson, true), (name, value) -> {
             String labelValue = labelValue(value);
-            if (labelValue != null && skip.contains(name) == false) {
+            if (labelValue != null && skip.test(name) == false) {
                 builder.field(name, labelValue);
             }
         });

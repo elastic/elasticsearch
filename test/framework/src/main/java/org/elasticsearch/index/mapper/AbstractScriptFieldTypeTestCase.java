@@ -539,6 +539,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
+            public MappingLookup mappingLookup() {
+                return MappingLookup.EMPTY;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return mockContext(
                     true,

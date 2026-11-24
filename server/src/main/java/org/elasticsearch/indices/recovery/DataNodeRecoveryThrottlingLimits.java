@@ -248,8 +248,10 @@ public final class DataNodeRecoveryThrottlingLimits {
                     maxHeap,
                     applyHeapBasedLimit
                 );
-                this.incomingRecoveryLimits = limits;
-                incomingRecoveryLimitsConsumers.forEach(consumer -> consumer.accept(limits));
+                synchronized (this) {
+                    this.incomingRecoveryLimits = limits;
+                    incomingRecoveryLimitsConsumers.forEach(consumer -> consumer.accept(limits));
+                }
             }, INCOMING_RECOVERY_LIMITS_SETTINGS);
 
             this.outgoingRecoveryLimit = computeEffectiveMaxConcurrentRecoveries(
@@ -265,8 +267,10 @@ public final class DataNodeRecoveryThrottlingLimits {
                     maxHeap,
                     true
                 );
-                this.outgoingRecoveryLimit = limit;
-                outgoingRecoveryLimitConsumers.forEach(consumer -> consumer.accept(limit));
+                synchronized (this) {
+                    this.outgoingRecoveryLimit = limit;
+                    outgoingRecoveryLimitConsumers.forEach(consumer -> consumer.accept(limit));
+                }
             }, OUTGOING_RECOVERY_LIMIT_SETTINGS);
         } else {
             assert registeredSettings.isEmpty()
@@ -299,7 +303,7 @@ public final class DataNodeRecoveryThrottlingLimits {
     ///
     /// If the throttle settings are not registered (see the class documentation), `consumer` is only called once, with
     /// [IncomingRecoveryLimits#UNBOUNDED].
-    public void addIncomingRecoveryLimitsConsumer(Consumer<IncomingRecoveryLimits> consumer) {
+    public synchronized void addIncomingRecoveryLimitsConsumer(Consumer<IncomingRecoveryLimits> consumer) {
         consumer.accept(incomingRecoveryLimits);
         incomingRecoveryLimitsConsumers.add(consumer);
     }
@@ -313,7 +317,7 @@ public final class DataNodeRecoveryThrottlingLimits {
     ///
     /// If the throttle settings are not registered (see the class documentation), `consumer` is only called once, with
     /// [Integer#MAX_VALUE].
-    public void addOutgoingRecoveryLimitConsumer(IntConsumer consumer) {
+    public synchronized void addOutgoingRecoveryLimitConsumer(IntConsumer consumer) {
         consumer.accept(outgoingRecoveryLimit);
         outgoingRecoveryLimitConsumers.add(consumer);
     }

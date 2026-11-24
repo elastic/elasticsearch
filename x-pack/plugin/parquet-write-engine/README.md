@@ -89,9 +89,9 @@ The settings provider checks these when the index is created and refuses the ind
 | `index.parquet.catalog.namespace` | `default` | The namespace of the table in the catalog. A dotted value is a nested namespace (`prod.eu` is the directory `prod/eu`). Final. |
 | `index.parquet.compression` | `zstd` | Compression of uploaded files (`uncompressed`, `snappy`, `zstd`). |
 | `index.parquet.local_compression` | `zstd` | Compression of the local files that every bulk writes, and of their staged copies (same values). With `zstd` the level is 1, and a local file has no dictionary, because the merge of the flush encodes the rows again (see "Which encoding each kind of file gets"). Dynamic. |
-| `index.parquet.flush_threshold_size` | `1gb` | Local bytes at which the periodic flush uploads. |
+| `index.parquet.flush_threshold_size` | `1gb` | Local bytes at which the periodic flush uploads. The engine starts that flush after a bulk, and it does not wait for its last upload. |
 | `index.parquet.flush_threshold_age` | `30m` | Age of the oldest local file at which the periodic flush uploads. |
-| `index.parquet.max_local_size` | `4gb` | Local bytes at which batches of at most 5,000 documents get a 429, for each document, until a flush frees space. A bulk can be accepted in part. |
+| `index.parquet.max_local_size` | `4gb` | Local bytes at which batches of at most 5,000 documents get a 429, for each document, until a flush frees space. A bulk can be accepted in part. The refusal starts a flush (at most every 2 s). It should be above `flush_threshold_size`. |
 | `index.parquet.max_file_size` | `1gb` | The most **local bytes** that one uploaded file is merged from. With `zstd` local files (the default) the local files are about 1.1 times as large as the uploaded file (345 and 310 bytes for each row in a test with 105 fields and distinct documents); with `uncompressed` local files an uploaded file is about 0.4 times as large. A compaction merges at most this many bytes of uploaded files. |
 | `index.parquet.flush_merge_parallelism` | `4` | The threads that encode the columns of one run of a flush (1 to 16): the thread of the flush and tasks of the `parquet_merge` pool. It is lowered to the thread of the flush plus the size of that pool, so more than that does not help. 1 merges on the thread of the flush alone. The threads compete with the bulks for CPU. Dynamic. See "How the merge encodes the columns on several threads". |
 | `index.parquet.row_group_size` | `128mb` | Buffered data at which a row group is written. |
@@ -168,6 +168,7 @@ The results so far are single runs (S3 in `eu-west-1`). The first rows are an `i
 | commit data in memory, footers in parallel | 24, 2,000, 1 GB | 313 s | 141 s | 454 s |
 | bulks of 5,000 rows, a lower flush threshold | 24, 5,000, 512 MB | 254 s | 91.5 s | 346 s |
 | footers read once, groups meet after an epoch (S3 was slow in this run, see below) | 24, 5,000, 512 MB | 258 s | 88 s | 346 s |
+| the engine starts the periodic flush, which does not wait for its last upload | 24, 5,000, 512 MB | 263 s | 9 s | 273 s |
 
 The total time is the sum of the two durations, so the flush has to keep up with the ingest, or the final flush has to catch up on a backlog.
 "What the benchmark runs taught us" lists what was not obvious from the numbers, and how the retry runner of the track shows rejected bulks.
@@ -415,15 +416,22 @@ count as data that waits for a flush (otherwise a flush would start for data tha
 upload that fails in the background is logged and left to the next flush, which finishes the run from its marker. The close of the engine
 waits for an upload that runs.
 
-A flush that a caller waits for returns only when the rows of every run are in the table. That is the `_flush` API with `wait_if_ongoing`
-true, which is the default, and also the periodic flush of the shard, because `IndexShard` requests it with that default. A flush with
-`wait_if_ongoing: false`, which the flush of an idle shard uses, returns while its last upload runs: the next flush skips the local files of
-that run (they are neither leftovers nor new), merges its own files, and waits for the upload before it writes its own marker.
+A flush that a caller waits for returns only when the rows of every run are in the table. That is the `_flush` API, which sends
+`wait_if_ongoing: true` (the default). A flush with `wait_if_ongoing: false` returns while its last upload runs: the next flush skips the
+local files of that run (they are neither leftovers nor new), merges its own files, and waits for the upload before it writes its own
+marker. The flush of an idle shard is such a flush, and so is the periodic flush, which the engine starts itself.
 
-So the overlap applies between the runs of one flush (a flush of more than `max_file_size` local bytes) and to the idle flush. It does not
-apply to the last upload of a periodic flush. In benchmarks of 100 million rows on S3 with 8 vCPU, that upload took 13 to 17% of the time of
-the flush thread, and the merge threads were idle meanwhile. Overlapping it needs a way to tell a periodic flush from a `_flush` request, which
-`Engine#flush` does not give.
+The engine starts the periodic flush itself because `Engine#flush` cannot tell it from a `_flush` request. `IndexShard` starts its
+periodic flush with the same `wait_if_ongoing: true` that the `_flush` API sends, so a flush that the shard starts has to wait for its last
+upload. In benchmarks of 100 million rows on S3 with 8 vCPU that wait took 13 to 17% of the time of the flush thread, and the merge
+threads were idle meanwhile. `shouldPeriodicallyFlush` is therefore always false. After each batch the engine looks at the local bytes that
+no flush has taken (without those of a run that is uploading) and at the age of the oldest local file, and when one of them has reached
+its threshold it calls `flush(false, false)`, which is skipped when a flush runs. So the last upload of a flush goes on while the next
+flush merges.
+
+A batch that is refused because the local files reached `max_local_size` also starts such a flush, at most every 2 seconds. Without it
+nothing starts a flush when the threshold of the flush is above the limit, or after a flush that failed, and the bulks wait until the
+shard has been idle for 5 minutes.
 
 ### How the commit data stays cheap when thousands of local files pile up
 
@@ -580,8 +588,8 @@ Things that were not obvious from the numbers:
 - Every call that the flush thread makes to the repository can stall it. In the run with epochs the merge-related time of the flush thread
   fell by 22% (the footer share of the merge CPU from 20% to 1%), but the total stayed the same: the refresh of the table metadata in
   `ensureColumns` took 42 s on the flush thread (0.9 s before) because one read was slow, and the uploads of the final flush took twice as
-  long (55 s against 27 s). The table is read again only when a column is missing now, and the last upload of a periodic flush still
-  holds the flush thread (see "How an upload overlaps the next merge").
+  long (55 s against 27 s). The table is read again only when a column is missing now, and the periodic flush does not wait for its last
+  upload any more (see "How an upload overlaps the next merge").
 - Smaller bulks make more local files, and every operation that lists the directory costs more (see "How the commit data stays cheap when
   thousands of local files pile up"). In the run with 2,000-row bulks, 63% of the wall time that the write threads spent in
   `indexBatch` was the staged PUT. With 5,000-row bulks the footer reads fell from 37% to 20% of the CPU of the merge, the median indexing
@@ -589,7 +597,12 @@ Things that were not obvious from the numbers:
 - A flush threshold above `max_local_size` stalls the bulks. A run with a threshold of `512gb` by mistake had no flush until the local files
   reached the cap (8 GB). Every bulk then got a 429, and the bulks waited about 5 minutes until the idle flush ran (a service time of 282 s
   at the p99.9 and 343 s at the maximum). The total was 747 s, against 346 s with a threshold of 512 MB. Check the track parameters in
-  `race.json` before you read a result.
+  `race.json` before you read a result. A batch that is refused for the local size starts a flush now, so such a stall would last only
+  until the first run is uploaded (not measured in a benchmark).
+- The wait for the last upload was the biggest cost left in the flush. With the periodic flush started by the engine and not waiting for
+  it, the final flush fell from 88 s to 9 s: the merge threads did 44% more work while the node was indexing (986 s against 686 s of
+  `copyGroup`), the flush thread was idle for 34 s of the 263 s, and the indexing took 2% longer (263 s against 258 s, because the merge
+  took more of the CPU). The total fell from 346 s to 273 s.
 
 ## Working on the code
 
@@ -696,13 +709,12 @@ distribution, so installing them again fails at boot with a duplicate key. What 
   the merge with 2,000-row files, 20% with 5,000-row files), and its threads were busy for only about half of their time in the benchmark.
   The change is faster in the lab (see "How the merge encodes the columns on several threads") and in the benchmark it cut the flush
   thread's time in the merge by 22%, but the merge threads are still busy for only about half of their time.
-- The last upload of a periodic flush is not overlapped with the next merge (see "How an upload overlaps the next merge"), and the default of
-  `flush_merge_parallelism` (4) does not depend on the number of processors: on a node with 32 vCPU a larger value is needed to keep up
-  with the ingest.
-- A flush is not requested when the local files reach `max_local_size`, only when the size check of the shard runs after an accepted write
-  or when the shard has been idle for 5 minutes (`indices.memory.shard_inactive_time`). With a flush threshold above the cap, or after a
-  flush that failed, the bulks therefore wait for the idle flush (see "What the benchmark runs taught us"). A flush that the engine requests
-  itself when it refuses a batch is not built.
+- The default of `flush_merge_parallelism` (4) does not depend on the number of processors: on a node with 32 vCPU a larger value is needed
+  to keep up with the ingest.
+- The engine starts its periodic flush after a batch, so a shard that gets no more bulks is flushed only by the age threshold when the next
+  bulk comes, or by the flush of an idle shard (5 minutes without a write, `indices.memory.shard_inactive_time`), or by a `_flush`.
+- The total is now about the time of the indexing: the final flush took 9 s in the last benchmark. A faster merge or upload does not help
+  any more, and only a faster write path (the staged PUT was more than half of the time in `indexBatch`) shortens the run.
 - A float or double column has no minimum and maximum in the footer (parquet-mr 1.18.1 with our writer settings); not investigated.
 - Whether `index.storage_format` is the final name, and when its definition moves from the plugin to `server`.
 - Whether to register the `parquet` extension in `LuceneFilesExtensions` and not rely on the test property.
@@ -766,3 +778,17 @@ The commits of the engine since last review, oldest first, each with what it doe
     and writes it. The engine now reads that data from the store once, keeps it in memory, and re-reads the last commit for the stats API only
     after a commit of its own, because Lucene's read lists the whole directory and took about 20 s with tens of thousands of local files
     (indexing went from 393 s to 313 s). The footers for the union schema are also read in parallel.
+
+15. **`27202b3` Read each footer once, meet after an epoch.** The files are merged in epochs of up to 64 files (about an eighth of a row
+    group), the footers of an epoch are read once on all the threads, and each group copies all the files of the epoch in order. The groups
+    meet only after an epoch, and the footer share of the merge CPU fell from 20% to about 1%. On 600,000 real rows the flush with 8 threads
+    took 0.9 to 1.0 s instead of 1.6 to 1.7 s for 2,000-row files.
+
+16. **`0850147` Read the table only when a column is missing.** `ensureColumns` answers from the table object when it has every column,
+    and reads the table from the repository only when a column is missing. In a benchmark one slow read of the metadata file had made this
+    call take 42 s on the flush thread, where it takes 0.9 s.
+
+17. **`08f5531` Start the periodic flush in the engine.** `IndexShard` starts its periodic flush with the same `wait_if_ongoing: true` as the
+    `_flush` API, so the engine had to wait for the last upload of every flush. The engine now starts the periodic flush itself, without that
+    wait, and it also starts a flush when a batch is refused for `max_local_size`. In the benchmark the final flush fell from 88 s to 9 s,
+    and the total from 346 s to 273 s.

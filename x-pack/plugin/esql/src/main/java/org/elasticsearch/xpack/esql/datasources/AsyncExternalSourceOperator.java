@@ -83,11 +83,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Nullable
     private final String datasetLabel;
     /**
-     * Optional hook fired from {@link #getOutput()} for a non-empty polled page. The filtered-LIMIT
-     * reader ramp uses this to double the producer cap without waiting for unit EOF.
+     * Optional hook fired from {@link #getOutput()} after a previous non-empty page has been
+     * returned, so LimitOperator can charge remaining before the ramp counts the page.
      */
     @Nullable
     private final Runnable onPagePolled;
+    private boolean pendingPagePolled;
     /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
@@ -102,11 +103,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, null, null);
-    }
-
-    /** Connector-factory path: {@code onOperatorClose} is the factory's operator hold. */
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext, Releasable onOperatorClose) {
-        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, onOperatorClose, null);
     }
 
     public AsyncExternalSourceOperator(
@@ -166,31 +162,29 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     public Page getOutput() {
         long startNanos = System.nanoTime();
         try {
+            if (pendingPagePolled) {
+                pendingPagePolled = false;
+                if (onPagePolled != null) {
+                    onPagePolled.run();
+                }
+            }
             final var page = buffer.pollPage();
             if (page != null) {
-                Page owned = page;
-                try {
-                    if (pagesEmitted == 0) {
-                        // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
-                        externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme, format);
-                    }
-                    pagesEmitted++;
-                    rowsEmitted += page.getPositionCount();
-                    // What the format reader decoded, measured as the page is handed on: the read that filled the
-                    // buffer ran on another thread, so this is the first place on the driver's that sees it.
-                    for (int channel = 0; channel < page.getBlockCount(); channel++) {
-                        bytesDecoded += ValueBytes.of(page.getBlock(channel));
-                    }
-                    if (onPagePolled != null && page.getPositionCount() > 0) {
-                        onPagePolled.run();
-                    }
-                    owned = null;
-                    return page;
-                } finally {
-                    if (owned != null) {
-                        owned.releaseBlocks();
-                    }
+                if (pagesEmitted == 0) {
+                    // First page delivered: record time-to-first-row once. The record method self-guards (best-effort).
+                    externalSourceMetrics.recordTimeToFirstRow((startNanos - operatorStartNanos) / 1_000_000, scheme, format);
                 }
+                pagesEmitted++;
+                rowsEmitted += page.getPositionCount();
+                // What the format reader decoded, measured as the page is handed on: the read that filled the
+                // buffer ran on another thread, so this is the first place on the driver's that sees it.
+                for (int channel = 0; channel < page.getBlockCount(); channel++) {
+                    bytesDecoded += ValueBytes.of(page.getBlock(channel));
+                }
+                if (onPagePolled != null && page.getPositionCount() > 0) {
+                    pendingPagePolled = true;
+                }
+                return page;
             }
             if (buffer.failure() != null) {
                 throw propagateFailure(buffer.failure());

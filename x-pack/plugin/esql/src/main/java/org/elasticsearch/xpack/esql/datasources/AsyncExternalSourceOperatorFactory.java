@@ -241,23 +241,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Initial concurrent producers for a filtered LIMIT. Driver count is already
      * {@code task_concurrency}; this ramps start inside {@link #startSliceQueueRead}. A
      * match on the first split must not open one reader per driver. The cap doubles when a
-     * unit finishes and the observed limiter still has remaining rows, so a filter that
-     * matches nothing early still reaches full parallelism.
+     * unit finishes or after {@link FilteredLimitReaderRamp#PROGRESS_PAGES} processed pages,
+     * while the observed limiter still has remaining rows, so a filter that matches nothing
+     * early still reaches full parallelism.
      */
     static final int FILTERED_LIMIT_READER_RAMP = 1;
-    /**
-     * Driver-polled pages between cap doublings while a filtered LIMIT still has remaining
-     * rows. Small values open more readers on a sparse scan; large values wait longer so a
-     * dense first page does not fan out parked producers.
-     */
-    static final int FILTERED_LIMIT_RAMP_PROGRESS_PAGES = 4;
-    private static final String FILTERED_LIMIT_RAMP_PROGRESS_PAGES_PROPERTY = "esql.filtered_limit_ramp_progress_pages";
-    private final Object filteredLimitRampLock = new Object();
-    private int filteredLimitRunning;
-    private int filteredLimitCap = FILTERED_LIMIT_READER_RAMP;
-    private int filteredLimitPagesSinceRamp;
-    private int filteredLimitProgressPages = readFilteredLimitRampProgressPages();
-    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
+    private final FilteredLimitReaderRamp<ParkedProducer> readerRamp = new FilteredLimitReaderRamp<>(
+        this::noFurtherCandidates,
+        parked -> parked.state().buffer.noMoreInputs()
+    );
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
@@ -1751,30 +1743,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return;
         }
         ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
-        boolean startNow;
-        ParkedProducer skipped = null;
-        synchronized (filteredLimitRampLock) {
-            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
-                skipped = new ParkedProducer(state, finishBuffer);
-                startNow = false;
-            } else if (filteredLimitRunning < filteredLimitCap) {
-                filteredLimitRunning++;
-                startNow = true;
-            } else {
-                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
-                startNow = false;
+        ParkedProducer candidate = new ParkedProducer(state, finishBuffer);
+        FilteredLimitReaderRamp.Submit submit = readerRamp.submit(candidate, noFurtherCandidates() || state.buffer.noMoreInputs());
+        switch (submit) {
+            case START -> {
+                try {
+                    executeProducer(state, started, () -> runProducerLoop(state, started), false);
+                } catch (Exception e) {
+                    started.onFailure(e);
+                }
             }
-        }
-        if (startNow) {
-            try {
-                executeProducer(state, started, () -> runProducerLoop(state, started), false);
-            } catch (Exception e) {
-                started.onFailure(e);
+            case SKIP -> candidate.finishBuffer().onResponse(null);
+            case PARK -> {
+                // Cap is full. Candidate stays queued until a drain starts or skips it.
             }
-            return;
-        }
-        if (skipped != null) {
-            skipped.finishBuffer().onResponse(null);
         }
     }
 
@@ -1786,13 +1768,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (filteredLimitRamp() == false) {
             return;
         }
-        List<ParkedProducer> toStart = new ArrayList<>();
-        List<ParkedProducer> toSkip = new ArrayList<>();
-        synchronized (filteredLimitRampLock) {
-            filteredLimitRunning--;
-            drainParkedLocked(toStart, toSkip);
-        }
-        dispatchParked(toStart, toSkip);
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.onProducerFinished();
+        dispatchParked(drain.toStart(), drain.toSkip());
     }
 
     /**
@@ -1804,88 +1781,35 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (filteredLimitRamp() == false || noFurtherCandidates()) {
             return;
         }
-        List<ParkedProducer> toStart = new ArrayList<>();
-        List<ParkedProducer> toSkip = new ArrayList<>();
-        synchronized (filteredLimitRampLock) {
-            doubleCapAndDrainLocked(toStart, toSkip);
-        }
-        dispatchParked(toStart, toSkip);
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.doubleCap();
+        dispatchParked(drain.toStart(), drain.toSkip());
     }
 
     private void onFilteredLimitPagePolled() {
-        if (filteredLimitRamp() == false) {
+        FilteredLimitReaderRamp.Drain<ParkedProducer> drain = readerRamp.onProcessedPage();
+        if (drain.isEmpty()) {
             return;
         }
-        List<ParkedProducer> toStart = null;
-        List<ParkedProducer> toSkip = null;
-        synchronized (filteredLimitRampLock) {
-            if (noFurtherCandidates()) {
-                return;
-            }
-            filteredLimitPagesSinceRamp++;
-            if (filteredLimitPagesSinceRamp < progressPages()) {
-                return;
-            }
-            filteredLimitPagesSinceRamp = 0;
-            toStart = new ArrayList<>();
-            toSkip = new ArrayList<>();
-            doubleCapAndDrainLocked(toStart, toSkip);
+        try {
+            executor.execute(() -> dispatchParked(drain.toStart(), drain.toSkip()));
+        } catch (Exception e) {
+            dispatchParked(drain.toStart(), drain.toSkip());
         }
-        dispatchParked(toStart, toSkip);
-    }
-
-    private void doubleCapAndDrainLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
-        if (filteredLimitCap < Integer.MAX_VALUE / 2) {
-            filteredLimitCap *= 2;
-        } else {
-            filteredLimitCap = Integer.MAX_VALUE;
-        }
-        drainParkedLocked(toStart, toSkip);
-    }
-
-    private int progressPages() {
-        return filteredLimitProgressPages;
     }
 
     void setFilteredLimitRampProgressPages(int pages) {
-        if (pages < 1) {
-            throw new IllegalArgumentException("filtered limit ramp progress pages must be at least 1, got: " + pages);
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("filtered limit ramp progress pages must be set before source operators are created");
         }
-        this.filteredLimitProgressPages = pages;
+        readerRamp.setProgressPages(pages);
     }
 
-    private static int readFilteredLimitRampProgressPages() {
-        String raw = System.getProperty(FILTERED_LIMIT_RAMP_PROGRESS_PAGES_PROPERTY);
-        if (raw == null || raw.isEmpty()) {
-            return FILTERED_LIMIT_RAMP_PROGRESS_PAGES;
-        }
-        try {
-            int parsed = Integer.parseInt(raw);
-            if (parsed >= 1) {
-                return parsed;
-            }
-        } catch (NumberFormatException ignored) {
-            // fall through to the compiled default
-        }
-        return FILTERED_LIMIT_RAMP_PROGRESS_PAGES;
+    int filteredLimitRampCap() {
+        return readerRamp.cap();
     }
 
-    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
-        if (noFurtherCandidates()) {
-            while (filteredLimitParked.isEmpty() == false) {
-                toSkip.add(filteredLimitParked.poll());
-            }
-            return;
-        }
-        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
-            ParkedProducer parked = filteredLimitParked.poll();
-            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
-                toSkip.add(parked);
-                continue;
-            }
-            filteredLimitRunning++;
-            toStart.add(parked);
-        }
+    int filteredLimitParkedCount() {
+        return readerRamp.parkedCount();
     }
 
     private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {

@@ -22,7 +22,8 @@
   The Docker Hub image does not split any layers: it is built by the Docker Official Images build system,
   which does not normalize timestamps and so does not reuse these layers between builds.
 */
-def separateLayers = docker_context == 'docker-hub-build-context' ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+def dockerHub = docker_context == 'docker-hub-build-context'
+def separateLayers = dockerHub ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
 
 
 ################################################################################
@@ -32,7 +33,7 @@ def separateLayers = docker_context == 'docker-hub-build-context' ? [] : ['jdk',
 
 FROM ${base_image} AS builder
 
-RUN microdnf install -y findutils tar gzip util-linux-core
+RUN microdnf install -y findutils tar gzip util-linux-core<%= dockerHub ? ' gnupg2' : '' %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -52,8 +53,36 @@ RUN set -eux; \\
     mv /tmp/tini /bin/tini; \\
     chmod 0555 /bin/tini
 
-WORKDIR /usr/share/elasticsearch
-RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
+WORKDIR /usr/share/elasticsearch<% if (dockerHub) { %>
+<% /*
+  The Docker Official Images policy requires that downloads are verified. The `@es_sha512_<arch>@` tokens are
+  replaced with the checksums of the tarballs built together with this Dockerfile by DockerHubChecksumFilter.
+  The tarballs are not reproducible, so the checksums only match the tarballs published by the same build.
+  This block must not be rendered in the `docker-build-context`: the transform task for local builds replaces
+  the download line by line.
+*/ %>
+# Download the Elasticsearch distribution and verify it against its SHA-512 checksum and against Elastic's
+# signature. The signing key is not fetched from a keyserver: the signature must have been made by the key
+# with the pinned fingerprint.
+RUN set -eux; \\
+    arch="\$(rpm --query --queryformat='%{ARCH}' rpm)"; \\
+    case "\$arch" in \\
+        aarch64) es_sha512='@es_sha512_aarch64@' ;; \\
+        x86_64)  es_sha512='@es_sha512_x86_64@' ;; \\
+        *) echo >&2 "Unsupported architecture \$arch"; exit 1 ;; \\
+    esac; \\
+    es_url="https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz"; \\
+    curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz "\$es_url"; \\
+    curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz.asc "\$es_url.asc"; \\
+    echo "\$es_sha512  /tmp/elasticsearch.tar.gz" | sha512sum -c -; \\
+    export GNUPGHOME="\$(mktemp -d)"; \\
+    curl -f --retry 10 -S -L --output "\$GNUPGHOME/GPG-KEY-elasticsearch" https://artifacts-no-kpi.elastic.co/GPG-KEY-elasticsearch; \\
+    gpg --batch --import "\$GNUPGHOME/GPG-KEY-elasticsearch"; \\
+    gpg --batch --status-fd 1 --verify /tmp/elasticsearch.tar.gz.asc /tmp/elasticsearch.tar.gz \\
+        | grep '^\\[GNUPG:\\] VALIDSIG .* 46095ACC8548582C1A2699A9D27D666CD88E42B4\$'; \\
+    gpgconf --kill all; \\
+    rm -rf "\$GNUPGHOME" /tmp/elasticsearch.tar.gz.asc<% } else { %>
+RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz<% } %>
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # Configure the distribution for Docker
     sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\

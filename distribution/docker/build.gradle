@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.DockerHubChecksumFilter
 import org.elasticsearch.gradle.internal.docker.DockerImagePullSupport
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
 import org.elasticsearch.gradle.internal.docker.DockerSupportService
@@ -203,6 +204,10 @@ CopySpec dockerBuildContext(DockerVariant variant, String publicationContext = '
     from(projectDir.resolve("src/docker/${base.dockerfile}")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
+      if (publicationContext == DOCKER_HUB_CONTEXT) {
+        // The Docker Hub Dockerfile verifies the downloaded distribution against the checksums of these tarballs
+        filter(DockerHubChecksumFilter, tarballs: dockerHubTarballs())
+      }
       rename base.dockerfile, "Dockerfile"
     }
   }
@@ -244,6 +249,20 @@ def exportDockerImages = tasks.register("exportDockerImages")
 def exportCompressedDockerImages = tasks.register("exportCompressedDockerImages")
 def exportDockerContexts = tasks.register("exportDockerContexts")
 
+/**
+ * The classifier of the build context that is published to Docker Hub as a Docker Official Image.
+ */
+@groovy.transform.Field
+final String DOCKER_HUB_CONTEXT = 'docker-hub-build-context'
+
+/**
+ * The Linux tarballs of all architectures. The Docker Hub Dockerfile downloads the published tarballs, which the
+ * DRA build publishes from the same Gradle invocation, and verifies them against these tarballs' checksums.
+ */
+FileCollection dockerHubTarballs() {
+  return configurations.dockerSourceTar + configurations.aarch64DockerSourceTar
+}
+
 void addBuildDockerContextTask(Architecture architecture, DockerBase base, String taskSuffix = 'DockerContext', String classifier = "docker-build-context") {
   DockerVariant variant = new DockerVariant(architecture, base)
 
@@ -254,6 +273,10 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
       archiveClassifier = "${classifier}${variant.architectureSuffix()}"
       archiveBaseName = variant.imageName()
       with dockerBuildContext(variant, classifier)
+      if (classifier == DOCKER_HUB_CONTEXT) {
+        // Rebuild the context when the tarballs, and so the checksums in the Dockerfile, change
+        inputs.files(dockerHubTarballs()).withPropertyName('dockerHubTarballs').withPathSensitivity(PathSensitivity.NAME_ONLY)
+      }
 
       into(variant.configDirectory()) {
         from(configurations.log4jConfig) {
@@ -532,7 +555,7 @@ for (final Architecture architecture : Architecture.values()) {
     if(base == DockerBase.DEFAULT) {
       // Add additional docker hub specific context which we use solely for publishing to docker hub.
       // At the moment it is exactly the same as the default context.
-      addBuildDockerContextTask(architecture, base, 'DockerHubContext', "docker-hub-build-context")
+      addBuildDockerContextTask(architecture, base, 'DockerHubContext', DOCKER_HUB_CONTEXT)
     }
   }
 }

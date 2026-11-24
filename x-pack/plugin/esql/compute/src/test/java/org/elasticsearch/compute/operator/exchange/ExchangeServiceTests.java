@@ -1097,15 +1097,15 @@ public class ExchangeServiceTests extends ESTestCase {
         MockTransportService node1 = newTransportService();
         ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
-        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
-        AtomicInteger closesReceived = new AtomicInteger();
-        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
-            if (((ExchangeRequest) request).sourcesFinished()) {
-                closesReceived.incrementAndGet();
-            }
-            handler.messageReceived(request, channel, task);
-        });
         try (exchange0; exchange1; node0; node1) {
+            AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+            AtomicInteger closesReceived = new AtomicInteger();
+            node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+                if (((ExchangeRequest) request).sourcesFinished()) {
+                    closesReceived.incrementAndGet();
+                }
+                handler.messageReceived(request, channel, task);
+            });
             String exchangeId = "exchange-" + randomAlphaOfLength(8);
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             PlainActionFuture<Void> opened = new PlainActionFuture<>();
@@ -1173,8 +1173,8 @@ public class ExchangeServiceTests extends ESTestCase {
         MockTransportService node1 = newTransportService();
         ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
-        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         try (exchange0; exchange1; node0; node1) {
+            AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
             String exchangeId = "exchange-" + randomAlphaOfLength(8);
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             PlainActionFuture<Void> opened = new PlainActionFuture<>();

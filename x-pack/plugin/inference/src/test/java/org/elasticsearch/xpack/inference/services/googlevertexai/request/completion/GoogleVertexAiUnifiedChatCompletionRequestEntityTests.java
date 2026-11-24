@@ -1807,10 +1807,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     /**
-     * A user message right after a tool result must join the tool result's {@code user} content. As two adjacent
-     * {@code user} contents, Gemini 2.5 answers with an empty response.
+     * A user message right after a tool result must not join the tool result's {@code user} content. Gemini 3.6 and
+     * later reject a content that has a {@code text} part after a {@code functionResponse} part with a 400, and
+     * Gemini 3.1 Pro answers it with an empty response.
      */
-    public void testSerialization_ToolResultFollowedByUserMessage_MergedIntoOneUserTurn() throws IOException {
+    public void testSerialization_ToolResultFollowedByUserMessage_SplitIntoTwoUserTurns() throws IOException {
         var messages = List.of(
             assistantToolCall(GOOGLE_TOOL_CALL_ID),
             toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
@@ -1838,7 +1839,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                     "id": "%s",
                                     "response": %s
                                 }
-                            },
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
                             { "text": "%s" }
                         ]
                     }
@@ -1848,10 +1854,112 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     /**
-     * The functionResponse parts of a parallel function call step and the user message after them all belong to one
-     * {@code user} content, in message order.
+     * Only the boundary between the tool result and the user text splits the turn. The user messages after it are
+     * still merged into one {@code user} content.
      */
-    public void testSerialization_ParallelToolResultsFollowedByUserMessage_MergedIntoOneUserTurn() throws IOException {
+    public void testSerialization_ToolResultFollowedByTwoUserMessages_UserMessagesShareOneTurn() throws IOException {
+        var secondQuestion = "And when will it arrive?";
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
+            userMessage(FOLLOW_UP_QUESTION),
+            userMessage(secondQuestion)
+        );
+
+        assertJsonEquals(
+            serialize(requestOf(messages), emptyThinkingConfig),
+            Strings.format(
+                """
+                    {
+                        "contents": [
+                            {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                        "thoughtSignature": "skip_thought_signature_validator"
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    {
+                                        "functionResponse": {
+                                            "name": "%s",
+                                            "id": "%s",
+                                            "response": %s
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
+                                    { "text": "%s" },
+                                    { "text": "%s" }
+                                ]
+                            }
+                        ]
+                    }
+                    """,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                FUNCTION_NAME,
+                GOOGLE_TOOL_CALL_ID,
+                TOOL_RESULT_JSON,
+                FOLLOW_UP_QUESTION,
+                secondQuestion
+            )
+        );
+    }
+
+    /**
+     * A user message before a tool result stays in the tool result's {@code user} content. Gemini accepts a
+     * {@code text} part followed by a {@code functionResponse} part; only the opposite order is rejected.
+     */
+    public void testSerialization_UserMessageFollowedByToolResult_MergedIntoOneUserTurn() throws IOException {
+        var messages = List.of(
+            assistantToolCall(GOOGLE_TOOL_CALL_ID),
+            userMessage(FOLLOW_UP_QUESTION),
+            toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON)
+        );
+
+        assertJsonEquals(serialize(requestOf(messages), emptyThinkingConfig), Strings.format("""
+            {
+                "contents": [
+                    {
+                        "role": "model",
+                        "parts": [
+                            {
+                                "functionCall": { "name": "%s", "args": { "order_id": "order_12345" }, "id": "%s" },
+                                "thoughtSignature": "skip_thought_signature_validator"
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "parts": [
+                            { "text": "%s" },
+                            {
+                                "functionResponse": {
+                                    "name": "%s",
+                                    "id": "%s",
+                                    "response": %s
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, FOLLOW_UP_QUESTION, FUNCTION_NAME, GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON));
+    }
+
+    /**
+     * The functionResponse parts of a parallel function call step share one {@code user} content, and the user
+     * message after them gets a {@code user} content of its own.
+     */
+    public void testSerialization_ParallelToolResultsFollowedByUserMessage_UserMessageInItsOwnTurn() throws IOException {
         var messages = List.of(
             parallelAssistantToolCalls(),
             toolResult(GOOGLE_TOOL_CALL_ID, TOOL_RESULT_JSON),
@@ -1893,7 +2001,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                                             "id": "%s",
                                             "response": %s
                                         }
-                                    },
+                                    }
+                                ]
+                            },
+                            {
+                                "role": "user",
+                                "parts": [
                                     { "text": "%s" }
                                 ]
                             }

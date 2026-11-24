@@ -2597,7 +2597,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // client - not needed for these tests
             externalCompute,
             null, // escfBulkService - not needed for these tests
-            () -> false
+            () -> false,
+            null  // executionInfo - not needed for these tests
         );
     }
 

@@ -135,6 +135,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -352,6 +353,8 @@ public class LocalExecutionPlanner {
     private final boolean snapshotBuild;
     private final FetchOperatorProvider fetchOperators;
     @Nullable
+    private final EsqlExecutionInfo executionInfo;
+    @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
     private final MatcherWatchdog grokMatcherWatchdog;
@@ -408,7 +411,8 @@ public class LocalExecutionPlanner {
         Client client,
         ExternalComputeContext externalCompute,
         @Nullable EscfBulkService escfBulkService,
-        BooleanSupplier batchIndexingSupported
+        BooleanSupplier batchIndexingSupported,
+        @Nullable EsqlExecutionInfo executionInfo
     ) {
 
         this.sessionId = sessionId;
@@ -442,6 +446,7 @@ public class LocalExecutionPlanner {
         this.externalCompute = externalCompute;
         this.escfBulkService = escfBulkService;
         this.batchIndexingSupported = batchIndexingSupported;
+        this.executionInfo = executionInfo;
     }
 
     /**
@@ -2650,6 +2655,7 @@ public class LocalExecutionPlanner {
         if (preResolved != null) {
             request.preResolvedFieldCaps(preResolved);
         }
+        assert executionInfo != null : "an EQL source is planned on the coordinator, which has the execution info";
         return PhysicalOperation.fromSource(
             new EqlSourceOperator.Factory(
                 client,
@@ -2657,7 +2663,8 @@ public class LocalExecutionPlanner {
                 eqlSource.mode(),
                 eqlSource.output(),
                 eqlSource.source(),
-                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit()),
+                executionInfo
             ),
             layout.build()
         );

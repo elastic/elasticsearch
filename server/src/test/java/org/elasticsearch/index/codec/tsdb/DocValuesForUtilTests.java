@@ -25,11 +25,14 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.index.codec.ForUtil;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+@RunWith(ESRandomizedRunner.class)
 public class DocValuesForUtilTests extends LuceneTestCase {
     int NUMERIC_BLOCK_SIZE = 1 << random().nextInt(7, 14);
 

@@ -37,17 +37,21 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Periodically schedules adaptive allocations scaling. This process consists
@@ -271,6 +275,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     public synchronized void start() {
+        // Stats from a previous time as master are stale, so start fresh.
+        lastInferenceStatsByDeploymentAndNode.clear();
+        lastInferenceStatsTimestampMillis = null;
         updateAutoscalers(clusterService.state());
         metrics.init();
         clusterService.addListener(this);
@@ -428,6 +435,19 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (nodeStats.getStartTime() != null && now < nodeStats.getStartTime().toEpochMilli() + scaleUpCooldownTimeMillis) {
                     hasRecentObservedScaleUp.add(deploymentId);
                 }
+            }
+            AdaptiveAllocationsScaler scaler = scalers.get(deploymentId);
+            if (scaler != null) {
+                // The last time the deployment was used or started on any node.
+                Instant lastActivity = assignmentStats.getNodeStats()
+                    .stream()
+                    .flatMap(nodeStats -> Stream.of(nodeStats.getLastAccess(), nodeStats.getStartTime()))
+                    .filter(Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .orElse(null);
+                scaler.maybeInitTimeWithoutRequestsSeconds(
+                    lastActivity == null ? 0.0 : Math.max(0.0, (now - lastActivity.toEpochMilli()) / 1000.0)
+                );
             }
             // A deployment without allocations has no node stats. Evaluate it with empty stats anyway, so
             // that the scaler applies the minimum number of allocations (e.g. it was raised while at zero).

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -46,7 +44,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.PassthroughFields;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -102,7 +100,9 @@ public record TranslationContext(
     /* The columns the result subtree MUST expose. */
     TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
-    Expression time
+    Expression time,
+    /* The fields below a passthrough object in the queried indices, keyed by their alias, see PassthroughFields. */
+    Map<String, Set<String>> passthroughFields
 ) {
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end): TStep requires explicit bounds,
     // so pass the widest representable range. EPOCH/MAX_MILLIS_BEFORE_9999 avoid time boundary handling in the engine.
@@ -111,7 +111,7 @@ public record TranslationContext(
 
     /** The command exposes every label of the result series: the full open label space. */
     public TranslationContext(PromqlCommand cmd, AnalyzerContext analyzer) {
-        this(cmd, analyzer, null, open(), null);
+        this(cmd, analyzer, null, open(), null, PassthroughFields.fieldsByAlias(analyzer.indexResolution().values()));
     }
 
     /**
@@ -128,7 +128,7 @@ public record TranslationContext(
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
-        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time);
+        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, passthroughFields);
     }
 
     /**
@@ -162,7 +162,7 @@ public record TranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new TranslationContext(cmd, analyzer, step, required, branchTime);
+        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, passthroughFields);
         return run.translateIntermediate(branch, valueId);
     }
 
@@ -513,8 +513,7 @@ public record TranslationContext(
      * {@code attributes.state}, is left out at that path too, as the source leaves it out of the packing it loads.
      */
     private Expression unset(Expression packing, Stream<String> labels) {
-        Map<String, Set<String>> fields = passthroughFieldsByAlias();
-        List<Expression> names = labels.flatMap(label -> Stream.concat(Stream.of(label), fields.getOrDefault(label, Set.of()).stream()))
+        List<Expression> names = labels.flatMap(label -> Stream.concat(Stream.of(label), passthroughFields(label)))
             .distinct()
             .sorted()
             .<Expression>map(label -> Literal.keyword(packing.source(), label))
@@ -523,37 +522,13 @@ public record TranslationContext(
     }
 
     /**
-     * The fields below a passthrough object in the queried indices, keyed by their alias: the name below their innermost
-     * passthrough object, as {@code ExemplarsRewriter} names them. A field the metadata functions already read by its alias,
-     * as they read one below {@code labels}, is not listed.
+     * The fields below a passthrough object whose alias is {@code label}. A field the metadata functions already read by its
+     * alias, as they read one below {@code labels}, is left out.
      */
-    private Map<String, Set<String>> passthroughFieldsByAlias() {
-        Map<String, Set<String>> fields = new HashMap<>();
-        for (IndexResolution resolution : analyzer.indexResolution().values()) {
-            if (resolution.isValid()) {
-                collectPassthroughFields(resolution.get().mapping(), "", null, fields);
-            }
-        }
-        return fields;
-    }
-
-    private static void collectPassthroughFields(
-        Map<String, EsField> mapping,
-        String prefix,
-        @Nullable String passthrough,
-        Map<String, Set<String>> fields
-    ) {
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String path = prefix + entry.getKey();
-            EsField field = entry.getValue();
-            if (passthrough != null && field.getDataType() != DataType.OBJECT) {
-                String alias = path.substring(passthrough.length() + 1);
-                if (PromqlLabels.labelName(path).equals(alias) == false) {
-                    fields.computeIfAbsent(alias, k -> new TreeSet<>()).add(path);
-                }
-            }
-            collectPassthroughFields(field.getProperties(), path + ".", field.isPassthrough() ? path : passthrough, fields);
-        }
+    private Stream<String> passthroughFields(String label) {
+        return passthroughFields.getOrDefault(label, Set.of())
+            .stream()
+            .filter(field -> PromqlLabels.labelName(field).equals(label) == false);
     }
 
     /**

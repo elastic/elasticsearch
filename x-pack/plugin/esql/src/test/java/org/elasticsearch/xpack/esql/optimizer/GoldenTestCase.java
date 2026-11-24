@@ -1464,7 +1464,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, 0, 0);
+                return new IndexProperties(m, 0, 0, null);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -1479,7 +1479,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         Map<String, IndexProperties> indexProperties = new HashMap<>();
         index.indexProperties()
             .forEach(
-                (key, v) -> indexProperties.put(key, new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id()))
+                (key, v) -> indexProperties.put(
+                    key,
+                    new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id(), v.timeSeriesStats())
+                )
             );
         return IndexResolution.valid(
             new EsIndex(

@@ -1,5 +1,5 @@
 area: Aggregations
 issues: []
 pr: 166943
-summary: Sample each shard with its own random stream
+summary: Sample each shard and segment with its own random stream
 type: bug

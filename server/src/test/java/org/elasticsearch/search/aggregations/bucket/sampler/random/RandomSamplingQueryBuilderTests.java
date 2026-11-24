@@ -12,9 +12,14 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.set.Sets;
@@ -36,6 +41,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<RandomSamplingQueryBuilder> {
@@ -82,6 +88,42 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
         }
         // Independent shards keep all or none of the documents with a probability of 2^-63.
         assertThat(sampled, allOf(greaterThan(0), lessThan(shards)));
+    }
+
+    /**
+     * Segments that share a random stream keep the same doc ids: with one document each, all of them or none.
+     */
+    public void testSegmentsSampleDifferentDocs() throws IOException {
+        int segments = 64;
+        Query query = new RandomSamplingQuery(0.5, randomInt(), randomInt());
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            for (int segment = 0; segment < segments; segment++) {
+                writer.addDocument(new Document());
+                writer.flush();
+            }
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(segments));
+                // Independent segments keep all or none of the documents with a probability of 2^-63.
+                assertThat(newSearcher(reader, false).count(query), allOf(greaterThan(0), lessThan(segments)));
+            }
+        }
+    }
+
+    /**
+     * A query cache keeps the entry of a segment that moves in the reader, and with it the sample of the old position.
+     */
+    public void testNotCacheable() throws IOException {
+        RandomSamplingQuery query = new RandomSamplingQuery(0.5, randomInt(), randomInt());
+        try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            writer.addDocument(new Document());
+            try (IndexReader reader = writer.getReader()) {
+                Weight weight = query.createWeight(newSearcher(reader), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                assertFalse(weight.isCacheable(reader.leaves().get(0)));
+            }
+        }
     }
 
     /**

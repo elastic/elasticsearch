@@ -132,7 +132,7 @@ public record TranslationContext(
 
     /**
      * Whether the translation may read and rewrite labels in a {@code _timeseries} with the label container functions: only
-     * when every node knows them.
+     * in a snapshot build, and only when every node knows them. See {@link PromqlCommand#containerFunctions}.
      */
     public boolean containerFunctions() {
         return PromqlCommand.containerFunctions(analyzer.minimumVersion());

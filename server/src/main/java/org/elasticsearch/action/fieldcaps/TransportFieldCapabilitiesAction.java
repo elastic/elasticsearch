@@ -329,7 +329,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         resp.getNumberOfShards(),
                         resp.getCreatedVersion(),
                         resp.getIndexSettingsVersion(),
-                        resp.getMappingVersion()
+                        resp.getMappingVersion(),
+                        resp.getTimeSeriesStats()
                     );
                 }
             }
@@ -352,7 +353,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         a.getNumberOfShards(),
                         a.getCreatedVersion(),
                         a.getIndexSettingsVersion(),
-                        a.getMappingVersion()
+                        a.getMappingVersion(),
+                        a.getTimeSeriesStats()
                     );
                 });
             }
@@ -465,7 +467,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.getNumberOfShards(),
                                 resp.getCreatedVersion(),
                                 resp.getIndexSettingsVersion(),
-                                resp.getMappingVersion()
+                                resp.getMappingVersion(),
+                                resp.getTimeSeriesStats()
                             )
                         );
                     }
@@ -725,6 +728,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.nowInMillis(nowInMillis);
         remoteRequest.includeEmptyFields(request.includeEmptyFields());
         remoteRequest.includeResolvedTo(request.includeResolvedTo() || resolveCrossProject);
+        remoteRequest.includeTimeSeriesStats(request.includeTimeSeriesStats());
         return remoteRequest;
     }
 
@@ -1048,7 +1052,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(
+                    indicesService,
+                    request.includeEmptyFields(),
+                    request.includeTimeSeriesStats()
+                );
                 Predicate<String> fieldNameFilter;
                 try {
                     fieldNameFilter = Regex.simpleMatcher(request.fields());

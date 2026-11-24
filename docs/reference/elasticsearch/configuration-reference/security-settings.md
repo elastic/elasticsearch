@@ -1256,7 +1256,7 @@ The file name or URL to a JSON Web Key Set (JWKS) with the public key material u
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies whether to populate the {{es}} user’s metadata with the values that are provided by the OpenID Connect claims. Defaults to `true`.
 
 `http.proxy.host`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the address of the proxy server that will be used by the internal http client for all back-channel communication to the OpenID Connect Provider endpoints. This includes requests to the Token Endpoint, the Userinfo Endpoint and requests to fetch the JSON Web Key Set from the OP if `op.jwkset_path` is set as a URL.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the address of the proxy server that will be used by the internal http client for all back-channel communication to the OpenID Connect Provider endpoints. This includes requests to the Token Endpoint, the Userinfo Endpoint and requests to fetch the JSON Web Key Set from the OP if `op.jwkset_path` is set as a URL. Specify only the host name or IP address, without a scheme such as `http://` or `https://`. To connect to the proxy over HTTPS, set `http.proxy.scheme` instead.
 
 `http.proxy.scheme`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the protocol to use to connect to the proxy server that will be used by the http client for all back-channel communication to the OpenID Connect Provider endpoints. Defaults to `http`. Allowed values are `http` or `https`.
@@ -1519,7 +1519,7 @@ $$$jwt-claim-pattern-principal$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets the grace period for how long after rotating the `client_authentication.shared_secret` is valid. `client_authentication.shared_secret` can be rotated by updating the keystore then calling the [reload API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-reload-secure-settings). Defaults to `1m`.
 
 `http.proxy.host`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the address of the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the address of the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. Specify only the host name or IP address, without a scheme such as `http://` or `https://`.
 
 `http.proxy.scheme`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the protocol to use to connect to the proxy server for the HTTP client that is used for fetching the JSON Web Key Set from a remote URL. Must be `http`.

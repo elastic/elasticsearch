@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -383,7 +385,10 @@ public abstract class FullTextFunction extends Function
             && (lp instanceof LimitBy == false)
             && (lp instanceof TopNBy == false)
             && (lp instanceof Dedup == false)
-            && (lp instanceof TopN == false);
+            && (lp instanceof TopN == false)
+            // these return a row per metric or time series, built from the documents
+            && (lp instanceof MetricsInfo == false)
+            && (lp instanceof TsInfo == false);
     }
 
     /**
@@ -465,7 +470,9 @@ public abstract class FullTextFunction extends Function
                     input,
                     filter,
                     FullTextFunction.class,
-                    lp -> readsLuceneDocuments(lp, inlineStatsAggregates) && executesOnCoordinator(lp) == false,
+                    // A filter shared by all the aggregate functions becomes a WHERE that the optimizer can push below a command
+                    // that runs on the coordinator, like a LOOKUP JOIN or an ENRICH in that mode: the optimized plan tells.
+                    lp -> readsLuceneDocuments(lp, inlineStatsAggregates) && (analyzed || executesOnCoordinator(lp) == false),
                     m -> "[" + m.functionName() + "] " + m.functionType(),
                     failures
                 );

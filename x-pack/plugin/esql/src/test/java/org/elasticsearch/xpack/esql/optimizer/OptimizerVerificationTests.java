@@ -420,6 +420,24 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * The full-text filter of an aggregate function is evaluated by the aggregation. The optimizer has the final say on which
      * filters remain there: one shared by all the aggregate functions becomes a WHERE that is pushed into the FORK branches.
      */
+    /**
+     * A command that only runs on the coordinator takes the aggregation there. A filter shared by all the aggregate
+     * functions becomes a WHERE that is pushed below a LOOKUP JOIN, to the shards, so only the optimized plan can tell.
+     */
+    public void testFullTextInStatsFilterAfterCoordinatorCommands() {
+        String lookup = "FROM test | EVAL language_code = id | LOOKUP JOIN _coordinator:languages_lookup ON language_code";
+        String stats = " | STATS c = COUNT(*) WHERE match(title, \"Meditation\")";
+        optimize(fullTextAnalyzer().addLanguagesLookup().query(lookup + stats));
+        var err = error(fullTextAnalyzer().addLanguagesLookup().query(lookup + stats + ", d = COUNT(*)"));
+        assertThat(err, containsString("[MATCH] function cannot be used after LOOKUP when it targets an indexed field"));
+
+        // nothing is pushed below CHANGE_POINT
+        for (String aggs : List.of(stats, stats + ", d = COUNT(*)")) {
+            err = error(fullTextAnalyzer().query("FROM test | CHANGE_POINT id ON id" + aggs));
+            assertThat(aggs, err, containsString("[MATCH] function cannot be used after CHANGE_POINT when it targets an indexed field"));
+        }
+    }
+
     public void testFullTextInStatsFilterAfterFork() {
         String fork = "FROM test | FORK (WHERE id > 0) (WHERE id > 1) | STATS c = COUNT(*) WHERE ";
         for (String ftf : List.of("kql(\"title: Meditation\")", "qstr(\"title: Meditation\")")) {

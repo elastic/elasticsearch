@@ -4225,8 +4225,8 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().error("from test | sort id | limit 10" + stats, containsString(error + "LIMIT"));
         fullText().error("from test | limit 1 by id" + stats, containsString(error + "LIMIT"));
         fullText().error("from test | stats id = max(id) by " + fieldName + stats, containsString(error + "STATS"));
-        // runs on the coordinator, and so does what follows
-        fullText().error("from test | change_point id on id" + stats, containsString(error + "CHANGE_POINT"));
+        // a command that runs on the coordinator is left to the optimized plan: a filter can be pushed below some of them
+        fullText().query("from test | change_point id on id" + stats);
         // the filter doesn't have to be the only one
         fullText().error(
             "from test | limit 10 | stats c = max(id) where " + functionInvocation + ", d = count(*) where id > 10",
@@ -5399,6 +5399,18 @@ public class VerifierTests extends AnalyzerTestCase {
                     + values.get(j).v2()
                     + "]";
                 tsdb().error(query, containsString(expected));
+            }
+        }
+    }
+
+    /** METRICS_INFO and TS_INFO return a row per metric or time series: there is no document to run a Lucene query against. */
+    public void testFullTextInStatsFilterAfterMetricsInfo() {
+        for (String command : List.of("METRICS_INFO", "TS_INFO")) {
+            for (String function : List.of("QSTR", "KQL")) {
+                k8s().error(
+                    "TS k8s | " + command + " | STATS c = COUNT(*) WHERE " + function + "(\"metric_name: network\"), d = COUNT(*)",
+                    containsString("[" + function + "] function cannot be used after " + command)
+                );
             }
         }
     }

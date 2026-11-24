@@ -323,7 +323,7 @@ public class Driver implements Releasable, Describable {
                 );
                 return isBlocked.listener();
             }
-            if (isFailed(isBlocked.listener())) {
+            if (isBlocked.listener().isFailed()) {
                 return isBlocked.listener();
             }
             if (isFinished()) {
@@ -763,10 +763,6 @@ public class Driver implements Releasable, Describable {
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
         driver.scheduler.scheduleOrRunTask(executor, task, resumed);
-    }
-
-    private static boolean isFailed(SubscribableListener<Void> listener) {
-        return listener.isDone() && listener.isSuccess() == false;
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

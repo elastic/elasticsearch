@@ -196,13 +196,18 @@ public class ReindexMetadataTests extends ESTestCase {
         assertTrue(metadata.routingChangedWithSlice(true));
     }
 
-    public void testRoutingChangedWithSliceTracksIndexChanges() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-
+    /**
+     * Changing {@code _index} is not a routing write. The reindex action decides separately what to do with a slice when the target moves.
+     */
+    public void testIndexChangeIsNotARoutingWrite() {
         metadata.put("_index", "other-index");
-        assertFalse(metadata.routingChanged());
+        assertTrue(metadata.indexChanged());
+        assertFalse(metadata.routingWritten());
         assertFalse(metadata.routingChangedWithSlice(false));
-        assertTrue(metadata.routingChangedWithSlice(true));
+        assertFalse(metadata.routingChangedWithSlice(true));
+
+        metadata.put("_routing", ROUTING);
+        assertTrue(metadata.routingWritten());
     }
 
     /**

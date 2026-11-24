@@ -202,6 +202,51 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         assertFalse(result.isRoutingFromSlice());
     }
 
+    /**
+     * A slice-enabled source hit carries its slice as routing. When a script redirects it to another index the slice must be dropped, not
+     * carried over as ordinary routing, which is what {@code copyRouting} does for a non-sliced destination.
+     */
+    public void testScriptChangingIndexDropsSourceSliceRatherThanKeepingItAsRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a");
+
+        IndexRequest result = applyScriptToRequest(
+            (Map<String, Object> ctx) -> ctx.put("_index", "plain-destination"),
+            request,
+            index,
+            doc
+        );
+        assertEquals("plain-destination", result.index());
+        assertNull(result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    /**
+     * Redirecting with an explicit {@code _slice}, even the same value the hit had, keeps the slice on the new target.
+     */
+    public void testScriptChangingIndexKeepsSliceItExplicitlySets() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("sliced-destination").id("1")
+            .source(Map.of("foo", "bar"))
+            .routing("tenant-a")
+            .setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("sliced-source", "id", 0).setRouting("tenant-a");
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {
+            ctx.put("_index", "other-sliced-destination");
+            ctx.put(SliceIndexing.FIELD_NAME, "tenant-a");
+        }, request, index, doc);
+        assertEquals("other-sliced-destination", result.index());
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
     public void testSetSlice() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);

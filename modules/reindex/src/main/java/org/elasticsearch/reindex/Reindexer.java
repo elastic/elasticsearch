@@ -1344,6 +1344,12 @@ public class Reindexer {
                 if (metadata.routingChangedWithSlice(request.isRoutingFromSlice())) {
                     request.setRouting(metadata.getRouting());
                     request.setRoutingFromSlice(metadata.isRoutingFromSlice());
+                } else if (metadata.indexChanged() && request.isRoutingFromSlice() && metadata.routingWritten() == false) {
+                    // The slice on the request was chosen for the original destination. The script sent the document elsewhere without
+                    // saying how it should be routed, so drop the slice rather than persist it as ordinary routing on an index that was
+                    // never checked for slice support. This matches what copyRouting does for a non-slice-enabled destination.
+                    request.setRouting(null);
+                    request.setRoutingFromSlice(false);
                 }
             }
         }

@@ -286,6 +286,68 @@
   - match: { _source.user: otherfoo }
 
 ---
+"Script that redirects a sliced document to a plain index drops the slice":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice support in reindex script metadata"
+
+  # Mapped up front so no dynamic mapping update runs while slice-enabled indices exist, which would wrongly mark this index as requiring
+  # routing, see #167192.
+  - do:
+      indices.create:
+        index: plain_twitter
+        body:
+          mappings:
+            properties:
+              user:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: sliced_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_twitter
+        id:     "1"
+        _slice: tenant-a
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: new_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+
+  # The slice was prepared for new_twitter. The script sends the document elsewhere without saying how it should be routed, so the slice is
+  # dropped rather than persisted on plain_twitter as ordinary routing.
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: sliced_twitter
+          dest:
+            index: new_twitter
+          script:
+            lang: painless
+            source: ctx._index = "plain_twitter"
+  - match: {created: 1}
+  - match: {failures: []}
+
+  - do:
+      get:
+        index:  plain_twitter
+        id:     "1"
+  - match: { _source.user: kimchy }
+  - is_false: _routing
+
+---
 "Script that does not assign _slice fails gracefully for a slice-enabled destination":
   - requires:
       cluster_features: ["index.slice_indexing"]

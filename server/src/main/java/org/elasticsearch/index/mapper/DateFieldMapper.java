@@ -451,7 +451,7 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
             if (indexCreatedVersion.isLegacyIndexVersion()) {
-                return IndexType.archivedPoints();
+                return IndexType.archivedPoints(docValuesParameters.get().enabled());
             }
             return IndexType.points(index.get(), docValuesParameters.get().enabled());
         }
@@ -1273,7 +1273,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
         return docValuesParameters.enabled();
     }

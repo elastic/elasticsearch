@@ -24,13 +24,17 @@ final class SearchShardRelocations {
 
     /// The relocations from the node `sourceNodeId` to `targetNodeId`.
     static int countBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
-        return countRelocationsToTarget(state, targetNodeId, sourceNodeId::equals);
+        return countInitializing(state, targetNodeId, shard -> sourceNodeId.equals(shard.relocatingNodeId()));
     }
 
     /// The relocations to `targetNodeId` from all the nodes marked for removal.
     static int countFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
-        return countRelocationsToTarget(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
+        return countInitializing(
+            state,
+            targetNodeId,
+            shard -> shard.relocatingNodeId() != null && nodeShutdowns.isNodeMarkedForRemoval(shard.relocatingNodeId())
+        );
     }
 
     /// The non-critical recoveries on `targetNodeId`: the relocations, the snapshot restores and the replicas added for performance, which
@@ -39,30 +43,23 @@ final class SearchShardRelocations {
         return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical() == false);
     }
 
-    /// The search shards started on `nodeId`, which have not begun to relocate yet.
-    static int countPendingRelocationsOn(ClusterState state, String nodeId) {
-        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
-    }
-
     /// Whether a search node marked for removal still holds shards that have not begun to relocate. The master holds them back while it
     /// throttles, so the relocations to a target that the cluster state shows may be only some of the ones the target will get.
     static boolean hasPendingRelocationsOnShuttingDownNodes(ClusterState state) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
         for (final String nodeId : nodeShutdowns.getAllNodeIds()) {
-            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId) && countPendingRelocationsOn(state, nodeId) > 0) {
+            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId) && countPendingRelocationsOnShuttingDownNode(state, nodeId) > 0) {
                 return true;
             }
         }
         return false;
     }
 
-    /// The relocations to `targetNodeId` from the nodes that match `sourceNodeFilter`.
-    private static int countRelocationsToTarget(ClusterState state, String targetNodeId, Predicate<String> sourceNodeFilter) {
-        return countInitializing(
-            state,
-            targetNodeId,
-            shard -> shard.relocatingNodeId() != null && sourceNodeFilter.test(shard.relocatingNodeId())
-        );
+    /// The search shards started on `nodeId`, which must be marked for removal, that have not begun to relocate yet. Shards that are not
+    /// started yet (initializing) cannot relocate, so they do not count.
+    static int countPendingRelocationsOnShuttingDownNode(ClusterState state, String nodeId) {
+        assert state.metadata().nodeShutdowns().isNodeMarkedForRemoval(nodeId) : "node [" + nodeId + "] is not marked for removal";
+        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
     }
 
     /// The shards initializing on `targetNodeId` that match `shardFilter`.

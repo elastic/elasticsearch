@@ -2,6 +2,9 @@
 navigation_title: "Geohash grid"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-geohashgrid-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Geohash grid aggregation [search-aggregations-bucket-geohashgrid-aggregation]

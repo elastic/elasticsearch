@@ -2,12 +2,17 @@
 navigation_title: "Frequent item sets"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-frequent-item-sets-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Frequent item sets aggregation [search-aggregations-bucket-frequent-item-sets-aggregation]
 
 
 A bucket aggregation which finds frequent item sets. It is a form of association rules mining that identifies items that often occur together. Items that are frequently purchased together or log events that tend to co-occur are examples of frequent item sets. Finding frequent item sets helps to discover relationships between different data points (items).
+
+In {{stack}}, this aggregation requires at least a Platinum subscription. It is unavailable in Observability Logs Essentials projects.
 
 The aggregation reports closed item sets. A frequent item set is called closed if no superset exists with the same ratio of documents (also known as its [support value](#frequent-item-sets-minimum-support)). For example, we have the two following candidates for a frequent item set, which have the same support value: 1. `apple, orange, banana` 2. `apple, orange, banana, tomato`. Only the second item set (`apple, orange, banana, tomato`) is returned, and the first set – which is a subset of the second one – is skipped. Both item sets might be returned if their support values are different.
 

@@ -2,6 +2,9 @@
 navigation_title: "Cartesian-centroid"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cartesian-centroid-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Cartesian-centroid aggregation [search-aggregations-metrics-cartesian-centroid-aggregation]

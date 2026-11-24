@@ -2,6 +2,9 @@
 navigation_title: "Rare terms"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-rare-terms-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Rare terms aggregation [search-aggregations-bucket-rare-terms-aggregation]

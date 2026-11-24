@@ -2,6 +2,9 @@
 navigation_title: "Rate"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-rate-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Rate aggregation [search-aggregations-metrics-rate-aggregation]
@@ -14,7 +17,8 @@ For `composite` aggregations, there must be exactly one `date_histogram` source 
 ::::
 
 ::::{warning}
-Using the `rate` aggregation on counter fields inside a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is deprecated and will be removed in a future version, because the `time_series` aggregation is deprecated. Each search request that uses it returns a deprecation warning. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
+:applies_to: {"stack": "deprecated 9.7+", "serverless": "deprecated"}
+Using `rate` on counter fields inside a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) is deprecated and will be removed in a future version. Search requests that use it return a deprecation warning. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
 ::::
 
 

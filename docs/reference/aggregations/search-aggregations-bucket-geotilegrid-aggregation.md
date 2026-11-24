@@ -2,6 +2,9 @@
 navigation_title: "Geotile grid"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-geotilegrid-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Geotile grid aggregation [search-aggregations-bucket-geotilegrid-aggregation]

@@ -3,14 +3,16 @@ navigation_title: "Time series"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-time-series-aggregation.html
 applies_to:
-  stack: deprecated 9.7+
+  stack: deprecated 9.7+, preview 9.0-9.6
+  serverless: deprecated
 ---
 
 # Time series aggregation [search-aggregations-bucket-time-series-aggregation]
 
 
 ::::{warning}
-The `time_series` aggregation is deprecated and will be removed in a future version. It was in technical preview before, and the `rate` aggregation on counter fields and the `geo_line` aggregation inside it are deprecated with it. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
+:applies_to: {"stack": "deprecated 9.7+", "serverless": "deprecated"}
+The `time_series` aggregation is deprecated and will be removed in a future version. This deprecation also affects `rate` on counter fields and `geo_line` inside `time_series`. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) instead.
 ::::
 
 

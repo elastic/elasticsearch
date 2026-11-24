@@ -2,6 +2,9 @@
 navigation_title: "Top metrics"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-top-metrics.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # Top metrics aggregation [search-aggregations-metrics-top-metrics]

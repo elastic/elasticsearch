@@ -2,6 +2,9 @@
 navigation_title: "{{infer-cap}} bucket"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-pipeline-inference-bucket-aggregation.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # {{infer-cap}} bucket aggregation [search-aggregations-pipeline-inference-bucket-aggregation]
@@ -10,6 +13,8 @@ mapped_pages:
 A parent pipeline aggregation which loads a pre-trained model and performs {{infer}} on the collated result fields from the parent bucket aggregation.
 
 To use the {{infer}} bucket aggregation, you need to have the same security privileges that are required for using the [get trained models API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-trained-models).
+
+In {{stack}}, you can use models covered by the Basic license. For other models, you need at least a Platinum subscription.
 
 ## Syntax [inference-bucket-agg-syntax]
 

@@ -44,9 +44,12 @@ Precede `LIMIT <N> BY` with a `SORT` to keep the top N for each group.
 order: `[a, b]`, `[b, a]` and `[a, a, b]` are three distinct groups, unlike
 [`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md), which
 puts such a row into one group per value. `_source` and spatial shapes
-(`geo_shape`, `cartesian_shape`) are compared by their stored byte
-representation, so the same logical value encoded differently counts as a
-separate group.
+(`geo_shape`, `cartesian_shape`) are compared by the bytes loaded for that
+column. A shape that lists the same vertices from another starting point
+counts as a separate group. Stored `_source` keeps the original key order, so
+that order is part of the comparison. Synthetic `_source` rebuilds the document
+in a fixed field order, so two documents that differ only in key order form
+one group.
 
 {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` To remove
 duplicate rows, use [`DEDUP`](/reference/query-languages/esql/commands/dedup.md)

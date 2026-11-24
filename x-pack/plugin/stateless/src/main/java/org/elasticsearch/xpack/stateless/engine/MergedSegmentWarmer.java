@@ -42,9 +42,6 @@ import static org.elasticsearch.core.Strings.format;
 /// Aborting the merge, e.g. when the engine is closed, does not stop the wait: the merge thread keeps waiting until the listener is
 /// completed, and closing the engine waits for it. The listener is told whether the merge is aborted, to stop early if it can. A merge
 /// that is already aborted when its segment is warmed is not passed to the listener.
-///
-/// The index writer is created while the engine is being constructed, before the fields of the engine are set, so the warmer cannot refer
-/// to the engine: it is created with the engine configuration.
 public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     private static final Logger logger = LogManager.getLogger(MergedSegmentWarmer.class);

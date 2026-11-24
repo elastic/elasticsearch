@@ -211,6 +211,24 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
         }
     }
 
+    public void testReaderPagesSpanningParentsWithoutChildrenStillGiveEveryRowOnce() {
+        for (long jumboBytes : new long[] { 1, 16, 24, 40, 64, 100, 200, 400 }) {
+            PlannerSettings settings = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(jumboBytes));
+            for (int size : new int[] { 1, 2, 3, 5, 8, 64 }) {
+                var context = driverContext();
+                List<Page> results = new TestDriverRunner().builder(context)
+                    .input(List.of(parents(context.blockFactory(), 0, 200)))
+                    .run(factory(size, settings).get(context));
+                for (Page page : results) {
+                    assertThat(page.getPositionCount(), lessThanOrEqualTo(size));
+                }
+                assertThat(rows(results), equalTo(expectedRows(range(0, 200))));
+                releaseAll(results);
+                assertThat(context.breaker().getUsed(), equalTo(0L));
+            }
+        }
+    }
+
     public void testRepeatedParentRepeatsItsChildren() {
         int[] parents = { 3, 2, 3, 3, 4, 7, 1, 2 };
         for (int size : new int[] { 1, 2, 4, 64 }) {

@@ -153,11 +153,11 @@ public class RegionDiscoveryIT extends ESRestTestCase {
      * Verifies region discovery on the exact-path (non-glob) dataset code path.
      *
      * <p>An exact-path resource bypasses {@code listObjects} entirely and goes through
-     * {@code readFileMetadata → newObject}. Before this fix, {@code newObject} used the
+     * {@code readFileMetadata → objectMetadata}. Before this fix, that used the
      * wrong-region client and the subsequent HeadObject/GET would fail with
-     * {@code AuthorizationHeaderMalformed}. The fix makes {@code newObject} trigger a
-     * HeadBucket probe (via {@code resolveClientsForBucket}) when no region has been
-     * discovered yet, so the exact-path case also succeeds without a prior glob listing.
+     * {@code AuthorizationHeaderMalformed}. Region is now resolved on first throwing
+     * I/O ({@code objectMetadata}, listing, or the object's first GET), so the
+     * exact-path case succeeds without a prior glob listing.
      */
     public void testExactPathQuerySucceedsAfterRegionDiscovery() throws IOException {
         putDataSource();
@@ -242,8 +242,8 @@ public class RegionDiscoveryIT extends ESRestTestCase {
     private void putExactPathDataset() throws IOException {
         Request req = new Request("PUT", "/_query/dataset/" + EXACT_DATASET);
         req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-        // Exact path: planning calls newObject directly (no listObjects), so region discovery must
-        // happen inside newObject via resolveClientsForBucket.
+        // Exact path: planning calls objectMetadata (no listObjects), so region discovery must
+        // happen on that first throwing I/O.
         req.setJsonEntity(Strings.format("""
             {"data_source":"%s","resource":"s3://%s/data/test.csv","settings":{"format":"csv"}}""", DATA_SOURCE, BUCKET));
         assertThat(client().performRequest(req).getStatusLine().getStatusCode(), equalTo(200));

@@ -55,6 +55,7 @@ final class ComputedMoveReasonCollector implements RoutingChangesObserver {
             }
             case REBALANCE, COMMAND, RESTARTED -> {
                 // not triggered by a canRemain decision
+                assert reason.canRemainDecider() == null;
             }
         }
     }

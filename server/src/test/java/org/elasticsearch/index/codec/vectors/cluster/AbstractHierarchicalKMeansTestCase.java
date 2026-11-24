@@ -356,6 +356,38 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         assertKMeansResultValid(insertionResult.result(), insertionResult.overspill(), nVectors, nClusters);
     }
 
+    /**
+     * Insertion where the refinement sees more centroids than {@code clustersPerNeighborhood}, so neighborhoods are
+     * computed and the refinement must be neighborhood-aware. In production this happens once the merged segment
+     * needs more than {@link HierarchicalKMeans#MAXK} centroids, where a global balanced solver would allocate
+     * matrices quadratic in the centroid count.
+     */
+    public void testClusterByInsertionWithNeighborhoods() throws IOException {
+        int clustersPerNeighborhood = random().nextInt(2, 4);
+        int nClusters = random().nextInt(clustersPerNeighborhood + 2, 16);
+        int nVectors = random().nextInt(nClusters * 50, nClusters * 200);
+        int dims = random().nextInt(2, 20);
+        int targetSize = (int) ((float) nVectors / nClusters);
+
+        CentroidOps<V> ops = centroidOps();
+        ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
+
+        HierarchicalKMeans<V> hkmeans = HierarchicalKMeans.ofSerial(
+            ops,
+            dims,
+            HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
+            HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
+            clustersPerNeighborhood
+        );
+        KMeansNeighbors<V> result = hkmeans.cluster(vectors, targetSize);
+        var overspill = hkmeans.computeSoar(vectors, result.result(), result.neighborHoods());
+        assertKMeansResultValid(result.result(), overspill, nVectors, nClusters);
+
+        ClusteringVectorValues<V> priorView = wrapAsView(result.centroids(), dims);
+        KMeansWithOverspill<V> insertionResult = hkmeans.clusterByInsertion(vectors, priorView, targetSize);
+        assertKMeansResultValid(insertionResult.result(), insertionResult.overspill(), nVectors, nClusters);
+    }
+
     public void testClusterByConcatenation() throws IOException {
         int nClusters = random().nextInt(2, 8);
         int nVectors = random().nextInt(nClusters * 10, nClusters * 200);

@@ -14,7 +14,15 @@ import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -22,6 +30,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,10 +38,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * N-ary logical plan whose children are independently planned branches and whose output is the
@@ -198,13 +207,272 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * their columns, in their order.
      */
     protected List<Attribute> refreshedOutput() {
-        List<Attribute> converted = toReferenceAttributesPreservingIds(mergeColumns(children(), output()), this.output());
+        List<Attribute> merged = mergeColumns(children(), output());
+        List<Attribute> converted = mergesScoreAsMetadata()
+            ? toReferenceAttributesPreservingIds(children(), merged, output())
+            : Expressions.toReferenceAttributesPreservingIds(merged, output());
         // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
         // children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
         return withUnmappedFieldsAttributeFromChildren(converted);
+    }
+
+    /**
+     * Converts the merged columns {@code mergedColumns} into output attributes, preserving the ids of the columns of {@code existingOutput}
+     * ({@link Expressions#toReferenceAttributesPreservingIds}), then re-classes {@code _score} according to {@code branches}, see
+     * {@link #withScoreAttributeFromChildren}. A merge for which {@link #mergesScoreAsMetadata()} is {@code false} must use
+     * {@link Expressions#toReferenceAttributesPreservingIds} directly instead.
+     *
+     * @param branches the branches as they will be after this output is installed, which may differ from {@link #children()}
+     *                 while the analyzer is still aligning them
+     * @param mergedColumns the merged columns to convert into output attributes
+     * @param existingOutput the MergePlan's output before the branches changed, whose ids to preserve
+     */
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<LogicalPlan> branches,
+        List<? extends NamedExpression> mergedColumns,
+        List<Attribute> existingOutput
+    ) {
+        return withScoreAttributeFromChildren(branches, Expressions.toReferenceAttributesPreservingIds(mergedColumns, existingOutput));
+    }
+
+    /**
+     * Whether the merged {@code _score} column should be converted to {@link MetadataAttribute}.
+     */
+    public boolean mergesScoreAsMetadata() {
+        return true;
+    }
+
+    /**
+     * Re-classes the merged {@code _score} column of {@code converted} according to what the {@code branches} put in it.
+     * <p>
+     * The class is decided from all branches, not just the first one {@link #outputUnion} keeps for the name,
+     * because the column's provenance differs per branch:
+     * <ul>
+     *   <li>a branch that asked for {@code METADATA _score} contributes the live score;</li>
+     *   <li>a branch whose {@code _score} holds nothing but nulls has no say: branch alignment filled the column in because
+     *   a sibling has it, or the user wrote {@code EVAL _score = null}, and either way its rows stay {@code null} through
+     *   later scoring (see {@code ScoreOperator});</li>
+     *   <li>any other branch computed its own {@code _score}, which later scoring must not add to.</li>
+     * </ul>
+     * The merged column is a {@link MetadataAttribute} when at least one branch contributes the live score and none computed
+     * its own, and a reference otherwise. The id is preserved either way, so the alignment projections in the branches and
+     * the plans above the merge keep resolving against it.
+     *
+     * @param branches the branches of the MergePlan
+     * @param converted the merged columns, with the {@code _score} column as a reference attribute
+     */
+    public static List<Attribute> withScoreAttributeFromChildren(List<LogicalPlan> branches, List<Attribute> converted) {
+        int index = IntStream.range(0, converted.size())
+            .filter(i -> converted.get(i).name().equals(MetadataAttribute.SCORE))
+            .findFirst()
+            .orElse(-1);
+        if (index < 0) {
+            return converted;
+        }
+
+        boolean live = false;
+        boolean userDefined = false;
+        for (LogicalPlan branch : branches) {
+            switch (branchScore(branch)) {
+                case USER_DEFINED -> userDefined = true;
+                case LIVE -> live = true;
+                case EMPTY -> {
+                }
+            }
+        }
+        Attribute merged = converted.get(index);
+        boolean asMetadata = live && userDefined == false;
+        if (asMetadata == MetadataAttribute.isScoreAttribute(merged)) {
+            return converted;
+        }
+        Attribute replacement = asMetadata
+            ? new MetadataAttribute(
+                merged.source(),
+                MetadataAttribute.SCORE,
+                merged.dataType(),
+                merged.nullable(),
+                merged.id(),
+                merged.synthetic(),
+                false
+            )
+            : new ReferenceAttribute(
+                merged.source(),
+                null,
+                MetadataAttribute.SCORE,
+                merged.dataType(),
+                merged.nullable(),
+                merged.id(),
+                merged.synthetic()
+            );
+        List<Attribute> result = new ArrayList<>(converted);
+        result.set(index, replacement);
+        return result;
+    }
+
+    /** What a branch puts in its {@code _score} column, see {@link #withScoreAttributeFromChildren}. */
+    private enum BranchScore {
+        LIVE,
+        EMPTY,
+        USER_DEFINED
+    }
+
+    private static BranchScore branchScore(LogicalPlan branch) {
+        for (Attribute attr : branch.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                if (MetadataAttribute.isScoreAttribute(attr)) {
+                    return BranchScore.LIVE;
+                }
+                return producesOnlyNull(branch).test(attr) ? BranchScore.EMPTY : BranchScore.USER_DEFINED;
+            }
+        }
+        // this branch does not define a _score column.
+        return BranchScore.EMPTY;
+    }
+
+    /**
+     * Whether a column of this merge that has the name of a metadata field, such as {@code _index}, is one that the query made, as
+     * in {@code EVAL _index = x | FORK ...}, and not the metadata that the merge passes on. A merge outputs the column as a
+     * reference attribute, which does not say which of the two it is, so it is decided from what each branch puts in it: the
+     * query made it when at least one branch has a column of that name that is not known to be null. A branch whose column is
+     * known to hold nothing but nulls has no say, because alignment fills in a column that a sibling has and the analyzer injects
+     * the outer {@code METADATA _index} as nulls into the branches of a union, and neither can be told from {@code EVAL _index = null}.
+     * That is a static property of the plan, not of the data: {@code EVAL _score = gender} is the query's own column even if every
+     * {@code gender} is null. A branch that outputs the column through a merge of its own is what that merge says.
+     */
+    public boolean mergesColumnThatTheQueryMade(Attribute merged) {
+        String name = merged.name();
+        // One walk for the columns that are known to be null, and one bottom-up pass over the merges, so that the work does not grow
+        // with the depth of the nesting: a merge reads what the merges below it decided for their columns from their ids.
+        Predicate<Attribute> nullOnly = producesOnlyNull(this);
+        Map<NameId, ColumnOrigin> originOfMergedColumn = new HashMap<>();
+        forEachUp(plan -> {
+            if (plan instanceof MergePlan merge) {
+                ColumnOrigin origin = merge.originFromBranches(name, nullOnly, originOfMergedColumn);
+                for (Attribute out : merge.output()) {
+                    if (out.name().equals(name)) {
+                        originOfMergedColumn.put(out.id(), origin);
+                    }
+                }
+            }
+        });
+        return originOfMergedColumn.get(merged.id()) == ColumnOrigin.QUERY;
+    }
+
+    /** What a column of a merge holds, see {@link #mergesColumnThatTheQueryMade}. */
+    private enum ColumnOrigin {
+        METADATA,
+        NULLS,
+        QUERY
+    }
+
+    /**
+     * @param below what the merges below this one decided for their column of this name, by the id of that column in their output
+     */
+    private ColumnOrigin originFromBranches(String name, Predicate<Attribute> nullOnly, Map<NameId, ColumnOrigin> below) {
+        boolean metadata = false;
+        for (LogicalPlan branch : children()) {
+            // a branch that does not have the column contributes nulls to it
+            ColumnOrigin origin = ColumnOrigin.NULLS;
+            for (Attribute attr : branch.output()) {
+                if (attr.name().equals(name)) {
+                    origin = attr instanceof MetadataAttribute ? ColumnOrigin.METADATA
+                        : nullOnly.test(attr) ? ColumnOrigin.NULLS
+                        : below.getOrDefault(attr.id(), ColumnOrigin.QUERY);
+                    break;
+                }
+            }
+            if (origin == ColumnOrigin.QUERY) {
+                return ColumnOrigin.QUERY;
+            }
+            metadata |= origin == ColumnOrigin.METADATA;
+        }
+        return metadata ? ColumnOrigin.METADATA : ColumnOrigin.NULLS;
+    }
+
+    /**
+     * Whether a column of {@code branch}'s output holds nothing but nulls. A column written as an explicit
+     * {@code EVAL x = null} is indistinguishable from one inserted by Analyzer rules (such as {@code InjectOuterMetadataForSubqueries}),
+     * so both are treated alike.
+     * <p>
+     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
+     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
+     * a later one shadows answer for the column. The assignment is looked for in {@link Eval}s and, since the optimizer
+     * folds an alignment {@link Eval} into the {@link Project} above it, in {@link Project}s as well.
+     * <p>
+     * Null-only values are followed through the branch, bottom-up: an alias of a null-only attribute is null-only too,
+     * which covers {@code RENAME} and {@code EVAL x = y}, and a nested {@link MergePlan}'s output column is null-only
+     * when that column is null-only in every one of its branches. A nested union whose branches all null-fill a column
+     * outputs it as a fresh attribute that no alias defines, so without the latter it would look like a computed value.
+     * A {@link FillNull} clears the mark from a column it fills, which carries a non-null value from there on even though the
+     * command keeps the column's id until the optimizer expands it.
+     * <p>
+     * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
+     */
+    public static Predicate<Attribute> producesOnlyNull(LogicalPlan branch) {
+        Set<NameId> onlyNull = new HashSet<>();
+        branch.forEachUp(plan -> {
+            switch (plan) {
+                case Eval eval -> eval.fields().forEach(alias -> markIfOnlyNull(alias, onlyNull));
+                case Project project -> project.projections().forEach(ne -> {
+                    if (ne instanceof Alias alias) {
+                        markIfOnlyNull(alias, onlyNull);
+                    }
+                });
+                case MergePlan merge -> {
+                    if (merge.children().isEmpty() == false) {
+                        // A name is null-only if no branch outputs it as a non-null column. A branch that lacks the name
+                        // entirely contributes nulls, so it neither adds to nor removes from the result.
+                        Set<String> nullsFromMerge = new HashSet<>();
+                        Set<String> nonNullNames = new HashSet<>();
+                        for (LogicalPlan child : merge.children()) {
+                            for (Attribute childAttr : child.output()) {
+                                if (onlyNull.contains(childAttr.id())) {
+                                    nullsFromMerge.add(childAttr.name());
+                                } else {
+                                    nonNullNames.add(childAttr.name());
+                                }
+                            }
+                        }
+                        nullsFromMerge.removeAll(nonNullNames);
+                        for (Attribute out : merge.output()) {
+                            if (nullsFromMerge.contains(out.name())) {
+                                onlyNull.add(out.id());
+                            }
+                        }
+                    }
+                }
+                case FillNull fillNull -> fillNull.child().output().forEach(attr -> {
+                    // FILLNULL replaces the nulls of a column with a non-null value, so a column it fills is no longer null-only.
+                    // The command keeps the column's id until the optimizer expands it, so the id marked below is the one to clear.
+                    if (fillNull.fills(attr)) {
+                        onlyNull.remove(attr.id());
+                    }
+                });
+                default -> {
+                }
+            }
+        });
+        return attr -> onlyNull.contains(attr.id());
+    }
+
+    private static void markIfOnlyNull(Alias alias, Set<NameId> onlyNull) {
+        if (isGuaranteedNull(alias.child(), onlyNull)) {
+            onlyNull.add(alias.id());
+        }
+    }
+
+    /**
+     * {@link Expressions#isGuaranteedNull}, also accepting an attribute already known to be null-only and looking through
+     * functions that are null whenever an argument is null.
+     */
+    private static boolean isGuaranteedNull(Expression e, Set<NameId> onlyNull) {
+        if (Expressions.isGuaranteedNull(e) || (e instanceof Attribute attr && onlyNull.contains(attr.id()))) {
+            return true;
+        }
+        return e instanceof AnyNullIsNull && e.children().stream().anyMatch(child -> isGuaranteedNull(child, onlyNull));
     }
 
     private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {

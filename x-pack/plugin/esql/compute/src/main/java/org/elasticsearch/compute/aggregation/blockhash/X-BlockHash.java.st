@@ -13,6 +13,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Hash$Table;
+$if(int)$
+import org.elasticsearch.compute.aggregation.GroupRuns;
+$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -69,6 +72,48 @@ $endif$
      */
     private boolean seenNull;
 
+$if(int)$
+    /**
+     * Scratch for the runs of the page being added, reused for every page.
+     */
+    private GroupRuns runs;
+
+    /**
+     * How many pages took the runs path, so a profile can confirm that it paid off.
+     */
+    private long runPages;
+
+    /**
+     * How many pages looked for runs and gave up because their keys repeat too little, so a profile shows that the page
+     * was hashed row by row.
+     */
+    private long rowByRowPages;
+
+    /**
+     * How many rows the search for runs looked at, over all pages, so that a test can check that a page which cannot take
+     * the runs path stops being scanned early.
+     */
+    private long scannedRows;
+
+    /**
+     * The smallest average run length at which a page takes the runs path. Finding the runs costs a comparison per row and
+     * saves one hash probe per row that repeats the previous key, and the aggregators that cannot combine a run still pay
+     * to expand it, so it only pays when keys repeat several times in a row. Measured with {@code COUNT}, {@code AVG},
+     * {@code MIN}, {@code MAX} and filtered aggregations: at 2 the aggregators that expand runs lose up to 40% on keys whose
+     * runs average 2 to 3 rows, at 4 and above every measured shape stays within noise of the row by row path.
+     */
+    private static final int MIN_AVERAGE_RUN_LENGTH = 4;
+
+    /**
+     * How many rows are scanned before the average run length is first checked. A sparse start of a page must not decide
+     * for the whole page, but a page of unique keys should stop being scanned after a few hundred rows, about 3% of a
+     * default page. A page whose runs only start after the probe is hashed row by row too, which loses the speedup for
+     * that page and nothing else. The sweep that chose {@link #MIN_AVERAGE_RUN_LENGTH} found no difference between probes
+     * of 16, 64 and 256 rows.
+     */
+    private static final int PROBE_ROWS = 256;
+
+$endif$
 $if(BytesRef)$
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
@@ -113,6 +158,12 @@ $if(hasVector)$
             }
             return;
         }
+$if(int)$
+        if (vector.getPositionCount() > 0) {
+            addRuns(vector, addInput);
+            return;
+        }
+$endif$
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
@@ -134,8 +185,11 @@ $if(BytesRef)$
             int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
             return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
         }
+        // Going through the dictionary only pays off when it is small relative to the page. A Parquet
+        // page reuses the whole row-group dictionary, which can be far larger than the page. This is
+        // a cost choice only: neither path adds a key the page does not contain.
         var ordinals = vector.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsVector(ordinals);
         }
         if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
@@ -165,6 +219,78 @@ $endif$
     }
 $endif$
 
+$if(int)$
+    /**
+     * Path of {@link #add(Page, GroupingAggregatorFunction.AddInput)} for a vector page. Keys often arrive in runs of equal
+     * adjacent values: the primary {@code index.sort.field} of the shard, a time series, or just a dominant value. This
+     * finds the runs with a plain comparison per row, hashes one value per run and hands the runs to the aggregators once,
+     * so that none of them has to look for the same boundaries again. The result is the same as for the row by row path,
+     * only the cost differs.
+     * <p>
+     *     The search stops, and the page is hashed row by row, as soon as the completed runs average fewer than
+     *     {@link #MIN_AVERAGE_RUN_LENGTH} rows after at least {@link #PROBE_ROWS} rows, or as soon as the page cannot reach
+     *     that average any more even if every remaining row extended the open run. So a page of unique keys costs a few
+     *     hundred comparisons, and a short page with no repeated keys costs a fraction of a scan, not a whole one. The choice
+     *     is made for every page on its own.
+     * </p>
+     */
+    private void addRuns($Type$Vector vector, GroupingAggregatorFunction.AddInput addInput) {
+        if (runs == null) {
+            runs = new GroupRuns(blockFactory);
+        }
+        runs.reset();
+        int positions = vector.getPositionCount();
+        $type$ prev = vector.get$Type$(0);
+        for (int i = 1; i < positions; i++) {
+            $type$ v = vector.get$Type$(i);
+            if (v != prev) {
+                runs.appendRunEnd(i);
+                final int completedRuns = runs.runCount();
+                // The run that starts at i is open, so even if every remaining row extends it the page ends with at least one
+                // more run than the completed ones. If that already misses the minimum average the page cannot take the runs path.
+                final boolean cannotReachTheAverage = (long) (completedRuns + 1) * MIN_AVERAGE_RUN_LENGTH > positions;
+                final boolean sparseSoFar = i >= PROBE_ROWS && (long) completedRuns * MIN_AVERAGE_RUN_LENGTH > i;
+                if (cannotReachTheAverage || sparseSoFar) {
+                    scannedRows += i + 1;
+                    addRowByRow(vector, addInput);
+                    return;
+                }
+                prev = v;
+            }
+        }
+        runs.appendRunEnd(positions);
+        scannedRows += positions;
+        int runCount = runs.runCount();
+        if ((long) runCount * MIN_AVERAGE_RUN_LENGTH > positions) {
+            addRowByRow(vector, addInput);
+            return;
+        }
+        runPages++;
+        for (int run = 0; run < runCount; run++) {
+            runs.setGroupId(run, Math.toIntExact(hashOrdToGroupNullReserved(hash.add(vector.get$Type$(runs.start(run))))));
+        }
+        try {
+            addInput.addRuns(0, runs);
+        } finally {
+            runs.release();
+        }
+    }
+
+    /**
+     * How many rows the search for runs looked at, over all pages. Only for tests.
+     */
+    long scannedRows() {
+        return scannedRows;
+    }
+
+    private void addRowByRow($Type$Vector vector, GroupingAggregatorFunction.AddInput addInput) {
+        rowByRowPages++;
+        try (IntVector groupIds = add(vector)) {
+            addInput.add(0, groupIds);
+        }
+    }
+
+$endif$
 $if(BytesRef)$
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
         int positions = vector.getPositionCount();
@@ -223,8 +349,10 @@ $endif$
      */
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
+        // Same cost-only density gate as add(vector): walking a row-group dictionary once per page
+        // costs more than hashing the page's own values.
         var ordinals = block.asOrdinals();
-        if (ordinals != null) {
+        if (ordinals != null && ordinals.isDense()) {
             return addOrdinalsBlock(ordinals);
         }
 $endif$
@@ -254,29 +382,46 @@ $endif$
     }
 
 $if(BytesRef)$
+    /**
+     * Adds a dense, non-constant ordinals vector: each dictionary entry the vector references is hashed once and
+     * the positions are mapped through the result.
+     */
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
-            if (inputOrds.isConstant()) {
-                int ord = hashOrds.getInt(inputOrds.getInt(0));
-                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
+        BytesRefVector dictionary = inputBlock.getDictionaryVector();
+        int positions = inputOrds.getPositionCount();
+        boolean[] referenced = new boolean[dictionary.getPositionCount()];
+        for (int p = 0; p < positions; p++) {
+            referenced[inputOrds.getInt(p)] = true;
+        }
+        int[] groupIds = hashReferenced(dictionary, referenced);
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(p)));
             }
-            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
-                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                    int ord = hashOrds.getInt(inputOrds.getInt(p));
-                    builder.appendInt(ord);
-                }
-                return builder.build();
-            }
+            return builder.build();
         }
     }
 
+    /**
+     * Adds a dense ordinals block: each dictionary entry the block references is hashed once and the values are
+     * mapped through the result. Nulls get group id 0.
+     */
     private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        BytesRefVector dictionary = inputBlock.getDictionaryVector();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
-            IntVector hashOrds = add(inputBlock.getDictionaryVector())
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
         ) {
+            boolean[] referenced = new boolean[dictionary.getPositionCount()];
+            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                int firstIndex = inputOrds.getFirstValueIndex(p);
+                int end = firstIndex + inputOrds.getValueCount(p);
+                for (int i = firstIndex; i < end; i++) {
+                    referenced[inputOrds.getInt(i)] = true;
+                }
+            }
+            int[] groupIds = hashReferenced(dictionary, referenced);
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int valueCount = inputOrds.getValueCount(p);
                 int firstIndex = inputOrds.getFirstValueIndex(p);
@@ -285,17 +430,13 @@ $if(BytesRef)$
                         builder.appendInt(0);
                         seenNull = true;
                     }
-                    case 1 -> {
-                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
-                        builder.appendInt(ord);
-                    }
+                    case 1 -> builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(firstIndex)));
                     default -> {
                         int start = firstIndex;
                         int end = firstIndex + valueCount;
                         builder.beginPositionEntry();
                         for (int i = start; i < end; i++) {
-                            int ord = hashOrds.getInt(inputOrds.getInt(i));
-                            builder.appendInt(ord);
+                            builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(i)));
                         }
                         builder.endPositionEntry();
                     }
@@ -303,6 +444,52 @@ $if(BytesRef)$
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Hashes the dictionary entries flagged in {@code referenced} and returns their group ids, indexed by dictionary
+     * ordinal. Entries that are not flagged stay out of the hash: a dictionary can be shared with other pages (a
+     * slice, a Parquet row-group dictionary), and hashing all of it would turn values this page never contained
+     * into groups.
+     */
+    private int[] hashReferenced(BytesRefVector dictionary, boolean[] referenced) {
+        int[] groupIds = new int[referenced.length];
+        if (allReferenced(referenced)) {
+            // Nothing to leave out, so hash the dictionary as a plain vector and keep its prefetching.
+            try (IntVector dictionaryGroupIds = add(dictionary)) {
+                for (int ord = 0; ord < groupIds.length; ord++) {
+                    groupIds[ord] = dictionaryGroupIds.getInt(ord);
+                }
+            }
+            return groupIds;
+        }
+        BytesRef scratch = new BytesRef();
+        for (int ord = 0; ord < groupIds.length; ord++) {
+            if (referenced[ord]) {
+                BytesRef v = dictionary.getBytesRef(ord, scratch);
+                groupIds[ord] = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            }
+        }
+        return groupIds;
+    }
+
+    /**
+     * The group id {@link #hashReferenced} assigned to a dictionary ordinal. An ordinal it skipped still holds 0,
+     * the null group, so mapping one would silently file the value under null.
+     */
+    private static int referencedGroupId(int[] groupIds, int ord) {
+        int groupId = groupIds[ord];
+        assert groupId > 0 : "ordinal [" + ord + "] was not hashed";
+        return groupId;
+    }
+
+    private static boolean allReferenced(boolean[] referenced) {
+        for (boolean r : referenced) {
+            if (r == false) {
+                return false;
+            }
+        }
+        return true;
     }
 $endif$
 
@@ -524,6 +711,11 @@ $elseif(DoubleRange)$
         b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
 $endif$
         b.append(", seenNull=").append(seenNull);
+$if(int)$
+        if (runPages + rowByRowPages > 0) {
+            b.append(", runPages=").append(runPages).append(", rowByRowPages=").append(rowByRowPages);
+        }
+$endif$
         return b.append('}').toString();
     }
 }

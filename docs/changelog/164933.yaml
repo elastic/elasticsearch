@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 164933
-summary: Handle exception from `cloneShardSnapshot`
-type: bug

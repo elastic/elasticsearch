@@ -14,6 +14,7 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -95,6 +96,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     // on a single compareAndSet and only one thread actually releases the breaker charge.
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ParquetDecodeBudget decodeBudget;
+    private final CompressionCodecName codecName;
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
@@ -114,11 +116,24 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         long valueCount,
         ParquetDecodeBudget decodeBudget
     ) {
+        this(decompressor, breaker, compressedPages, compressedDictionaryPage, valueCount, decodeBudget, null);
+    }
+
+    PrefetchedPageReader(
+        BytesInputDecompressor decompressor,
+        CircuitBreaker breaker,
+        List<CompressedPage> compressedPages,
+        DictionaryPage compressedDictionaryPage,
+        long valueCount,
+        ParquetDecodeBudget decodeBudget,
+        CompressionCodecName codecName
+    ) {
         this.decompressor = decompressor;
         this.heapDest = decompressor instanceof PlainCompressionCodecFactory.HeapDestDecompressor h ? h : null;
         this.breaker = breaker;
         this.valueCount = valueCount;
         this.decodeBudget = decodeBudget == null ? ParquetDecodeBudget.NOOP : decodeBudget;
+        this.codecName = codecName;
         DictionaryPage dictionaryCopy = copyDictionaryPage(compressedDictionaryPage);
         try {
             this.compressedPages = new ArrayDeque<>(compressedPages);
@@ -301,7 +316,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 throw new ParquetDecodingException("PrefetchedPageReader closed");
             }
         } catch (IOException e) {
-            throw new ParquetDecodingException("Could not decompress dictionary page", e);
+            throw new ParquetDecodingException(couldNotDecompress("dictionary page"), e);
         } finally {
             if (success == false && charge) {
                 breaker.addWithoutBreaking(-uncompressedSize);
@@ -341,7 +356,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 v1.getValueEncoding()
             );
         } catch (IOException e) {
-            throw new ParquetDecodingException("Could not decompress V1 data page", e);
+            throw new ParquetDecodingException(couldNotDecompress("V1 data page"), e);
         }
     }
 
@@ -395,7 +410,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 v2.getStatistics()
             );
         } catch (IOException e) {
-            throw new ParquetDecodingException("Could not decompress V2 data page", e);
+            throw new ParquetDecodingException(couldNotDecompress("V2 data page"), e);
         }
     }
 
@@ -480,6 +495,13 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private boolean isNoopDecompressor() {
         return decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor;
+    }
+
+    private String couldNotDecompress(String pageKind) {
+        if (codecName == null) {
+            return "Could not decompress " + pageKind;
+        }
+        return "Could not decompress " + pageKind + " (codec " + codecName + ")";
     }
 
     private void releaseCharge(AtomicLong charge) {

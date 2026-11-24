@@ -3,15 +3,12 @@ navigation_title: "Manage with API"
 description: "Create, get, list, and delete ES|QL Data Federation datasets with the /_query/dataset API."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
 
 # Create and manage datasets with the {{es}} API
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
@@ -32,7 +29,7 @@ A dataset cannot have the same name as an existing index, data stream, alias, or
 
 The optional `description` can be at most 1,000 characters long.
 
-{applies_to}`stack: preview 9.6+` For restrictions on S3 bucket names, aliases, and Amazon Resource Names (ARNs), refer to [Amazon S3 resource restrictions](esql-data-federation-patterns.md#s3-resource-requirements).
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` For restrictions on S3 bucket names, aliases, and Amazon Resource Names (ARNs), refer to [Amazon S3 resource restrictions](esql-data-federation-patterns.md#s3-resource-requirements).
 
 ::::{tab-set}
 :group: api-ref

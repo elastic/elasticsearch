@@ -126,17 +126,17 @@ static inline void dotd2q_inner_bulk(
     }
 }
 
-// Bulk driver for kernels that score a whole 2-bit striped doc (both bit planes) in one call: vectors are
+// Bulk driver for kernels that score a whole striped doc (all its bit planes) in one call: vectors are
 // scored one after another. There is no software prefetch: on the CPUs measured, prefetching the next
 // vectors was slower than relying on the hardware prefetchers for sequential blocks, and did not help
 // sparse selections either.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int64_t(*dotd2q_op)(const int8_t* a, const int8_t* q, const int32_t length),
+    int64_t(*dot_op)(const int8_t* a, const int8_t* q, const int32_t length),
     int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
-static inline void dotd2q4_inner_bulk(
+static inline void dotd_striped_inner_bulk(
     const TData* a,
     const int8_t* query,
     const int32_t length,
@@ -147,64 +147,7 @@ static inline void dotd2q4_inner_bulk(
 ) {
     for (int c = 0; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[out_mapper(offsets, c)] = (f32_t)dotd2q_op(a0, query, length);
-    }
-}
-
-template <
-    typename TData,
-    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int64_t (*dotd1q_op)(const int8_t* a, const int8_t* q, const int32_t length),
-    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
->
-static inline void dotd4q4_inner_bulk(
-    const TData* a,
-    const int8_t* query,
-    const int32_t length,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
-    const int32_t bit_length = length / 4;
-    int c = 0;
-
-    const int8_t* a0 = count > 0 ? mapper(a, 0, offsets, pitch) : nullptr;
-
-    // Process one vector, after instructing the CPU to prefetch the next vector
-    for (; c + 1 < count; c++) {
-        const int8_t* next_a0 = mapper(a, c + 1, offsets, pitch);
-
-        // prefetch stripes 2 and 3 now
-        prefetch(a0 + 2 * bit_length, lines_to_fetch);
-        prefetch(a0 + 3 * bit_length, lines_to_fetch);
-
-        int64_t p0 = dotd1q_op(a0, query, bit_length);
-        int64_t p1 = dotd1q_op(a0 + bit_length, query, bit_length);
-
-        // and 0 and 1 of the next vector
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a0 + bit_length, lines_to_fetch);
-
-        int64_t p2 = dotd1q_op(a0 + 2 * bit_length, query, bit_length);
-        int64_t p3 = dotd1q_op(a0 + 3 * bit_length, query, bit_length);
-
-        results[out_mapper(offsets, c)] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
-
-        a0 = next_a0;
-    }
-
-    // Tail-handling: remaining vector
-    for (; c < count; c++) {
-        const int8_t* a0 = mapper(a, c, offsets, pitch);
-
-        int64_t p0 = dotd1q_op(a0 + 0 * bit_length, query, bit_length);
-        int64_t p1 = dotd1q_op(a0 + 1 * bit_length, query, bit_length);
-        int64_t p2 = dotd1q_op(a0 + 2 * bit_length, query, bit_length);
-        int64_t p3 = dotd1q_op(a0 + 3 * bit_length, query, bit_length);
-
-        results[out_mapper(offsets, c)] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
+        results[out_mapper(offsets, c)] = (f32_t)dot_op(a0, query, length);
     }
 }
 

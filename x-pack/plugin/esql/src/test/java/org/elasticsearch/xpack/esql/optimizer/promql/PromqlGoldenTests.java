@@ -22,6 +22,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final String ESQL_SUM_LONG_AS_DOUBLE = "esql_sum_long_as_double";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -82,6 +83,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
         builder("PROMQL index=k8s step=1m bytes=(avg by (cluster) (network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_SUM_LONG_AS_DOUBLE)
             .run();
     }
 

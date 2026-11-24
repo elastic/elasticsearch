@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 165666
+summary: Migrate the simple ingest processors to `FieldPath`
+type: enhancement

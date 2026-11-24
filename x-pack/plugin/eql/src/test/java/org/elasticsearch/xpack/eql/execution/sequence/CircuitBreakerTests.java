@@ -573,7 +573,8 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,
@@ -633,7 +634,8 @@ public class CircuitBreakerTests extends ESTestCase {
                             0,
                             0,
                             0,
-                            ShardSearchFailure.EMPTY_ARRAY,
+                            List.of(),
+                            List.of(),
                             SearchResponse.Clusters.EMPTY,
                             searchRequest.pointInTimeBuilder().getEncodedId(),
                             null,
@@ -645,11 +647,12 @@ public class CircuitBreakerTests extends ESTestCase {
                 }
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
-                ShardSearchFailure[] failures = new ShardSearchFailure[] {
+                List<ShardSearchFailure> failures = List.of(
                     new ShardSearchFailure(
                         new ParsingException(1, 2, "foobar", null),
                         new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
-                    ) };
+                    )
+                );
 
                 if (randomBoolean()) {
                     // simulate an all shards exception - SearchPhaseExecutionException
@@ -679,6 +682,7 @@ public class CircuitBreakerTests extends ESTestCase {
                                 0,
                                 0,
                                 failures,
+                                List.of(),
                                 SearchResponse.Clusters.EMPTY,
                                 searchRequest.pointInTimeBuilder().getEncodedId(),
                                 null,

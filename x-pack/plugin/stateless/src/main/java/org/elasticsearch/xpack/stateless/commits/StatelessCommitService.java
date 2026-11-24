@@ -426,7 +426,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markRecoveredBcc(
         ShardId shardId,
         BatchedCompoundCommit recoveredBcc,
-        Set<BlobFile> otherBlobs,
+        Set<BccBlob> otherBlobs,
         Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
     ) {
         assert recoveredBcc != null;
@@ -501,10 +501,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * runs independently, and will call this function for itself.
      * @param sourceShardId the source shard ID. Commits uploaded from this shard will be copied to the target shard.
      * @param targetShardId the target shard ID.
+     * @return a runnable that calls {@link #markSplitEnding}. This is used to handle the case where a shard relocates from and back to its
+     *         original node, and a new split clashes with the original one. This ensures the split ends on the right
+     *         {@link ShardCommitState}. TODO: remove when we transition to a source shard state machine.
      */
-    public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
+    public Runnable markSplitting(ShardId sourceShardId, ShardId targetShardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
         commitState.markSplitting(targetShardId);
+        return () -> commitState.markSplitEnding(targetShardId, true);
     }
 
     /**
@@ -997,6 +1001,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                metrics.recordBccUploadCompleted(virtualBcc.getTotalSizeInBytes(), uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 logger.debug(
                     "{} uploaded BCC [{}] (last cc generation [{}]), marking as uploaded",
@@ -1429,31 +1434,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * including blobs pending async deletion. Blobs created after relocation started are never uploaded
      * ({@link ShardCommitState#pauseUpload}) and can be excluded by the caller passing the latest uploaded BCC generation.
      */
-    public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
-        Set<BlobFile> blobFiles = new HashSet<>();
+    public Set<BccBlob> getTrackedUploadedBccBlobsUpTo(ShardId shardId, long maxUploadedGeneration) {
+        Set<BccBlob> bccBlobs = new HashSet<>();
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
         for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
             if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
-            );
+            bccBlobs.add(new BccBlob(primaryTermAndGeneration));
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
             if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(
-                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
-                    staleCompoundCommit.primaryTermAndGeneration()
-                )
-            );
+            bccBlobs.add(new BccBlob(staleCompoundCommit.primaryTermAndGeneration()));
         }
-        return blobFiles;
+        return bccBlobs;
     }
 
     // Package private for testing only
@@ -1463,13 +1461,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public record RecoveryInfoFromSource(
         @Nullable SourceBlobsInfo sourceBlobsInfo,
-        Set<BlobFile> lastCommitBlobs,
+        Set<BccBlob> lastCommitBlobs,
         boolean lastCommitIsHollow,
         boolean hasRecentIdLookup,
         @Nullable HollowShardRecoveryState hollowRecoveryState
     ) {}
 
-    public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
+    public record SourceBlobsInfo(BccBlob latestBccBlob, long latestBlobFileLength, Set<BccBlob> otherBlobs) {}
 
     public @Nullable RecoveryInfoFromSource getRecoveryInfoFromSourceEntry(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1704,7 +1702,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void markBccRecovered(
             BatchedCompoundCommit recoveredBcc,
-            Set<BlobFile> otherBlobs,
+            Set<BccBlob> otherBlobs,
             Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
         ) {
             assert recoveredBcc != null;
@@ -1734,9 +1732,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
-            for (BlobFile nonRecoveredBlobFile : otherBlobs) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
-                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
+            for (BccBlob nonRecoveredBlob : otherBlobs) {
+                if (BccBlob.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
+                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlob.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
                     // We don't know which CCs are included in the non-recovered BCCs,
@@ -1762,7 +1760,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         () -> format(
                             "%s found object store file which does not match compound commit file naming pattern [%s]",
                             shardId,
-                            nonRecoveredBlobFile
+                            nonRecoveredBlob
                         )
                     );
                 }

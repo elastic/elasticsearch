@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
@@ -89,6 +91,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -102,6 +105,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +119,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.index.mapper.BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -263,6 +268,35 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return IndexVersion.current();
     }
 
+    protected final MapperService createMapperServiceWithParams(Settings settings, org.elasticsearch.datageneration.Mapping mapping)
+        throws IOException {
+        return createMapperServiceWithParams(settings, mapping.raw());
+    }
+
+    protected final MapperService createMapperServiceWithParams(Settings settings, Map<String, Object> mapping) throws IOException {
+        IndexMode indexMode = IndexMode.fromString(settings.get(IndexSettings.MODE.getKey()));
+        var mappingWithDimensions = addTimeSeriesDimensionsIfNeeded(mapping, indexMode);
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mappingWithDimensions);
+        return createMapperService(getVersion(), settings, () -> true, mappingXContent);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> addTimeSeriesDimensionsIfNeeded(Map<String, Object> mapping, IndexMode indexMode) {
+        if (indexMode != IndexMode.TIME_SERIES) {
+            return mapping;
+        }
+
+        // Copies all tha maps down the path to _doc.properties.sensor_id
+        var mappingRawCopy = new HashMap<>(mapping);
+        var doc = (Map<String, Object>) mappingRawCopy.get("_doc");
+        var docCopy = new HashMap<>(doc);
+        var propertiesCopy = new HashMap<>((Map<String, Object>) docCopy.get("properties"));
+        propertiesCopy.put(TIME_SERIES_DIMENSION_FIELD, Map.of("type", "keyword", "time_series_dimension", true));
+        docCopy.put("properties", propertiesCopy);
+        mappingRawCopy.put("_doc", docCopy);
+        return mappingRawCopy;
+    }
+
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }
@@ -281,6 +315,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
+    }
+
+    /**
+     * A random index version on which strict-columnar indices still honour {@code doc_values: false}, i.e. one created before
+     * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR}.
+     */
+    protected static IndexVersion randomVersionBeforeDocValuesNoOp() {
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR)
+        );
     }
 
     protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
@@ -461,7 +506,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         Environment env = TestEnvironment.newEnvironment(envSettings);
         var telemetryProvider = getPlugins().stream()
             .filter(p -> p instanceof TelemetryPlugin)
-            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(env, List.of(), new TelemetryLogResourceProvider.Default()))
+            .map(
+                p -> ((TelemetryPlugin) p).getTelemetryProvider(
+                    new ThreadContext(Settings.EMPTY),
+                    env,
+                    List.of(),
+                    new TelemetryLogResourceProvider.Default()
+                )
+            )
             .findFirst()
             .orElse(TelemetryProvider.NOOP);
         return new MapperMetrics(new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), new LongSupplier() {
@@ -862,6 +914,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             @Override
             public CircuitBreaker breaker() {
                 return breaker;
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                breaker.addEstimateBytesAndMaybeBreak(bytes, label);
             }
 
             @Override

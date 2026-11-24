@@ -53,8 +53,10 @@ public final class ColumnMapping implements Writeable {
     /**
      * Guards the {@link CastType#KEYWORD} entry added in this version's UBN keyword-fallback
      * work. A coordinator that produced a KEYWORD cast slot but is talking to an older data
-     * node that doesn't know the ordinal would otherwise corrupt the page; we fail fast with
-     * "rolling upgrade in progress" instead. See {@link #writeTo}.
+     * node that doesn't know the ordinal would otherwise corrupt the page. {@link #writeTo}
+     * refuses with {@link IllegalArgumentException} so the query fails as a 4xx (same as a
+     * declared-schema split toward an older node) rather than a 500 from an
+     * {@link IllegalStateException}.
      */
     private static final TransportVersion ESQL_COLUMN_MAPPING_KEYWORD_CAST = TransportVersion.fromName("esql_column_mapping_keyword_cast");
 
@@ -134,13 +136,15 @@ public final class ColumnMapping implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         // Pre-flight the KEYWORD cast against the peer's transport version *before* touching the
         // output stream: a coordinator that produced this mapping under UBN is on a newer version
-        // than a data node that would not recognize the ordinal. Throwing here surfaces the
-        // rolling-upgrade window cleanly; the stream stays untouched so callers can recover
-        // (write another message, fail the request, etc.) without a half-written ColumnMapping.
+        // than a data node that would not recognize the ordinal. IllegalArgumentException maps to
+        // HTTP 400 (same as a declared-schema split toward an older node) so the rolling-upgrade
+        // window is a client error, not a server fault. The stream stays untouched so callers can
+        // recover (write another message, fail the request, etc.) without a half-written ColumnMapping.
         // hasKeywordCast() short-circuits the typical no-KEYWORD path with a single null check.
         if (hasKeywordCast() && out.getTransportVersion().supports(ESQL_COLUMN_MAPPING_KEYWORD_CAST) == false) {
-            throw new IllegalStateException(
-                "KEYWORD cast not supported on transport version " + out.getTransportVersion() + "; rolling upgrade in progress"
+            throw new IllegalArgumentException(
+                "KEYWORD column mapping cast is not supported on all nodes in the cluster; "
+                    + "rolling upgrade in progress, retry after the upgrade"
             );
         }
         out.writeIntArray(index);
@@ -470,9 +474,10 @@ public final class ColumnMapping implements Writeable {
     }
 
     /**
-     * Adapts pushed-down filter expressions to this file: drops conjuncts that reference columns
-     * missing from this file, downcasts literals for columns the coordinator widened. Returns the
-     * input list unchanged when no adaptation is needed (no missing columns and no cast).
+     * Adapts pushed-down filter expressions to this file: simplifies predicates on columns missing
+     * from this file, withholds predicates on present columns whose widening cast cannot be safely
+     * inverted, and downcasts literals for invertible widenings. Returns the input list unchanged
+     * when no adaptation is needed (no missing columns and no cast).
      *
      * @param filters     pushed conjuncts, in the query's per-file-query-schema shape
      * @param querySchema the per-file query schema (one attribute per position in this mapping)
@@ -482,24 +487,20 @@ public final class ColumnMapping implements Writeable {
             return filters;
         }
         Set<String> fileColumnNames = new LinkedHashSet<>();
+        Set<String> unpushableColumnNames = new LinkedHashSet<>();
         Map<String, DataType> fileColumnTypes = new HashMap<>();
         for (int i = 0; i < index.length; i++) {
             if (index[i] == -1) continue;
             String name = querySchema.get(i).name();
+            fileColumnNames.add(name);
             DataType castTo = cast != null ? cast[i] : null;
             if (castTo != null && inferFileType(castTo) == null) {
-                // We have a one-way widening cast for this column. The UBN KEYWORD fallback is
-                // the main case (no safe inverse for stringification: "1" < "10" is
-                // lexicographic, not numeric); INT→DOUBLE (lossy truncation if inverted) and
-                // DATETIME→DATE_NANOS (semantic-only widening, no integer-literal inversion)
-                // hit the same `inferFileType == null` branch and are also withheld here. Today
-                // only LONG→INTEGER inversion is safe, so the only cast that *adds* the column
-                // is LONG with a downcast literal. RECHECK runs the original predicate against
-                // the unified-shape page, preserving correctness; we forgo the row-group/file
-                // skip when the cast is one-way.
+                // The column exists, but adapting a filter through this one-way widening is unsafe.
+                // Keep it distinct from a missing column so FilterAdaptation leaves any conjunct
+                // containing it unpushed instead of applying absent-column null semantics.
+                unpushableColumnNames.add(name);
                 continue;
             }
-            fileColumnNames.add(name);
             if (castTo != null) {
                 DataType fileType = inferFileType(castTo);
                 if (fileType != null) {
@@ -507,7 +508,7 @@ public final class ColumnMapping implements Writeable {
                 }
             }
         }
-        return FilterAdaptation.adaptFilterForFile(filters, fileColumnNames, fileColumnTypes);
+        return FilterAdaptation.adaptFilterForFile(filters, fileColumnNames, fileColumnTypes, unpushableColumnNames);
     }
 
     /**

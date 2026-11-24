@@ -106,6 +106,25 @@ public interface GroupingAggregatorFunction extends Releasable {
          *                 or multivalued
          */
         void add(int positionOffset, IntVector groupIds);
+
+        /**
+         * Send a page of group ids that the hash already split into {@link GroupRuns runs}, which it does when equal keys
+         * are adjacent often enough, for example when the grouping key is the field the index is sorted on. An
+         * implementation can combine a whole run and touch its group's state once, instead of once per position.
+         * <p>
+         *     The runs are a statement about the shape of the ids, never about their order: a group may appear in many
+         *     runs, and the result must equal what {@link #add(int, IntVector)} produces for the expanded ids. The default
+         *     does exactly that. The one difference allowed is a sum that overflows only in a partial sum inside a run:
+         *     adding the run's total gives the exact sum, while adding row by row would report the overflow.
+         * </p>
+         * @param positionOffset offset into the {@link Page} used to build this {@link AddInput} of the first run
+         * @param runs the runs. They are only valid until this method returns.
+         */
+        default void addRuns(int positionOffset, GroupRuns runs) {
+            try (IntVector groupIds = runs.toVector()) {
+                add(positionOffset, groupIds);
+            }
+        }
     }
 
     /**
@@ -248,9 +267,9 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Whether this grouping aggregation function supports partitioning
+     * Whether this grouping aggregation function supports partitioning when running in the given mode
      */
-    default boolean supportPartitioning() {
+    default boolean supportPartitioning(AggregatorMode mode) {
         return false;
     }
 
@@ -282,7 +301,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Creates a splitter for this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      */
     default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
@@ -290,7 +309,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Combines one partition into this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      *
      * @param source     the partitioned state
      * @param partition  the partition to combine

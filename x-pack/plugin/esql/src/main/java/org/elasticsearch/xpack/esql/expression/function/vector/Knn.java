@@ -92,14 +92,19 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternary(Knn::new)
-        // k_option_without_limit: an explicit k option satisfies the k requirement without a LIMIT after KNN.
-        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector", "k_option_without_limit")
+        .capabilities(
+            "runtime_anywhere",
+            "runtime_similarity_function",
+            "single_dimension_query_vector",
+            "k_option_without_limit", // an explicit k option satisfies the k requirement without a LIMIT after KNN.
+            "inline_dense_vector_conversion_fix"
+        )
         .name("knn");
 
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
-    private float[] cachedQuery;
+    private volatile float[] cachedQuery;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
@@ -581,14 +586,17 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     private float[] queryAsFloats() {
-        if (cachedQuery == null) {
+        float[] query = cachedQuery;
+        if (query == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
             List<Number> queryFolded = queryAsObject();
-            cachedQuery = new float[queryFolded.size()];
+            query = new float[queryFolded.size()];
             for (int i = 0; i < queryFolded.size(); i++) {
-                cachedQuery[i] = queryFolded.get(i).floatValue();
+                query[i] = queryFolded.get(i).floatValue();
             }
+            cachedQuery = query;
         }
-        return cachedQuery;
+        return query;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {

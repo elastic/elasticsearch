@@ -18,8 +18,10 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -34,7 +36,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -250,6 +254,19 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(e.getMessage(), containsString("[index_terms] is not supported on legacy indices"));
     }
 
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "long");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(1L, context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
+    }
+
     private static Set<Integer> matchingDocIds(IndexSearcher searcher, Query query) throws IOException {
         TopDocs topDocs = searcher.search(query, searcher.getIndexReader().maxDoc());
         Set<Integer> docIds = new TreeSet<>();
@@ -359,6 +376,150 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
         String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
+    }
+
+    /**
+     * With the ColumNAR numeric codec, a document's non-null values go into one payload in the order they were written, and
+     * nulls are dropped, so the field never writes an {@code .offsets} companion. A document with no value writes no payload,
+     * and so no point either. Without the feature flag the setting is ignored, and the field writes {@code SORTED_NUMERIC} doc
+     * values with an {@code .offsets} companion as before.
+     */
+    public void testColumnarCodecPayloadKeepsArrayOrder() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            columnarNumericCodecSettings(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        long v1 = randomLong();
+        long v2 = randomLong();
+        ParsedDocument withNull = mapper.parse(source(b -> b.array("field", v2, null, v2, v1)));
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled() == false) {
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(mapper));
+            for (IndexableField field : withNull.rootDoc().getFields("field")) {
+                assertNotEquals(DocValuesType.BINARY, field.fieldType().docValuesType());
+            }
+            assertNotNull("offsets companion", withNull.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
+            return;
+        }
+        assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(mapper));
+
+        assertEquals(List.of(v2, v2, v1), payloadValues(withNull));
+        assertNull("no offsets companion", withNull.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
+
+        ParsedDocument onlyNulls = mapper.parse(source(b -> b.startArray("field").nullValue().nullValue().endArray()));
+        assertNull(payloadValues(onlyNulls));
+        assertNull("no offsets companion", onlyNulls.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
+
+        assertNull(payloadValues(mapper.parse(source(b -> b.startArray("field").endArray()))));
+        assertEquals(List.of(v1), payloadValues(mapper.parse(source(b -> b.field("field", v1)))));
+    }
+
+    /**
+     * Synthetic source gives back the payload's values in the order they were written, without the nulls, so every array
+     * reads the same as the same array without its nulls does in an index that doesn't use the ColumNAR codec.
+     */
+    public void testColumnarCodecSyntheticSourceKeepsArrayOrder() throws IOException {
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createMapperService(
+            columnarNumericCodecSettings(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        DocumentMapper sortedNumeric = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        long v1 = randomLong();
+        long v2 = randomLong();
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, null, v2, v1)),
+            containsString("\"field\":[" + v2 + "," + v2 + "," + v1 + "]")
+        );
+        assertEquals("{}", syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()));
+        assertThat(syntheticSource(mapper, b -> b.field("field", v1)), containsString("\"field\":" + v1));
+
+        List<Long[]> arrays = List.of(
+            new Long[] { v2, null, v2, v1 },
+            new Long[] { null, v1 },
+            new Long[] { v1, null },
+            new Long[] { v2, v1, v2 },
+            new Long[] { v1 },
+            new Long[] { null },
+            new Long[] { null, null },
+            new Long[] {}
+        );
+        for (Long[] array : arrays) {
+            Long[] withoutNulls = Arrays.stream(array).filter(Objects::nonNull).toArray(Long[]::new);
+            assertEquals(
+                Arrays.toString(array),
+                syntheticSource(sortedNumeric, b -> b.array("field", (Object[]) withoutNulls)),
+                syntheticSource(mapper, b -> b.array("field", (Object[]) array))
+            );
+        }
+        assertEquals("{}", syntheticSource(mapper, b -> b.nullField("field")));
+    }
+
+    /**
+     * Runs in release builds too, so the binary layout can't ship by mistake: without the feature flag the setting is unknown and
+     * a strict columnar {@code long} field keeps {@code SORTED_NUMERIC} doc values.
+     */
+    public void testBinaryDocValuesFollowFeatureFlag() throws IOException {
+        final DocumentMapper withSetting = createMapperService(
+            columnarNumericCodecSettings(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(columnarNumericCodecSettings(), true);
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(withSetting));
+        } else {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(columnarNumericCodecSettings(), true)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("unknown setting [" + IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey() + "]")
+            );
+            // Even a setting that got past validation is ignored.
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(withSetting));
+        }
+        final DocumentMapper withoutSetting = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
+                .build(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(withoutSetting));
+    }
+
+    private static NumberFieldMapper.DocValuesDiskFormat diskFormat(DocumentMapper mapper) {
+        return ((NumberFieldMapper.NumberFieldType) mapper.mappers().getFieldType("field")).diskFormat();
+    }
+
+    private static Settings columnarNumericCodecSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
+            .build();
+    }
+
+    /** The values in the document's {@code field} payload, or {@code null} if it has none. */
+    private static List<Long> payloadValues(ParsedDocument doc) throws IOException {
+        final List<IndexableField> fields = doc.rootDoc().getFields("field");
+        if (fields.isEmpty()) {
+            return null;
+        }
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.BINARY, fields.get(0).fieldType().docValuesType());
+        final long[][] decoded = { new long[8] };
+        final int count = NumericBinaryPayload.decode(fields.get(0).binaryValue(), decoded);
+        final List<Long> values = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            values.add(decoded[0][i]);
+        }
+        return values;
+    }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("test");
     }
 
 }

@@ -53,7 +53,8 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -473,15 +474,14 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             @Override
             public boolean intercept(HttpExchange exchange) throws IOException {
                 final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-                if (request.contains("PUT") && request.contains("indices/")) {
+                // only BCC uploads have a generation to parse below, let merge blob uploads through
+                // TODO(szybia): also fail merge blob uploads once they are uploaded for real
+                if (request.contains("PUT") && request.contains("indices/") && request.contains(BccBlob.PREFIX)) {
                     // request format: /bucket/base_path/indices/UUID/0/1/stateless_commit_N?x-purpose=Indices for single part uploads,
                     // while for multi-part uploads: .../stateless_commit_N?uploadId=UUID&partNumber=N&x-purpose=Indices where the
                     // upload UUID changes with every retry.
                     long gen = Long.parseLong(
-                        request.substring(
-                            request.indexOf(BatchedCompoundCommit.PREFIX) + BatchedCompoundCommit.PREFIX.length(),
-                            request.lastIndexOf('?')
-                        )
+                        request.substring(request.indexOf(BccBlob.PREFIX) + BccBlob.PREFIX.length(), request.lastIndexOf('?'))
                     );
                     final long part;
                     if (request.contains("partNumber")) {
@@ -836,7 +836,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
 
             final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
-            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm);
+            objectStoreService.copyShard(task, sourceShardId, destShardId, new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE));
 
             try (
                 var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")

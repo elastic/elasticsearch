@@ -17,8 +17,10 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -35,6 +37,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -287,6 +290,25 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         }
         rounding.timeZone(ZoneId.of(timeZone, ZoneId.SHORT_IDS));
         return rounding.build().prepareForUnknown();
+    }
+
+    /**
+     * @return true if the {@code target} is a valid in progress or completed downsampled index of the {@code source}.
+     * Note: if the target name matches the source and it is a downsampled index, we also consider it true.
+     */
+    public static boolean isTargetOfSource(IndexMetadata target, Index source) {
+        Settings indexSettings = target.getSettings();
+        IndexMetadata.DownsampleTaskStatus downsampleTaskStatus = INDEX_DOWNSAMPLE_STATUS.get(indexSettings);
+        String recordedSourceName = indexSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        String recordedSourceUuid = indexSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY);
+        // A downsampling operation that started during an upgrade from earlier than 8.10 -> 8.last -> this version without
+        // completing might not be resumable because source name and uuid might not be set correctly
+        // (https://github.com/elastic/elasticsearch/pull/99061). We accept this risk since it is unlikely.
+        return downsampleTaskStatus != IndexMetadata.DownsampleTaskStatus.UNKNOWN
+            && (target.getIndex().equals(source)
+                || (recordedSourceName != null
+                    && recordedSourceUuid != null
+                    && source.equals(new Index(recordedSourceName, recordedSourceUuid))));
     }
 
     /**

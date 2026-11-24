@@ -37,6 +37,7 @@ import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.Closeable;
@@ -60,15 +61,21 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public sealed interface QueryTarget {
         int dimension();
 
+        /**
+         * Transformations of the query vector shared with the other leaves of the same query, or
+         * {@link QueryTransformCache#NONE} if there are none to share.
+         */
+        QueryTransformCache transformCache();
+
         /** A byte vector query target. */
-        record ByteQuery(byte[] vector) implements QueryTarget {
+        record ByteQuery(byte[] vector, QueryTransformCache transformCache) implements QueryTarget {
             public int dimension() {
                 return vector.length;
             }
         }
 
         /** A float vector query target. */
-        record FloatQuery(float[] vector) implements QueryTarget {
+        record FloatQuery(float[] vector, QueryTransformCache transformCache) implements QueryTarget {
             public int dimension() {
                 return vector.length;
             }
@@ -394,7 +401,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
-            doSearch(field, new QueryTarget.FloatQuery(target), knnCollector, acceptDocs);
+            doSearch(field, new QueryTarget.FloatQuery(target, QueryTransformCache.NONE), knnCollector, acceptDocs);
         } else {
             assert sharedScan(knnCollector) == null : "only a search of posting lists can be split into parts";
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
@@ -404,7 +411,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     @Override
     public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
-            doSearch(field, new QueryTarget.ByteQuery(target), knnCollector, acceptDocs);
+            doSearch(field, new QueryTarget.ByteQuery(target, QueryTransformCache.NONE), knnCollector, acceptDocs);
         } else {
             assert sharedScan(knnCollector) == null : "only a search of posting lists can be split into parts";
             // No IVF structure — byte fields on legacy codecs (which skip byte IVF indexing) fall
@@ -426,13 +433,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * Shared IVF search implementation. Uses the sealed {@link QueryTarget} to dispatch between
      * native byte[] quantization and float[] quantization paths.
      */
-    private void doSearch(String field, QueryTarget queryTarget, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+    private void doSearch(String field, QueryTarget target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         final E entry = fields.get(fieldInfo.number);
         if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
-        final int queryDimension = queryTarget.dimension();
+        final int queryDimension = target.dimension();
         if (fieldInfo.getVectorDimension() != queryDimension) {
             throw new IllegalArgumentException(
                 "vector query dimension: " + queryDimension + " differs from field dimension: " + fieldInfo.getVectorDimension()
@@ -450,6 +457,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (values == null) {
             return;
         }
+        // the query target, with the transformations of its vector shared across the leaves of the query, if any
+        final QueryTransformCache transformCache = knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy
+            ? ivfSearchStrategy.getQueryTransformCache()
+            : QueryTransformCache.NONE;
+        final QueryTarget queryTarget = switch (target) {
+            case QueryTarget.FloatQuery fq -> new QueryTarget.FloatQuery(fq.vector(), transformCache);
+            case QueryTarget.ByteQuery bq -> new QueryTarget.ByteQuery(bq.vector(), transformCache);
+        };
         final IVFSegmentScan scan = sharedScan(knnCollector);
         if (scan == null) {
             // A search on its own: nothing of the budget is used yet, and no doc is scored.

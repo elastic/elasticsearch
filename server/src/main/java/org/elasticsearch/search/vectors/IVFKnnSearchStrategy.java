@@ -21,17 +21,30 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final SharedMinCompetitiveScore sharedScore;
+    private final QueryTransformCache queryTransformCache;
     private final IVFSegmentScan segmentScan;
 
     /**
      * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
+     * @param queryTransformCache cache of transformations of the query vector shared across leaves, or
+     *                              {@link QueryTransformCache#NONE} when there is nothing to share. Only pass shared
+     *                              transformations to a search with the query's own vector: a search with another vector,
+     *                              such as one preconditioned for its segment, would be handed those of the query's vector.
      */
-    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, @Nullable SharedMinCompetitiveScore sharedScore) {
-        this(visitRatio, numCands, k, sharedScore, null);
+    public IVFKnnSearchStrategy(
+        float visitRatio,
+        int numCands,
+        int k,
+        @Nullable SharedMinCompetitiveScore sharedScore,
+        QueryTransformCache queryTransformCache
+    ) {
+        this(visitRatio, numCands, k, sharedScore, queryTransformCache, null);
     }
 
     /**
      * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
+     * @param queryTransformCache cache of transformations of the query vector shared across leaves, as for the constructor
+     *                              above
      * @param segmentScan shared by the parts of one segment's search that run on different threads, or null when the
      *                    segment is searched by a single call
      */
@@ -40,13 +53,20 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
         int numCands,
         int k,
         @Nullable SharedMinCompetitiveScore sharedScore,
+        QueryTransformCache queryTransformCache,
         @Nullable IVFSegmentScan segmentScan
     ) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.sharedScore = sharedScore;
+        this.queryTransformCache = Objects.requireNonNull(queryTransformCache);
         this.segmentScan = segmentScan;
+    }
+
+    /** Returns the transformations of the query vector shared across the leaves of the query. */
+    public QueryTransformCache getQueryTransformCache() {
+        return queryTransformCache;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {

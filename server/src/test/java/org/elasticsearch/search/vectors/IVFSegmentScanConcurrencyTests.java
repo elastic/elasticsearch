@@ -215,7 +215,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
                     AtomicBoolean usedAfterItsHitsWereTaken = new AtomicBoolean();
                     List<Future<?>> parts = new ArrayList<>();
                     for (int p = 0; p < 4; p++) {
-                        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.1f, K, K, cutoff, scan);
+                        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.1f, K, K, cutoff, QueryTransformCache.NONE, scan);
                         StallingCollector collector = new StallingCollector(K, strategy, usedAfterItsHitsWereTaken);
                         strategy.setCollector(collector);
                         parts.add(threads.submit(() -> {
@@ -382,7 +382,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         List<AbstractMaxScoreKnnCollector> collectors = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
         for (int p = 0; p < parts; p++) {
-            IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, K, K, null, scan);
+            IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, K, K, null, QueryTransformCache.NONE, scan);
             Random random = new Random(random().nextLong());
             AbstractMaxScoreKnnCollector collector = parents == null
                 ? new DelayingCollector(K, strategy, p == failingPart, random)

@@ -98,6 +98,7 @@ public class IVFKnnByteSlicedVectorQuery extends IVFKnnByteVectorQuery {
             field,
             sliceField,
             sliceKeys,
+            leafQuery == query,
             (context, f, collector, acceptDocs) -> context.reader().searchNearestVectors(f, leafQuery, collector, acceptDocs)
         );
     }

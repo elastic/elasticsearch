@@ -50,6 +50,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -319,7 +320,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }
 

@@ -209,12 +209,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     }
 
     private ScheduledUsageReporter reporter(int batchSize, String requestTimeout, PendingStore pendingStore) {
-        return reporter(batchSize, requestTimeout, pendingStore, UsageReportingSettings.PENDING_MAX.getDefault(Settings.EMPTY));
-    }
-
-    /** {@code pendingMax} is the bound of {@code pendingStore}: the plugin builds the store from the same setting. */
-    private ScheduledUsageReporter reporter(int batchSize, String requestTimeout, PendingStore pendingStore, int pendingMax) {
-        return reporter(accumulator, builder, batchSize, requestTimeout, pendingStore, pendingMax);
+        return reporter(accumulator, builder, batchSize, requestTimeout, pendingStore);
     }
 
     private ScheduledUsageReporter reporter(
@@ -222,14 +217,12 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         UsageRecordBuilder builder,
         int batchSize,
         String requestTimeout,
-        PendingStore pendingStore,
-        int pendingMax
+        PendingStore pendingStore
     ) {
         Settings settings = Settings.builder()
             .put(UsageReportingSettings.PERIOD.getKey(), "5m")
             .put(UsageReportingSettings.BATCH_SIZE.getKey(), batchSize)
             .put(UsageReportingSettings.REQUEST_TIMEOUT.getKey(), requestTimeout)
-            .put(UsageReportingSettings.PENDING_MAX.getKey(), pendingMax)
             .build();
         return new ScheduledUsageReporter(
             UsageReportingSettings.of(settings),
@@ -341,69 +334,6 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         assertThat(builder.periods, contains(Duration.ofMinutes(5), Duration.ofSeconds(60)));
     }
 
-    /** With a full store, adding the last window first would evict the oldest pending record before it was published. */
-    public void testCloseGivesThePendingRecordsAChanceBeforeAddingTheLastWindowWhenTheStoreIsFull() {
-        BoundedPendingStore bounded = new BoundedPendingStore(1);
-        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 1);
-        bounded.add(pendingRecords(1)); // left by a cycle that could not publish; the store is full
-        builder.recordsPerSnapshot = 1;
-
-        reporter.close();
-
-        assertThat(publisher.batches.size(), equalTo(2));
-        assertThat(publisher.batches.get(0), contains("es-node_2026-11-23T10:00:00Z_0"));
-        assertThat(publisher.batches.get(1), contains("es-node_" + at("2026-11-23T10:03:20.001Z") + "_0"));
-        assertThat(reporter.recordsSent(), equalTo(2L));
-        assertThat(bounded.droppedCount(), equalTo(0L));
-        assertThat(bounded.size(), equalTo(0));
-    }
-
-    /** A failure of the first publish of the flush is not followed by a second one that sends the same batch again at once. */
-    public void testCloseDoesNotPublishAgainAfterAFailureWhenThePendingRecordsGoFirst() {
-        BoundedPendingStore bounded = new BoundedPendingStore(1);
-        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 1);
-        bounded.add(pendingRecords(1));
-        builder.recordsPerSnapshot = 1;
-        publisher.script.add(records -> failed(PublishResult.FailureClass.RETRYABLE, Set.of()));
-
-        reporter.close();
-
-        assertThat(publisher.batches.size(), equalTo(1));
-        // The API is failing: the store makes room for the last window by dropping its oldest record, with an ERROR log, which is its
-        // policy when the Usage API stays unreachable.
-        assertThat(bounded.droppedCount(), equalTo(1L));
-        assertThat(bounded.next(10).stream().map(UsageRecord::id).toList(), contains("es-node_" + at("2026-11-23T10:03:20.001Z") + "_0"));
-    }
-
-    /** The last window just fits: nothing is evicted, so the pending records do not need to be published first. */
-    public void testCloseSendsEverythingInOneBatchWhenTheLastWindowJustFits() {
-        BoundedPendingStore bounded = new BoundedPendingStore(2);
-        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 2);
-        bounded.add(pendingRecords(1));
-        builder.recordsPerSnapshot = 1;
-
-        reporter.close();
-
-        assertThat(publisher.batches.size(), equalTo(1));
-        assertThat(publisher.batches.get(0).size(), equalTo(2));
-        assertThat(bounded.droppedCount(), equalTo(0L));
-    }
-
-    /** A last window of several records is counted: one record would fit, two do not. */
-    public void testCloseGivesThePendingRecordsAChanceWhenALastWindowOfSeveralRecordsDoesNotFit() {
-        BoundedPendingStore bounded = new BoundedPendingStore(2);
-        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 2);
-        bounded.add(pendingRecords(1));
-        builder.recordsPerSnapshot = 2;
-
-        reporter.close();
-
-        assertThat(publisher.batches.size(), equalTo(2));
-        assertThat(publisher.batches.get(0), contains("es-node_2026-11-23T10:00:00Z_0"));
-        assertThat(publisher.batches.get(1).size(), equalTo(2));
-        assertThat(bounded.droppedCount(), equalTo(0L));
-    }
-
     public void testAStoreThatFailsToAddDoesNotKeepATickFromPublishingThePendingRecords() {
         FailingAddStore failing = new FailingAddStore();
         failing.add(pendingRecords(1));
@@ -441,7 +371,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
 
     /** The reporter with the real accumulator, builder and bounded store, which are what the plugin wires. */
     private ScheduledUsageReporter realReporter(AtomicUsageAccumulator real, BoundedPendingStore bounded) {
-        return reporter(real, new HostedUsageRecordBuilder(), 10, "1s", bounded, 10);
+        return reporter(real, new HostedUsageRecordBuilder(), 10, "1s", bounded);
     }
 
     /** A flush just after midnight of the first of a month covers its own minute: usage_timestamp is 00:00, not the previous month. */

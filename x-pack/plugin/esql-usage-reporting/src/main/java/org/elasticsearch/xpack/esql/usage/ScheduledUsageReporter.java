@@ -36,14 +36,8 @@ import java.util.stream.Collectors;
  * since this reporter was created, which is when the accumulator started, for the first one. It is the configured period only when
  * every cycle runs on time, and it is shorter for the first cycle and longer after a cycle that overran boundaries. The drain time, which
  * is the id of the records, is the boundary the cycle was scheduled for and not the instant it ran, so that ids are aligned: a timer
- * that fires late attributes the usage of its delay, normally a few milliseconds, to the window before the boundary. The quantity is
- * never changed by this, only its attribution at the edge of a range.
- * <p>
- * Known limits, all under-counts or misattributions of a window and never over-counts: a window shorter than a second is sent with a
- * {@code period_seconds} of 0; after the wall clock steps back, the windows are 1 ms long until it catches up with the last drain time.
- * <p>
- * The reporter relies on {@code pending_max} being the bound of the {@link PendingStore} it is given (the plugin builds the store from
- * the same setting): {@link #close} uses it to know whether adding the last window would evict pending records.
+ * that fires late attributes the usage of its delay to the window before the boundary. A window shorter than a second is sent with a
+ * {@code period_seconds} of 0.
  * <p>
  * The invariants that keep the count safe: a snapshot is drained once and its records are in the store before anything is published,
  * so a failure of the publisher loses nothing that the store holds (a failure of the builder or the store after the drain loses that
@@ -64,7 +58,6 @@ public final class ScheduledUsageReporter implements UsageReporter {
     private final SourceIdentity identity;
     private final Duration period;
     private final int batchSize;
-    private final int pendingMax;
     private final TimeValue flushTimeout;
     private final ThreadPool threadPool;
     private final Clock clock;
@@ -118,7 +111,6 @@ public final class ScheduledUsageReporter implements UsageReporter {
         this.identity = identity;
         this.period = Duration.ofMillis(settings.period().millis());
         this.batchSize = settings.batchSize();
-        this.pendingMax = settings.pendingMax();
         this.flushTimeout = settings.requestTimeout();
         this.threadPool = threadPool;
         this.clock = clock;
@@ -237,16 +229,12 @@ public final class ScheduledUsageReporter implements UsageReporter {
     /**
      * The second half of a cycle: publishes what is pending. A failure is logged once and ends the cycle; what was not published stays
      * in the store to be sent again with the same ids.
-     *
-     * @return true if the publishing stopped because of a failure, or because a batch made no progress: asking again at once would send
-     *         the same batch again. False when the store is empty, or when {@code mayContinue} said to stop.
      */
-    private boolean publish(BooleanSupplier mayContinue) {
+    private void publish(BooleanSupplier mayContinue) {
         try {
-            return publishPending(mayContinue);
+            publishPending(mayContinue);
         } catch (Exception e) {
             logger.warn("failed to publish usage records: they stay pending", e);
-            return true;
         }
     }
 
@@ -254,16 +242,14 @@ public final class ScheduledUsageReporter implements UsageReporter {
      * Publishes batches until the store is empty, a failure says to stop, or a batch makes no progress. Progress is measured on the
      * store, not on what the publisher reports, so that a publisher that accepts nothing without a failure, or that names ids the store
      * does not hold, cannot make this loop ask for the same batch forever.
-     *
-     * @return true if it stopped because of a failure or because a batch made no progress
      */
-    private boolean publishPending(BooleanSupplier mayContinue) {
+    private void publishPending(BooleanSupplier mayContinue) {
         while (true) {
             List<UsageRecord> batch = store.next(batchSize);
             // Asked last, right before the hand-off to the publisher, so that a close or a deadline that came while the batch was read
             // is not missed.
             if (batch.isEmpty() || mayContinue.getAsBoolean() == false) {
-                return false;
+                return;
             }
             int before = store.size();
             PublishResult result = publisher.publish(batch);
@@ -287,7 +273,7 @@ public final class ScheduledUsageReporter implements UsageReporter {
                 }
             }
             if (stop || store.size() >= before) {
-                return true;
+                return;
             }
         }
     }
@@ -301,14 +287,13 @@ public final class ScheduledUsageReporter implements UsageReporter {
     }
 
     /**
-     * Stops the schedule and makes a last attempt to publish: it drains the accumulator, so that the usage since the last tick is not
-     * lost on a restart, and publishes that with what is pending. The drain covers a partial window, which is correct because the
-     * record carries the real window (see the class javadoc); its drain time is moved past the previous one if needed, so that it never
-     * shares an id with the last tick. If adding the records of the last window would exceed {@code pending_max}, which evicts the
-     * oldest pending records, those are published first; and a failure of a publish ends the flush. The flush waits at most the request
-     * timeout for a cycle that is still running, and stops starting batches after the same timeout from the start of the close. It
-     * cannot bound a batch that is already being published: a publisher may make several requests for one batch, so the close can take
-     * longer than the timeout. What is not sent is lost, which can only under-count, and is reported with a warning.
+     * Stops the schedule and makes a last cycle, so that the usage since the last tick is not lost on a restart. It is a normal cycle:
+     * the drain covers a partial window, which is correct because the record carries the real window (see the class javadoc), and its
+     * drain time is moved past the previous one if needed, so that it never shares an id with the last tick. It waits at most the
+     * request timeout for a cycle that is still running, and stops starting batches after the same timeout from the start of the close.
+     * It cannot bound a batch that is already being published: a publisher may make several requests for one batch, so the close can
+     * take longer than the timeout. Usage recorded while the flush runs is not sent. What is not sent is lost, which can only
+     * under-count, and is reported with a warning.
      */
     @Override
     public void close() {
@@ -326,22 +311,8 @@ public final class ScheduledUsageReporter implements UsageReporter {
         try {
             acquired = cycle.tryAcquire(flushTimeout.nanos(), TimeUnit.NANOSECONDS);
             if (acquired) {
-                BooleanSupplier beforeDeadline = () -> relativeNanos.getAsLong() - deadline < 0;
-                List<UsageRecord> lastWindow = drainRecords(clock.instant());
-                boolean stopped = false;
-                if (store.size() + lastWindow.size() > pendingMax) {
-                    // Adding the last window would evict the oldest pending records before they had a chance to be delivered.
-                    stopped = publish(beforeDeadline);
-                }
-                // When the first publish failed or the deadline came, the store may evict its oldest records to make room: that is its
-                // policy when the Usage API stays unreachable, logged by the store, and an under-count like any other loss.
-                addToStore(lastWindow);
-                // Not asked again after a failure, which would send the same batch again at once. With room for the last window it
-                // goes in the same batches as the pending records, so that it is attempted as soon as the batches reach it; when there
-                // are more pending records than fit in the batches that the deadline allows, it can still be left out.
-                if (stopped == false) {
-                    publish(beforeDeadline);
-                }
+                drain(clock.instant());
+                publish(() -> relativeNanos.getAsLong() - deadline < 0);
             }
         } catch (InterruptedException e) {
             interrupted = true;

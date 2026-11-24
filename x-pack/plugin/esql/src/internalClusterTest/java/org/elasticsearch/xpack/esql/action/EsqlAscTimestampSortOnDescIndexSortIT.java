@@ -73,6 +73,44 @@ public class EsqlAscTimestampSortOnDescIndexSortIT extends AbstractEsqlIntegTest
         }
     }
 
+    /**
+     * The index sort orders a multi-valued document by its largest value, but the ascending sort uses its smallest value.
+     * So the first row can be at the start of the segment, not at the end.
+     */
+    public void testAscSortWithMultiValuedTimestamp() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.sort.field", "@timestamp")
+                        .put("index.sort.order", "desc")
+                )
+                .setMapping("@timestamp", "type=date", "id", "type=integer")
+        );
+        BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.add(client().prepareIndex(INDEX).setId("0").setSource(Map.of("id", 0, "@timestamp", List.of(1_000_000L, 90_000_000L))));
+        for (int id = 1; id <= 50; id++) {
+            bulk.add(client().prepareIndex(INDEX).setId(Integer.toString(id)).setSource(Map.of("id", id, "@timestamp", 2_000_000L + id)));
+        }
+        // These documents have larger values, so they come before document 0 in the segment and fill the first hits.
+        for (int id = 100; id < 120; id++) {
+            bulk.add(client().prepareIndex(INDEX).setId(Integer.toString(id)).setSource(Map.of("id", id, "@timestamp", 100_000_000L + id)));
+        }
+        assertNoFailures(bulk.get());
+        client().admin().indices().prepareRefresh(INDEX).get();
+        assertNoFailures(client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+
+        try (EsqlQueryResponse response = run("FROM " + INDEX + " | SORT @timestamp ASC | LIMIT 10 | KEEP id")) {
+            List<Object> ids = new ArrayList<>();
+            getValuesList(response).forEach(row -> ids.add(row.get(0)));
+            assertThat(ids, equalTo(List.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)));
+        }
+    }
+
     private List<Long> timestamps(String sortAndLimit) {
         try (EsqlQueryResponse response = run("FROM " + INDEX + " | " + sortAndLimit + " | EVAL t = TO_LONG(@timestamp) | KEEP t")) {
             List<Long> timestamps = new ArrayList<>();

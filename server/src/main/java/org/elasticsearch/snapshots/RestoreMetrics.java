@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -42,13 +44,23 @@ import java.util.function.Consumer;
  */
 public class RestoreMetrics extends AbstractLifecycleComponent {
 
+    private static final Logger logger = LogManager.getLogger(RestoreMetrics.class);
+
     /** Records nothing, for tests and other callers that do not report metrics. */
     public static final RestoreMetrics NOOP = new RestoreMetrics(MeterRegistry.NOOP, m -> {}, m -> {}, m -> {}, m -> {}, m -> {});
 
     public static final String RESTORES_CURRENT = "es.repositories.restores.current";
     public static final String RESTORES_INDICES_CURRENT = "es.repositories.restores.indices.current";
     public static final String RESTORES_SHARDS_BY_STATE_CURRENT = "es.repositories.restores.shards.by_state.current";
+    /**
+     * Shards still restoring that have had at least one failed restore attempt, and will be tried again. A shard that uses up its
+     * allocation attempts is failed by the restore and leaves this count. See {@link CachingRestoreMetricsService#recordShardsRetrying}.
+     */
     public static final String RESTORES_SHARDS_RETRYING_CURRENT = "es.repositories.restores.shards.retrying.current";
+    /**
+     * The age of the oldest restoring shard's current attempt, which restarts whenever an attempt fails or is cancelled, so it is not the
+     * duration of the restore. See {@link CachingRestoreMetricsService#recordOldestShardAge}.
+     */
     public static final String RESTORES_SHARDS_OLDEST_AGE_CURRENT = "es.repositories.restores.shards.oldest_age.current";
     public static final String RESTORES_STARTED_TOTAL = "es.repositories.restores.started.total";
     public static final String RESTORES_COMPLETED_TOTAL = "es.repositories.restores.completed.total";
@@ -115,8 +127,8 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
     public enum ShardState {
         /** Not yet restored and waiting to be allocated to a node. */
         QUEUED("queued"),
-        /** Allocated to a node and recovering from the snapshot. */
-        RECOVERING("recovering"),
+        /** Allocated to a node and restoring from the snapshot. */
+        RESTORING("restoring"),
         /** Restored. */
         SUCCEEDED("succeeded"),
         /** Failed to restore. */
@@ -225,7 +237,7 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
         asyncGauges.add(
             meterRegistry.registerLongAsyncGauge(
                 RESTORES_SHARDS_RETRYING_CURRENT,
-                "shards still restoring that have failed to recover at least once, and are being retried",
+                "shards still restoring that have had at least one failed restore attempt, and will be tried again",
                 "unit",
                 shardsRetryingObserver
             )
@@ -260,17 +272,33 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
      * that removes the completed entry is published, so each restore is recorded once even if removing it has to be retried.
      */
     public void restoreCompleted(RestoreInProgress.Entry entry) {
-        assert entry.state().completed() : "restore [" + entry.uuid() + "] is not completed: " + entry.state();
+        if (entry.state().completed() == false) {
+            logger.error("recording completion of restore [{}] which is not completed: [{}]", entry.uuid(), entry.state());
+            assert false : "restore [" + entry.uuid() + "] is not completed: " + entry.state();
+        }
         long succeeded = 0;
+        long stillRestoring = 0;
+        ShardRestoreStatus exampleStillRestoring = null;
         final Map<String, Long> failedByReason = new HashMap<>();
         for (ShardRestoreStatus status : entry.shards().values()) {
             switch (status.state()) {
                 case SUCCESS -> succeeded++;
                 case FAILURE -> failedByReason.merge(failureReason(status), 1L, Long::sum);
                 case INIT, STARTED -> {
-                    assert false : "shard of completed restore [" + entry.uuid() + "] is still restoring: " + status;
+                    stillRestoring++;
+                    exampleStillRestoring = status;
                 }
             }
+        }
+        if (stillRestoring > 0) {
+            // logged once per restore rather than per shard, since a restore can have many shards
+            logger.error(
+                "completed restore [{}] has [{}] shards still restoring, for example [{}]",
+                entry.uuid(),
+                stillRestoring,
+                exampleStillRestoring
+            );
+            assert false : "completed restore [" + entry.uuid() + "] has [" + stillRestoring + "] shards still restoring";
         }
         if (succeeded > 0) {
             shardsCompletedCounter.incrementBy(succeeded);

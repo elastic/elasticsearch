@@ -74,7 +74,14 @@ public class CachingRestoreMetricsService {
         });
     }
 
-    /** Records the number of shards still restoring that have failed to recover at least once and are being retried. */
+    /**
+     * Records the number of shards still restoring that have had at least one failed restore attempt, and will be tried again.
+     * <p>
+     * A shard is counted from its first failed restore attempt until it either restores or uses up its allocation attempts
+     * ({@code index.allocation.max_retries}). At that point the allocation deciders refuse every node, the restore marks the shard as
+     * {@link RestoreInProgress.ShardRestoreFailureReason#NO_ELIGIBLE_NODE failed}, and it moves to the failed shards. So this never counts
+     * a shard that has stopped being retried. A restore that the master cancels is not a failed attempt, and is not counted.
+     */
     public void recordShardsRetrying(LongAsyncMeasurement measurement) {
         maybeGetCachedRestoreMetrics().ifPresent(metrics -> measurement.record(metrics.shardsRetrying()));
     }
@@ -83,6 +90,13 @@ public class CachingRestoreMetricsService {
      * Records the longest time that any shard still restoring has been waiting for or recovering in its current attempt, or zero if no
      * shard is restoring. The age is measured from the time in the shard's {@link UnassignedInfo}, so it survives a change of master, and
      * it grows with the clock even while the cached values are reused.
+     * <p>
+     * This is the age of the current attempt, not of the restore. The unassigned time is set when the restore creates the shard's
+     * routing, and set again each time a recovery attempt fails or the master cancels it, so a shard that keeps failing and being retried
+     * reports a small age; once it uses up its allocation attempts the restore fails it, and it no longer counts at all. A large age
+     * therefore means one long attempt: a shard waiting for a long time to be allocated, for example while recoveries are throttled, or
+     * a large shard that is still copying its data. The age keeps growing while the shard is recovering, so the two look the same here;
+     * {@link #recordShardsByState} tells them apart in aggregate.
      */
     public void recordOldestShardAge(LongAsyncMeasurement measurement) {
         maybeGetCachedRestoreMetrics().ifPresent(metrics -> {
@@ -93,12 +107,16 @@ public class CachingRestoreMetricsService {
     }
 
     private Optional<CachedRestoreMetrics> maybeGetCachedRestoreMetrics() {
+        // The cache holds on to the routing table and the restores in progress that it was calculated from, so it is dropped whenever
+        // nothing is reported, rather than retaining them for as long as this node is not reporting.
         if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+            cachedRestoreMetrics = null;
             return Optional.empty();
         }
         final ClusterState state = clusterService.state();
         if (state.nodes().isLocalNodeElectedMaster() == false) {
             // Only the master should report on metrics
+            cachedRestoreMetrics = null;
             return Optional.empty();
         }
         return Optional.of(recalculateIfStale(state));
@@ -147,7 +165,7 @@ public class CachingRestoreMetricsService {
                             oldestUnassignedTimeMillis = Math.min(oldestUnassignedTimeMillis, unassignedInfo.unassignedTimeMillis());
                         }
                         yield primary != null && primary.assignedToNode()
-                            ? RestoreMetrics.ShardState.RECOVERING
+                            ? RestoreMetrics.ShardState.RESTORING
                             : RestoreMetrics.ShardState.QUEUED;
                     }
                 };

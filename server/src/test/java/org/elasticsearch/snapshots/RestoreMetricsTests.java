@@ -9,6 +9,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -28,14 +29,19 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -51,8 +57,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests {@link RestoreMetrics}: the counters and histograms that {@link RestoreService} records when a restore starts and completes, and
- * the gauges that {@link CachingRestoreMetricsService} computes from real cluster states held by a real cluster service, in which shards of a restore are queued, recovering,
- * retried, restored or failed.
+ * the gauges that {@link CachingRestoreMetricsService} computes from real cluster states held by a real cluster service, in which shards
+ * of a restore are queued, restoring, retried, restored or failed.
  */
 public class RestoreMetricsTests extends ESTestCase {
 
@@ -183,7 +189,7 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     /**
-     * The gauges describe the restores in progress in the cluster service's state: a queued shard is told from a recovering one, a shard
+     * The gauges describe the restores in progress in the cluster service's state: a queued shard is told from a restoring one, a shard
      * that has failed and is being retried is counted, the oldest restoring shard's age is measured from when it became unassigned for its
      * current attempt, and a completed restore that is only waiting to be removed is left out.
      */
@@ -206,7 +212,7 @@ public class RestoreMetricsTests extends ESTestCase {
                 true,
                 List.of(
                     queued(0, between(1, 5), nowMillis - oldestAgeMillis),
-                    recovering(1, 0, nowMillis - randomLongBetween(0, oldestAgeMillis)),
+                    restoring(1, 0, nowMillis - randomLongBetween(0, oldestAgeMillis)),
                     startedPrimary(2)
                 ),
                 new RestoreInProgress.Builder().add(inProgress).add(awaitingRemoval).build()
@@ -221,7 +227,7 @@ public class RestoreMetricsTests extends ESTestCase {
         );
         assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(1L));
         assertThat(shardsInState("queued"), equalTo(1L));
-        assertThat(shardsInState("recovering"), equalTo(1L));
+        assertThat(shardsInState("restoring"), equalTo(1L));
         assertThat(shardsInState("succeeded"), equalTo(1L));
         assertThat(shardsInState("failed"), equalTo(0L));
         assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(1L));
@@ -235,7 +241,7 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     /**
-     * The gauges follow the cluster state as it changes: once the restoring shards finish, nothing is queued, recovering or retrying, and
+     * The gauges follow the cluster state as it changes: once the restoring shards finish, nothing is queued, restoring or retrying, and
      * the oldest age is zero. An unassigned time ahead of this node's clock, which another master may have set, never gives a negative age.
      */
     public void testGaugesFollowClusterState() {
@@ -271,6 +277,64 @@ public class RestoreMetricsTests extends ESTestCase {
     }
 
     /**
+     * Recording the completion of a restore that has not completed is a bug. It trips an assertion in tests, and is logged as an error so
+     * that it is visible in production, where assertions are disabled.
+     */
+    public void testCompletingRestoreInProgressLogsError() {
+        MockLog.assertThatLogger(
+            () -> expectThrows(
+                AssertionError.class,
+                () -> restoreMetrics.restoreCompleted(
+                    entry(randomFrom(RestoreInProgress.State.INIT, RestoreInProgress.State.STARTED), succeeded(), succeeded(), succeeded())
+                )
+            ),
+            RestoreMetrics.class,
+            new MockLog.SeenEventExpectation(
+                "restore not completed",
+                RestoreMetrics.class.getCanonicalName(),
+                Level.ERROR,
+                "recording completion of restore [" + restoreUuid + "] which is not completed: [*]"
+            )
+        );
+    }
+
+    /**
+     * A completed restore with shards that are still restoring is a bug. It trips an assertion in tests, and is logged as an error, once
+     * for the restore however many shards are affected, so that it is visible in production, where assertions are disabled.
+     */
+    public void testCompletedRestoreWithShardsStillRestoringLogsError() {
+        MockLog.assertThatLogger(
+            () -> expectThrows(
+                AssertionError.class,
+                () -> restoreMetrics.restoreCompleted(entry(RestoreInProgress.State.SUCCESS, succeeded(), inProgress(), inProgress()))
+            ),
+            RestoreMetrics.class,
+            new MockLog.SeenEventExpectation(
+                "shards still restoring",
+                RestoreMetrics.class.getCanonicalName(),
+                Level.ERROR,
+                "completed restore [" + restoreUuid + "] has [2] shards still restoring, for example [*]"
+            )
+        );
+    }
+
+    /**
+     * Once the cluster service stops, the master reports no gauges, even though it reported them for the same cluster state before.
+     */
+    public void testNoGaugesWhenClusterServiceNotStarted() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            state(true, allQueued(), new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, inProgress())).build())
+        );
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(1L));
+
+        clusterService.stop();
+        collect();
+        assertThat(meterRegistry.getRecorder().getAllMeasurements(), empty());
+    }
+
+    /**
      * A node that is not the master reports no gauges, so that the cluster reports each restore once.
      */
     public void testNoGaugesWhenNotMaster() {
@@ -280,6 +344,246 @@ public class RestoreMetricsTests extends ESTestCase {
         );
         collect();
         assertThat(meterRegistry.getRecorder().getAllMeasurements(), empty());
+    }
+
+    /**
+     * A node whose cluster service has not started yet reports no gauges, and does not read the cluster state, which a cluster service
+     * that has not started does not have yet.
+     */
+    public void testNoGaugesBeforeClusterServiceStarts() {
+        final ClusterService notStarted = new ClusterService(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "not-started").build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            null
+        );
+        try {
+            assertThat(notStarted.lifecycleState(), equalTo(Lifecycle.State.INITIALIZED));
+            final RecordingMeterRegistry registry = new RecordingMeterRegistry();
+            final RestoreMetrics metrics = new RestoreMetrics(registry, new CachingRestoreMetricsService(notStarted, () -> nowMillis));
+            metrics.start();
+            try {
+                // reading the state of a cluster service that has no state yet trips an assertion, so this also checks it is not read
+                registry.getRecorder().collect();
+                assertThat(registry.getRecorder().getAllMeasurements(), empty());
+            } finally {
+                metrics.close();
+            }
+        } finally {
+            notStarted.close();
+        }
+    }
+
+    /**
+     * The cached gauges are recalculated when either part of the cluster state they come from changes, and only then. A shard moving
+     * from queued to restoring changes only the routing table, and a shard's restore finishing can be recorded in the restores in
+     * progress without changing the routing table, so both must be noticed on their own.
+     */
+    public void testCachedGaugesFollowEachPartOfTheClusterState() {
+        final RestoreInProgress restores = new RestoreInProgress.Builder().add(
+            entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), inProgress())
+        ).build();
+        final ClusterState initial = state(true, List.of(queued(0, 0, nowMillis), queued(1, 0, nowMillis), startedPrimary(2)), restores);
+        ClusterServiceUtils.setState(clusterService, initial);
+        collect();
+        assertThat(shardsInState("queued"), equalTo(2L));
+        assertThat(shardsInState("restoring"), equalTo(1L));
+
+        // only the routing table changes: shard 0 is now restoring on a node
+        final ClusterState routingChanged = state(
+            true,
+            List.of(restoring(0, 0, nowMillis), queued(1, 0, nowMillis), startedPrimary(2)),
+            restores
+        );
+        assertSame(RestoreInProgress.get(initial), RestoreInProgress.get(routingChanged));
+        ClusterServiceUtils.setState(clusterService, routingChanged);
+        collect();
+        assertThat(shardsInState("queued"), equalTo(1L));
+        assertThat(shardsInState("restoring"), equalTo(2L));
+
+        // only the restores in progress change: shard 2, already started, is recorded as restored
+        final ClusterState restoresChanged = ClusterState.builder(routingChanged)
+            .putCustom(
+                RestoreInProgress.TYPE,
+                new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), succeeded())).build()
+            )
+            .build();
+        assertSame(routingChanged.globalRoutingTable(), restoresChanged.globalRoutingTable());
+        ClusterServiceUtils.setState(clusterService, restoresChanged);
+        collect();
+        assertThat(shardsInState("queued"), equalTo(1L));
+        assertThat(shardsInState("restoring"), equalTo(1L));
+        assertThat(shardsInState("succeeded"), equalTo(1L));
+
+        // neither changes: the same values are reported again
+        ClusterServiceUtils.setState(clusterService, ClusterState.builder(restoresChanged).incrementVersion().build());
+        collect();
+        assertThat(shardsInState("queued"), equalTo(1L));
+        assertThat(shardsInState("restoring"), equalTo(1L));
+        assertThat(shardsInState("succeeded"), equalTo(1L));
+    }
+
+    /**
+     * A node that stops being master stops reporting, and when it becomes master again it reports the restores as they are then, not
+     * as they were when it last reported.
+     */
+    public void testGaugesAfterLosingAndRegainingMaster() {
+        final RestoreInProgress restores = new RestoreInProgress.Builder().add(
+            entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), inProgress())
+        ).build();
+        final ClusterState asMaster = state(true, allQueued(), restores);
+        ClusterServiceUtils.setState(clusterService, asMaster);
+        collect();
+        assertThat(shardsInState("queued"), equalTo((long) NUMBER_OF_SHARDS));
+
+        ClusterServiceUtils.setState(clusterService, withLocalNodeMaster(asMaster, false));
+        collect();
+        assertThat(meterRegistry.getRecorder().getAllMeasurements(), empty());
+
+        // the restore moves on while another node is master
+        final ClusterState movedOn = state(
+            false,
+            List.of(restoring(0, 0, nowMillis), queued(1, 0, nowMillis), startedPrimary(2)),
+            new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), succeeded())).build()
+        );
+        ClusterServiceUtils.setState(clusterService, movedOn);
+        collect();
+        assertThat(meterRegistry.getRecorder().getAllMeasurements(), empty());
+
+        ClusterServiceUtils.setState(clusterService, withLocalNodeMaster(movedOn, true));
+        collect();
+        assertThat(shardsInState("queued"), equalTo(1L));
+        assertThat(shardsInState("restoring"), equalTo(1L));
+        assertThat(shardsInState("succeeded"), equalTo(1L));
+    }
+
+    /**
+     * Restores in different projects are all counted, and each restoring shard is found in its own project's routing table.
+     */
+    public void testGaugesCoverAllProjects() {
+        final long oldestAgeMillis = randomLongBetween(1_000, 1_000_000);
+        final ProjectId otherProject = randomUniqueProjectId();
+        final IndexMetadata otherIndex = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        final ShardId otherShardId = new ShardId(otherIndex.getIndex(), 0);
+        final Snapshot otherSnapshot = new Snapshot(otherProject, randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        final String otherRestoreUuid = randomUUID();
+        final RecoverySource.SnapshotRecoverySource otherRecoverySource = new RecoverySource.SnapshotRecoverySource(
+            otherRestoreUuid,
+            otherSnapshot,
+            IndexVersion.current(),
+            new IndexId(otherIndex.getIndex().getName(), otherIndex.getIndexUUID())
+        );
+        // the other project's restore reports its shards if and only if this project's does not
+        final RestoreInProgress.Entry otherRestore = new RestoreInProgress.Entry(
+            otherRestoreUuid,
+            otherSnapshot,
+            RestoreInProgress.State.STARTED,
+            false,
+            List.of(otherIndex.getIndex().getName()),
+            Map.of(otherShardId, inProgress()),
+            reportShardRestoring == false
+        );
+        final ClusterState state = state(
+            true,
+            allQueued(),
+            new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), inProgress()))
+                .add(otherRestore)
+                .build()
+        );
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(state)
+                .putProjectMetadata(ProjectMetadata.builder(otherProject).put(otherIndex, false))
+                .putRoutingTable(
+                    otherProject,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(otherIndex.getIndex())
+                                .addShard(restoring(otherShardId, otherRecoverySource, 1, nowMillis - oldestAgeMillis))
+                        )
+                        .build()
+                )
+        );
+        collect();
+
+        assertThat(gauge(RestoreMetrics.RESTORES_CURRENT, reportShardRestoringAttribute()), equalTo(1L));
+        assertThat(
+            gauge(RestoreMetrics.RESTORES_CURRENT, Map.of(RestoreMetrics.REPORT_SHARD_RESTORING_ATTRIBUTE, reportShardRestoring == false)),
+            equalTo(1L)
+        );
+        assertThat(gauge(RestoreMetrics.RESTORES_INDICES_CURRENT, Map.of()), equalTo(2L));
+        assertThat(shardsInState("queued"), equalTo((long) NUMBER_OF_SHARDS));
+        // only found as restoring, retrying and oldest if it is looked up in the other project
+        assertThat(shardsInState("restoring"), equalTo(1L));
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(1L));
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(oldestAgeMillis));
+    }
+
+    /**
+     * The oldest age is that of the shard whose current attempt started first. When that shard finishes, the next oldest takes over;
+     * when a shard's attempt fails, its age starts again from the failure; and a shard keeps its age while it moves from waiting for a
+     * node to restoring on one.
+     */
+    public void testOldestAgeFollowsCurrentAttempts() {
+        final long youngestAgeMillis = randomLongBetween(1_000, 10_000);
+        final long middleAgeMillis = youngestAgeMillis + randomLongBetween(1, 10_000);
+        final long oldestAgeMillis = middleAgeMillis + randomLongBetween(1, 10_000);
+        final long youngestUnassignedMillis = nowMillis - youngestAgeMillis;
+        ClusterServiceUtils.setState(
+            clusterService,
+            state(
+                true,
+                List.of(
+                    queued(0, 0, nowMillis - oldestAgeMillis),
+                    restoring(1, 0, nowMillis - middleAgeMillis),
+                    queued(2, 0, youngestUnassignedMillis)
+                ),
+                new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, inProgress(), inProgress(), inProgress()))
+                    .build()
+            )
+        );
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(oldestAgeMillis));
+
+        // the oldest shard is restored, so the next oldest takes over
+        ClusterServiceUtils.setState(
+            clusterService,
+            state(
+                true,
+                List.of(startedPrimary(0), restoring(1, 0, nowMillis - middleAgeMillis), queued(2, 0, youngestUnassignedMillis)),
+                new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, succeeded(), inProgress(), inProgress())).build()
+            )
+        );
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(middleAgeMillis));
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(0L));
+
+        // shard 1's attempt fails, so its age starts again and shard 2 is now the oldest; shard 2 keeps its age as it starts restoring
+        ClusterServiceUtils.setState(
+            clusterService,
+            state(
+                true,
+                List.of(startedPrimary(0), queued(1, 1, nowMillis), restoring(2, 0, youngestUnassignedMillis)),
+                new RestoreInProgress.Builder().add(entry(RestoreInProgress.State.STARTED, succeeded(), inProgress(), inProgress())).build()
+            )
+        );
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(youngestAgeMillis));
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_RETRYING_CURRENT, Map.of()), equalTo(1L));
+
+        final long elapsedMillis = randomLongBetween(1, 100_000);
+        nowMillis += elapsedMillis;
+        collect();
+        assertThat(gauge(RestoreMetrics.RESTORES_SHARDS_OLDEST_AGE_CURRENT, Map.of()), equalTo(youngestAgeMillis + elapsedMillis));
+    }
+
+    private static ClusterState withLocalNodeMaster(ClusterState state, boolean localNodeIsMaster) {
+        return ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(localNodeIsMaster ? state.nodes().getLocalNodeId() : null))
+            .incrementVersion()
+            .build();
     }
 
     private void collect() {
@@ -383,14 +687,21 @@ public class RestoreMetricsTests extends ESTestCase {
             .build();
     }
 
-    /** A primary recovering from the snapshot, which became unassigned at {@code unassignedTimeMillis} after {@code failures} failures. */
-    private ShardRouting recovering(int shard, int failures, long unassignedTimeMillis) {
-        return TestShardRouting.shardRoutingBuilder(
-            shardId(shard),
-            clusterService.localNode().getId(),
-            true,
-            ShardRoutingState.INITIALIZING
-        ).withRecoverySource(snapshotRecoverySource()).withUnassignedInfo(unassignedInfo(failures, unassignedTimeMillis)).build();
+    /** A primary restoring from the snapshot, which became unassigned at {@code unassignedTimeMillis} after {@code failures} failures. */
+    private ShardRouting restoring(int shard, int failures, long unassignedTimeMillis) {
+        return restoring(shardId(shard), snapshotRecoverySource(), failures, unassignedTimeMillis);
+    }
+
+    private ShardRouting restoring(
+        ShardId shardId,
+        RecoverySource.SnapshotRecoverySource recoverySource,
+        int failures,
+        long unassignedTimeMillis
+    ) {
+        return TestShardRouting.shardRoutingBuilder(shardId, clusterService.localNode().getId(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(recoverySource)
+            .withUnassignedInfo(unassignedInfo(failures, unassignedTimeMillis))
+            .build();
     }
 
     private ShardRouting startedPrimary(int shard) {

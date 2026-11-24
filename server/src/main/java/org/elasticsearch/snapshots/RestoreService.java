@@ -2055,6 +2055,13 @@ public final class RestoreService implements ClusterStateApplier {
     /**
      * Records each completed restore that the published cleanup removed from the cluster state. A restore whose
      * {@link RestoreLifecycleListener} notification failed is kept for the next cleanup, and only recorded once it is actually removed.
+     * <p>
+     * Recording only after publication means a restore is never counted twice, but it can be missed: if the master publishes the state
+     * that removes the entry and then fails before this runs, no master records it, because the next master never sees the entry. The
+     * completion counters can therefore undercount slightly across a change of master. Shard outcomes are also only counted here, when
+     * the whole restore completes, so failures of a long-running restore are not visible in the counters until it finishes; the gauges
+     * cover a restore while it runs.
+     * <p>
      * Package-private for unit tests.
      */
     void recordRemovedRestores(ClusterState oldState, ClusterState newState) {

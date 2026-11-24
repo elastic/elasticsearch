@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -33,6 +35,8 @@ import java.util.Objects;
  * Meta data about restore processes that are currently executing
  */
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom, Iterable<RestoreInProgress.Entry> {
+
+    private static final Logger logger = LogManager.getLogger(RestoreInProgress.class);
 
     public static final String TYPE = "restore";
 
@@ -188,28 +192,52 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      * Why a shard's restore ended in {@link State#FAILURE}. The free-text {@link ShardRestoreStatus#reason()} carries the detail for
      * diagnostics, while this classifies the failure into a small fixed set so that it can be counted, for example as a metric attribute,
      * without the unbounded cardinality of the free text.
+     * <p>
+     * Each reason is sent by its explicit {@link #id()}, never its ordinal, so the constants can be reordered freely. An id must never be
+     * reused or changed. A node that receives an id it does not know, sent by a newer node, treats the failure as unclassified, so a new
+     * reason can be added without a new transport version.
      */
     public enum ShardRestoreFailureReason {
         /** The shard failed or was missing in the snapshot, so a partial restore skipped it from the start. */
-        FAILED_IN_SNAPSHOT("failed_in_snapshot"),
+        FAILED_IN_SNAPSHOT((byte) 0, "failed_in_snapshot"),
         /** The snapshot files were found to be corrupt while recovering the shard, so no retry can succeed. */
-        CORRUPTION("corruption"),
+        CORRUPTION((byte) 1, "corruption"),
         /** The allocation deciders refused every node, so the shard cannot be allocated to recover from the snapshot. */
-        NO_ELIGIBLE_NODE("no_eligible_node"),
+        NO_ELIGIBLE_NODE((byte) 2, "no_eligible_node"),
         /** The primary was allocated from something other than the snapshot, for example forced to an empty or a stale copy. */
-        RECOVERY_SOURCE_CHANGED("recovery_source_changed"),
+        RECOVERY_SOURCE_CHANGED((byte) 3, "recovery_source_changed"),
         /** The index was deleted before its shard finished restoring. */
-        INDEX_DELETED("index_deleted");
+        INDEX_DELETED((byte) 4, "index_deleted");
 
+        private final byte id;
         private final String value;
 
-        ShardRestoreFailureReason(String value) {
+        ShardRestoreFailureReason(byte id, String value) {
+            this.id = id;
             this.value = value;
+        }
+
+        /** The stable id that identifies this reason on the wire. */
+        public byte id() {
+            return id;
         }
 
         /** The stable lower-case form, used as a metric attribute value. */
         public String value() {
             return value;
+        }
+
+        /**
+         * @return the reason with the given wire id, or {@code null} if it is not known to this node because a newer node sent it
+         */
+        @Nullable
+        public static ShardRestoreFailureReason fromId(byte id) {
+            for (ShardRestoreFailureReason reason : values()) {
+                if (reason.id == id) {
+                    return reason;
+                }
+            }
+            return null;
         }
     }
 
@@ -227,7 +255,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Writeable {
 
         public ShardRestoreStatus {
-            assert failureReason == null || state == State.FAILURE : "failure reason [" + failureReason + "] for state [" + state + "]";
+            if (failureReason != null && state != State.FAILURE) {
+                logger.error("shard restore status on node [{}] has failure reason [{}] but state [{}]", nodeId, failureReason, state);
+                assert false : "failure reason [" + failureReason + "] for state [" + state + "]";
+            }
         }
 
         /**
@@ -273,8 +304,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             final String reason = in.readOptionalString();
             // nodes that do not classify failures never send it, which leaves a failure unclassified
             final ShardRestoreFailureReason failureReason = in.getTransportVersion().supports(RESTORE_SHARD_FAILURE_REASON)
-                ? in.readOptionalEnum(ShardRestoreFailureReason.class)
-                : null;
+                && in.readBoolean() ? ShardRestoreFailureReason.fromId(in.readByte()) : null;
             return new ShardRestoreStatus(nodeId, state, reason, failureReason);
         }
 
@@ -289,7 +319,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             out.writeByte(state.value);
             out.writeOptionalString(reason);
             if (out.getTransportVersion().supports(RESTORE_SHARD_FAILURE_REASON)) {
-                out.writeOptionalEnum(failureReason);
+                if (failureReason == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeByte(failureReason.id());
+                }
             }
         }
     }

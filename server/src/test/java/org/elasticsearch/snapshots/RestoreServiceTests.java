@@ -1318,7 +1318,6 @@ public class RestoreServiceTests extends ESTestCase {
         return createMinimalRestoreService(RestoreProjectCustomUpdater.NOOP);
     }
 
-
     private RestoreService createMinimalRestoreService(RestoreProjectCustomUpdater customUpdater) {
         return createMinimalRestoreService(customUpdater, RestoreMetrics.NOOP);
     }

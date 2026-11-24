@@ -17,12 +17,12 @@ public abstract class AbstractPayload implements Payload {
 
     private final boolean timedOut;
     private final TimeValue timeTook;
-    private final ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
 
     protected AbstractPayload(boolean timedOut, TimeValue timeTook, List<ShardSearchFailure> shardFailures) {
         this.timedOut = timedOut;
         this.timeTook = timeTook;
-        this.shardFailures = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        this.shardFailures = shardFailures;
     }
 
     @Override
@@ -36,7 +36,7 @@ public abstract class AbstractPayload implements Payload {
     }
 
     @Override
-    public ShardSearchFailure[] shardFailures() {
+    public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
     }
 }

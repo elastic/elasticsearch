@@ -18,6 +18,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -31,6 +32,11 @@ public class RestGetScriptContextAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "script_context_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
     }
 
     @Override

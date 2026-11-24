@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
@@ -1131,8 +1132,10 @@ public final class IndexSettings {
     /**
      * Per-index switch for batch indexing. Defaults to {@code true} for strictly columnar index modes. Time series indices default
      * to {@code true} when the {@code tsdb_batch_indexing} feature flag is enabled ({@link BatchIndexingEnabled#TSDB_FEATURE_FLAG}),
-     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Other index
-     * modes default to {@code false}.
+     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Time series
+     * indices that route on {@link IndexMetadata#INDEX_ROUTING_PATH} rather than {@link IndexMetadata#INDEX_DIMENSIONS} default to
+     * {@code false}, because the batch path can't build their {@code _tsid} (not yet implemented). Other index modes default to
+     * {@code false}.
      * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
@@ -1203,6 +1206,11 @@ public final class IndexSettings {
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
             return TIME_SERIES_BATCH_INDEXING.get(settings);
         }
+        if (IndexMetadata.INDEX_DIMENSIONS.get(settings).isEmpty()) {
+            // Routing based on routing_path instead of based on the _tsid is not supported yet
+            // It doesn't cause failures, but always causes a fallback to sequential mode, costing performance
+            return false;
+        }
         return true;
     }
 
@@ -1262,6 +1270,47 @@ public final class IndexSettings {
         }
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
+
+    /** Gates {@link #BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING} while the numeric doc values layout it opts into is under development. */
+    public static final FeatureFlag BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG = new FeatureFlag("binary_numeric_doc_values");
+
+    /**
+     * Opts the numeric fields of a strict columnar index into binary doc values, which the ColumNAR codec stores as numeric
+     * columns. So far only {@code long} fields write them. Off by default while the format is under development, and only
+     * registered while the {@code binary_numeric_doc_values} feature flag is enabled.
+     */
+    public static final Setting<Boolean> BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING = Setting.boolSetting(
+        "index.binary_numeric_doc_values.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (isPresent && indexMode.isStrictColumnar() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
+                            BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(),
+                            MODE.getKey(),
+                            indexMode.getName()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -1668,6 +1717,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
+    private final boolean binaryNumericDocValues;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1902,6 +1952,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        binaryNumericDocValues = BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2800,6 +2852,15 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
+    }
+
+    /**
+     * @return whether the numeric fields of this index that support it write their doc values as one binary payload per
+     *         document, in the order the values were written, rather than as {@code SORTED_NUMERIC}; resolved from
+     *         {@link #BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING}, and always {@code false} while the feature flag is off
+     */
+    public boolean useBinaryNumericDocValues() {
+        return binaryNumericDocValues;
     }
 
     /**

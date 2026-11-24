@@ -72,4 +72,10 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
     public String getName() {
         return "security_oidc_logout_action";
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
 }

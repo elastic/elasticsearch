@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.PageConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,24 +18,16 @@ import java.util.function.Consumer;
 
 public class OutputExec extends UnaryExec {
 
-    @Nullable
-    private final PageConsumer.Factory pageConsumerFactory;
+    private final Consumer<Page> pageConsumer;
 
     public OutputExec(PhysicalPlan child, Consumer<Page> pageConsumer) {
-        this(null, child, pageConsumer);
+        super(null, child);
+        this.pageConsumer = pageConsumer;
     }
 
-    public OutputExec(Source source, PhysicalPlan child, @Nullable Consumer<Page> pageConsumer) {
-        this(source, child, pageConsumer == null ? null : PageConsumer.Factory.from(pageConsumer));
-    }
-
-    private OutputExec(Source source, PhysicalPlan child, @Nullable PageConsumer.Factory pageConsumerFactory) {
+    public OutputExec(Source source, PhysicalPlan child, Consumer<Page> pageConsumer) {
         super(source, child);
-        this.pageConsumerFactory = pageConsumerFactory;
-    }
-
-    public static OutputExec withFactory(Source source, PhysicalPlan child, PageConsumer.Factory pageConsumerFactory) {
-        return new OutputExec(source, child, pageConsumerFactory);
+        this.pageConsumer = pageConsumer;
     }
 
     @Override
@@ -50,9 +40,8 @@ public class OutputExec extends UnaryExec {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    @Nullable
-    public PageConsumer.Factory getPageConsumerFactory() {
-        return pageConsumerFactory;
+    public Consumer<Page> getPageConsumer() {
+        return pageConsumer;
     }
 
     @Override
@@ -62,11 +51,11 @@ public class OutputExec extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new OutputExec(source(), newChild, pageConsumerFactory);
+        return new OutputExec(source(), newChild, pageConsumer);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, OutputExec::new, child(), pageConsumerFactory);
+        return NodeInfo.create(this, OutputExec::new, child(), pageConsumer);
     }
 }

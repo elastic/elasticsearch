@@ -32,19 +32,6 @@ public class RestCountActionTests extends RestActionTestCase {
         assertEquals("tenant-a,tenant-b", countRequest.searchSlice());
     }
 
-    public void testApplyRoutingOrSliceWithPathSliceAll() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
-            .withPath("/my-index/_all/_count")
-            .withParams(Map.of("index", "my-index", SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL))
-            .build();
-        SearchRequest countRequest = new SearchRequest();
-        RestCountAction.applyRoutingOrSliceForCountRequest(request, countRequest);
-        assertNull(countRequest.routing());
-        assertTrue(countRequest.isRoutingFromSlice());
-        assertEquals(SliceIndexing.SLICE_ALL, countRequest.searchSlice());
-    }
-
     public void testApplyRoutingOrSliceRejectsRoutingAndSliceTogether() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)

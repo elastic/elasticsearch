@@ -28,9 +28,10 @@ import java.util.concurrent.RejectedExecutionException;
  * Uses standard Java InputStream for compatibility with existing Elasticsearch code.
  * Random access is handled via range-based reads (like BlobContainer pattern).
  * <p>
- * StorageObject instances themselves do not hold open resources and do not need closing.
- * The {@link java.io.InputStream} instances returned by {@link #newStream()} and
- * {@link #newStream(long, long)} are the resources that callers must close.
+ * {@link #close()} cancels an in-flight {@link #newStream} GET on providers that override it
+ * (S3). The default is a no-op; HTTP does not currently cancel a hung open. Decorators must
+ * forward it. Streams returned by {@link #newStream()} and {@link #newStream(long, long)} are
+ * still closed by callers; {@link #close()} is the hung-open path when no stream exists yet.
  */
 public interface StorageObject {
 
@@ -188,21 +189,18 @@ public interface StorageObject {
     StoragePath path();
 
     /**
-     * Closes a stream opened by this object, discarding any unread bytes without blocking.
+     * Ends this object's current read. Cancels an in-flight {@link #newStream} GET and closes any
+     * stream this object still holds. Drain-to-reuse vs drop-socket vs cancel-request is decided
+     * by the leaf from that GET's state; callers do not pick a cleanup policy.
      * <p>
-     * The default implementation calls {@link InputStream#close()}, which is correct for local
-     * files and most providers (they simply close the connection). Override this for providers
-     * whose {@code close()} drains remaining bytes to reuse the connection pool — where closing
-     * a partially-read stream would block for the full remaining object transfer time.
-     * <p>
-     * Use this instead of closing directly when the caller intentionally reads only a prefix of
-     * the stream (e.g., schema detection), and connection reuse is not required.
-     * <p>
-     * <b>Contract:</b> {@code stream} must be the exact {@link InputStream} instance returned by
-     * {@link #newStream()} or {@link #newStream(long, long)} on this object — not a wrapper
-     * around it. Passing a wrapped stream (e.g. a {@link java.io.BufferedInputStream} layered on
-     * top) causes provider-specific overrides (e.g. the S3 {@code Abortable} cast) to fall back
-     * to a draining {@code close()}, silently defeating the abort.
+     * Default is a no-op (nothing in flight). Decorators must forward to the delegate.
+     */
+    default void close() throws IOException {}
+
+    /**
+     * Closes {@code stream}. Alias of {@link InputStream#close()}: the stream (or its leaf) already
+     * decides drain vs drop. Prefer {@link #close()} when no stream has been returned yet (hung
+     * {@link #newStream}).
      */
     default void abortStream(InputStream stream) throws IOException {
         stream.close();

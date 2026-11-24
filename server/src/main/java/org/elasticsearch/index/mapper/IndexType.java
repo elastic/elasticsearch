@@ -160,9 +160,14 @@ public final class IndexType {
     }
 
     /**
-     * @return an IndexType representing archive data, with points metadata extracted from doc values
+     * @param hasDocValues whether the field has doc values
+     * @return an IndexType representing archive data, with points metadata extracted from doc values,
+     *         or {@link #NONE} if the field has no doc values
      */
-    public static IndexType archivedPoints() {
+    public static IndexType archivedPoints(boolean hasDocValues) {
+        if (hasDocValues == false) {
+            return NONE;
+        }
         return new IndexType(false, false, true, false, true, false);
     }
 

@@ -52,7 +52,7 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
-        final String matchPattern = request.hasParam("name") ? request.param("name") : null;
+        final String matchPattern = request.param("name", null);
 
         final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
         final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null

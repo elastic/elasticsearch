@@ -594,7 +594,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             try (IntBlock positions = positionsBuilder.build()) {
                 int offset = 0;
                 int chunks = 0;
-                try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofMb(1))) {
+                try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofBytes(1))) {
                     while (lookup.hasNext()) {
                         try (Block chunk = lookup.next()) {
                             assertThat(chunk.blockFactory(), sameInstance(positions.blockFactory()));
@@ -892,6 +892,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         assertThat(block.elementType(), equalTo(expectedElementType()));
         assertThat(block.mayHaveNulls(), equalTo(hasNull));
         assertThat(block.areAllValuesNull(), equalTo(allNull));
+        assertThat(block.nullValuesCount(), equalTo((int) expected.stream().filter(Objects::isNull).count()));
         assertThat(block.doesHaveMultivaluedFields(), equalTo(hasMultivalued));
         if (block.mayHaveMultivaluedFields() == false) {
             assertThat(hasMultivalued, equalTo(false));

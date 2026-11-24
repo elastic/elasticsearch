@@ -21,6 +21,7 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -102,6 +103,13 @@ final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
 
+    /**
+     * A Parquet BINARY length prefix is four ASCII bytes iff no byte has the high bit set.
+     * {@code length < 128} is sufficient but not necessary: 256..383 also qualify, while 128
+     * does not ({@code 0x80} looks like a UTF-8 continuation).
+     */
+    private static final int ASCII_LENGTH_PREFIX_MASK = 0x80808080;
+
     private final PageReader pageReader;
     private final ColumnDescriptor descriptor;
     private final ColumnInfo info;
@@ -134,6 +142,13 @@ final class PageColumnReader implements Releasable {
      */
     private BytesRefArray cachedDictArray;
     private Dictionary cachedDictArraySource;
+    /**
+     * KEYWORD view of {@link DictionaryValueDecoder#getDictionaryBytesRefs} with each entry already
+     * passed through {@link Utf8Sanitizer#sanitize}. Built once per {@link Dictionary} so the
+     * constant-ordinal path and {@link #appendDictPrefix} never re-sanitize per row.
+     */
+    private BytesRef[] cachedSanitizedDict;
+    private Dictionary cachedSanitizedDictSource;
 
     private final DefinitionLevelDecoder defDecoder = new DefinitionLevelDecoder();
     private final PlainValueDecoder plainDecoder = new PlainValueDecoder();
@@ -1397,13 +1412,88 @@ final class PageColumnReader implements Releasable {
         }
     }
 
-    private static BytesRef materializeBinary(BytesRef raw, boolean isUuid) {
-        return isUuid ? new BytesRef(ParquetColumnDecoding.formatUuid(raw.bytes, raw.offset, raw.length)) : Utf8Sanitizer.sanitize(raw);
+    private void materializeBinaries(BytesRef[] vals, int count, boolean isUuid) {
+        if (isUuid) {
+            for (int i = 0; i < count; i++) {
+                BytesRef raw = vals[i];
+                vals[i] = new BytesRef(ParquetColumnDecoding.formatUuid(raw.bytes, raw.offset, raw.length));
+            }
+            return;
+        }
+        if (count > 0 && isPlainLengthPrefixedBinary() && tryAcceptPlainUtf8Region(vals, count)) {
+            return;
+        }
+        for (int i = 0; i < count; i++) {
+            vals[i] = Utf8Sanitizer.sanitize(vals[i]);
+        }
     }
 
-    private static void materializeBinaries(BytesRef[] vals, int count, boolean isUuid) {
+    /**
+     * PLAIN BINARY pages store {@code [int32 LE length][bytes]…} in one backing array. ASCII
+     * length prefixes can sit inside a single {@link Utf8Sanitizer#isWellFormed} scan; a prefix
+     * with a high bit splits the scan at that value boundary so a long URL does not disqualify
+     * the rest of the page.
+     */
+    private boolean isPlainLengthPrefixedBinary() {
+        return currentEncoding == Encoding.PLAIN
+            && descriptor.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY;
+    }
+
+    private static boolean isAsciiLengthPrefix(int length) {
+        return (length & ASCII_LENGTH_PREFIX_MASK) == 0;
+    }
+
+    /**
+     * @return {@code true} when this batch was handled (left untouched or sanitized per run).
+     *         {@code false} means the caller must per-value {@code sanitize} everything.
+     */
+    static boolean tryAcceptPlainUtf8Region(BytesRef[] vals, int count) {
+        BytesRef first = vals[0];
+        // Direct (non-heap) PLAIN pages copy each value to a fresh byte[] at offset 0, so this
+        // check quietly disables the region path and the caller falls back to per-value sanitize.
+        if (first.offset < Integer.BYTES) {
+            return false;
+        }
+        byte[] backing = first.bytes;
+        int expectedOff = first.offset;
         for (int i = 0; i < count; i++) {
-            vals[i] = materializeBinary(vals[i], isUuid);
+            BytesRef v = vals[i];
+            if (v.bytes != backing || v.offset != expectedOff || v.offset < Integer.BYTES) {
+                return false;
+            }
+            if (ByteUtils.readIntLE(backing, v.offset - Integer.BYTES) != v.length) {
+                return false;
+            }
+            expectedOff = v.offset + v.length + Integer.BYTES;
+        }
+        BytesRef last = vals[count - 1];
+        int lastEnd = last.offset + last.length;
+        if (lastEnd < last.offset || lastEnd > backing.length) {
+            return false;
+        }
+        int runStart = 0;
+        int regionOff = first.offset - Integer.BYTES;
+        for (int i = 0; i < count; i++) {
+            BytesRef v = vals[i];
+            if (isAsciiLengthPrefix(v.length) == false) {
+                acceptOrSanitizePlainRun(vals, runStart, i, backing, regionOff, v.offset - Integer.BYTES);
+                runStart = i;
+                regionOff = v.offset;
+            }
+        }
+        acceptOrSanitizePlainRun(vals, runStart, count, backing, regionOff, lastEnd);
+        return true;
+    }
+
+    private static void acceptOrSanitizePlainRun(BytesRef[] vals, int from, int to, byte[] backing, int off, int end) {
+        if (from >= to) {
+            return;
+        }
+        if (end >= off && end <= backing.length && Utf8Sanitizer.isWellFormed(backing, off, end - off)) {
+            return;
+        }
+        for (int i = from; i < to; i++) {
+            vals[i] = Utf8Sanitizer.sanitize(vals[i]);
         }
     }
 
@@ -1514,18 +1604,18 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block buildOrdinalResult(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
-        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
         if (produced == 0) {
             return blockFactory.newConstantNullBlock(0);
         }
         if (nulls != null && nulls.popCount() == produced) {
             return blockFactory.newConstantNullBlock(produced);
         }
+        BytesRef[] dict = sanitizedKeywordDict();
         // Non-null, all-equal indices: emit a constant block to skip the ordinal indirection.
         if (nulls == null || nulls.isEmpty()) {
             int constantOrdinal = detectConstantOrdinal(ordinals, produced);
             if (constantOrdinal >= 0) {
-                return blockFactory.newConstantBytesRefBlockWith(Utf8Sanitizer.sanitize(dict[constantOrdinal]), produced);
+                return blockFactory.newConstantBytesRefBlockWith(dict[constantOrdinal], produced);
             }
         }
         IntBlock ordinalsBlock = null;
@@ -1595,9 +1685,8 @@ final class PageColumnReader implements Releasable {
         boolean success = false;
         try {
             for (BytesRef entry : entries) {
-                // KEYWORD ordinal dictionary path only (buildDictionaryVector -> here); sanitize each
-                // dictionary entry once per chunk so the OrdinalBytesRefBlock never exposes malformed UTF-8.
-                array.append(Utf8Sanitizer.sanitize(entry));
+                // entries come from sanitizedKeywordDict(); already well-formed UTF-8.
+                array.append(entry);
             }
             cachedDictArray = array;
             cachedDictArraySource = dictionary;
@@ -1618,13 +1707,39 @@ final class PageColumnReader implements Releasable {
         }
     }
 
+    /**
+     * Dictionary entries for KEYWORD, sanitized once per {@link Dictionary}. Constant blocks and
+     * mixed-encoding fallback prefixes consume this view instead of calling {@link Utf8Sanitizer}
+     * per row.
+     */
+    private BytesRef[] sanitizedKeywordDict() {
+        if (cachedSanitizedDict != null && cachedSanitizedDictSource == dictionary) {
+            return cachedSanitizedDict;
+        }
+        BytesRef[] raw = dictDecoder.getDictionaryBytesRefs(dictionary);
+        BytesRef[] sanitized = raw;
+        for (int i = 0; i < raw.length; i++) {
+            BytesRef cleaned = Utf8Sanitizer.sanitize(raw[i]);
+            if (cleaned != raw[i]) {
+                if (sanitized == raw) {
+                    sanitized = Arrays.copyOf(raw, raw.length);
+                }
+                sanitized[i] = cleaned;
+            }
+        }
+        cachedSanitizedDict = sanitized;
+        cachedSanitizedDictSource = dictionary;
+        return sanitized;
+    }
+
     @Override
     public void close() {
         releaseCachedDictArray();
+        cachedSanitizedDict = null;
+        cachedSanitizedDictSource = null;
     }
 
     private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {
-        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
         int total = produced + remaining;
         WordMask combinedNulls = nulls;
         BytesRefBlock.Builder builder = null;
@@ -1643,6 +1758,7 @@ final class PageColumnReader implements Releasable {
                 }
             }
             if (prefixHasValue) {
+                BytesRef[] dict = sanitizedKeywordDict();
                 builder = blockFactory.newBytesRefBlockBuilder(total, dictPrefixBytes(dict, ordinals, combinedNulls, produced));
                 appendDictPrefix(builder, dict, ordinals, combinedNulls, produced);
             }
@@ -1723,7 +1839,7 @@ final class PageColumnReader implements Releasable {
             if (nulls != null && nulls.get(i)) {
                 builder.appendNull();
             } else {
-                builder.appendBytesRef(Utf8Sanitizer.sanitize(dict[ordinals[i]]));
+                builder.appendBytesRef(dict[ordinals[i]]);
             }
         }
     }

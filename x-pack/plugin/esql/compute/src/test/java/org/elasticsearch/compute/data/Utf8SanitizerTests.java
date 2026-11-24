@@ -10,6 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -71,8 +75,7 @@ public class Utf8SanitizerTests extends ESTestCase {
 
     public void testSanitizedOutputIsWellFormed() {
         for (int iter = 0; iter < 200; iter++) {
-            byte[] random = new byte[randomIntBetween(0, 64)];
-            random(random);
+            byte[] random = randomByteArrayOfLength(randomIntBetween(0, 64));
             BytesRef out = Utf8Sanitizer.sanitize(new BytesRef(random, 0, random.length));
             assertTrue("sanitized output must be valid UTF-8", Utf8Sanitizer.isWellFormed(out.bytes, out.offset, out.length));
         }
@@ -116,10 +119,259 @@ public class Utf8SanitizerTests extends ESTestCase {
         assertEquals("ok", out.utf8ToString());
     }
 
-    private void random(byte[] bytes) {
-        for (int i = 0; i < bytes.length; i++) {
-            bytes[i] = (byte) randomInt(255);
+    public void testIsWellFormedMatchesSequenceLengthWalkRandom() {
+        for (int iter = 0; iter < 400; iter++) {
+            int pad = randomIntBetween(0, 8);
+            int len = randomIntBetween(0, 300);
+            int tail = randomIntBetween(0, 8);
+            byte[] buf = randomByteArrayOfLength(pad + len + tail);
+            Arrays.fill(buf, 0, pad, (byte) 0xFF);
+            Arrays.fill(buf, pad + len, buf.length, (byte) 0xFF);
+            assertIsWellFormedMatchesOracles(buf, pad, len);
         }
+    }
+
+    public void testIsWellFormedMatchesSequenceLengthWalkBiasedMultibyte() {
+        for (int iter = 0; iter < 200; iter++) {
+            byte[] payload = randomBiasedUtf8Payload();
+            int pad = randomIntBetween(1, 8);
+            byte[] buf = new byte[pad + payload.length + pad];
+            Arrays.fill(buf, (byte) 0xFF);
+            System.arraycopy(payload, 0, buf, pad, payload.length);
+            assertIsWellFormedMatchesOracles(buf, pad, payload.length);
+            if (walkSequenceLength(buf, pad, payload.length)) {
+                BytesRef in = new BytesRef(buf, pad, payload.length);
+                assertSame("well-formed input must not be copied", in, Utf8Sanitizer.sanitize(in));
+            }
+        }
+    }
+
+    public void testExhaustiveOneByteIsWellFormed() {
+        byte[] buf = new byte[3];
+        buf[0] = (byte) 0xFF;
+        buf[2] = (byte) 0xFF;
+        for (int b = 0; b < 256; b++) {
+            buf[1] = (byte) b;
+            assertIsWellFormedMatchesOracles(buf, 1, 1);
+            assertEquals("b=" + b, b < 0x80, Utf8Sanitizer.isWellFormed(buf, 1, 1));
+        }
+    }
+
+    public void testExhaustiveTwoByteIsWellFormed() {
+        byte[] buf = new byte[4];
+        buf[0] = (byte) 0xFF;
+        buf[3] = (byte) 0xFF;
+        for (int b0 = 0; b0 < 256; b0++) {
+            buf[1] = (byte) b0;
+            for (int b1 = 0; b1 < 256; b1++) {
+                buf[2] = (byte) b1;
+                assertIsWellFormedMatchesOracles(buf, 1, 2);
+            }
+        }
+    }
+
+    public void testAsciiBlockThenTwoByteRunThenAscii() {
+        // After the 2-byte run, ASCII skip must resume at that offset, not the next 64-byte
+        // boundary. Trailing ASCII is long enough that skipAsciiBlocks actually runs again.
+        byte[] buf = new byte[64 + 4 + 64];
+        Arrays.fill(buf, (byte) 'a');
+        buf[64] = (byte) 0xD0;
+        buf[65] = (byte) 0x90;
+        buf[66] = (byte) 0xD0;
+        buf[67] = (byte) 0x91;
+        assertIsWellFormedMatchesOracles(buf, 0, buf.length);
+        BytesRef in = new BytesRef(buf);
+        assertSame(in, Utf8Sanitizer.sanitize(in));
+
+        // A 0xFF sitting in the gap before the next 64-byte boundary must still be detected.
+        buf[68] = (byte) 0xFF;
+        assertIsWellFormedMatchesOracles(buf, 0, buf.length);
+        assertFalse(Utf8Sanitizer.isWellFormed(buf, 0, buf.length));
+    }
+
+    public void testAsciiBlockThenThreeByteRunThenAscii() {
+        // Same resume-after-run contract as the 2-byte test, for the CJK 3-byte kernel.
+        byte[] buf = new byte[64 + 3 + 64];
+        Arrays.fill(buf, (byte) 'a');
+        buf[64] = (byte) 0xE3;
+        buf[65] = (byte) 0x80;
+        buf[66] = (byte) 0x80;
+        assertIsWellFormedMatchesOracles(buf, 0, buf.length);
+        BytesRef in = new BytesRef(buf);
+        assertSame(in, Utf8Sanitizer.sanitize(in));
+
+        buf[67] = (byte) 0xFF;
+        assertIsWellFormedMatchesOracles(buf, 0, buf.length);
+        assertFalse(Utf8Sanitizer.isWellFormed(buf, 0, buf.length));
+    }
+
+    public void testNonAsciiAtEveryOffsetInAsciiBlock() {
+        int len = 64;
+        for (int pos = 0; pos < len; pos++) {
+            byte[] bytes = new byte[len];
+            Arrays.fill(bytes, (byte) 'a');
+            bytes[pos] = (byte) 0xFF;
+            assertIsWellFormedMatchesOracles(bytes, 0, len);
+            assertFalse(Utf8Sanitizer.isWellFormed(bytes, 0, len));
+        }
+    }
+
+    public void testPlainPackedRegionWithBadValueInMiddleIsMalformed() {
+        // [int32 LE 2][aa][int32 LE 1][0xFF][int32 LE 2][cc] — prefixes are ASCII, payload is not.
+        byte[] packed = new byte[] { 2, 0, 0, 0, 'a', 'a', 1, 0, 0, 0, (byte) 0xFF, 2, 0, 0, 0, 'c', 'c' };
+        assertFalse(Utf8Sanitizer.isWellFormed(packed, 0, packed.length));
+        assertIsWellFormedMatchesOracles(packed, 0, packed.length);
+        assertEquals(new BytesRef("aa"), Utf8Sanitizer.sanitize(new BytesRef(packed, 4, 2)));
+        assertEquals(new BytesRef("\uFFFD"), Utf8Sanitizer.sanitize(new BytesRef(packed, 10, 1)));
+        assertEquals(new BytesRef("cc"), Utf8Sanitizer.sanitize(new BytesRef(packed, 15, 2)));
+    }
+
+    public void testSpecialLeadsMatchOraclesExhaustively() {
+        // E0/ED (overlong/surrogate) and 4-byte leads are the sequenceLength-only paths.
+        byte[] buf = new byte[6];
+        buf[0] = (byte) 0xFF;
+        buf[5] = (byte) 0xFF;
+        for (int lead : new int[] { 0xE0, 0xED, 0xF0, 0xF4, 0xF5 }) {
+            buf[1] = (byte) lead;
+            for (int b1 = 0; b1 < 256; b1++) {
+                buf[2] = (byte) b1;
+                for (int b2 = 0; b2 < 256; b2++) {
+                    buf[3] = (byte) b2;
+                    buf[4] = (byte) 0x80;
+                    assertIsWellFormedMatchesOracles(buf, 1, 4);
+                }
+            }
+        }
+    }
+
+    private static void assertIsWellFormedMatchesOracles(byte[] bytes, int off, int len) {
+        boolean fast = Utf8Sanitizer.isWellFormed(bytes, off, len);
+        boolean walked = walkSequenceLength(bytes, off, len);
+        boolean jdk = jdkWellFormed(bytes, off, len);
+        assertEquals("isWellFormed must match sequenceLength walk; off=" + off + " len=" + len, walked, fast);
+        assertEquals("isWellFormed must match JDK UTF-8 decoder; off=" + off + " len=" + len, jdk, fast);
+    }
+
+    /**
+     * Fast-path vs slow-path differential: walk {@link Utf8Sanitizer#sequenceLength}. Not a copy
+     * of the 64-byte/run kernel, but shares {@code sequenceLength} with production.
+     */
+    private static boolean walkSequenceLength(byte[] bytes, int off, int len) {
+        int i = off;
+        int end = off + len;
+        while (i < end) {
+            int n = Utf8Sanitizer.sequenceLength(bytes, i, end);
+            if (n < 0) {
+                return false;
+            }
+            i += n;
+        }
+        return true;
+    }
+
+    /** Independent well-formedness oracle: JDK UTF-8 decoder in REPORT mode. */
+    private static boolean jdkWellFormed(byte[] bytes, int off, int len) {
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT);
+        try {
+            decoder.decode(ByteBuffer.wrap(bytes, off, len));
+            return true;
+        } catch (CharacterCodingException e) {
+            return false;
+        }
+    }
+
+    private byte[] randomBiasedUtf8Payload() {
+        return switch (randomIntBetween(0, 8)) {
+            case 0 -> randomValidTwoByteRun(randomIntBetween(1, 40));
+            case 1 -> randomValidThreeByteRun(randomIntBetween(1, 24));
+            case 2 -> concat(randomAscii(randomIntBetween(0, 80)), randomValidTwoByteRun(randomIntBetween(1, 16)));
+            case 3 -> concat(randomValidTwoByteRun(randomIntBetween(1, 16)), randomAscii(randomIntBetween(1, 80)));
+            case 4 -> concat(
+                randomAscii(randomIntBetween(0, 70)),
+                randomValidTwoByteRun(randomIntBetween(1, 8)),
+                randomAscii(randomIntBetween(0, 16)),
+                randomValidThreeByteRun(randomIntBetween(1, 8))
+            );
+            case 5 -> randomValidFourByteRun(randomIntBetween(1, 8));
+            case 6 -> randomValidE0Run(randomIntBetween(1, 8));
+            case 7 -> randomValidEdRun(randomIntBetween(1, 8));
+            case 8 -> {
+                byte[] run = switch (randomIntBetween(0, 3)) {
+                    case 0 -> randomValidTwoByteRun(randomIntBetween(1, 8));
+                    case 1 -> randomValidThreeByteRun(randomIntBetween(1, 8));
+                    case 2 -> randomValidFourByteRun(randomIntBetween(1, 8));
+                    case 3 -> randomValidE0Run(randomIntBetween(1, 8));
+                    default -> throw new AssertionError("unexpected junk-run arm");
+                };
+                run[randomInt(run.length - 1)] = (byte) randomInt(255);
+                yield concat(randomAscii(randomIntBetween(0, 64)), run);
+            }
+            default -> throw new AssertionError("unexpected bias arm");
+        };
+    }
+
+    private byte[] randomAscii(int len) {
+        byte[] out = new byte[len];
+        for (int i = 0; i < len; i++) {
+            out[i] = (byte) randomIntBetween(0, 0x7F);
+        }
+        return out;
+    }
+
+    private byte[] randomValidTwoByteRun(int chars) {
+        byte[] out = new byte[chars * 2];
+        for (int i = 0; i < chars; i++) {
+            out[i * 2] = (byte) randomIntBetween(0xC2, 0xDF);
+            out[i * 2 + 1] = (byte) randomIntBetween(0x80, 0xBF);
+        }
+        return out;
+    }
+
+    private byte[] randomValidThreeByteRun(int chars) {
+        byte[] out = new byte[chars * 3];
+        for (int i = 0; i < chars; i++) {
+            int lead = randomBoolean() ? randomIntBetween(0xE1, 0xEC) : randomIntBetween(0xEE, 0xEF);
+            out[i * 3] = (byte) lead;
+            out[i * 3 + 1] = (byte) randomIntBetween(0x80, 0xBF);
+            out[i * 3 + 2] = (byte) randomIntBetween(0x80, 0xBF);
+        }
+        return out;
+    }
+
+    private byte[] randomValidFourByteRun(int chars) {
+        byte[] out = new byte[chars * 4];
+        for (int i = 0; i < chars; i++) {
+            int lead = randomIntBetween(0xF0, 0xF4);
+            out[i * 4] = (byte) lead;
+            int lo = lead == 0xF0 ? 0x90 : 0x80;
+            int hi = lead == 0xF4 ? 0x8F : 0xBF;
+            out[i * 4 + 1] = (byte) randomIntBetween(lo, hi);
+            out[i * 4 + 2] = (byte) randomIntBetween(0x80, 0xBF);
+            out[i * 4 + 3] = (byte) randomIntBetween(0x80, 0xBF);
+        }
+        return out;
+    }
+
+    private byte[] randomValidE0Run(int chars) {
+        byte[] out = new byte[chars * 3];
+        for (int i = 0; i < chars; i++) {
+            out[i * 3] = (byte) 0xE0;
+            out[i * 3 + 1] = (byte) randomIntBetween(0xA0, 0xBF);
+            out[i * 3 + 2] = (byte) randomIntBetween(0x80, 0xBF);
+        }
+        return out;
+    }
+
+    private byte[] randomValidEdRun(int chars) {
+        byte[] out = new byte[chars * 3];
+        for (int i = 0; i < chars; i++) {
+            out[i * 3] = (byte) 0xED;
+            out[i * 3 + 1] = (byte) randomIntBetween(0x80, 0x9F);
+            out[i * 3 + 2] = (byte) randomIntBetween(0x80, 0xBF);
+        }
+        return out;
     }
 
     private void assertSanitized(byte[] input, byte[] expected) {

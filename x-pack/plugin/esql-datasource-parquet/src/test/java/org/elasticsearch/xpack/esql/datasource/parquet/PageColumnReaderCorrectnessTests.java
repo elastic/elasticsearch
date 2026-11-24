@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
@@ -40,6 +41,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -61,12 +63,16 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.IntFunction;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
@@ -838,6 +844,260 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertOptimizedMatchesBaseline(data, columns);
     }
 
+    // --- PLAIN UTF-8 region path ---
+
+    private static final BytesRef FFFD = new BytesRef("\uFFFD");
+
+    public void testPlainUtf8RegionLength127And128() throws IOException {
+        byte[] shortOk = bytesOf('x', 127);
+        byte[] longOk = bytesOf('y', 128);
+        byte[] data = writePlainKeywordFile(false, row -> row == 0 ? shortOk : longOk, 2);
+        assertPlainKeywordBlock(data, 2, false, row -> new BytesRef(row == 0 ? shortOk : longOk), "127/128");
+    }
+
+    public void testPlainUtf8RegionLength256AsciiPrefix() throws IOException {
+        // 256 = 00 01 00 00 LE: all prefix bytes are ASCII, so the region scan must still apply.
+        byte[] longOk = bytesOf('z', 256);
+        byte[] data = writePlainKeywordFile(false, row -> longOk, 3);
+        assertPlainKeywordBlock(data, 3, false, row -> new BytesRef(longOk), "len=256");
+    }
+
+    public void testPlainUtf8RegionTruncatedLeadBeforeNextPrefix() throws IOException {
+        byte[] truncated = { 'a', (byte) 0xE3 };
+        byte[] next = { 'b' };
+        byte[] data = writePlainKeywordFile(false, row -> row == 0 ? truncated : next, 2);
+        assertPlainKeywordBlock(data, 2, false, row -> row == 0 ? concat(new BytesRef("a"), FFFD) : new BytesRef("b"), "truncated");
+    }
+
+    public void testPlainUtf8RegionBadValueFirstMiddleLast() throws IOException {
+        byte[] bad = { (byte) 0xFF };
+        byte[][] good = {
+            "aa".getBytes(StandardCharsets.UTF_8),
+            "bb".getBytes(StandardCharsets.UTF_8),
+            "cc".getBytes(StandardCharsets.UTF_8) };
+        for (int badAt : new int[] { 0, 1, 2 }) {
+            int badIndex = badAt;
+            byte[] data = writePlainKeywordFile(false, row -> row == badIndex ? bad : good[row], 3);
+            assertPlainKeywordBlock(data, 3, false, row -> row == badIndex ? FFFD : new BytesRef(good[row]), "badAt=" + badIndex);
+        }
+    }
+
+    public void testTryAcceptPlainUtf8RegionSanitizesOnlyBadValue() {
+        byte[] aa = "aa".getBytes(StandardCharsets.UTF_8);
+        byte[] bb = "bb".getBytes(StandardCharsets.UTF_8);
+        byte[] cc = "cc".getBytes(StandardCharsets.UTF_8);
+        byte[] bad = { (byte) 0xFF };
+        for (int badAt : new int[] { 0, 1, 2 }) {
+            byte[][] payloads = { aa, bb, cc };
+            payloads[badAt] = bad;
+            byte[] packed = packPlain(payloads);
+            BytesRef[] vals = unpackPlain(packed, payloads);
+            assertTrue("badAt=" + badAt, PageColumnReader.tryAcceptPlainUtf8Region(vals, 3));
+            for (int i = 0; i < 3; i++) {
+                BytesRef expected = i == badAt ? FFFD : new BytesRef(payloads[i]);
+                assertEquals("badAt=" + badAt + " i=" + i, expected, vals[i]);
+            }
+        }
+        byte[] shortOk = bytesOf('x', 127);
+        byte[] longOk = bytesOf('y', 128);
+        byte[][] mixed = { shortOk, longOk };
+        byte[] packed = packPlain(mixed);
+        BytesRef[] vals = unpackPlain(packed, mixed);
+        assertTrue(PageColumnReader.tryAcceptPlainUtf8Region(vals, 2));
+        assertEquals(new BytesRef(shortOk), vals[0]);
+        assertEquals(new BytesRef(longOk), vals[1]);
+    }
+
+    private static byte[] packPlain(byte[][] payloads) {
+        int len = 0;
+        for (byte[] p : payloads) {
+            len += Integer.BYTES + p.length;
+        }
+        byte[] packed = new byte[len];
+        int pos = 0;
+        for (byte[] p : payloads) {
+            int n = p.length;
+            packed[pos] = (byte) n;
+            packed[pos + 1] = (byte) (n >>> 8);
+            packed[pos + 2] = (byte) (n >>> 16);
+            packed[pos + 3] = (byte) (n >>> 24);
+            pos += Integer.BYTES;
+            System.arraycopy(p, 0, packed, pos, p.length);
+            pos += p.length;
+        }
+        return packed;
+    }
+
+    private static BytesRef[] unpackPlain(byte[] packed, byte[][] payloads) {
+        BytesRef[] vals = new BytesRef[payloads.length];
+        int pos = 0;
+        for (int i = 0; i < payloads.length; i++) {
+            pos += Integer.BYTES;
+            vals[i] = new BytesRef(packed, pos, payloads[i].length);
+            pos += payloads[i].length;
+        }
+        return vals;
+    }
+
+    public void testPlainUtf8RegionWithNulls() throws IOException {
+        byte[] bad = { (byte) 0xFF };
+        byte[] ok = "ok".getBytes(StandardCharsets.UTF_8);
+        byte[] data = writePlainKeywordFile(true, row -> {
+            if (row % 3 == 0) {
+                return null;
+            }
+            return row == 1 ? bad : ok;
+        }, 6);
+        assertPlainKeywordBlock(data, 6, false, row -> {
+            if (row % 3 == 0) {
+                return null;
+            }
+            return row == 1 ? FFFD : new BytesRef(ok);
+        }, "nulls");
+    }
+
+    public void testDictionaryKeywordWithBadEntryStaysOrdinal() throws IOException {
+        byte[] bad = { (byte) 0xFF };
+        byte[] ok = "ok".getBytes(StandardCharsets.UTF_8);
+        byte[] data = writeDictionaryKeywordFile(row -> (row % 2 == 0) ? ok : bad, 64);
+        assertPlainKeywordBlock(data, 64, true, row -> (row % 2 == 0) ? new BytesRef(ok) : FFFD, "dict-bad");
+    }
+
+    public void testMixedDictionaryThenPlainSanitizesBadDictEntry() throws IOException {
+        byte[] bad = { (byte) 0xFF };
+        byte[] ok = "ok".getBytes(StandardCharsets.UTF_8);
+        int dictRows = 200;
+        int plainRows = 800;
+        int total = dictRows + plainRows;
+        byte[] data = writeMixedDictionaryThenPlainKeywordFile(row -> {
+            if (row < dictRows) {
+                return (row % 2 == 0) ? ok : bad;
+            }
+            return ("u" + row).getBytes(StandardCharsets.UTF_8);
+        }, total, 128);
+        boolean sawOrdinal = false;
+        boolean sawPlain = false;
+        int row = 0;
+        List<Page> pages = readAll(new ParquetFormatReader(blockFactory), data, List.of("s"), 64);
+        try {
+            BytesRef scratch = new BytesRef();
+            for (Page page : pages) {
+                BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+                OrdinalBytesRefBlock ordinal = block.asOrdinals();
+                if (ordinal != null) {
+                    sawOrdinal = true;
+                } else {
+                    sawPlain = true;
+                }
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    BytesRef expected = row < dictRows ? ((row % 2 == 0) ? new BytesRef(ok) : FFFD) : new BytesRef("u" + row);
+                    assertEquals("row " + row, expected, block.getBytesRef(p, scratch));
+                    row++;
+                }
+            }
+            assertEquals(total, row);
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+        boolean fileHasDict;
+        boolean fileHasPlain;
+        try (ParquetFileReader reader = openReader(data)) {
+            var encodings = reader.getRowGroups().getFirst().getColumns().getFirst().getEncodings();
+            fileHasDict = encodings.contains(Encoding.PLAIN_DICTIONARY) || encodings.contains(Encoding.RLE_DICTIONARY);
+            fileHasPlain = encodings.contains(Encoding.PLAIN);
+        }
+        if (fileHasDict && fileHasPlain) {
+            assertTrue("mixed dict+PLAIN file must emit ordinals then a PLAIN fallback", sawOrdinal && sawPlain);
+        }
+        assertOptimizedMatchesBaseline(data, List.of("s"));
+    }
+
+    private void assertPlainKeywordBlock(byte[] data, int numRows, boolean expectOrdinal, IntFunction<BytesRef> expected, String ctx)
+        throws IOException {
+        try (Block raw = fullRead(data, "s", DataType.KEYWORD)) {
+            BytesRefBlock block = (BytesRefBlock) raw;
+            if (expectOrdinal) {
+                assertNotNull(ctx + ": dictionary pages must stay ordinal", block.asOrdinals());
+            } else {
+                assertNull(ctx + ": PLAIN pages must not emit ordinals", block.asOrdinals());
+            }
+            assertEquals(ctx + " rows", numRows, block.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < numRows; i++) {
+                BytesRef exp = expected.apply(i);
+                if (exp == null) {
+                    assertTrue(ctx + " null at " + i, block.isNull(i));
+                } else {
+                    assertFalse(ctx + " non-null at " + i, block.isNull(i));
+                    assertEquals(ctx + " row " + i, exp, block.getBytesRef(i, scratch));
+                }
+            }
+        }
+        assertOptimizedMatchesBaseline(data, List.of("s"));
+    }
+
+    private static byte[] bytesOf(char c, int len) {
+        byte[] out = new byte[len];
+        Arrays.fill(out, (byte) c);
+        return out;
+    }
+
+    private static BytesRef concat(BytesRef a, BytesRef b) {
+        byte[] out = new byte[a.length + b.length];
+        System.arraycopy(a.bytes, a.offset, out, 0, a.length);
+        System.arraycopy(b.bytes, b.offset, out, a.length, b.length);
+        return new BytesRef(out);
+    }
+
+    private byte[] writePlainKeywordFile(boolean optional, IntFunction<byte[]> valueFor, int numRows) throws IOException {
+        return writeKeywordFile(optional, false, 64 * 1024, valueFor, numRows);
+    }
+
+    private byte[] writeDictionaryKeywordFile(IntFunction<byte[]> valueFor, int numRows) throws IOException {
+        return writeKeywordFile(false, true, 64 * 1024, valueFor, numRows);
+    }
+
+    private byte[] writeMixedDictionaryThenPlainKeywordFile(IntFunction<byte[]> valueFor, int numRows, int dictionaryPageSize)
+        throws IOException {
+        return writeKeywordFile(false, true, dictionaryPageSize, valueFor, numRows);
+    }
+
+    private byte[] writeKeywordFile(boolean optional, boolean dictionary, int dictionaryPageSize, IntFunction<byte[]> valueFor, int numRows)
+        throws IOException {
+        Types.MessageTypeBuilder schemaBuilder = Types.buildMessage();
+        var col = optional ? Types.optional(BINARY) : Types.required(BINARY);
+        col.as(LogicalTypeAnnotation.stringType());
+        schemaBuilder.addField(col.named("s"));
+        MessageType schema = schemaBuilder.named("plain_utf8");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        conf.set("parquet.enable.dictionary", Boolean.toString(dictionary));
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(conf)
+                .withCodecFactory(codecFactory)
+                .withType(schema)
+                .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(dictionary)
+                .withDictionaryPageSize(dictionaryPageSize)
+                .withRowGroupSize(64L * 1024 * 1024)
+                .withPageSize(4 * 1024)
+                .build()
+        ) {
+            for (int i = 0; i < numRows; i++) {
+                Group g = factory.newGroup();
+                byte[] v = valueFor.apply(i);
+                if (v != null) {
+                    g.append("s", Binary.fromConstantByteArray(Arrays.copyOf(v, v.length)));
+                }
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
     // --- Column spec for randomized tests ---
 
     private record ColSpec(
@@ -1180,14 +1440,19 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     // --- In-memory Parquet infrastructure ---
 
+    private static final AtomicInteger STORAGE_SEQ = new AtomicInteger();
+
     private static StorageObject storageObject(byte[] data) {
+        // FooterByteCache keys (identity, path, length, version). Same-length files in one test
+        // must not share a path or the second read is served the first file's cached footer.
+        String id = Integer.toString(STORAGE_SEQ.incrementAndGet());
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
             public String version() {
-                return "v1";
+                return id;
             }
 
             @Override
@@ -1222,7 +1487,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://correctness_test.parquet");
+                return StoragePath.of("memory://correctness_test-" + id + ".parquet");
             }
         };
     }

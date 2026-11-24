@@ -28,7 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
@@ -185,9 +184,8 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
     @Override
     public IntermediateResult translate(TranslationContext context) {
         List<String> keys = TranslationContext.mapFinite(groupings());
-        if (grouping() == WITHOUT && context.cmd().storesMetricName()) {
-            // Like every aggregation, a without drops the metric name.
-            keys = Stream.concat(keys.stream(), Stream.of(LabelMatcher.NAME)).distinct().toList();
+        if (grouping() == WITHOUT) {
+            keys = context.withoutLabels(keys);
         }
         TranslationSchema childRequired = switch (grouping()) {
             case BY -> finite(keys);

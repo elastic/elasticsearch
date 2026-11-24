@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -125,6 +126,17 @@ public record TranslationContext(
 
     public Configuration configuration() {
         return analyzer.configuration();
+    }
+
+    /**
+     * The labels a {@code without (labels)} leaves out: the listed ones and, where the source stores it, the metric name,
+     * which Prometheus drops from every {@code without} grouping.
+     */
+    public List<String> withoutLabels(List<String> labels) {
+        if (cmd.storesMetricName() == false || labels.contains(LabelMatcher.NAME)) {
+            return labels;
+        }
+        return Stream.concat(labels.stream(), Stream.of(LabelMatcher.NAME)).toList();
     }
 
     /**

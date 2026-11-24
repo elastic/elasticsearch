@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,98 +23,88 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-/**
- * Represents a file embedded in a {@link BccBlob} stored in the blobstore.
- *
- * In order to save costs for uploading multiple files (such as compound commits)
- * to the blobstore they are merged into a single {@link BccBlob}}.
- *
- * Each of the original files could be located in {@link BccBlob}} using offset and fileLength.
- *
- * @param bccBlob the blob file containing this location
- * @param offset the offset inside the blob file where the file is written
- * @param fileLength the length of the embedded file
- */
-public record BlobLocation(BccBlob bccBlob, long offset, long fileLength) implements Writeable, ToXContentObject {
+/// Represents a file embedded in a [Blob] stored in the blob store.
+///
+/// In order to save costs for uploading multiple files to the blob store, file are concatenated together into a single [BccBlob]. Then each
+/// of the original file can be located in the [Blob] using an offset and a fileLength.
+///
+/// @param blob the blob file containing this location
+/// @param offset the offset inside the blob file where the file is written
+/// @param fileLength the length of the embedded file
+public record BlobLocation(Blob blob, long offset, long fileLength) implements Writeable, ToXContentObject {
+
+    /// From this version, the blob is serialized on the transport layer with [Blob#writeTo] instead of a primary term followed by a
+    /// blob name, so that any type of blobs can be sent.
+    static final TransportVersion BLOB_LOCATION_SERIALIZES_BLOB = TransportVersion.fromName("stateless_blob_location_serializes_blob");
 
     public BlobLocation {
         assert offset >= 0 : "offset " + offset + " < 0";
         assert fileLength > 0 : "fileLength " + fileLength + " <= 0";
     }
 
-    // private access only for deserialization
-    private BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
-        this(
-            new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, BccBlob.parseGenerationFromBlobName(blobName))),
-            offset,
-            fileLength
-        );
-    }
-
     public long primaryTerm() {
-        return bccBlob.primaryTerm();
+        return blob.primaryTerm();
     }
 
     public String blobName() {
-        return bccBlob.blobName();
+        return blob.blobName();
     }
 
-    /**
-     * @return parse the generation from the blob name
-     */
-    public long compoundFileGeneration() {
-        return bccBlob.generation();
+    /// @return the blob containing this location as a [BccBlob], for the callers that only deal with batched compound commits
+    /// @throws IllegalStateException if the blob is not a [BccBlob]
+    @Deprecated(forRemoval = true)
+    public BccBlob bccBlob() {
+        if (blob instanceof BccBlob bccBlob) {
+            return bccBlob;
+        }
+        throw new IllegalStateException("expected a BccBlob but blob [" + blob + "] is a " + blob.getClass().getSimpleName());
     }
 
+    @Deprecated(forRemoval = true)
     public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
-        return bccBlob.termAndGeneration();
+        return bccBlob().termAndGeneration();
     }
 
-    /**
-     * Returns true if this BlobLocation fully contains the given BlobLocation.
-     */
+    /// Returns true if this BlobLocation fully contains the given BlobLocation.
     public boolean contains(BlobLocation blobLocation) {
-        return Objects.equals(blobLocation.bccBlob(), bccBlob())
+        return Objects.equals(blobLocation.blob(), blob())
             && blobLocation.offset() >= offset()
             && blobLocation.offset() + blobLocation.fileLength() <= offset() + fileLength();
     }
 
-    /**
-     * This method is used to read BlobLocation from the object store. Ancient commits (before xcontent) can still contain blobLength
-     */
-    public static BlobLocation readFromStore(StreamInput streamInput, boolean includesBlobLength) throws IOException {
-        if (includesBlobLength) {
-            return readWithBlobLength(streamInput);
-        } else {
-            return readWithoutBlobLength(streamInput);
-        }
-    }
-
     public static BlobLocation readFromTransport(StreamInput streamInput) throws IOException {
-        return readWithoutBlobLength(streamInput);
-    }
-
-    private static BlobLocation readWithBlobLength(StreamInput streamInput) throws IOException {
-        long primaryTerm = streamInput.readVLong();
-        String blobName = streamInput.readString();
-        streamInput.readVLong(); // ignore blobLength
-        long offset = streamInput.readVLong();
-        long length = streamInput.readVLong();
-        return new BlobLocation(primaryTerm, blobName, offset, length);
-    }
-
-    private static BlobLocation readWithoutBlobLength(StreamInput streamInput) throws IOException {
+        if (streamInput.getTransportVersion().supports(BLOB_LOCATION_SERIALIZES_BLOB)) {
+            Blob blob = Blob.readFrom(streamInput, Blob.class);
+            long offset = streamInput.readVLong();
+            long length = streamInput.readVLong();
+            return new BlobLocation(blob, offset, length);
+        }
+        // nodes of previous versions only know about BccBlob
         long primaryTerm = streamInput.readVLong();
         String blobName = streamInput.readString();
         long offset = streamInput.readVLong();
         long length = streamInput.readVLong();
-        return new BlobLocation(primaryTerm, blobName, offset, length);
+        try {
+            return new BlobLocation(new BccBlob(blobName, primaryTerm), offset, length);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("malformed blob name [" + blobName + ']', e);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(primaryTerm());
-        out.writeString(blobName());
+        if (out.getTransportVersion().supports(BLOB_LOCATION_SERIALIZES_BLOB)) {
+            blob.writeTo(out);
+        } else {
+            // nodes of previous versions only know about BccBlob
+            if (blob instanceof BccBlob == false) {
+                throw new IllegalStateException(
+                    "cannot send blob [" + blob + "] to a node that only supports batched compound commit blobs"
+                );
+            }
+            out.writeVLong(primaryTerm());
+            out.writeString(blobName());
+        }
         out.writeVLong(offset);
         out.writeVLong(fileLength);
     }
@@ -136,7 +127,16 @@ public record BlobLocation(BccBlob bccBlob, long offset, long fileLength) implem
             String blobName = (String) args[1];
             long offset = (long) args[2];
             long fileLength = (long) args[3];
-            return new BlobLocation(primaryTerm, blobName, offset, fileLength);
+
+            final Blob blob;
+            if (BccBlob.startsWithBlobPrefix(blobName)) {
+                blob = new BccBlob(blobName, primaryTerm);
+            } else if (MergeBlob.startsWithPrefix(blobName)) {
+                blob = new MergeBlob(blobName, primaryTerm);
+            } else {
+                throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
+            }
+            return new BlobLocation(blob, offset, fileLength);
         }
     );
     static {

@@ -2284,8 +2284,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         return new CommitAndBlobLocation(blobReference, blobLocation);
                     } else {
                         assert StatelessCompoundCommit.isGenerationalFile(fileName)
-                            && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
-                            : fileName + ':' + existing + ':' + blobLocation;
+                            && existing.blobLocation.blob() instanceof BccBlob existingBlob
+                            && blobLocation.blob() instanceof BccBlob newBlob
+                            && existingBlob.generation() < newBlob.generation() : fileName + ':' + existing + ':' + blobLocation;
                         logger.trace(
                             "{} ignoring generational file [{}] updated location [{}]->[{}], keeping [{}]",
                             shardId,

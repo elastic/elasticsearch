@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -38,6 +39,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomTimestampFieldValueRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCase<StatelessCompoundCommit> {
 
@@ -503,5 +505,41 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
         assertThat(commit.getMaxInternalFilesOffsetInCurrentGeneration(), equalTo(currentMax));
         assertThat(commit.getMinInternalFilesOffsetInCurrentGeneration(), equalTo(currentMin));
+    }
+
+    /// Commit headers written before xcontent are read from the store as locations in a [BccBlob], with or without a blob length.
+    public void testReadBlobLocationFromStoreLegacyFormat() throws IOException {
+        var blob = new BccBlob(BccBlob.blobNameFromGeneration(randomLongBetween(1, 1000)), randomLongBetween(1, 10));
+        var expected = new BlobLocation(blob, randomLongBetween(0, 100), randomLongBetween(1, 1000));
+        for (boolean includesBlobLength : new boolean[] { true, false }) {
+            var out = new BytesStreamOutput();
+            out.writeVLong(expected.primaryTerm());
+            out.writeString(expected.blobName());
+            if (includesBlobLength) {
+                out.writeVLong(randomNonNegativeLong());
+            }
+            out.writeVLong(expected.offset());
+            out.writeVLong(expected.fileLength());
+
+            var read = StatelessCompoundCommit.readLegacyBlobLocationFromStore(out.bytes().streamInput(), includesBlobLength);
+            assertThat(read, equalTo(expected));
+            assertThat(read.blob(), instanceOf(BccBlob.class));
+        }
+    }
+
+    /// The legacy format predates merge blobs: a merge blob name is rejected rather than read as a [BccBlob].
+    public void testReadBlobLocationFromStoreLegacyFormatRejectsMergeBlobName() throws IOException {
+        var mergeBlob = new MergeBlob(MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH)), randomLongBetween(1, 10));
+        var out = new BytesStreamOutput();
+        out.writeVLong(mergeBlob.primaryTerm());
+        out.writeString(mergeBlob.blobName());
+        out.writeVLong(0L);
+        out.writeVLong(1L);
+
+        var exception = expectThrows(
+            IOException.class,
+            () -> StatelessCompoundCommit.readLegacyBlobLocationFromStore(out.bytes().streamInput(), false)
+        );
+        assertThat(exception.getMessage(), containsString("malformed blob name [" + mergeBlob.blobName() + ']'));
     }
 }

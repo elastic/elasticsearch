@@ -2148,7 +2148,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public List<Expression> getDataAsLiterals() {
-            return data.stream().map(e -> e.mapExpression ? e.asMapExpression() : e.asLiteral()).collect(Collectors.toList());
+            return data.stream()
+                .map(e -> e.mapExpression ? e.asMapExpression() : e.asLiteralRandomlyAsSingleElementList())
+                .collect(Collectors.toList());
         }
 
         public List<Object> getDataValues() {
@@ -2610,7 +2612,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Expression asField() {
             if (forceLiteral) {
-                return mapExpression ? asMapExpression() : asLiteral();
+                return mapExpression ? asMapExpression() : asLiteralRandomlyAsSingleElementList();
             }
             return AbstractFunctionTestCase.field(name, type);
         }
@@ -2620,7 +2622,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Expression asDeepCopyOfField() {
             if (forceLiteral) {
-                return mapExpression ? asMapExpression() : asLiteral();
+                return mapExpression ? asMapExpression() : asLiteralRandomlyAsSingleElementList();
             }
             return AbstractFunctionTestCase.deepCopyOfField(name, type);
         }
@@ -2639,6 +2641,41 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return new Literal(Source.synthetic(name), convertLiterals(values.get(0), type), type);
             }
             return new Literal(Source.synthetic(name), convertLiterals(data, type), type);
+        }
+
+        /**
+         * Like {@link #asLiteral()}, but half of the time a single value is wrapped in a one-element list.
+         * <p>
+         *     In ES|QL, a list with one value is the same as that value: {@code ["a"]} and {@code "a"} are
+         *     indistinguishable once they are in a block. Parameters and array literals are parsed as lists
+         *     though, so every function must behave the same with both shapes. Wrapping the literals at random
+         *     makes all function tests check that, in all the places where a function inspects its constant
+         *     arguments: folding, building its evaluator, and so on.
+         * </p>
+         * <p>
+         *     This is about the shape of the value written in the query, not about multivalue support, so every
+         *     value is wrapped except the ones a query can't write as a one-element list.
+         * </p>
+         */
+        public Literal asLiteralRandomlyAsSingleElementList() {
+            Literal literal = asLiteral();
+            Object value = literal.rawValue();
+            if (value == null) {
+                // [null] can't be written in a query.
+                return literal;
+            }
+            if (value instanceof List<?>) {
+                // Already a list: a multivalue, or a single value that was wrapped by the test case itself.
+                return literal;
+            }
+            if (value instanceof Duration || value instanceof Period) {
+                // Intervals are not values of an array literal or a parameter, so there is no [1 day] syntax.
+                return literal;
+            }
+            if (ESTestCase.randomBoolean() == false) {
+                return literal;
+            }
+            return new Literal(literal.source(), List.of(value), literal.dataType());
         }
 
         private Object convertLiterals(Object o, DataType type) {

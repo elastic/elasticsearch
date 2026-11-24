@@ -229,7 +229,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             return null;
         }
 
-        List<?> vectorList = (List<?>) literal.value();
+        // A vector with one dimension is a one-element list, which the literal gives as its only value.
+        List<?> vectorList = literal.value() instanceof List<?> list ? list : List.of(literal.value());
         DenseVectorFieldMapper.ElementType elementType = null;
         var fieldType = stats.fieldType(field.fieldName());
         if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {

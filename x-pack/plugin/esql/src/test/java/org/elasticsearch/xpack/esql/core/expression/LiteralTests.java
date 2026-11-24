@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import joptsimple.internal.Strings;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -138,6 +139,33 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
             Literal lit = new Literal(Source.EMPTY, g.valueSupplier.get(), randomFrom(g.validDataTypes));
             assertThat(lit.toString(), equalTo(BytesRefs.toString(lit.value())));
         }
+    }
+
+    /**
+     * A list with one value is the same as that value for everything that reads the literal's value, but the list is kept as written.
+     */
+    public void testSingleElementList() {
+        BytesRef value = BytesRefs.toBytesRef(randomAlphaOfLength(5));
+        Literal scalar = new Literal(Source.EMPTY, value, KEYWORD);
+        Literal list = new Literal(Source.EMPTY, List.of(value), KEYWORD);
+
+        assertThat(list.value(), equalTo(value));
+        assertThat(list.fold(FoldContext.small()), equalTo(value));
+        assertThat(list.rawValue(), equalTo(List.of(value)));
+        assertThat(scalar.value(), equalTo(value));
+        assertThat(scalar.rawValue(), equalTo(value));
+
+        assertNotEquals(scalar, list);
+        assertThat(list.toString(), equalTo(new Literal(Source.EMPTY, List.of(value), KEYWORD).toString()));
+    }
+
+    public void testMultiValuedList() {
+        List<BytesRef> values = List.of(BytesRefs.toBytesRef("a"), BytesRefs.toBytesRef("b"));
+        Literal literal = new Literal(Source.EMPTY, values, KEYWORD);
+
+        assertThat(literal.value(), equalTo(values));
+        assertThat(literal.fold(FoldContext.small()), equalTo(values));
+        assertThat(literal.rawValue(), equalTo(values));
     }
 
     private static Object randomValueOfTypeOtherThan(Object original, DataType type) {

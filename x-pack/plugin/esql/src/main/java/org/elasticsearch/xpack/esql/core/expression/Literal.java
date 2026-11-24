@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -55,7 +56,15 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     public static final Literal FALSE = new Literal(Source.EMPTY, Boolean.FALSE, DataType.BOOLEAN);
     public static final Literal NULL = new Literal(Source.EMPTY, null, DataType.NULL);
 
+    /**
+     * The value as it was written, including lists with a single value.
+     * This is the one that is compared, serialized and printed.
+     */
     private final Object value;
+    /**
+     * {@link #value} with single-value lists unwrapped. This is the one that is given to the code that inspects the literal.
+     */
+    private final Object unwrappedValue;
     private final DataType dataType;
 
     public Literal(Source source, Object value, DataType dataType) {
@@ -63,6 +72,19 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
         assert noPlainStrings(value, dataType);
         this.dataType = dataType;
         this.value = value;
+        this.unwrappedValue = unwrapSingleValue(value);
+    }
+
+    /**
+     * A list with a single value is that value. In ES|QL {@code ["a"]} and {@code "a"} are the same: once they are in a block
+     * there's no difference between a multivalue with one element and a single value. But params and array literals are
+     * parsed as lists, so this is where they become the single value that any function expects.
+     */
+    private static Object unwrapSingleValue(Object value) {
+        if (value instanceof List<?> list && list.size() == 1) {
+            return list.getFirst();
+        }
+        return value;
     }
 
     private boolean noPlainStrings(Object value, DataType dataType) {
@@ -103,7 +125,24 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
         return NodeInfo.create(this, Literal::new, value, dataType);
     }
 
+    /**
+     * The value of this literal: a single value, a list for multivalues, or {@code null}.
+     * A list with a single value is returned as that value, as {@link #fold} does.
+     * <p>
+     *     Use {@link #rawValue()} only when the code must tell {@code ["a"]} from {@code "a"}, like parse-time
+     *     validations of what the user wrote.
+     * </p>
+     */
     public Object value() {
+        return unwrappedValue;
+    }
+
+    /**
+     * The value as it was written. Unlike {@link #value()}, a list with a single value is returned as a list.
+     * Only meant for code that has to validate or print the original shape of the value. Anything that uses the value
+     * must use {@link #value()} or {@link #fold}, which treat {@code ["a"]} and {@code "a"} the same.
+     */
+    public Object rawValue() {
         return value;
     }
 
@@ -129,7 +168,7 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
 
     @Override
     public Object fold(FoldContext ctx) {
-        return value;
+        return unwrappedValue;
     }
 
     @Override

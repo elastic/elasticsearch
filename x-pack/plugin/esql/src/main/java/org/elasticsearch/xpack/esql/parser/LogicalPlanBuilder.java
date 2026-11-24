@@ -736,18 +736,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             Expression propertiesExpr = optionsMap.remove("properties");
             if (propertiesExpr != null) {
-                if (propertiesExpr instanceof Literal propLit && propLit.value() instanceof List<?> propList) {
-                    properties = new ArrayList<>();
-                    for (Object item : propList) {
-                        if (item instanceof BytesRef) {
-                            properties.add(BytesRefs.toString(item));
-                        } else {
-                            throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
-                        }
-                    }
-                } else {
-                    throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
-                }
+                properties = propertiesOption(propertiesExpr);
             }
 
             // The ingest processor supports an "original" property that includes the raw user-agent string in the output.
@@ -855,18 +844,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             Expression propertiesExpr = optionsMap.remove("properties");
             if (propertiesExpr != null) {
-                if (propertiesExpr instanceof Literal propLit && propLit.value() instanceof List<?> propList) {
-                    properties = new ArrayList<>();
-                    for (Object item : propList) {
-                        if (item instanceof BytesRef) {
-                            properties.add(BytesRefs.toString(item));
-                        } else {
-                            throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
-                        }
-                    }
-                } else {
-                    throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
-                }
+                properties = propertiesOption(propertiesExpr);
             }
 
             if (optionsMap.isEmpty() == false) {
@@ -1298,6 +1276,29 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         return List.of(metadataMap.values().toArray(NamedExpression[]::new));
+    }
+
+    /**
+     * Reads the {@code properties} option of {@code USER_AGENT} and {@code IP_LOCATION}: a list of string literals.
+     * A list with one string is the same as that string, so {@code "name"} and {@code ["name"]} are both accepted.
+     */
+    private static List<String> propertiesOption(Expression propertiesExpr) {
+        if (propertiesExpr instanceof Literal propLit) {
+            Object value = propLit.value();
+            List<?> items = value instanceof List<?> list ? list : value instanceof BytesRef ? List.of(value) : null;
+            if (items != null) {
+                List<String> properties = new ArrayList<>(items.size());
+                for (Object item : items) {
+                    if (item instanceof BytesRef) {
+                        properties.add(BytesRefs.toString(item));
+                    } else {
+                        throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                    }
+                }
+                return properties;
+            }
+        }
+        throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
     }
 
     /**

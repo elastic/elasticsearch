@@ -133,9 +133,13 @@ public class IndexVersionUtils {
     }
 
     /**
-     * Returns a random {@code IndexVersion} that can be written to and whose Lucene version is before {@code luceneVersion}. Use this,
-     * rather than index version ordering, for behavior that is gated on {@link IndexVersion#luceneVersion()}: index version ids are
-     * not monotonic in the Lucene version across backports.
+     * Returns a random {@code IndexVersion} that can be written to and whose Lucene version is before {@code luceneVersion}. Use this
+     * for behavior that is gated on {@link IndexVersion#luceneVersion()}, so that the test selects versions the same way the gate does.
+     * <p>
+     * Index version ids do not always increase with the Lucene version: a Lucene upgrade backported to a release branch gets a patch
+     * id below ids that {@code main} allocated while still on the older Lucene. So far this has only happened between bugfix
+     * releases of one Lucene minor (for example {@code 9_039_0_02} is on Lucene 10.3.2 and {@code 9_040_0_00} on 10.3.0), so gates that
+     * compare index versions against a minor or major Lucene upgrade are unaffected.
      */
     public static IndexVersion randomWriteVersionBeforeLucene(Version luceneVersion) {
         return randomWriteVersionMatchingLucene(v -> v.onOrAfter(luceneVersion) == false, "before", luceneVersion);

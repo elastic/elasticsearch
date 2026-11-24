@@ -1,5 +1,0 @@
-area: Machine Learning
-issues: []
-pr: 160601
-summary: Auto-stop datafeed after consecutive extraction failures
-type: bug

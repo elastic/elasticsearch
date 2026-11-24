@@ -460,7 +460,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
         }
     }
 
-    private static ESNextDiskASHVectorsReader ashReader(LeafReader leafReader, String field) {
+    static ESNextDiskASHVectorsReader ashReader(LeafReader leafReader, String field) {
         KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
         vectorReader = vectorReader.unwrapReaderForField(field);
         assertThat(vectorReader, instanceOf(ESNextDiskASHVectorsReader.class));

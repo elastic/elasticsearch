@@ -202,26 +202,36 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
         Exception disconnected = new NodeDisconnectedException(node, "indices:data/read/esql/data");
         Exception wrapped = new RemoteTransportException("worker", disconnected);
 
-        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, true));
-        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(wrapped, 0, true));
-        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeNotConnectedException(node, "gone"), 0, true));
-        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeClosedException(node), 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, true, false));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(wrapped, 0, true, false));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeNotConnectedException(node, "gone"), 0, true, false));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeClosedException(node), 0, true, false));
         assertFalse(
             "cluster-state lag waits on the worker, it is not a leave hop",
-            DataNodeComputeHandler.shouldRerouteExternalWorker(DataNodeComputeHandler.workerNotReady(""), 0, true)
+            DataNodeComputeHandler.shouldRerouteExternalWorker(DataNodeComputeHandler.workerNotReady(""), 0, true, false)
         );
 
-        assertFalse("pages already fetched cannot be replayed", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 1, true));
-        assertFalse("last worker has nowhere to go", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, false));
-        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new TaskCancelledException("cancelled"), 0, true));
+        assertFalse(
+            "pages already fetched cannot be replayed",
+            DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 1, true, false)
+        );
+        assertFalse("last worker has nowhere to go", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, false, false));
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new TaskCancelledException("cancelled"), 0, true, false));
         assertFalse(
             DataNodeComputeHandler.shouldRerouteExternalWorker(
                 new CircuitBreakingException("over limit", CircuitBreaker.Durability.TRANSIENT),
                 0,
-                true
+                true,
+                false
             )
         );
-        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new IOException("boom"), 0, true));
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new IOException("boom"), 0, true, false));
+    }
+
+    public void testNoRerouteWhenTheWorkerMayHaveWritten() {
+        Exception disconnected = new NodeDisconnectedException(createNodes(1).get("node-0"), "indices:data/read/esql/data");
+
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, true, true));
     }
 
     public void testRemainingExternalWorkersFailedKeepsTheDisconnect() {

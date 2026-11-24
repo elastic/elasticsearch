@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class FieldNameUtilsTests extends ESTestCase {
@@ -88,6 +89,34 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testBasicEvalAndDrop() {
         assertFieldNames("from test | eval x = 1 | drop x", ALL_FIELDS);
+    }
+
+    public void testNestedPredicateAsksForItsFieldsAndTheParentFields() {
+        String query = "from test | where nested_any(items.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items.price", "items.price.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateIsRecognizedInAnyCase() {
+        String query = "from test | where NESTED_ANY(items.price > 1) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items.price", "items.price.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testNestedPredicateOverACollectionAsksForTheCollection() {
+        String query = "from test | where nested_any(items, true) | keep id";
+        assertFieldNames(query, Set.of("id", "id.*", "items", "items.*", "_index"));
+        assertThat(nestedScope(query), is(true));
+    }
+
+    public void testAQueryWithoutNestedPredicatesIsNotNestedScoped() {
+        assertThat(nestedScope("from test | where id > 1 | keep id"), is(false));
+    }
+
+    public void testNestedWithoutNarrowingAsksForAllFields() {
+        String query = "from test | where nested_any(items.price > 1)";
+        assertFieldNames(query, ALL_FIELDS);
+        assertThat(nestedScope(query), is(true));
     }
 
     public void testSimple1() {
@@ -4941,6 +4970,11 @@ public class FieldNameUtilsTests extends ESTestCase {
         var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields);
         assertThat("Parent paths", preAnalysisResult.parentPaths(), equalTo(expected));
         assertThat("Parent paths are requested", preAnalysisResult.fieldNames().containsAll(expected), equalTo(true));
+    }
+
+    private boolean nestedScope(String query) {
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        return FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields).nestedScope();
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

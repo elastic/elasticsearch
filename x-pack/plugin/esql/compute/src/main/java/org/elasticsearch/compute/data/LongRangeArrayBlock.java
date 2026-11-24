@@ -107,6 +107,11 @@ public final class LongRangeArrayBlock extends AbstractBlockRefCounted implement
     }
 
     @Override
+    public int nullValuesCount() {
+        return BlockUtils.nullValuesCount(this);
+    }
+
+    @Override
     public boolean mayHaveMultivaluedFields() {
         return fromBlock.mayHaveMultivaluedFields() || toBlock.mayHaveMultivaluedFields();
     }

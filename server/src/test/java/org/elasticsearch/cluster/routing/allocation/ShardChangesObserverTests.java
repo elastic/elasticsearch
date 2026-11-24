@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.MoveType;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -339,16 +340,29 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             }
         });
 
-        final var attributes = relocationAttributesAfterReroute(indexMetadata, allocationId, settings, plugins);
-        assertThat(attributes, hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
-        assertThat(attributes, hasEntry("es_can_remain_decider", "simulation_only"));
+        final var result = relocationAfterReroute(indexMetadata, allocationId, settings, plugins);
+        assertThat(result.attributes(), hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
+        assertThat(result.attributes(), hasEntry("es_can_remain_decider", "simulation_only"));
+        // the reconciler prioritises the move by the computation's reason, not by its own canRemain decision
+        assertThat(result.recoveryPriority(), is(MoveType.CANNOT_REMAIN.recoveryPriority()));
+    }
+
+    private record RelocationResult(Map<String, Object> attributes, RecoveryPriority recoveryPriority) {}
+
+    private Map<String, Object> relocationAttributesAfterReroute(
+        IndexMetadata indexMetadata,
+        String allocationId,
+        Settings settings,
+        List<ClusterPlugin> clusterPlugins
+    ) {
+        return relocationAfterReroute(indexMetadata, allocationId, settings, clusterPlugins).attributes();
     }
 
     /**
      * Reroutes a one-shard cluster where the shard starts on node-1 and returns the attributes of the single relocation the allocation
-     * service with the given settings and plugins starts
+     * service with the given settings and plugins starts, along with the recovery priority the relocating shard was given
      */
-    private Map<String, Object> relocationAttributesAfterReroute(
+    private RelocationResult relocationAfterReroute(
         IndexMetadata indexMetadata,
         String allocationId,
         Settings settings,
@@ -374,8 +388,19 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             clusterSettings
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
-        applyStartedShardsUntilNoChange(clusterState, allocationService);
-        return assertMovementCount(meterRegistry.getRecorder(), 1).getFirst();
+        // not applyStartedShardsUntilNoChange: the relocating shard's priority is gone once the relocation completes
+        RecoveryPriority recoveryPriority = null;
+        ClusterState previous;
+        ClusterState current = clusterState;
+        do {
+            previous = current;
+            current = startInitializingShardsAndReroute(allocationService, previous);
+            final var primary = current.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
+            if (primary.relocating()) {
+                recoveryPriority = primary.recoveryPriority();
+            }
+        } while (previous.equals(current) == false);
+        return new RelocationResult(assertMovementCount(meterRegistry.getRecorder(), 1).getFirst(), recoveryPriority);
     }
 
     private static List<Map<String, Object>> assertMovementCount(MetricRecorder<Instrument> recorder, long expectedCount) {

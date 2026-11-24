@@ -636,13 +636,14 @@ public class DesiredBalanceReconciler {
                             rebalanceTarget.getId()
                         );
 
+                        final var moveReason = rebalanceReason(shardRouting);
                         routingNodes.relocateShard(
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            rebalanceReason(shardRouting),
+                            moveReason,
                             allocation.changes(),
-                            MoveType.REBALANCE.recoveryPriority()
+                            moveReason.type().recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
@@ -693,7 +694,8 @@ public class DesiredBalanceReconciler {
 
         /**
          * A shard reaching {@link #balance()} may remain where it is as far as the reconciler's deciders are concerned, so the only
-         * explanation for the move is the computation's, when it recorded one.
+         * explanation for the move is the computation's, when it recorded one. The relocation is also prioritised by that reason, so a
+         * move the computation made because the copy cannot (or should not) remain is recovered with the matching priority.
          */
         private MoveReason rebalanceReason(ShardRouting shardRouting) {
             final var computedReason = desiredBalance.computedMoveReasons()

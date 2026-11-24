@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
@@ -58,6 +59,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     /// Registers the merge that produces the segment, before the segment is warmed.
     public void onMergeStarted(SegmentCommitInfo mergedSegment, MergePolicy.OneMerge merge) {
+        assert assertOnMergeThread();
         final var previous = merges.put(segmentId(mergedSegment.info), merge);
         // the index writer sets the merged segment of a merge more than once
         assert previous == null || previous == merge : "segment [" + mergedSegment.info.name + "] is already merged by " + previous;
@@ -65,6 +67,7 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     /// Stops tracking the merge that produced the segment, whether the merge succeeded, failed or was aborted.
     public void onMergeFinished(SegmentCommitInfo mergedSegment, MergePolicy.OneMerge merge) {
+        assert assertOnMergeThread();
         final var removed = merges.remove(segmentId(mergedSegment.info));
         assert removed == merge : "segment [" + mergedSegment.info.name + "] was tracked for " + removed + " instead of " + merge;
     }
@@ -72,6 +75,12 @@ public class MergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
     /// Whether the warmer still tracks any merge.
     boolean hasTrackedMerges() {
         return merges.isEmpty() == false;
+    }
+
+    // merges run on the merge thread pool, or on the threads of Lucene's own scheduler if the thread pool scheduler is disabled
+    private static boolean assertOnMergeThread() {
+        return Thread.currentThread().getName().contains("Lucene Merge Thread")
+            || ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MERGE);
     }
 
     // segment names can be reused across index writers, ids are unique

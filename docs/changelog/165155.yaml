@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 165155
+summary: Fix NPE for script fields without a script
+type: bug

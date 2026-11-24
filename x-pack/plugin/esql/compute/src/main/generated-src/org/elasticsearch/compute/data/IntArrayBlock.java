@@ -248,6 +248,11 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     }
 
     @Override
+    public void enablePooling() {
+        vector.enablePooling();
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }

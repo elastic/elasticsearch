@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -1099,7 +1098,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) invocationOnMock.getArguments()[0];
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             if (task.getModelId().equals(modelId)) {
-                listener.onFailure(new SearchPhaseExecutionException("all shards failed", "foo", ShardSearchFailure.EMPTY_ARRAY));
+                listener.onFailure(new SearchPhaseExecutionException("all shards failed", "foo", List.of()));
             } else {
                 listener.onResponse(task);
             }

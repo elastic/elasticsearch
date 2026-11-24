@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -65,12 +66,14 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, Exten
 
     @Override
     public TelemetryProvider getTelemetryProvider(
+        ThreadContext threadContext,
         Environment environment,
         List<TelemetryLoggingFilterProvider> filterProviders,
         TelemetryLogResourceProvider logResourceProvider
     ) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
         final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
+            threadContext,
             environment.settings(),
             diskBufferPath,
             environment.configDir(),

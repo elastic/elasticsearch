@@ -22,6 +22,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -48,7 +49,8 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
         Settings s = Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), enabled).build();
         return new ShardBatchIndexer(
             new BatchIndexingEnabled(new ClusterSettings(s, Set.of(BatchIndexingEnabled.BATCH_INDEXING))),
-            BytesRefRecycler.NON_RECYCLING_INSTANCE
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
     }
 
@@ -159,7 +161,11 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
             Set.of(BatchIndexingEnabled.BATCH_INDEXING)
         );
         BatchIndexingEnabled gate = new BatchIndexingEnabled(clusterSettings);
-        ShardBatchIndexer batchIndexer = new ShardBatchIndexer(gate, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        ShardBatchIndexer batchIndexer = new ShardBatchIndexer(
+            gate,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
+            DocumentParsingProvider.EMPTY_INSTANCE
+        );
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
         try (EscfBatch batch = buildBatch(1)) {

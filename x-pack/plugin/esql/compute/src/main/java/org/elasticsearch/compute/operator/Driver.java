@@ -29,9 +29,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -88,8 +90,8 @@ public class Driver implements Releasable, Describable {
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     /**
      * Operators that asked to be resnapshotted after {@code waitForAsyncActions}. Index is into
-     * {@link #statusOfCompletedOperators}. Mutated only after {@link #isFinished()} when the
-     * driver loop is dead.
+     * {@link #statusOfCompletedOperators}. Mutated only when the driver loop is dead: once the driver is finished, or
+     * when it fails or is aborted and drains its operators.
      */
     private final List<PendingFinalStatus> pendingFinalStatus = new ArrayList<>();
     private final Releasable releasable;
@@ -119,13 +121,63 @@ public class Driver implements Releasable, Describable {
     private final AtomicReference<DriverStatus> status;
 
     /**
+     * Plan-node ids for operators created from a physical plan. Identity map, touched on the driver thread.
+     * Empty when the driver was not built from a plan (tests, enrich lookup). An operator is taken out when the
+     * driver closes it: it has released its memory by then, and the driver outlives it, so it must not stay reachable.
+     */
+    private Map<Operator, String> planNodeIds = Map.of();
+
+    /**
+     * Associates operators with the physical plan node that created them. Operators missing from the map omit
+     * {@code plan_node_id}. The driver keeps its own copy, and takes an operator out of it when it closes it.
+     */
+    public void setPlanNodeIds(Map<Operator, String> planNodeIds) {
+        this.planNodeIds = copyLabels(planNodeIds);
+    }
+
+    /**
+     * Exchange names of the exchange sink and source operators. Same shape and rules as {@link #planNodeIds}.
+     */
+    private Map<Operator, String> exchangeIds = Map.of();
+
+    /**
+     * Associates the exchange sink and source operators with the exchange they are one side of. Operators missing from
+     * the map omit {@code exchange_id}. The driver keeps its own copy, as for {@link #setPlanNodeIds}.
+     */
+    public void setExchangeIds(Map<Operator, String> exchangeIds) {
+        this.exchangeIds = copyLabels(exchangeIds);
+    }
+
+    private static Map<Operator, String> copyLabels(@Nullable Map<Operator, String> labels) {
+        return labels == null || labels.isEmpty() ? Map.of() : new IdentityHashMap<>(labels);
+    }
+
+    private OperatorStatus operatorStatus(Operator op) {
+        return new OperatorStatus(op.toString(), op.status(), planNodeIds.get(op), exchangeIds.get(op));
+    }
+
+    /** Moves the label {@code original} has in {@code labels}, if any, to {@code promoted}, so its status still reports it. */
+    private static void moveLabel(Map<Operator, String> labels, Operator original, Operator promoted) {
+        String label = forgetLabel(labels, original);
+        if (label != null) {
+            labels.put(promoted, label);
+        }
+    }
+
+    /** Takes {@code op} out of {@code labels} and returns the label it had, if any. */
+    private static String forgetLabel(Map<Operator, String> labels, Operator op) {
+        // the empty map is immutable
+        return labels.isEmpty() ? null : labels.remove(op);
+    }
+
+    /**
      * The time this driver finished. Only set once the driver is finished, defaults to 0
      * which is *possibly* a valid value, so always use the driver status to check
      * if the driver is actually finished.
      */
     private long finishNanos;
 
-    /** Where the time of this driver that its source operator does not attribute to shards is charged, or {@code null}. */
+    /** Set with {@link #loadTarget(TaskLoadAttribution.Target)}, or {@code null}. */
     private TaskLoadAttribution.Target loadTarget;
     /** The time since the last status update already reported by a source operator when it closed. */
     private long reportedByClosedSource;
@@ -201,12 +253,16 @@ public class Driver implements Releasable, Describable {
      * this runs inside an operator's measurement of this driver. That happens once the driver was cancelled or finished
      * early: the scheduler then runs it directly on the thread that completes the listener it is blocked on, such as a
      * worker's.
-     * CPU and driver time are published at status updates. If an iteration throws, including cancellation,
-     * time accumulated since the last status update is not included in the reported totals.
+     * CPU and driver time are published at status updates. If an iteration throws, including cancellation, the driver
+     * still publishes a final status, with the status of its operators, once it has drained them. That status includes the
+     * CPU time of the failed iteration, which is committed when its measurement closes, but not the CPU time of draining
+     * and closing the operators afterwards, nor the driver time since the last status update.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
-        // the driver charges its time itself, to the shards its source reads or to its load target
-        TaskLoadAttribution.attribute(TaskLoadAttribution.CHARGED_BY_TASK);
+        // the driver charges its own time, and its pool the rest of the task to the load target
+        if (loadTarget != null) {
+            TaskLoadAttribution.attribute(loadTarget);
+        }
         return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
     }
 
@@ -341,7 +397,13 @@ public class Driver implements Releasable, Describable {
         completionListener.addListener(listener);
         if (started.compareAndSet(false, true)) {
             drainAndCloseOperators(reason);
-            completionListener.onFailure(reason);
+            try {
+                // Unlike the failure of a running driver, abort does not wait for asynchronous actions: operators with
+                // off-driver work are read again now, not after it.
+                publishFinalStatus();
+            } finally {
+                completionListener.onFailure(reason);
+            }
         } else {
             cancel(reason.getMessage());
         }
@@ -389,6 +451,8 @@ public class Driver implements Releasable, Describable {
                     movedPage = true;
                     Operator promoted = nextOp.tryPromote(driverContext);
                     if (promoted != nextOp) {
+                        moveLabel(planNodeIds, nextOp, promoted);
+                        moveLabel(exchangeIds, nextOp, promoted);
                         activeOperators.set(iterator.nextIndex(), promoted);
                     }
                 }
@@ -444,7 +508,7 @@ public class Driver implements Releasable, Describable {
                 while (finishedOperators.hasNext()) {
                     Operator op = finishedOperators.next();
                     int statusIndex = statusOfCompletedOperators.size();
-                    statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+                    statusOfCompletedOperators.add(operatorStatus(op));
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = currentTimeNanosSupplier.getAsLong();
                         // report one last time before closing
@@ -452,9 +516,17 @@ public class Driver implements Releasable, Describable {
                             reportedByClosedSource = now - lastStatusUpdate;
                         }
                     }
-                    op.close();
+                    try {
+                        op.close();
+                    } catch (RuntimeException e) {
+                        // The operator stays active, so the failure's drain closes it again and records its status then.
+                        statusOfCompletedOperators.remove(statusIndex);
+                        throw e;
+                    }
+                    String planNodeId = forgetLabel(planNodeIds, op);
+                    String exchangeId = forgetLabel(exchangeIds, op);
                     if (op.finalStatusAfterAsyncActions()) {
-                        pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+                        pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op, planNodeId, exchangeId));
                     }
                     finishedOperators.remove();
                 }
@@ -577,7 +649,13 @@ public class Driver implements Releasable, Describable {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {
-                Releasables.closeWhileHandlingException(itr.next());
+                Operator op = itr.next();
+                if (e != null) {
+                    // The driver failed or was aborted: keep what the operator did, as the early-finish path does but
+                    // tolerating a failing status, so the failed driver still reports its usage. A plain close() does not.
+                    recordStatusBeforeClose(op);
+                }
+                Releasables.closeWhileHandlingException(op);
             } catch (Exception x) {
                 if (e != null) {
                     e.addSuppressed(x);
@@ -585,8 +663,30 @@ public class Driver implements Releasable, Describable {
             }
             itr.remove();
         }
+        planNodeIds = Map.of();
+        exchangeIds = Map.of();
         driverContext.finish();
         Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
+    }
+
+    /**
+     * Adds the status of an operator that is about to be closed without having finished, because the driver failed or was
+     * cancelled. This must never throw: the operator still has to be closed and the failure that is being handled must not
+     * be hidden, so an operator whose status cannot be read is recorded without one.
+     */
+    private void recordStatusBeforeClose(Operator op) {
+        int statusIndex = statusOfCompletedOperators.size();
+        try {
+            statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+            if (op.finalStatusAfterAsyncActions()) {
+                pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op, planNodeIds.get(op), exchangeIds.get(op)));
+            }
+        } catch (Exception statusFailure) {
+            LOGGER.debug("failed to read the status of an operator that is being closed [{}]", shortDescription, statusFailure);
+            if (statusOfCompletedOperators.size() == statusIndex) {
+                statusOfCompletedOperators.add(new OperatorStatus(op.getClass().getSimpleName(), null));
+            }
+        }
     }
 
     private static void schedule(
@@ -632,10 +732,15 @@ public class Driver implements Releasable, Describable {
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
                 driver.driverContext.waitForAsyncActions(
-                    ContextPreservingActionListener.wrapPreservingContext(
-                        ActionListener.running(() -> listener.onFailure(e)),
-                        threadContext
-                    )
+                    ContextPreservingActionListener.wrapPreservingContext(ActionListener.running(() -> {
+                        try {
+                            // A failed driver is finished too: publish what it did so the caller can account for it.
+                            driver.finishNanos = System.nanoTime();
+                            driver.publishFinalStatus();
+                        } finally {
+                            listener.onFailure(e);
+                        }
+                    }), threadContext)
                 );
             }
 
@@ -719,8 +824,8 @@ public class Driver implements Releasable, Describable {
     }
 
     /**
-     * Charges the time of this driver that its source operator does not attribute to shards to {@code loadTarget}. Must be set
-     * before the driver starts.
+     * Charges the time of this driver that its source operator does not attribute to shards, and the rest of the pool tasks it
+     * runs in, to {@code loadTarget}. Must be set before the driver starts.
      */
     public void loadTarget(TaskLoadAttribution.Target loadTarget) {
         assert started.get() == false : "driver already started";
@@ -751,13 +856,22 @@ public class Driver implements Releasable, Describable {
     private void publishFinalStatus() {
         for (PendingFinalStatus pending : pendingFinalStatus) {
             Operator op = pending.operator;
-            statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));
+            try {
+                statusOfCompletedOperators.set(
+                    pending.index,
+                    new OperatorStatus(op.toString(), op.status(), pending.planNodeId, pending.exchangeId)
+                );
+            } catch (Exception statusFailure) {
+                // Keep the status taken before the close: failing to refresh it must not leave the driver unfinished.
+                LOGGER.debug("failed to re-read the status of a closed operator [{}]", shortDescription, statusFailure);
+            }
         }
         pendingFinalStatus.clear();
         updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
     }
 
-    private record PendingFinalStatus(int index, Operator operator) {}
+    /** The labels are kept here because the operator is out of {@link #planNodeIds} and {@link #exchangeIds} once it is closed. */
+    private record PendingFinalStatus(int index, Operator operator, @Nullable String planNodeId, @Nullable String exchangeId) {}
 
     /**
      * Update the status. The CPU time is the driver context's {@link DriverContext#cpuNanos() total}, after adding
@@ -780,6 +894,12 @@ public class Driver implements Releasable, Describable {
             // Sorry for the complexity here. If anyone has a nice way to refactor this, be my guest.
             switch (status) {
                 case ASYNC, WAITING -> sleeps = sleeps.sleep(reason, now);
+                case DONE -> {
+                    // A driver whose blocked future failed ends while asleep: close the sleep, as running again would.
+                    switch (prev.status()) {
+                        case ASYNC, WAITING -> sleeps = sleeps.wake(now);
+                    }
+                }
                 case RUNNING -> {
                     switch (prev.status()) {
                         case ASYNC, WAITING -> sleeps = sleeps.wake(now);
@@ -811,7 +931,7 @@ public class Driver implements Releasable, Describable {
                 prev.iterations() + extraIterations,
                 status,
                 List.copyOf(statusOfCompletedOperators),
-                activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
+                activeOperators.stream().map(this::operatorStatus).toList(),
                 sleeps
             );
         });

@@ -37,9 +37,10 @@ import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -114,21 +115,34 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     }
 
     /**
-     * Consumes all data point groups in the context, removing them from the context.
+     * Passes every data point group of the context to {@code consumer}, in resource then scope order, without removing them.
      *
      * @param consumer the consumer to process each {@link DataPointGroup}
      * @param <E>      the type of exception that can be thrown by the consumer
      * @throws E if the consumer throws an exception
      */
-    public <E extends Exception> void consume(CheckedConsumer<DataPointGroup, E> consumer) throws E {
-        for (Iterator<ResourceGroup> iterator = resourceGroups.values().iterator(); iterator.hasNext();) {
-            ResourceGroup resourceGroup = iterator.next();
-            // Remove the resource group from the map can help to significantly reduce GC overhead.
-            // This avoids that the resource groups are promoted to survivor space when the context is kept alive for a while,
-            // for example, when referenced in the bulk response listener.
-            iterator.remove();
+    public <E extends Exception> void forEachGroup(CheckedConsumer<DataPointGroup, E> consumer) throws E {
+        for (ResourceGroup resourceGroup : resourceGroups.values()) {
             resourceGroup.forEach(consumer);
         }
+    }
+
+    /**
+     * Returns a live, unmodifiable view of the resource groups of this context. Use instead of {@link #forEachGroup}
+     * when the caller benefits from knowing which data point groups share a resource and scope.
+     */
+    public Collection<ResourceGroup> resourceGroups() {
+        return Collections.unmodifiableCollection(resourceGroups.values());
+    }
+
+    /**
+     * Removes all resource groups from the context. Callers should do this once they no longer need the groups:
+     * dropping them early can significantly reduce GC overhead, as it avoids that the resource groups are promoted
+     * to survivor space when the context is kept alive for a while, for example, when referenced in the bulk
+     * response listener.
+     */
+    public void clearResourceGroups() {
+        resourceGroups.clear();
     }
 
     @Override
@@ -239,16 +253,19 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         return resourceGroup;
     }
 
-    class ResourceGroup {
+    /** The data point groups of a single resource, split by scope. */
+    public class ResourceGroup {
         private final Resource resource;
         private final ByteString resourceSchemaUrl;
         private final TsidBuilder resourceTsidBuilder;
+        private final TargetIndex resourceTargetIndex;
         private final Map<Hash128, ScopeGroup> scopes;
 
         ResourceGroup(Resource resource, ByteString resourceSchemaUrl, TsidBuilder resourceTsidBuilder) {
             this.resource = resource;
             this.resourceSchemaUrl = resourceSchemaUrl;
             this.resourceTsidBuilder = resourceTsidBuilder;
+            this.resourceTargetIndex = TargetIndex.defaultForMetrics().withAttributeOverrides(resource.getAttributesList());
             this.scopes = new HashMap<>();
         }
 
@@ -264,6 +281,18 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return scopeGroup;
         }
 
+        public Resource resource() {
+            return resource;
+        }
+
+        public ByteString resourceSchemaUrl() {
+            return resourceSchemaUrl;
+        }
+
+        public Collection<ScopeGroup> scopes() {
+            return scopes.values();
+        }
+
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {
             for (ScopeGroup scopeGroup : scopes.values()) {
                 scopeGroup.forEach(consumer);
@@ -271,13 +300,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         }
     }
 
-    class ScopeGroup {
+    /** The data point groups of a single scope within a {@link ResourceGroup}. */
+    public class ScopeGroup {
 
         private final ResourceGroup resourceGroup;
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
         private final TsidBuilder scopeTsidBuilder;
-        private final @Nullable String scopeRoutingDataset;
+        private final TargetIndex scopeTargetIndex;
         // index -> timestamp -> dataPointGroupHash -> DataPointGroup
         private final Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
 
@@ -286,7 +316,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.scopeTsidBuilder = scopeTsidBuilder;
-            this.scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
+            this.scopeTargetIndex = resourceGroup.resourceTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                .maybeApplyScopeBasedRouting(scope);
             this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
         }
 
@@ -320,13 +351,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             dataPointGroupTsidBuilder.addAll(scopeTsidBuilder);
             // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
             Hash128 timestamp = new Hash128(dataPoint.getTimestampUnixNano(), dataPoint.getStartTimestampUnixNano());
-            TargetIndex targetIndex = TargetIndex.evaluate(
-                TargetIndex.TYPE_METRICS,
-                dataPoint.getAttributes(),
-                scopeRoutingDataset,
-                scope.getAttributesList(),
-                resourceGroup.resource.getAttributesList()
-            );
+            TargetIndex targetIndex = scopeTargetIndex.withAttributeOverrides(dataPoint.getAttributes());
             var dataPointGroupsByTimestamp = dataPointGroupsByIndexAndTimestamp.computeIfAbsent(targetIndex, k -> new HashMap<>());
             var dataPointGroups = dataPointGroupsByTimestamp.computeIfAbsent(timestamp, k -> new HashMap<>());
             DataPointGroup dataPointGroup = dataPointGroups.get(dataPointGroupHash);
@@ -345,6 +370,18 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
                 dataPointGroups.put(dataPointGroupHash, dataPointGroup);
             }
             return dataPointGroup;
+        }
+
+        public InstrumentationScope scope() {
+            return scope;
+        }
+
+        public ByteString scopeSchemaUrl() {
+            return scopeSchemaUrl;
+        }
+
+        public Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroups() {
+            return dataPointGroupsByIndexAndTimestamp;
         }
 
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {

@@ -78,7 +78,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
@@ -101,7 +101,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, BytesRefVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef value = valueVector.getBytesRef(p, valueScratch);

@@ -2258,3 +2258,46 @@ result:double | step:datetime            | pod:keyword
 947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
 ;
+
+// === count_values ===
+// The last network.bytes_in per series at step=1h: prod 931, 774, 812; qa 206, 972, 913; staging 238, 3, 3.
+
+// The value label replaces the grouping label of the same name, so equal values merge across clusters.
+count_values_overwrites_grouping_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=1h result=(count_values by (cluster) ("cluster", network.bytes_in))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 206
+1.0           | 2024-05-10T01:00:00.000Z | 238
+2.0           | 2024-05-10T01:00:00.000Z | 3
+1.0           | 2024-05-10T01:00:00.000Z | 774
+1.0           | 2024-05-10T01:00:00.000Z | 812
+1.0           | 2024-05-10T01:00:00.000Z | 913
+1.0           | 2024-05-10T01:00:00.000Z | 931
+1.0           | 2024-05-10T01:00:00.000Z | 972
+;
+
+// An enclosing by (pod) binds to the value label, not to the stored pod label it replaces.
+sum_by_value_label_replacing_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=1h result=(sum by (pod) (count_values("pod", network.bytes_in)))
+| SORT pod;
+
+result:double | step:datetime            | pod:keyword
+1.0           | 2024-05-10T01:00:00.000Z | 206
+1.0           | 2024-05-10T01:00:00.000Z | 238
+2.0           | 2024-05-10T01:00:00.000Z | 3
+1.0           | 2024-05-10T01:00:00.000Z | 774
+1.0           | 2024-05-10T01:00:00.000Z | 812
+1.0           | 2024-05-10T01:00:00.000Z | 913
+1.0           | 2024-05-10T01:00:00.000Z | 931
+1.0           | 2024-05-10T01:00:00.000Z | 972
+;

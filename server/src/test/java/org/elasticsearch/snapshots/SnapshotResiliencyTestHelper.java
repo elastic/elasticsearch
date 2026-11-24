@@ -79,6 +79,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
@@ -116,6 +117,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -151,7 +153,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -171,7 +173,6 @@ import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -228,6 +229,9 @@ public class SnapshotResiliencyTestHelper {
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
                 )
                 .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1000) // o.w. some tests might block
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
                 .put(extraSettings)
                 .build()
         );
@@ -789,6 +793,7 @@ public class SnapshotResiliencyTestHelper {
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
+                    .flushMetrics(FlushMetrics.NOOP)
                     .throttlingRecoveryService(throttlingRecoveryService)
                     .build();
 
@@ -801,7 +806,6 @@ public class SnapshotResiliencyTestHelper {
                     new FetchPhase(Collections.emptyList()),
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP,
                     OnlinePrewarmingService.NOOP,
                     transportService.getTaskManager()
                 );
@@ -1023,7 +1027,7 @@ public class SnapshotResiliencyTestHelper {
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
                     featureService,
-                    RestoreLifecycleListener.NOOP
+                    RestoreProjectCustomUpdater.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

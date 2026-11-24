@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnio
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -115,6 +116,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         // Explicitly null-tolerant evaluator: @Evaluator(allNullsIsNull = false).
         FilterUnsupportedTemporality.class,
+
+        // Debug function whose only argument is a constant: DELAY(1 millisecond) = true
+        Delay.class,
 
         // Sampling offset is always defined: null keys hash like any other identity.
         org.elasticsearch.xpack.esql.expression.promql.function.HashOffset.class

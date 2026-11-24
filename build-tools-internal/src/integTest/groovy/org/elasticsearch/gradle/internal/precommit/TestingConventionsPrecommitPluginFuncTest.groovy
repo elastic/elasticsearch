@@ -112,9 +112,9 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         )
 
         and: "problems report contains testing-conventions violations"
-        assertProblemsReportContains("testing-conventions")
-        assertProblemsReportContainsProblem("missing-base-class")
-        assertProblemsReportSeverity("missing-base-class", "ERROR")
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Missing test base class")
+        assertProblemsReportSeverity("Missing test base class", "ERROR")
         def diagnostics = problemsReportDiagnostics()
         diagnostics.any { it.contextualLabel?.contains("org.acme.InvalidTests") }
     }
@@ -155,8 +155,8 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         )
 
         and: "problems report contains invalid-suffix violations"
-        assertProblemsReportContains("testing-conventions")
-        assertProblemsReportContainsProblem("invalid-suffix")
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Invalid test class suffix")
     }
 
     def "provided base classes do not need match naming convention"() {

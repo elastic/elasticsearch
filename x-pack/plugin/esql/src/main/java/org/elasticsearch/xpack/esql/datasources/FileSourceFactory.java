@@ -13,9 +13,9 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -183,16 +184,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
-     * Node-level (root) {@link BlockFactory}, threaded into
-     * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} so that
-     * producer-thread allocations performed by iterator wrappers ({@link VirtualColumnIterator},
-     * {@link SchemaAdaptingIterator}) route through the global request circuit breaker rather than
-     * the driver-local breaker. May be {@code null} in tests where the factory falls back to
-     * {@link org.elasticsearch.compute.operator.DriverContext#blockFactory()}.
-     */
-    @Nullable
-    private final BlockFactory blockFactory;
-    /**
      * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
      * test-only constructors; production always goes through the full-arg constructor via {@link DataSourceModule}.
      */
@@ -222,16 +213,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
-        this(
-            storageRegistry,
-            formatRegistry,
-            codecRegistry,
-            settings,
-            null,
-            null,
-            LocalFileAccess.UNRESTRICTED,
-            ExternalSourceMetrics.NOOP
-        );
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null, LocalFileAccess.UNRESTRICTED, ExternalSourceMetrics.NOOP);
     }
 
     FileSourceFactory(
@@ -247,7 +229,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            null,
             LocalFileAccess.UNRESTRICTED,
             ExternalSourceMetrics.NOOP
         );
@@ -259,27 +240,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory
-    ) {
-        this(
-            storageRegistry,
-            formatRegistry,
-            codecRegistry,
-            settings,
-            splitDiscoveryExecutor,
-            blockFactory,
-            LocalFileAccess.UNRESTRICTED,
-            ExternalSourceMetrics.NOOP
-        );
-    }
-
-    FileSourceFactory(
-        StorageProviderRegistry storageRegistry,
-        FormatReaderRegistry formatRegistry,
-        DecompressionCodecRegistry codecRegistry,
-        Settings settings,
-        @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
@@ -289,7 +249,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            blockFactory,
             localFileAccess,
             externalSourceMetrics,
             null
@@ -302,7 +261,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService
@@ -313,7 +271,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            blockFactory,
             localFileAccess,
             externalSourceMetrics,
             listingService,
@@ -327,7 +284,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService,
@@ -340,7 +296,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
-        this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(
@@ -458,8 +413,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
+        FormatReader prototype = null;
+        Configured<FormatReader> resolvedReader = null;
         try {
-            Configured<FormatReader> resolvedReader = unwrappedDatasetReader(location, config).withConfigTrackingConsumedKeys(config);
+            prototype = unwrappedDatasetReader(location, config);
+            resolvedReader = prototype.withConfigTrackingConsumedKeys(config);
             ConfigKeyValidator.check(
                 config,
                 List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
@@ -477,6 +435,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             FileOrderConfig.validate(config);
         } finally {
+            if (resolvedReader != null) {
+                FormatReaders.closeDistinctFrom(resolvedReader.value(), prototype);
+            }
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
     }
@@ -484,18 +445,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         StorageProvider provider = null;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            FormatReader reader;
+            prototype = unwrappedDatasetReader(location, config);
+            reader = readerForListedObject(location, storagePath.objectName(), config);
             if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
@@ -508,6 +470,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // own diagnosis and never names the path.
             throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
+            FormatReaders.closeDistinctFrom(reader, prototype);
             StorageProviderCache.closeLease(provider);
         }
     }
@@ -529,8 +492,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
-        final StorageObject storageObject;
-        final FormatReader reader;
+        StorageObject storageObject;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         StorageProvider provider = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         boolean setupComplete = false;
@@ -551,6 +515,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 provider = storageRegistry.provider(storagePath);
             }
             int schemaSampleShare = hint != null ? hint.schemaSampleShare() : 1;
+            prototype = unwrappedDatasetReader(location, config);
             reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
@@ -574,6 +539,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return;
         } finally {
             if (setupComplete == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -584,6 +550,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 l.onFailure(e);
             }
         });
+        FormatReader minted = reader;
+        FormatReader mintedFrom = prototype;
+        completion = ActionListener.runAfter(completion, () -> FormatReaders.closeDistinctFrom(minted, mintedFrom));
         if (StorageProviderCache.isPooledLease(provider)) {
             StorageProvider leased = provider;
             completion = ActionListener.runAfter(completion, () -> StorageProviderCache.closeLease(leased));
@@ -597,6 +566,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         } finally {
             // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent.
             if (started == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -642,10 +612,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     storage = storageRegistry.provider(path);
                 }
 
-                FormatReader format = formatRegistry.byName(
+                FormatReader prototype = formatRegistry.byName(
                     FormatNameResolver.datasetFormat(config, datasetResource(context), formatRegistry)
-                )
-                    .withConfig(config)
+                );
+                FormatReader format = prototype.withConfig(config)
                     .withPushedFilter(context.pushedFilter())
                     .withSchema(context.attributes())
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
@@ -693,8 +663,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+                TaskId queryId = context.queryId();
+                QueryConcurrencyBudget budget;
                 if (allocator != null) {
-                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                    budget = allocator.register(queryId);
+                } else if (queryId != null && queryId.isSet()) {
+                    budget = new QueryConcurrencyBudget(0, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, null, AdmissionTracker.NOOP, queryId);
+                } else {
+                    budget = null;
+                }
+                if (budget != null) {
+                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, budget);
                     storage = budgeted;
                     Closeable lease = onClose;
                     onClose = lease == null ? budgeted : () -> IOUtils.close(budgeted, lease);
@@ -735,7 +714,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .schemaMap(context.schemaMap())
                     .partitionColumnNames(context.partitionColumnNames())
                     .partitionValues(partitionValues)
-                    .producerBlockFactory(blockFactory)
                     .sliceQueue(context.sliceQueue())
                     .errorPolicy(errorPolicy)
                     .parsingParallelism(context.parsingParallelism())
@@ -745,6 +723,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                     .streamingSegmentatorAdmission(segmentatorAdmission)
                     .formatReaderRegistry(formatRegistry)
+                    .registryPrototype(prototype)
                     .parallelism(context.parallelism())
                     .pushedExpressions(pushedExpressions)
                     .pushdownSupport(pushdownSupport)

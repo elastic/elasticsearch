@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -85,12 +87,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
@@ -410,7 +414,7 @@ public abstract class FullTextFunction extends Function
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
-            plan.forEachDown(LogicalPlan.class, lp -> {
+            forEachDownOutsideJoinedSubqueries(plan, lp -> {
                 if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
@@ -451,6 +455,19 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
+    }
+
+    /**
+     * Like {@code Node#forEachDown}, but does not descend into the subquery of a {@link SubqueryJoin}: it runs on its own, so its
+     * commands do not come before the full-text function. An {@code IN} subquery is still walked: skipping it would relax a released
+     * check, which is a change of its own.
+     */
+    private static void forEachDownOutsideJoinedSubqueries(LogicalPlan plan, Consumer<LogicalPlan> action) {
+        action.accept(plan);
+        List<LogicalPlan> children = plan instanceof SubqueryJoin join ? List.of(join.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            forEachDownOutsideJoinedSubqueries(child, action);
+        }
     }
 
     /**
@@ -555,6 +572,20 @@ public abstract class FullTextFunction extends Function
             if (plan instanceof Highlight) {
                 return;
             }
+            // A Lucene query runs on the document each row was read from, which is the parent of an expanded child. The field is
+            // resolved through renames, which the optimizer removes, turning a search of the alias into one of the child.
+            if (isExpandedNestedChild(plan, fieldAttribute)) {
+                failures.add(
+                    fail(
+                        field,
+                        "Full-text matching on expanded nested fields is not supported yet: [{}] {} cannot operate on [{}]",
+                        function.functionName(),
+                        function.functionType(),
+                        field.sourceText()
+                    )
+                );
+                return;
+            }
             // Fields from the right-hand side of a LOOKUP JOIN are not in the main index. A Lucene query on them
             // runs against the main index shards and silently matches nothing.
             // Traverse the plan to find the EsRelation outputting the field
@@ -577,6 +608,16 @@ public abstract class FullTextFunction extends Function
                 }
             });
         }
+    }
+
+    private static boolean isExpandedNestedChild(LogicalPlan plan, FieldAttribute field) {
+        Holder<Boolean> expanded = new Holder<>(false);
+        plan.forEachDown(NestedExpand.class, expand -> {
+            if (expand.expanded().stream().anyMatch(child -> child.id().equals(field.id()))) {
+                expanded.set(true);
+            }
+        });
+        return expanded.get();
     }
 
     /**
@@ -753,18 +794,19 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT}, or
-     * KEYWORD via {@code TO_STRING}) changes its matching semantics from what a Lucene pushdown on the raw field
-     * would do. Only TEXT and KEYWORD targets can differ this way (analyzed vs. exact matching), so any other
-     * target is treated as safe without further checks. For a TEXT/KEYWORD target, safe (a no-op) only when the
+     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT},
+     * KEYWORD via {@code TO_STRING}, or DENSE_VECTOR via {@code TO_DENSE_VECTOR}) changes its matching semantics from what a Lucene
+     * pushdown on the raw field would do. Only TEXT, KEYWORD and DENSE_VECTOR targets can differ this way
+     * (analyzed vs. exact matching for TEXT/KEYWORD, DENSE_VECTOR supports very different kinds of operations), so any other
+     * target is treated as safe without further checks. For these targets, safe (a no-op) only when the
      * field is already {@code targetType} everywhere it's mapped; unsafe for an ordinary field of a different type,
-     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} no-op - covering both
+     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} - covering both
      * {@link UnionTypeEsField} representations (the modern {@code CompactMultiTypeEsField} and the legacy
      * {@code MultiTypeEsField}, the  latter still produced by cross-cluster searches against a remote cluster whose
      * minimum transport version predates {@code compact_multi_type_es_field}).
      */
     private static boolean isUnsafeAnalysisConversion(DataType targetType, FieldAttribute fieldAttribute) {
-        if (targetType != TEXT && targetType != KEYWORD) {
+        if (targetType != TEXT && targetType != KEYWORD && targetType != DENSE_VECTOR) {
             return false;
         }
         if (fieldAttribute.dataType() != targetType) {

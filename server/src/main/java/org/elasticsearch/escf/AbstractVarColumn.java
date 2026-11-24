@@ -19,6 +19,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.plugins.internal.MeteringModel;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -115,6 +116,28 @@ abstract class AbstractVarColumn extends EscfColumn {
         for (int d = 0; d < docCount; d++) {
             sizes[d] += offs[base + d + 1] - offs[base + d];
         }
+    }
+
+    @Override
+    public final void addMeteredSizes(long[] sizes, MeteringModel model) {
+        // Present documents only.
+        // An absent row will be skipped but an empty value with a zero-length payload will be deferred to the model.
+        final boolean binary = kind() == EscfColumnKind.BINARY;
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += binary ? model.binaryBytes(valueLength(d)) : model.stringBytes(valueLength(d));
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += binary ? model.binaryBytes(valueLength(d)) : model.stringBytes(valueLength(d));
+        }
+    }
+
+    @Override
+    public final int getValueLength(int row) {
+        return valueLength(row);
     }
 
     @Override

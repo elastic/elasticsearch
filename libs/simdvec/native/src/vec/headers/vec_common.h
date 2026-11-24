@@ -89,6 +89,19 @@ static inline const T* masked_mapper(const T* data, const int32_t i, const int32
     return data + (int64_t)mask_select((uint32_t)offsets[0], i) * pitch;
 }
 
+// The bits of `mask` that select vectors inside a block of `count` vectors. Masked kernels
+// must score with this mask, so that whatever the mask, they never read vectors or write
+// scores past the end of the block.
+static inline int32_t clamp_mask(const int32_t mask, const int32_t count) {
+    if (count <= 0) {
+        return 0;
+    }
+    if (count >= 32) {
+        return mask;
+    }
+    return (int32_t)((uint32_t)mask & ((1u << count) - 1));
+}
+
 // --- Output mapper functions ---
 // Each output mapper resolves the result slot of the i-th scored vector.
 // All share the same signature so they can be passed as a template

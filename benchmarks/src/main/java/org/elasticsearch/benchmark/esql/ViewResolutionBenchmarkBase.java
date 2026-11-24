@@ -286,7 +286,7 @@ public abstract class ViewResolutionBenchmarkBase {
         allSettings.add(ViewResolver.MAX_VIEW_DEPTH_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allSettings);
 
-        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new ThreadPool(new ThreadContext(settings), settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         clusterService = new ClusterService(settings, clusterSettings, threadPool, null);
 
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);

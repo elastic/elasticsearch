@@ -76,6 +76,9 @@ excludeList.add(
   'search.highlight/70_number_of_fragments/lowering index.highlight.max_number_of_fragments should reject the default number of fragments'
 )
 
+// fails in older versions because the fix for the issue it reproduces it's not backported yet
+excludeList.add("search/260_parameter_validation/test script field without a script is a bad request")
+
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of

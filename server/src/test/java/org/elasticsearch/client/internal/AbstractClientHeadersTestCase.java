@@ -29,9 +29,8 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
@@ -82,7 +81,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new TestThreadPool("test-" + getTestName(), settings);
         client = buildClient(settings, ACTIONS);
     }
 

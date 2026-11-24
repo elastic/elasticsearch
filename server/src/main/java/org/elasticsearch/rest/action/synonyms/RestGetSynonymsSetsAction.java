@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -28,9 +29,16 @@ public class RestGetSynonymsSetsAction extends BaseRestHandler {
     private static final Integer DEFAULT_FROM_PARAM = 0;
     private static final Integer DEFAULT_SIZE_PARAM = 10;
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("from", "size");
+
     @Override
     public String getName() {
         return "synonyms_sets_get_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

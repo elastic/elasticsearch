@@ -9,7 +9,7 @@
 
 The destination can be a new label or an existing stored label (a dimension or `__name__`).
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under `topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")`.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under `topk`, `bottomk`, `limitk`, or `limit_ratio`, or over `count_values`, is supported when the destination is a new label, such as `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")`.
 
 **Return type**
 
@@ -42,7 +42,7 @@ A call that isn't aggregated or is under `without(...)`, and a destination label
 
 {applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, isn't supported yet.
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a grouping label, such as `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")`, aren't supported yet. Write a new label instead.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation or `count_values`, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a grouping label or the `count_values` label, such as `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")`, aren't supported yet. Write a new label instead.
 
 Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
 :::

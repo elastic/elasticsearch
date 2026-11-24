@@ -30,7 +30,13 @@ public record ProblemsReport(int totalProblems, List<SeverityEntry> severities, 
 
     public record SeverityEntry(String severity, int count) {}
 
-    public record ProblemEntry(String id, String displayName, String severity, int count) {}
+    /**
+     * @param labels distinct contextual labels observed for this problem id with their counts, most frequent first.
+     *               Capped per problem id, so the label counts may not add up to {@code count}.
+     */
+    public record ProblemEntry(String id, String displayName, String severity, int count, List<LabelEntry> labels) {}
+
+    public record LabelEntry(String label, int count) {}
 
     /**
      * Writes this report as JSON to the given file.
@@ -56,6 +62,16 @@ public record ProblemsReport(int totalProblems, List<SeverityEntry> severities, 
                 generator.writeStringField("displayName", problem.displayName());
                 generator.writeStringField("severity", problem.severity());
                 generator.writeNumberField("count", problem.count());
+                if (problem.labels().isEmpty() == false) {
+                    generator.writeArrayFieldStart("labels");
+                    for (LabelEntry label : problem.labels()) {
+                        generator.writeStartObject();
+                        generator.writeStringField("label", label.label());
+                        generator.writeNumberField("count", label.count());
+                        generator.writeEndObject();
+                    }
+                    generator.writeEndArray();
+                }
                 generator.writeEndObject();
             }
             generator.writeEndArray();

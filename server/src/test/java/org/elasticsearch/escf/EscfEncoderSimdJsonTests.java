@@ -574,6 +574,40 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             {"z":0,"zd":0.0,"ze":0e0}""");
     }
 
+    /**
+     * Both encoders keep the same spellings for scalar floating-point numbers that are not spelled canonically
+     * (#163555), as a keyword consumer sees them through the utf8 cursor.
+     */
+    public void testFloatingPointSpellingsMatchJackson() throws IOException {
+        String doc = """
+            {"d":-1.90,"c":3.14,"e":1e3,"f":123.41999816894531}""";
+        Recycler<BytesRef> recycler = newRecycler();
+        try (var simdEncoder = new EscfEncoder(recycler, true); var jacksonEncoder = new EscfEncoder(recycler, false)) {
+            simdEncoder.addDocument(new BytesArray(doc), XContentType.JSON, 0);
+            jacksonEncoder.addDocument(new BytesArray(doc), XContentType.JSON, 0);
+            try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
+                for (String path : List.of("d", "c", "e", "f")) {
+                    assertEquals(path, spelling(jacksonBatch, path), spelling(simdBatch, path));
+                }
+                assertEquals("-1.90", spelling(simdBatch, "d"));
+                assertEquals("1e3", spelling(simdBatch, "e"));
+                assertEquals(reconstruct(jacksonBatch, 0), reconstruct(simdBatch, 0));
+            }
+        }
+    }
+
+    /** The utf8 rendering of row 0 of the column at {@code path}. */
+    private static String spelling(EscfBatch batch, String path) {
+        for (int i = 0; i < batch.schema().leafCount(); i++) {
+            if (path.equals(batch.schema().getFullPath(i))) {
+                var cursor = EscfColumnTransforms.utf8Cursor(batch.column(i), true);
+                assertEquals(0, cursor.nextDoc());
+                return cursor.value().utf8ToString();
+            }
+        }
+        throw new AssertionError("Column '" + path + "' not found in batch schema");
+    }
+
     public void testFloatVsDoubleClassification() throws IOException {
         assertSameOutputAllSourceShapes("""
             {"exact_float":1.5,"needs_double":1.23456789012345}""");

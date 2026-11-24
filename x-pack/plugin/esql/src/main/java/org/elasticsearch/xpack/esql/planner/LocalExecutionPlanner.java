@@ -1064,9 +1064,10 @@ public class LocalExecutionPlanner {
         IntoPageWriter.Factory.Indexing indexing = configuration.explainOnly()
             ? IntoPageWriter.Factory.Indexing.DISCARD
             : IntoPageWriter.Factory.Indexing.INDEX;
+        // Resolved once, so the refresh targets the index that was written to, not one that date math resolves to a moment later
+        String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
         return switch (into.mode()) {
             case WRITE -> {
-                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
                 boolean discard = configuration.explainOnly();
                 if (discard == false) {
                     IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
@@ -1084,10 +1085,7 @@ public class LocalExecutionPlanner {
                     outputLayout
                 );
             }
-            case MERGE_STATS -> source.with(
-                IntoMergeStatsOperator.Factory.create(client, into.destination(), into.options(), indexing),
-                outputLayout
-            );
+            case MERGE_STATS -> source.with(IntoMergeStatsOperator.Factory.create(client, target, into.options(), indexing), outputLayout);
         };
     }
 

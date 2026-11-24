@@ -631,3 +631,21 @@ fls_flattened_except_key:
       field_security:
         grant: [ '*' ]
         except: [ 'attrs.bar' ]
+
+# Can write to an INTO destination, but refreshing it afterwards needs the maintenance privilege, which write does not grant.
+# ES|QL needs some read privilege to run at all, so both roles read an index that is not a destination.
+into_write_only:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]
+
+into_write_and_maintenance:
+  cluster: []
+  indices:
+    - names: [ 'into-dest' ]
+      privileges: [ 'write', 'maintenance' ]
+    - names: [ 'into-unrelated' ]
+      privileges: [ 'read' ]

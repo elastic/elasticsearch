@@ -66,7 +66,10 @@ public final class IntoMergeStatsOperator implements Operator {
         }
     }
 
-    /** Sends the single post-write refresh of the destination. */
+    /**
+     * Sends the single post-write refresh of the destination. The destination is refreshed by the name the query gave, so for a
+     * data stream or an alias that is every backing or aliased index, not only the one that was written to.
+     */
     public record Refresher(Client client, Supplier<ThreadContext.StoredContext> caller, String destination) {
         void refresh(ActionListener<Void> listener) {
             try (ThreadContext.StoredContext ignored = caller.get()) {
@@ -141,6 +144,8 @@ public final class IntoMergeStatsOperator implements Operator {
             return;
         }
         finished = true;
+        // TODO: this only counts creates. Once INTO can replace documents, refresh when any document was written (created + updated),
+        // or a run that only replaces would skip the refresh.
         if (refresher != null && createdSum > 0) {
             startRefresh(refresher);
         }

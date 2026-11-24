@@ -70,7 +70,7 @@ steps:
       localSsdInterface: nvme
       diskSizeGb: 350
     plugins:
-      - elastic/dra-prep#v0.1.6:
+      - elastic/dra-prep#v0.1.8:
           product_id: elasticsearch
           stack_version: "${BASE_VERSION}"
           workflow: "${WORKFLOW}"

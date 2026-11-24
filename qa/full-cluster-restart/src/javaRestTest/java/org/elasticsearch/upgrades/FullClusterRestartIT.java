@@ -151,6 +151,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("number_of_shards", 1);
                 mappingsAndSettings.field("number_of_replicas", 0);
+                if (randomBoolean()) {
+                    mappingsAndSettings.field("index.codec", "best_compression");
+                }
                 mappingsAndSettings.endObject();
 
                 mappingsAndSettings.startObject("mappings");

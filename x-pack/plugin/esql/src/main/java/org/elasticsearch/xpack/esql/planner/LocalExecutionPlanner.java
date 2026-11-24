@@ -134,6 +134,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -351,6 +352,8 @@ public class LocalExecutionPlanner {
     private final boolean snapshotBuild;
     private final FetchOperatorProvider fetchOperators;
     @Nullable
+    private final EsqlExecutionInfo executionInfo;
+    @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
     private final MatcherWatchdog grokMatcherWatchdog;
@@ -407,7 +410,8 @@ public class LocalExecutionPlanner {
         Client client,
         ExternalComputeContext externalCompute,
         @Nullable EscfBulkService escfBulkService,
-        BooleanSupplier batchIndexingSupported
+        BooleanSupplier batchIndexingSupported,
+        @Nullable EsqlExecutionInfo executionInfo
     ) {
 
         this.sessionId = sessionId;
@@ -441,6 +445,7 @@ public class LocalExecutionPlanner {
         this.externalCompute = externalCompute;
         this.escfBulkService = escfBulkService;
         this.batchIndexingSupported = batchIndexingSupported;
+        this.executionInfo = executionInfo;
     }
 
     /**
@@ -1639,7 +1644,8 @@ public class LocalExecutionPlanner {
                 field.child(),
                 layout,
                 context.shardContexts,
-                context.analysisRegistry()
+                context.analysisRegistry(),
+                context.plannerSettings
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
@@ -2525,7 +2531,7 @@ public class LocalExecutionPlanner {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
         if (splitCount > 1) {
-            instanceCount = limitDriverCount(pushedLimit, pageSize, splitCount, context.queryPragmas().taskConcurrency());
+            instanceCount = limitDriverCount(pushedLimit, pageSize, splitCount, context.queryPragmas().taskConcurrency(context.settings()));
         }
         instanceCount = capInstanceCountByCoveringSplits(instanceCount, pushedLimit, externalSource.splits(), externalSource.config());
         int effectiveBufferSize = externalSourceBufferSize(pushedLimit, instanceCount, pageSize);
@@ -2569,7 +2575,7 @@ public class LocalExecutionPlanner {
             .schemaMap(externalSource.schemaMap())
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
-            .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .parsingParallelism(context.queryPragmas().parsingParallelism(context.settings()))
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
@@ -2643,6 +2649,7 @@ public class LocalExecutionPlanner {
         if (preResolved != null) {
             request.preResolvedFieldCaps(preResolved);
         }
+        assert executionInfo != null : "an EQL source is planned on the coordinator, which has the execution info";
         return PhysicalOperation.fromSource(
             new EqlSourceOperator.Factory(
                 client,
@@ -2650,7 +2657,8 @@ public class LocalExecutionPlanner {
                 eqlSource.mode(),
                 eqlSource.output(),
                 eqlSource.source(),
-                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit()),
+                executionInfo
             ),
             layout.build()
         );
@@ -2773,7 +2781,14 @@ public class LocalExecutionPlanner {
         // TODO: should this be extracted into a separate eval block?
         return source.with(
             new FilterOperatorFactory(
-                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
+                EvalMapper.toEvaluator(
+                    context.foldCtx(),
+                    condition,
+                    source.layout,
+                    context.shardContexts,
+                    context.analysisRegistry(),
+                    context.plannerSettings
+                )
             ),
             source.layout
         );

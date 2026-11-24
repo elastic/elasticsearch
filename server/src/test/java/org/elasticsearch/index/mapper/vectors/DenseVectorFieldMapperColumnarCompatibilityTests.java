@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomNormalizedFloatVector;
@@ -314,6 +315,6 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
     private boolean supportsColumnarParse(XContentBuilder mapping) throws IOException {
         final MapperService mapperService = createMapperService(vectordbColumnarSettings(), mapping);
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        return mapper.supportsColumnarParse(mapperService.getIndexSettings());
+        return mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of());
     }
 }

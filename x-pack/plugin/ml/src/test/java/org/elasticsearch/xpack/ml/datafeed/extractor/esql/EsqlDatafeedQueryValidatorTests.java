@@ -159,6 +159,34 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertValidationSucceeds(harness, validation());
     }
 
+    public void testUnavailableRemoteWithNoColumnsShouldFailValidationNamingTheCluster() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(
+                    List.of(
+                        new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED),
+                        new EsqlClusterInfo("west", "logs-*", EsqlClusterInfo.Status.FAILED)
+                    ),
+                    List.of("<no-fields>"),
+                    List.of()
+                )
+            )
+        );
+        Exception failure = assertValidationFails(harness, validation().query("FROM east:logs-*,west:logs-*"));
+
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("clusters are not available: [east, west]"));
+    }
+
+    public void testUnavailableRemoteWithLocalColumnsShouldPassValidation() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+        );
+        assertValidationSucceeds(harness, validation());
+    }
+
     public void testRemoteIndexExpressionsShouldListOnlyRemoteClusters() {
         ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),

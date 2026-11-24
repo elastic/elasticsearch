@@ -137,6 +137,7 @@ public class EsqlDatafeedQueryValidator {
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
+                checkClustersAvailable(response, datafeedId);
                 checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -211,6 +212,32 @@ public class EsqlDatafeedQueryValidator {
             ExecutionMetadata.CCS_ONLY,
             responseListener
         );
+    }
+
+    /**
+     * With {@code skip_unavailable=true}, ES|QL skips an unreachable remote instead of failing. When every source is on such a remote,
+     * the response has only a placeholder column instead of the DESCRIBE columns, so name the unavailable clusters instead of
+     * reporting a missing column.
+     */
+    private static void checkClustersAvailable(EsqlQueryResponse response, @Nullable String datafeedId) {
+        if (response.response().columns().stream().anyMatch(c -> "name".equals(c.name()))) {
+            return;
+        }
+        List<String> unavailable = response.response()
+            .clusters()
+            .stream()
+            .filter(c -> c.status() == EsqlClusterInfo.Status.SKIPPED || c.status() == EsqlClusterInfo.Status.FAILED)
+            .map(EsqlClusterInfo::clusterAlias)
+            .toList();
+        if (unavailable.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_CLUSTERS_UNAVAILABLE,
+                    esqlDatafeedSubject(datafeedId),
+                    String.join(", ", unavailable)
+                )
+            );
+        }
     }
 
     /**

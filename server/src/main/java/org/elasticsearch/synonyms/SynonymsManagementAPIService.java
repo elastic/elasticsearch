@@ -44,6 +44,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,6 +55,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -1040,12 +1042,34 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         // auto-reload all reloadable analyzers (currently only those that use updateable synonym or keyword_marker filters)
-        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(synonymSetId, preview, "*");
+        ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(
+            synonymSetId,
+            preview,
+            reloadTargets(clusterService.state().metadata().getProject(), synonymSetId)
+        );
         client.execute(
             TransportReloadAnalyzersAction.TYPE,
             reloadAnalyzersRequest,
             listener.safeMap(reloadResponse -> new SynonymsReloadResult(synonymsOperationResult, reloadResponse))
         );
+    }
+
+    /** {@code *} plus the open hidden indices whose filters name this set, which {@code *} would skip. */
+    static String[] reloadTargets(ProjectMetadata project, String synonymSetId) {
+        List<String> targets = new ArrayList<>();
+        targets.add("*");
+        for (IndexMetadata index : project) {
+            if (index.isHidden()
+                && index.getState() == IndexMetadata.State.OPEN
+                && index.getSettings()
+                    .getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER)
+                    .values()
+                    .stream()
+                    .anyMatch(filter -> filter.getAsList("synonyms_set").contains(synonymSetId))) {
+                targets.add(index.getIndex().getName());
+            }
+        }
+        return targets.toArray(String[]::new);
     }
 
     // Allows checking failures in tests

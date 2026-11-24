@@ -12,6 +12,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilterFactory;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
@@ -121,9 +122,8 @@ public interface TokenFilterFactory {
      * constant.
      *
      * <p>An override MUST capture all state that affects behavior. For an external resource, key on its
-     * content (e.g. a hash of a file's text) or, for a resource that is reloaded in place (a
-     * {@code synonyms_set}), on its name: a reload then updates every sharer, but an index that joins a
-     * loaded instance does not reload it, so it misses a change made without a reload. The returned value's {@code equals}/
+     * content (e.g. a hash of a file's text). A resource that can change between loads (an updateable filter)
+     * keys on the content read by {@link #loadResourceForReload}. The returned value's {@code equals}/
      * {@code hashCode} MUST be stable across calls — notably, raw
      * {@link org.apache.lucene.analysis.CharArraySet} fields are unsafe (their {@code hashCode}
      * is unstable). Wrap them in {@link Analysis.StableCharArraySet} so the key holds a
@@ -141,18 +141,11 @@ public interface TokenFilterFactory {
     }
 
     /**
-     * Whether {@link #sharingKey()} stays true to this factory's behavior across an in-place reload of a
-     * {@link ReloadableCustomAnalyzer} containing it. A reload rebuilds every component from its current
-     * resource state, so a key folding content read from a local file at build time goes stale when the
-     * file has changed since: the shared instance then behaves per the new content while staying reachable
-     * under the old content's key, and a later index whose file matches the old content would wrongly join
-     * it. Return {@code false} in that case; {@link AnalysisRegistry} then builds reloadable analyzers
-     * containing this factory privately. Keys derived from settings alone, or naming a resource that
-     * reloads uniformly for every sharer (a {@code synonyms_set}), stay true and keep the default.
+     * Reads this filter's external resource (e.g. synonym rules) before a reloadable chain is built, so {@link #sharingKey()}
+     * covers the content read and the chain is built from it. Called on fresh factories before every load. {@code token} is
+     * the reload request, if any: read through {@link ReloadToken#loadOnce} to read once per request.
      */
-    default boolean sharingKeyStableOnReload() {
-        return true;
-    }
+    default void loadResourceForReload(@Nullable ReloadToken token) {}
 
     /**
      * A TokenFilterFactory that does no filtering to its TokenStream

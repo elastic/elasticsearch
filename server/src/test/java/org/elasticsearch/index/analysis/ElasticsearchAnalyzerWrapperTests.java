@@ -67,8 +67,8 @@ public class ElasticsearchAnalyzerWrapperTests extends ESTestCase {
             consume(wrapper);
             assertEquals("second use without reload should reuse cached components", 1, createCallCount.get());
 
-            delegate.reload(
-                new ReloadToken(),
+            ReloadableCustomAnalyzerTests.reloadFrom(
+                delegate,
                 "test_analyzer",
                 Settings.builder().put("tokenizer", "standard").putList("filter", "tracking").build(),
                 Map.of("standard", tokenizerFactory),

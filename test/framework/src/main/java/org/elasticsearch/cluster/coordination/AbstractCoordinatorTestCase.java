@@ -66,6 +66,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -80,6 +81,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
@@ -106,7 +108,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -121,7 +126,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTestCluster.clusterState;
@@ -366,6 +370,20 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
             clusterNodes.addAll(addedNodes);
             return addedNodes;
+        }
+
+        ClusterNode addMasterIneligibleDataNode() {
+            final int nodeIndex = nextNodeIndex.getAndIncrement();
+            final ClusterNode clusterNode = new ClusterNode(
+                nodeIndex,
+                createDiscoveryNode(nodeIndex, Set.of(DiscoveryNodeRole.DATA_ROLE)),
+                Cluster.this::createFreshPersistedState,
+                Settings.EMPTY,
+                nodeHealthService
+            );
+            logger.info("--> adding master-ineligible data node [{}]", clusterNode.getLocalNode().descriptionWithoutAttributes());
+            clusterNodes.add(clusterNode);
+            return clusterNode;
         }
 
         public static void becomeCandidate(ClusterNode node, String reason) {
@@ -826,6 +844,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return randomFrom(allLeaders);
         }
 
+        ClusterNode getNodeById(String nodeId) {
+            return clusterNodes.stream().filter(clusterNode -> clusterNode.getId().equals(nodeId)).findFirst().orElseThrow();
+        }
+
         private final ConnectionStatus preferredUnknownNodeConnectionStatus = randomFrom(
             ConnectionStatus.DISCONNECTED,
             ConnectionStatus.BLACK_HOLE
@@ -1253,11 +1275,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
+                final Set<DiscoveryNodeRole> newRoles = localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings)
+                    ? ALL_ROLES_EXCEPT_VOTING_ONLY
+                    : isMasterIneligibleDataNode(localNode) ? Set.of(DiscoveryNodeRole.DATA_ROLE)
+                    : emptySet();
                 final DiscoveryNode newLocalNode = DiscoveryNodeUtils.builder(localNode.getId())
                     .name(localNode.getName())
                     .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
                     .address(randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress())
-                    .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+                    .roles(newRoles)
                     .build();
                 try {
                     final var restartedNode = new ClusterNode(
@@ -1718,7 +1744,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             BooleanSupplier disruptStorage,
             ThreadPool threadPool
         ) {
-            return new MockPersistedState(localNode, disruptStorage);
+            return new MockPersistedState(localNode, disruptStorage, threadPool);
         }
 
         @Override
@@ -1740,7 +1766,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 adaptCurrentTerm,
                 currentTimeInMillisSupplier,
                 namedWriteableRegistry,
-                disruptStorage
+                disruptStorage,
+                threadPool
             );
         }
     }
@@ -1912,10 +1939,24 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         .collect(Collectors.toUnmodifiableSet());
 
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
+        return createDiscoveryNode(
+            nodeIndex,
+            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : randomBoolean() ? Set.of(DiscoveryNodeRole.DATA_ROLE) : emptySet()
+        );
+    }
+
+    protected DiscoveryNode createDiscoveryNode(int nodeIndex, Set<DiscoveryNodeRole> roles) {
         return DiscoveryNodeUtils.builder("node" + nodeIndex)
             .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
-            .roles(masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+            .roles(roles)
             .build();
+    }
+
+    /**
+     * @return whether this node's persisted state is written asynchronously, if it is on disk
+     */
+    private static boolean isMasterIneligibleDataNode(DiscoveryNode node) {
+        return node.isMasterNode() == false && node.canContainData();
     }
 
     /**
@@ -2087,27 +2128,34 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     class MockPersistedState implements CoordinationState.PersistedState {
         private final DiscoveryNode localNode;
         private final CoordinationState.PersistedState delegate;
-        private final NodeEnvironment nodeEnvironment;
         private final BooleanSupplier disruptStorage;
 
-        MockPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+        @Nullable // if using in-memory simulated persistence, in which case inMemoryPersistedState != null
+        private final NodeEnvironment nodeEnvironment;
+
+        @Nullable // if using real disk persistence, in which case nodeEnvironment != null
+        private final InMemoryPersistedState inMemoryPersistedState;
+
+        MockPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage, ThreadPool threadPool) {
             this.localNode = localNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (rarely()) {
+                    inMemoryPersistedState = null;
                     nodeEnvironment = newNodeEnvironment();
                     nodeEnvironments.add(nodeEnvironment);
-                    final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
-                    gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                    final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode, asyncWriteExecutor(threadPool));
+                    gatewayMetaState.start(gatewayMetaStateSettings(localNode), nodeEnvironment, xContentRegistry());
                     delegate = gatewayMetaState.getPersistedState();
                 } else {
                     nodeEnvironment = null;
-                    delegate = new InMemoryPersistedState(
-                        0L,
-                        ClusterStateUpdaters.addStateNotRecoveredBlock(
-                            clusterState(0L, 0L, localNode, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L)
-                        )
+                    final var persistence = simulatePersistence(
+                        localNode,
+                        new InMemoryPersistedState(0L, emptyState(localNode)),
+                        threadPool
                     );
+                    inMemoryPersistedState = persistence.onDisk();
+                    delegate = persistence.inUse();
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to create MockPersistedState", e);
@@ -2121,13 +2169,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
         ) {
             this.localNode = newLocalNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (oldState.nodeEnvironment != null) {
                     nodeEnvironment = oldState.nodeEnvironment;
+                    inMemoryPersistedState = null;
                     final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
                     final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
 
@@ -2155,76 +2205,24 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             );
                         }
                     }
-                    final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
-                    gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                    final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode, asyncWriteExecutor(threadPool));
+                    gatewayMetaState.start(gatewayMetaStateSettings(newLocalNode), nodeEnvironment, xContentRegistry());
                     delegate = gatewayMetaState.getPersistedState();
                 } else {
                     nodeEnvironment = null;
-                    BytesStreamOutput outStream = new BytesStreamOutput();
+                    assertNotNull(oldState.inMemoryPersistedState);
+
+                    // the node starts with the state that was on disk when it stopped
+                    final long persistedCurrentTerm = oldState.inMemoryPersistedState.getCurrentTerm();
+                    final ClusterState persistedLastAcceptedState = oldState.inMemoryPersistedState.getLastAcceptedState();
+
+                    final BytesStreamOutput outStream = new BytesStreamOutput();
                     outStream.setTransportVersion(TransportVersion.current());
-
-                    final long persistedCurrentTerm;
-
-                    if ( // node is master-ineligible either before or after the restart ...
-                    (oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
-                        // ... and it's accepted some non-initial state so we can roll back ...
-                        && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
-                        // ... and we're feeling lucky ...
-                        && randomBoolean()) {
-
-                        // ... then we might not have reliably persisted the cluster state, so emulate a rollback
-
-                        persistedCurrentTerm = randomLongBetween(0L, oldState.getCurrentTerm());
-                        final long lastAcceptedTerm = oldState.getLastAcceptedState().term();
-                        final long lastAcceptedVersion = oldState.getLastAcceptedState().version();
-
-                        final long newLastAcceptedTerm;
-                        final long newLastAcceptedVersion;
-
-                        if (lastAcceptedVersion == 0L) {
-                            newLastAcceptedTerm = randomLongBetween(0L, Math.min(persistedCurrentTerm, lastAcceptedTerm - 1));
-                            newLastAcceptedVersion = randomNonNegativeLong();
-                        } else {
-                            newLastAcceptedTerm = randomLongBetween(0L, Math.min(persistedCurrentTerm, lastAcceptedTerm));
-                            newLastAcceptedVersion = randomLongBetween(
-                                0L,
-                                newLastAcceptedTerm == lastAcceptedTerm ? lastAcceptedVersion - 1 : Long.MAX_VALUE
-                            );
-                        }
-                        final VotingConfiguration newVotingConfiguration = new VotingConfiguration(
-                            randomBoolean() ? emptySet() : singleton(randomAlphaOfLength(10))
-                        );
-                        final long newValue = randomLong();
-
-                        logger.trace(
-                            "rolling back persisted cluster state on master-ineligible node [{}]: "
-                                + "previously currentTerm={}, lastAcceptedTerm={}, lastAcceptedVersion={} "
-                                + "but now currentTerm={}, lastAcceptedTerm={}, lastAcceptedVersion={}",
-                            newLocalNode,
-                            oldState.getCurrentTerm(),
-                            lastAcceptedTerm,
-                            lastAcceptedVersion,
-                            persistedCurrentTerm,
-                            newLastAcceptedTerm,
-                            newLastAcceptedVersion
-                        );
-
-                        clusterState(
-                            newLastAcceptedTerm,
-                            newLastAcceptedVersion,
-                            newLocalNode,
-                            newVotingConfiguration,
-                            newVotingConfiguration,
-                            newValue
-                        ).writeTo(outStream);
+                    final Metadata updatedMetadata = adaptGlobalMetadata.apply(persistedLastAcceptedState.metadata());
+                    if (updatedMetadata != persistedLastAcceptedState.metadata()) {
+                        ClusterState.builder(persistedLastAcceptedState).metadata(updatedMetadata).build().writeTo(outStream);
                     } else {
-                        persistedCurrentTerm = oldState.getCurrentTerm();
-                        final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
-                        if (updatedMetadata != oldState.getLastAcceptedState().metadata()) {
-                            ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build().writeTo(outStream);
-                        } else {
-                            oldState.getLastAcceptedState().writeTo(outStream);
-                        }
+                        persistedLastAcceptedState.writeTo(outStream);
                     }
 
                     final StreamInput inStream = new NamedWriteableAwareStreamInput(
@@ -2232,13 +2230,134 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         namedWriteableRegistry
                     );
                     // adapt cluster state to new localNode instance and add blocks
-                    delegate = new InMemoryPersistedState(
+                    final var loadedState = new InMemoryPersistedState(
                         adaptCurrentTerm.apply(persistedCurrentTerm),
                         ClusterStateUpdaters.addStateNotRecoveredBlock(ClusterState.readFrom(inStream, newLocalNode))
                     );
+                    final var persistence = simulatePersistence(newLocalNode, loadedState, threadPool);
+                    inMemoryPersistedState = persistence.onDisk();
+                    delegate = persistence.inUse();
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to create MockPersistedState", e);
+            }
+        }
+
+        private static ClusterState emptyState(DiscoveryNode node) {
+            return ClusterStateUpdaters.addStateNotRecoveredBlock(
+                clusterState(0L, 0L, node, VotingConfiguration.EMPTY_CONFIG, VotingConfiguration.EMPTY_CONFIG, 0L)
+            );
+        }
+
+        /**
+         * @param onDisk the simulated on-disk state, which is what the node starts with after a restart
+         * @param inUse the state that the node uses while running, which writes to {@code onDisk} to an extent that depends on its roles
+         */
+        private record SimulatedPersistence(InMemoryPersistedState onDisk, CoordinationState.PersistedState inUse) {}
+
+        /**
+         * Simulates the persistence that a node has in production, in which the state that it uses is related to its state on disk
+         * according to its roles.
+         *
+         * @param loadedState the state that was on disk when the node started
+         */
+        private SimulatedPersistence simulatePersistence(DiscoveryNode node, InMemoryPersistedState loadedState, ThreadPool threadPool) {
+            if (node.isMasterNode()) {
+                // writes go directly to the disk
+                return new SimulatedPersistence(loadedState, loadedState);
+            } else if (node.canContainData()) {
+                // writes go to the disk asynchronously, and so some may be lost if the node stops
+                return new SimulatedPersistence(
+                    loadedState,
+                    MockGatewayMetaState.newAsyncPersistedState(loadedState, asyncWriteExecutor(threadPool))
+                );
+            } else {
+                // starts with an empty state whatever was on disk, writing that to disk but never anything more
+                return new SimulatedPersistence(
+                    new InMemoryPersistedState(0L, emptyState(node)),
+                    new InMemoryPersistedState(0L, emptyState(node)) // NB different instances so in-memory writes don't cross restarts
+                );
+            }
+        }
+
+        /**
+         * @return an executor for the asynchronous writes of a master-ineligible data node's persisted state, which runs them on the
+         * node's simulated thread pool but skips any that have not run by the time this persisted state is closed, simulating a node that
+         * crashes before its pending writes complete. This also avoids writing to a persisted state that has already been closed. Closing
+         * this persisted state is what shuts the executor down. Everything in these tests runs on a single thread, so there is no need for
+         * any synchronization.
+         */
+        private ExecutorService asyncWriteExecutor(ThreadPool threadPool) {
+            final var delegate = threadPool.generic();
+
+            class AsyncWriteExecutorService extends AbstractExecutorService {
+                @SuppressForbidden(reason = "delegates to an executor that properly rethrows errors")
+                AsyncWriteExecutorService() {}
+
+                @Override
+                public void execute(Runnable command) {
+                    delegate.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (isClosed() == false) {
+                                command.run();
+                            }
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "discardable " + command;
+                        }
+                    });
+                }
+
+                @Override
+                public void shutdown() {
+                    // shutting down is the same as closing the persisted state, which discards the tasks
+                    assert isClosed() : "shutting down an executor of a persisted state that is not closed";
+                }
+
+                @Override
+                public List<Runnable> shutdownNow() {
+                    assert isClosed() : "shutting down an executor of a persisted state that is not closed";
+                    return List.of();
+                }
+
+                @Override
+                public boolean isShutdown() {
+                    return isClosed();
+                }
+
+                @Override
+                public boolean isTerminated() {
+                    return isClosed();
+                }
+
+                @Override
+                public boolean awaitTermination(long timeout, TimeUnit unit) {
+                    assert isClosed() : "awaiting termination of an executor of a persisted state that is not closed";
+                    return isClosed();
+                }
+
+                private boolean isClosed() {
+                    return openPersistedStates.contains(MockPersistedState.this) == false;
+                }
+            }
+
+            return new AsyncWriteExecutorService();
+        }
+
+        /**
+         * {@code GatewayMetaState} chooses what kind of persisted state to create based on the node's settings rather than its
+         * {@link DiscoveryNode}, but the settings in these tests don't otherwise describe the node's roles, so describe them.
+         */
+        private static Settings gatewayMetaStateSettings(DiscoveryNode node) {
+            if (node.isMasterNode()) {
+                return Settings.EMPTY;
+            } else if (node.canContainData()) {
+                return NodeRoles.dataOnlyNode();
+            } else {
+                return NodeRoles.noRoles();
             }
         }
 

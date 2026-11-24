@@ -18,6 +18,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
@@ -25,10 +26,13 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.IOUtils;
@@ -42,7 +46,10 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
@@ -1877,7 +1884,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                     createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
                     createSearchExecutionContext(unmappedService, newSearcher(unmappedReader)),
                     createSearchExecutionContext(otherService, newSearcher(otherReader))
-                )
+                ),
+                false
             );
             FieldAttribute.FieldName field = new FieldAttribute.FieldName("kw");
             List<BytesRef> values = List.of(new BytesRef(""), new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d"));
@@ -1910,7 +1918,10 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             reader = writer.getReader();
         }
         try {
-            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            final SearchStats stats = SearchContextStats.from(
+                List.of(createSearchExecutionContext(mapperService, newSearcher(reader))),
+                false
+            );
             assertEquals(
                 List.of(new BytesRef("a"), new BytesRef("bb")),
                 stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100)
@@ -1948,7 +1959,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                     List.of(
                         createSearchExecutionContext(emptyAsNullService, newSearcher(emptyAsNullReader)),
                         createSearchExecutionContext(otherService, newSearcher(otherReader))
-                    )
+                    ),
+                    false
                 );
                 List<BytesRef> values = stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100);
                 if (otherShardHoldsEmptyString) {
@@ -1993,12 +2005,71 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                     List.of(
                         createSearchExecutionContext(keywordService, newSearcher(keywordReader)),
                         createSearchExecutionContext(otherService, newSearcher(otherReader))
-                    )
+                    ),
+                    false
                 );
                 assertNull(mapping, stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100));
             } finally {
                 IOUtils.close(keywordReader, otherReader, keywordService, otherService, keywordDir, otherDir);
             }
+        }
+    }
+
+    /**
+     * The terms of the index include the values of the documents that a shard filter or document level security hides. They
+     * are not listed then, as they would show in the plan of a user who must not see them.
+     */
+    public void testDistinctValuesWithHiddenDocuments() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(keywordDocument("kw", "visible"));
+            writer.addDocument(keywordDocument("kw", "hidden"));
+            reader = writer.getReader();
+        }
+        final DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        try {
+            FieldAttribute.FieldName field = new FieldAttribute.FieldName("kw");
+            SearchExecutionContext all = createSearchExecutionContext(mapperService, newSearcher(reader));
+            assertEquals(
+                List.of(new BytesRef("hidden"), new BytesRef("visible")),
+                SearchContextStats.from(List.of(all), false).distinctKeywordValues(field, 100)
+            );
+            // A shard filter, such as the filter of an index alias
+            assertNull(SearchContextStats.from(List.of(all), true).distinctKeywordValues(field, 100));
+
+            // Document level security, with other readers around it as a shard has
+            DirectoryReader secured = DocumentSubsetReader.wrap(
+                ElasticsearchDirectoryReader.wrap(reader, new ShardId("index", "_na_", 0)),
+                bitsetCache,
+                new TermQuery(new Term("kw", "visible"))
+            );
+            if (randomBoolean()) {
+                secured = new FilterDirectoryReader(secured, new FilterDirectoryReader.SubReaderWrapper() {
+                    @Override
+                    public LeafReader wrap(LeafReader leaf) {
+                        return leaf;
+                    }
+                }) {
+                    @Override
+                    protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+            SearchExecutionContext some = createSearchExecutionContext(mapperService, new IndexSearcher(secured));
+            assertNull(SearchContextStats.from(List.of(some), false).distinctKeywordValues(field, 100));
+            assertNull(SearchContextStats.from(List.of(all, some), false).distinctKeywordValues(field, 100));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+            bitsetCache.close();
         }
     }
 

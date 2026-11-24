@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
@@ -464,6 +466,10 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public List<BytesRef> distinctKeywordValues(FieldName field, int limit) {
+        if (shardFilters) {
+            // The terms include the values of the documents that a filter hides, which must not show in a plan
+            return null;
+        }
         String name = field.string();
         TreeSet<BytesRef> values = new TreeSet<>();
         boolean emptyStringReadsAsNull = false;
@@ -483,6 +489,9 @@ public class SearchContextStats implements SearchStats {
                 }
                 KeywordFieldType keyword = (KeywordFieldType) fieldType;
                 if (keyword.indexType().hasTerms() == false || keyword.hasDocValues() == false) {
+                    return null;
+                }
+                if (hidesDocuments(context.searcher().getIndexReader())) {
                     return null;
                 }
                 emptyStringReadsAsNull |= keyword.emptyStringReadsAsNull();
@@ -513,6 +522,20 @@ public class SearchContextStats implements SearchStats {
             return null;
         }
         return new ArrayList<>(values);
+    }
+
+    /**
+     * Whether document level security hides documents of this reader from the user. The terms of the index still include the
+     * values of the hidden documents, which the user must not see, not even as the keys of counts that turn out to be zero.
+     */
+    private static boolean hidesDocuments(IndexReader reader) {
+        while (reader instanceof FilterDirectoryReader filter) {
+            if (filter instanceof DocumentSubsetReader.DocumentSubsetDirectoryReader) {
+                return true;
+            }
+            reader = filter.getDelegate();
+        }
+        return false;
     }
 
     @Override

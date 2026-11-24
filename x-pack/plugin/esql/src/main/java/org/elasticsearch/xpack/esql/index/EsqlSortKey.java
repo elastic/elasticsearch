@@ -119,6 +119,11 @@ public final class EsqlSortKey {
         public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
             return new ChunkOrdinals(factory, count, ordinals::lookupOrd, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
+
+        @Override
+        public BlockLoader.SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
+            return new ChunkOrdinals(factory, count, ordinals::lookupOrd, Block.MvOrdering.UNORDERED);
+        }
     };
 
     /** Builds a block whose dictionary holds the distinct ordinals of the chunk, each looked up once. */

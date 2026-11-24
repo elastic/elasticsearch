@@ -96,6 +96,70 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
         }
     }
 
+    public void testArrayOrderOrdinals() throws IOException {
+        int numDocs = between(2, 2000);
+        List<List<String>> expected = new ArrayList<>();
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                List<String> values = new ArrayList<>();
+                if (i == 0) {
+                    // The smallest value, only in a document that the block skips
+                    values.add("0");
+                } else if (i == 1) {
+                    // At least one document has values out of order, with a duplicate
+                    values.addAll(List.of("b", "a", "b"));
+                }
+                int count = i == 0 ? 0 : between(0, 4);
+                for (int v = 0; v < count; v++) {
+                    values.add(randomAlphaOfLength(between(1, 8)));
+                }
+                Document doc = new Document();
+                for (String value : values) {
+                    doc.add(new SortedSetDocValuesField("f", new BytesRef(value)));
+                }
+                writer.addDocument(doc);
+                expected.add(values);
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                LeafReader leaf = reader.leaves().getFirst().reader();
+                SortedSetDocValues dv = leaf.getSortedSetDocValues("f");
+                List<Integer> docs = subset(numDocs);
+                try (BlockLoader.SortedSetOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.arrayOrderOrdinalsBuilder(dv, docs.size())) {
+                    for (int doc : docs) {
+                        List<String> values = expected.get(doc);
+                        if (values.isEmpty()) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        if (values.size() > 1) {
+                            builder.beginPositionEntry();
+                        }
+                        // Ordinals in the order of the array, like the reader that reads the array's offsets
+                        for (String value : values) {
+                            builder.appendOrd(Math.toIntExact(dv.lookupTerm(new BytesRef(value))));
+                        }
+                        if (values.size() > 1) {
+                            builder.endPositionEntry();
+                        }
+                    }
+                    try (BytesRefBlock block = (BytesRefBlock) builder.build()) {
+                        assertThat(block.getPositionCount(), equalTo(docs.size()));
+                        BytesRef scratch = new BytesRef();
+                        for (int p = 0; p < docs.size(); p++) {
+                            List<String> actual = new ArrayList<>();
+                            int first = block.getFirstValueIndex(p);
+                            for (int v = 0; v < block.getValueCount(p); v++) {
+                                actual.add(block.getBytesRef(first + v, scratch).utf8ToString());
+                            }
+                            assertThat(actual, equalTo(expected.get(docs.get(p))));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testSingletonOrdinals() throws IOException {
         int numDocs = between(2, 2000);
         String[] expected = new String[numDocs];

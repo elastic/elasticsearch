@@ -87,7 +87,7 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 | 4 | Selector without a metric name | `{job="api"}` | - | [#146977]({{es-issue}}146977) |
 | 5 | Regex matcher on `__name__` | `{__name__=~"node_.*"}` | Combine the metrics with `or`: `node_cpu or node_mem` | [#146977]({{es-issue}}146977) |
 | 6 | In a regex matcher, a capture group name used twice, a long or lowercase Unicode class name, or a `{` that starts no count followed by a repetition {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"(?P<n>a)(?P<n>b)"}`, `up{l=~"\\p{Letter}"}`, `up{l=~"x{*"}` | Use distinct group names, short class names such as `\\p{L}`, and `\\{` | - |
-| 7 | A regex matcher longer than 1,000 characters, or than [`index.max_regex_length`](/reference/elasticsearch/index-settings/index-modules.md#index-max-regex-length) where an index sets it lower, or whose automaton is too large to build. {{prom}} runs a regex without building one {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~".*a.{20}"}` | Shorten or simplify the regex | - |
+| 7 | A regex matcher longer than 1,000 UTF-16 code units, where a character outside the Basic Multilingual Plane counts as two, or than [`index.max_regex_length`](/reference/elasticsearch/index-settings/index-modules.md#index-max-regex-length) where an index sets it lower, or whose automaton is too large to build. {{prom}} runs a regex without building one {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~".*a.{20}"}` | Shorten or simplify the regex | - |
 :::
 
 **Behaves differently**

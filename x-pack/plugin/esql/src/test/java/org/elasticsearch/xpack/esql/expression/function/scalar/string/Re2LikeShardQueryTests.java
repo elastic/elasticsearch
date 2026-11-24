@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -80,7 +83,9 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
     /** A constant field tests its one value, so it runs the match as it runs a {@code regexp} query, whatever the setting. */
     public void testConstantFieldRunsWhenExpensiveQueriesAreNotAllowed() throws IOException {
         SearchExecutionContext context = noExpensiveQueries(keyword(true));
-        assertThat(query("_index", "t.*", context), notNullValue());
+        String index = context.getFullyQualifiedIndex().getName();
+        assertThat(query("_index", "\\Q" + index + "\\E", context), equalTo(Queries.ALL_DOCS_INSTANCE));
+        assertThat(query("_index", "\\Q" + index + "\\Ex", context), instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testAutomatonIsChargedToTheShardBreaker() throws IOException {

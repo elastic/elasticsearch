@@ -306,7 +306,9 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
     }
 
     public void testRelocationMetricReportsComputedReasonWhenReconcilerDisagrees() {
-        // a decider that only objects to the shard's node while simulating, so the computation decides a cannot-remain move that the
+        final var moveType = randomFrom(MoveType.CANNOT_REMAIN, MoveType.NOT_PREFERRED);
+        final var objection = moveType == MoveType.CANNOT_REMAIN ? Decision.NO : Decision.NOT_PREFERRED;
+        // a decider that only objects to the shard's node while simulating, so the computation decides a canRemain move that the
         // reconciler then makes as a rebalance
         final var simulationOnlyDecider = new AllocationDecider() {
             @Override
@@ -317,7 +319,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 RoutingAllocation allocation
             ) {
                 return allocation.isSimulating() && node.nodeId().equals("node-1")
-                    ? allocation.decision(Decision.NO, "simulation_only", "no")
+                    ? allocation.decision(objection, "simulation_only", "objection")
                     : allocation.decision(Decision.YES, "simulation_only", "yes");
             }
         };
@@ -338,10 +340,10 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         });
 
         final var result = relocationAfterReroute(indexMetadata, allocationId, settings, plugins);
-        assertThat(result.attributes(), hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
+        assertThat(result.attributes(), hasEntry("es_relocation_reason", moveType.reason()));
         assertThat(result.attributes(), hasEntry("es_can_remain_decider", "simulation_only"));
         // the reconciler prioritises the move by the computation's reason, not by its own canRemain decision
-        assertThat(result.recoveryPriority(), is(MoveType.CANNOT_REMAIN.recoveryPriority()));
+        assertThat(result.recoveryPriority(), is(moveType.recoveryPriority()));
     }
 
     private record RelocationResult(Map<String, Object> attributes, RecoveryPriority recoveryPriority) {}

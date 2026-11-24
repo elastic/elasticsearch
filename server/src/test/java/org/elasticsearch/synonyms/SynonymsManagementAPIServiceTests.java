@@ -92,7 +92,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
      */
     /**
      * Hidden indices are reloaded by name only when open and an analyzer of theirs runs a filter naming the set, directly or
-     * wrapped in a multiplexer or condition filter.
+     * wrapped in a multiplexer. A condition filter hides its children's resources from reloads, so it does not count.
      */
     public void testReloadTargetsAddsOpenHiddenIndicesUsingTheSet() {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
@@ -105,13 +105,14 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             .build();
         String[] targets = SynonymsManagementAPIService.reloadTargets(project, "s");
         assertEquals("*", targets[0]);
-        assertEquals(Set.of("hidden", "hidden-multiplexed", "hidden-conditional"), Set.of(Arrays.copyOfRange(targets, 1, targets.length)));
+        assertEquals(Set.of("hidden", "hidden-multiplexed"), Set.of(Arrays.copyOfRange(targets, 1, targets.length)));
     }
 
     private static IndexMetadata indexUsingSet(String name, boolean hidden, IndexMetadata.State state, String analyzerFilter) {
         Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_HIDDEN, hidden)
             .put("index.analysis.filter.syn.type", "synonym_graph")
             .putList("index.analysis.filter.syn.synonyms_set", "s")
+            .put("index.analysis.filter.syn.updateable", true)
             .put("index.analysis.filter.mux.type", "multiplexer")
             .putList("index.analysis.filter.mux.filters", "lowercase, syn")
             .put("index.analysis.filter.cond.type", "condition")

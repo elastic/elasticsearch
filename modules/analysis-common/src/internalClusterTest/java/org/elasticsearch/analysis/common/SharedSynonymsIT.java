@@ -35,6 +35,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -278,9 +279,22 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
     public void testSynonymsUpdateReachesHiddenIndex() throws IOException {
         putSet("s", "hello, hi");
         createIndex("h", Settings.builder().put(synonymsSetIndex("s")).put("index.hidden", true).build());
+        // The synonym filter wrapped in a multiplexer.
+        createIndex(
+            "hm",
+            Settings.builder()
+                .put(synonymsSetIndex("s"))
+                .put("index.hidden", true)
+                .put("index.analysis.filter.syn.type", "synonym")
+                .put("index.analysis.filter.mux.type", "multiplexer")
+                .putList("index.analysis.filter.mux.filters", "syn")
+                .putList("index.analysis.analyzer.a.filter", "mux")
+                .build()
+        );
 
         putSet("s", "bye, ciao", true);
 
         assertThat(analyze("h", "bye"), contains("bye", "ciao"));
+        assertThat(analyze("hm", "bye"), hasItem("ciao"));
     }
 }

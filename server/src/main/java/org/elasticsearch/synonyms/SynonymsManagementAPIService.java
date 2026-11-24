@@ -1093,7 +1093,8 @@ public class SynonymsManagementAPIService {
             .filter(filter -> filter.getValue().getAsList("synonyms_set").contains(synonymSetId))
             .map(Map.Entry::getKey)
             .collect(Collectors.toCollection(HashSet::new));
-        // Add the multiplexer and condition filters that wrap one of them, until nothing changes.
+        // Add the multiplexer filters that wrap one of them, until nothing changes. A condition filter does not expose its
+        // children's resources, so a reload cannot reach a synonyms set inside one.
         boolean added = filters.isEmpty() == false;
         while (added) {
             added = false;
@@ -1111,12 +1112,9 @@ public class SynonymsManagementAPIService {
                 .anyMatch(analyzer -> analyzer.getAsList("filter").stream().anyMatch(filters::contains));
     }
 
-    /** Filters a {@code multiplexer} ({@code filters}, each a comma-separated chain) or {@code condition} ({@code filter}) wraps. */
+    /** Filters a {@code multiplexer} wraps: its {@code filters}, each a comma-separated chain. */
     private static Stream<String> wrappedFilters(Settings filter) {
-        return Stream.concat(
-            filter.getAsList("filters").stream().flatMap(chain -> Arrays.stream(chain.split(","))).map(String::trim),
-            filter.getAsList("filter").stream()
-        );
+        return filter.getAsList("filters").stream().flatMap(chain -> Arrays.stream(chain.split(","))).map(String::trim);
     }
 
     // Allows checking failures in tests

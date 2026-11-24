@@ -329,8 +329,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     /**
-     * Reads an updateable source's rules ahead of a reload, once per request for filters with the same settings. A read failure
-     * is left to the chain build, which reports it or, when lenient, falls back.
+     * Reads an updateable source's rules ahead of a reload, once per request per resource, so every index the request reloads
+     * gets the same read, including the same failure or lenient fallback.
      */
     @Override
     public synchronized void loadResourceForReload(ReloadToken token) {
@@ -365,7 +365,11 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         try (Reader reader = source.reader()) {
             reader.transferTo(text);
         } catch (IOException e) {
-            return null;
+            // Same outcome for every index sharing this read: lenient falls back to no rules, as parsing would; otherwise fail.
+            if (lenient) {
+                return new LoadedRules("", source.origin(), source.resources(), true);
+            }
+            throw new UncheckedIOException(e);
         }
         return new LoadedRules(text.toString(), source.origin(), source.resources(), source.degraded());
     }

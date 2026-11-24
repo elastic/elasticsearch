@@ -1442,7 +1442,7 @@ public final class AnalysisRegistry implements Closeable {
             reloadable.reload(build.get(), null);
             return;
         }
-        HeldComponents held = acquireComponents(key, build);
+        HeldComponents held = acquireComponents(key, build, false);
         reloadable.reload(held.components(), held.release());
     }
 
@@ -1452,9 +1452,9 @@ public final class AnalysisRegistry implements Closeable {
     /**
      * Returns components for {@code key}, building them outside the map lock if no live slot exists; concurrent callers join that
      * build. A failed build is removed and rethrown. A degraded build is never shared: it is removed for later loads, and a caller
-     * that joined it retries.
+     * that joined it retries once, then builds its own.
      */
-    private HeldComponents acquireComponents(AnalyzerKey key, Supplier<AnalyzerComponents> build) {
+    private HeldComponents acquireComponents(AnalyzerKey key, Supplier<AnalyzerComponents> build, boolean retried) {
         boolean[] created = { false };
         Slot<AnalyzerComponents> entry = componentsCache.compute(key, (k, existing) -> {
             if (existing != null && existing.tryAcquire()) {
@@ -1490,9 +1490,10 @@ public final class AnalysisRegistry implements Closeable {
             throw e.getCause() instanceof RuntimeException r ? r : e;
         }
         if (isDegraded(joined)) {
-            // The degraded slot is already out of the cache, so retrying either joins a newer build or builds afresh.
+            // The degraded slot is already out of the cache, so a retry joins a newer build or builds afresh. Retry once: if
+            // builds keep degrading (e.g. the breaker keeps tripping), build privately rather than queue behind each one.
             releaseComponents(key, entry);
-            return acquireComponents(key, build);
+            return retried ? new HeldComponents(build.get(), null) : acquireComponents(key, build, true);
         }
         return new HeldComponents(joined, () -> releaseComponents(key, entry));
     }

@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -58,6 +59,7 @@ public final class ScheduledUsageReporter implements UsageReporter {
     private final TimeValue flushTimeout;
     private final ThreadPool threadPool;
     private final Clock clock;
+    private final LongSupplier relativeNanos;
 
     /** Where the window of the next drain starts; only used by the cycle that holds the permit. */
     private Instant windowStart;
@@ -80,6 +82,26 @@ public final class ScheduledUsageReporter implements UsageReporter {
         ThreadPool threadPool,
         Clock clock
     ) {
+        this(settings, accumulator, builder, store, publisher, identity, threadPool, clock, System::nanoTime);
+    }
+
+    /**
+     * @param relativeNanos a monotonic clock for the deadline of the final flush; not {@code threadPool.relativeTimeInNanos()}, which is
+     *                      cached for 200 ms by default and would make a short request timeout expire early or late. Tests pass a clock
+     *                      they control.
+     */
+    ScheduledUsageReporter(
+        UsageReportingSettings settings,
+        UsageAccumulator accumulator,
+        UsageRecordBuilder builder,
+        PendingStore store,
+        UsagePublisher publisher,
+        SourceIdentity identity,
+        ThreadPool threadPool,
+        Clock clock,
+        LongSupplier relativeNanos
+    ) {
+        this.relativeNanos = relativeNanos;
         this.accumulator = accumulator;
         this.builder = builder;
         this.store = store;
@@ -246,12 +268,13 @@ public final class ScheduledUsageReporter implements UsageReporter {
     }
 
     /**
-     * Stops the schedule and makes a last attempt to publish the records that are pending. It does not drain the accumulator: the usage
-     * since the last tick is not a whole period, and a record has to carry the period it covers. That usage is lost on every restart,
-     * which can only under-count. The flush waits at most the request timeout for a cycle that is still running, and stops starting
-     * batches after the same timeout from the start of the close. It cannot bound a batch that is already being published: a publisher
-     * may make several requests for one batch, so the close can take longer than the timeout. What is not sent is lost, and reported
-     * with a warning.
+     * Stops the schedule and makes a last attempt to publish: it drains the accumulator, so that the usage since the last tick is not
+     * lost on a restart, and publishes what is pending. The drain covers a partial window, which is correct because the record carries
+     * the real window (see the class javadoc); its drain time is moved past the previous one if needed, so that it never shares an id
+     * with the last tick. The flush waits at most the request timeout for a cycle that is still running, and stops starting batches
+     * after the same timeout from the start of the close. It cannot bound a batch that is already being published: a publisher may make
+     * several requests for one batch, so the close can take longer than the timeout. What is not sent is lost, which can only
+     * under-count, and is reported with a warning.
      */
     @Override
     public void close() {
@@ -263,12 +286,13 @@ public final class ScheduledUsageReporter implements UsageReporter {
                 scheduled.cancel();
             }
         }
-        long deadline = threadPool.relativeTimeInNanos() + flushTimeout.nanos();
+        long deadline = relativeNanos.getAsLong() + flushTimeout.nanos();
         boolean acquired = false;
         try {
             acquired = cycle.tryAcquire(flushTimeout.nanos(), TimeUnit.NANOSECONDS);
             if (acquired) {
-                publish(() -> threadPool.relativeTimeInNanos() - deadline < 0);
+                drain(clock.instant());
+                publish(() -> relativeNanos.getAsLong() - deadline < 0);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

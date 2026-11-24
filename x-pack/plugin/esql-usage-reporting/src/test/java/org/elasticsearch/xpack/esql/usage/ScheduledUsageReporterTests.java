@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.contains;
@@ -174,7 +175,9 @@ public class ScheduledUsageReporterTests extends ESTestCase {
             publisher,
             IDENTITY,
             taskQueue.getThreadPool(),
-            clock
+            clock,
+            // The deadline of the final flush follows the task queue, so that a test moves it without real time.
+            () -> TimeUnit.MILLISECONDS.toNanos(taskQueue.getCurrentTimeMillis())
         );
     }
 
@@ -196,6 +199,11 @@ public class ScheduledUsageReporterTests extends ESTestCase {
 
     private void runUntil(String instant) {
         taskQueue.runTasksUpToTimeInOrder(Instant.parse(instant).toEpochMilli() - START.toEpochMilli());
+    }
+
+    /** The lag that makes the clock read {@code instant} now. */
+    private long clockLagFor(String instant) {
+        return START.toEpochMilli() + taskQueue.getCurrentTimeMillis() - Instant.parse(instant).toEpochMilli();
     }
 
     private static Instant at(String instant) {
@@ -250,6 +258,31 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         assertThat(publisher.batches.stream().flatMap(List::stream).distinct().count(), equalTo(3L));
         assertThat(reporter.recordsSent(), equalTo(3L));
         assertThat(builder.periods, contains(Duration.ofSeconds(100), Duration.ofMillis(1), Duration.ofMillis(1)));
+    }
+
+    /** A final flush just after midnight of the first of a month covers its own minute and is not stamped in the previous month. */
+    public void testTheFinalDrainCoversOnlyTheWindowSinceTheLastTick() {
+        clockLagMillis = clockLagFor("2026-11-30T23:55:00Z");
+        ScheduledUsageReporter reporter = reporter(10); // created at 23:55:00, when the accumulator starts
+
+        reporter.tick(at("2026-12-01T00:00:00Z"));
+        clockLagMillis = clockLagFor("2026-12-01T00:01:00Z");
+        reporter.close();
+
+        assertThat(accumulator.drains, contains(at("2026-12-01T00:00:00Z"), at("2026-12-01T00:01:00Z")));
+        assertThat(builder.periods, contains(Duration.ofMinutes(5), Duration.ofSeconds(60)));
+    }
+
+    public void testTheFinalDrainDoesNotShareAnIdWithATickAtTheSameInstant() {
+        ScheduledUsageReporter reporter = reporter(10);
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+        clockLagMillis = clockLagFor("2026-11-23T10:05:00Z");
+
+        reporter.close();
+
+        assertThat(accumulator.drains, contains(at("2026-11-23T10:05:00Z"), at("2026-11-23T10:05:00.001Z")));
+        assertThat(publisher.batches.stream().flatMap(List::stream).distinct().count(), equalTo(2L));
+        assertThat(reporter.recordsSent(), equalTo(2L));
     }
 
     public void testTheWindowDoesNotMoveWhenTheDrainFails() {
@@ -481,7 +514,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         assertThat(accumulator.drains, contains(at("2026-11-23T10:05:00Z")));
     }
 
-    public void testCloseFlushesWhatIsPendingWithoutDrainingThenStopsTheSchedule() {
+    public void testCloseDrainsTheLastWindowAndFlushesThenStopsTheSchedule() {
         ScheduledUsageReporter reporter = reporter(10);
         reporter.start();
         runUntil("2026-11-23T10:05:00Z");
@@ -489,6 +522,9 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         publisher.script.add(records -> failed(PublishResult.FailureClass.RETRYABLE, Set.of()));
         runUntil("2026-11-23T10:10:00Z");
         assertThat(store.size(), equalTo(1));
+        // Closes a few seconds after the tick, as in production.
+        taskQueue.scheduleAt(Duration.ofSeconds(405).toMillis(), () -> {});
+        runUntil("2026-11-23T10:10:05Z");
 
         try (MockLog mockLog = MockLog.capture(ScheduledUsageReporter.class)) {
             mockLog.addExpectation(
@@ -498,12 +534,21 @@ public class ScheduledUsageReporterTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
         }
 
-        assertThat("the pending record is flushed", store.size(), equalTo(0));
-        assertThat("the usage of the partial period is not drained", accumulator.drains.size(), equalTo(2));
+        assertThat("the pending record and the last window are flushed", store.size(), equalTo(0));
+        assertThat(
+            "the last window is drained",
+            accumulator.drains,
+            contains(at("2026-11-23T10:05:00Z"), at("2026-11-23T10:10:00Z"), at("2026-11-23T10:10:05Z"))
+        );
+        assertThat("the record of the last window covers the five seconds", builder.periods.get(2), equalTo(Duration.ofSeconds(5)));
+        assertThat(
+            publisher.batches.get(publisher.batches.size() - 1),
+            contains("es-node_2026-11-23T10:10:00Z_0", "es-node_2026-11-23T10:10:05Z_0")
+        );
 
         reporter.close(); // idempotent
         runUntil("2026-11-23T10:30:00Z");
-        assertThat(accumulator.drains.size(), equalTo(2));
+        assertThat(accumulator.drains.size(), equalTo(3));
         assertThat(publisher.closed, equalTo(false));
     }
 
@@ -538,11 +583,12 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     }
 
     /**
-     * The deadline is measured with the clock of the thread pool, which here is the one of the task queue: the first publish moves it
+     * The deadline is measured with a clock that the reporter is given, which here follows the task queue: the first publish moves it
      * past the timeout, so that no real time is involved.
      */
     public void testCloseStopsStartingBatchesAfterTheTimeout() {
         ScheduledUsageReporter reporter = reporter(1, "1s");
+        accumulator.hasUsage = false; // the final drain adds nothing, only the three pending records are left to publish
         addPending(3);
         publisher.script.add(records -> {
             taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 2000, () -> {});
@@ -679,7 +725,6 @@ public class ScheduledUsageReporterTests extends ESTestCase {
 
     public void testCloseWarnsWhenTheFinalFlushFails() {
         ScheduledUsageReporter reporter = reporter(10);
-        addPending(1);
         publisher.failure = new IllegalStateException("down");
 
         try (MockLog mockLog = MockLog.capture(ScheduledUsageReporter.class)) {

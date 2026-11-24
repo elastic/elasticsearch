@@ -81,9 +81,8 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
         assert estimatedBytes == 0;
         if (valueCount == 1) {
             /*
-             * The factory reserves the copy with the breaker before making it, so a value
-             * too big to copy trips the breaker instead of being allocated first. If it
-             * does trip, the builder is still open and closing it returns its memory.
+             * The factory asks the breaker for the copy before allocating it. If the
+             * breaker trips, the builder is still open and closing it returns its memory.
              */
             vector = blockFactory.newConstantBytesRefVector(values.get(0, new PagedBytesCursor()), 1);
             Releasables.closeExpectNoException(values);

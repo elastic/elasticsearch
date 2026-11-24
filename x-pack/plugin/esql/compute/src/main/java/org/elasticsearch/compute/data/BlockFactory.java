@@ -635,9 +635,8 @@ public class BlockFactory {
     }
 
     /**
-     * Builds a constant vector from a value read through a cursor. The copy is reserved with the breaker before it
-     * is allocated and is filled straight from the cursor's pages, so nothing the size of the value is allocated
-     * without the breaker knowing. Consumes the cursor.
+     * Builds a constant vector from a value read through a cursor. Asks the breaker for the copy before
+     * allocating it, then fills it straight from the cursor's pages. Consumes the cursor.
      */
     public BytesRefVector newConstantBytesRefVector(PagedBytesCursor value, int positions) {
         int length = value.remaining();

@@ -42,11 +42,7 @@ import java.util.List;
 class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
-    /**
-     * The most points a range query may return per series, as in Prometheus' {@code /api/v1/query_range}. Nothing else bounds the
-     * points of a series, and a single series of a small enough step over a long enough range builds a response body that does not
-     * fit in memory.
-     */
+    // https://github.com/prometheus/prometheus/blob/ad8f26eed18a6aabfd9729bb281c6a3e53beabe9/web/api/v1/api.go#L1235-L1237
     static final long MAX_POINTS_PER_SERIES = 11_000;
 
     /**

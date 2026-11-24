@@ -303,7 +303,7 @@ public class IndexSortComputedKeyIT extends AbstractEsqlIntegTestCase {
                 int count = between(1, 5);
                 List<String> addresses = new ArrayList<>();
                 for (int a = 0; a < count; a++) {
-                    addresses.add("10." + b + "." + i + "." + a);
+                    addresses.add("10." + b + "." + i % 256 + "." + a);
                 }
                 bulk.add(prepareIndex(INDEX).setSource("addresses", addresses, "n", count));
             }

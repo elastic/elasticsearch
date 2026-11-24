@@ -33,17 +33,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
 
     public void testSortedSetOrdinals() throws IOException {
-        int numDocs = between(1, 2000);
+        int numDocs = between(2, 2000);
         List<TreeSet<String>> expected = new ArrayList<>();
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
                 TreeSet<String> values = new TreeSet<>();
                 if (i == 0) {
+                    // The smallest value, only in a document that the block skips
+                    values.add("0");
+                } else if (i == 1) {
                     // At least one document has several values
                     values.add("a");
                     values.add("b");
                 }
-                int count = between(0, 4);
+                int count = i == 0 ? 0 : between(0, 4);
                 for (int v = 0; v < count; v++) {
                     values.add(randomAlphaOfLength(between(1, 8)));
                 }
@@ -58,8 +61,9 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 LeafReader leaf = reader.leaves().getFirst().reader();
                 SortedSetDocValues dv = leaf.getSortedSetDocValues("f");
-                try (BlockLoader.SortedSetOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.sortedSetOrdinalsBuilder(dv, numDocs)) {
-                    for (int doc = 0; doc < numDocs; doc++) {
+                List<Integer> docs = subset(numDocs);
+                try (BlockLoader.SortedSetOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.sortedSetOrdinalsBuilder(dv, docs.size())) {
+                    for (int doc : docs) {
                         if (dv.advanceExact(doc) == false) {
                             builder.appendNull();
                             continue;
@@ -76,15 +80,15 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
                         }
                     }
                     try (BytesRefBlock block = (BytesRefBlock) builder.build()) {
-                        assertThat(block.getPositionCount(), equalTo(numDocs));
+                        assertThat(block.getPositionCount(), equalTo(docs.size()));
                         BytesRef scratch = new BytesRef();
-                        for (int doc = 0; doc < numDocs; doc++) {
+                        for (int p = 0; p < docs.size(); p++) {
                             List<String> actual = new ArrayList<>();
-                            int first = block.getFirstValueIndex(doc);
-                            for (int v = 0; v < block.getValueCount(doc); v++) {
+                            int first = block.getFirstValueIndex(p);
+                            for (int v = 0; v < block.getValueCount(p); v++) {
                                 actual.add(block.getBytesRef(first + v, scratch).utf8ToString());
                             }
-                            assertThat(actual, equalTo(new ArrayList<>(expected.get(doc))));
+                            assertThat(actual, equalTo(new ArrayList<>(expected.get(docs.get(p)))));
                         }
                     }
                 }
@@ -93,12 +97,16 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
     }
 
     public void testSingletonOrdinals() throws IOException {
-        int numDocs = between(1, 2000);
+        int numDocs = between(2, 2000);
         String[] expected = new String[numDocs];
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
-                if (i == 0 || randomBoolean()) {
+                if (i == 0) {
+                    // The smallest value, only in a document that the block skips
+                    expected[i] = "0";
+                    doc.add(new SortedDocValuesField("f", new BytesRef(expected[i])));
+                } else if (i == 1 || randomBoolean()) {
                     expected[i] = randomAlphaOfLength(between(1, 8));
                     doc.add(new SortedDocValuesField("f", new BytesRef(expected[i])));
                 }
@@ -108,10 +116,15 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 LeafReader leaf = reader.leaves().getFirst().reader();
                 SortedDocValues dv = leaf.getSortedDocValues("f");
+                List<Integer> docs = subset(numDocs);
                 try (
-                    BlockLoader.SingletonOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.singletonOrdinalsBuilder(dv, numDocs, false)
+                    BlockLoader.SingletonOrdinalsBuilder builder = EsqlSortKey.LOADER_FACTORY.singletonOrdinalsBuilder(
+                        dv,
+                        docs.size(),
+                        false
+                    )
                 ) {
-                    for (int doc = 0; doc < numDocs; doc++) {
+                    for (int doc : docs) {
                         if (dv.advanceExact(doc)) {
                             builder.appendOrd(dv.ordValue());
                         } else {
@@ -119,20 +132,30 @@ public class EsqlSortKeyLoaderFactoryTests extends ESTestCase {
                         }
                     }
                     try (BytesRefBlock block = (BytesRefBlock) builder.build()) {
+                        assertThat(block.getPositionCount(), equalTo(docs.size()));
                         BytesRef scratch = new BytesRef();
-                        for (int doc = 0; doc < numDocs; doc++) {
-                            if (expected[doc] == null) {
-                                assertTrue(block.isNull(doc));
+                        for (int p = 0; p < docs.size(); p++) {
+                            String value = expected[docs.get(p)];
+                            if (value == null) {
+                                assertTrue(block.isNull(p));
                             } else {
-                                assertThat(
-                                    block.getBytesRef(block.getFirstValueIndex(doc), scratch).utf8ToString(),
-                                    equalTo(expected[doc])
-                                );
+                                assertThat(block.getBytesRef(block.getFirstValueIndex(p), scratch).utf8ToString(), equalTo(value));
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    /** A random subset of the documents that skips the first one and keeps the second, so the block misses some ordinals. */
+    private static List<Integer> subset(int numDocs) {
+        List<Integer> docs = new ArrayList<>();
+        for (int doc = 1; doc < numDocs; doc++) {
+            if (doc == 1 || randomBoolean()) {
+                docs.add(doc);
+            }
+        }
+        return docs;
     }
 }

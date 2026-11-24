@@ -25,7 +25,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.IndexSortParser;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -36,7 +35,6 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.index.EsqlIndexSortParser;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -91,7 +89,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     @BeforeClass
     public static void setupClass() throws Exception {
-        IndexSortParser.init(new EsqlIndexSortParser());
         sharedLicenseState = MockLicenseState.createMock();
         when(sharedLicenseState.isAllowed(any())).thenReturn(true);
         sharedLicenseService = mock(LicenseService.class);
@@ -989,43 +986,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
     }
 
-    public void testRoutingPathOnSortExpression() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
-    }
-
-    public void testRoutingPathOnSortExpressionWithRepeatedField() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, MV_MIN(message), MV_MAX(message) DESC, @timestamp DESC")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
-    }
-
-    public void testRoutingPathOnSortExpressionMismatch() {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, message DESC, @timestamp DESC")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
-        assertThat(e.getMessage(), containsString("[index.routing_path:[host, message, foo]], [index.sort:[host, message]]"));
-    }
-
-    public void testRoutingPathOnSortExpressionWithComputedKey() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, DATE_TRUNC(1 hour, @timestamp) DESC, message DESC")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
-    }
-
     public void testRoutingPathOnSortFieldsDisabledInOldNode() throws Exception {
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
@@ -1149,17 +1109,6 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         var settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "foo,bar")
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
-        assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
-        assertEquals(0, newMapperServiceCounter.get());
-    }
-
-    public void testSortAndHostNameWithSortExpression() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
-            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "foo, bar DESC")
             .build();
         Settings result = generateLogsdbSettings(settings);
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));

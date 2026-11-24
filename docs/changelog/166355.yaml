@@ -3,3 +3,18 @@ summary: A short CSV or TSV row is a row error rather than silent nulls
 area: ES|QL
 type: bug
 issues: []
+highlight:
+  title: A short CSV or TSV row in a data-federation dataset is no longer read as nulls
+  body: |-
+    A CSV or TSV row with fewer fields than its file's header used to be read with its
+    missing trailing fields as null, with nothing in the response to say so, under every
+    `error_mode` including the strict default. Such a row is now a row error, as a row with
+    surplus fields has been: `fail_fast` fails the query and names the row and both widths,
+    while `skip_row` and `null_field` drop the row, warn, and count it against the error
+    budget. Queries over ragged files that returned results silently will now report or
+    fail instead. That is intended: their earlier results counted invented
+    nulls as data.
+
+    To keep the old reading, set `pad_short_rows` on the dataset. Rows short of the header
+    are then padded with nulls and kept, and each padded row is reported.
+  notable: false

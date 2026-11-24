@@ -477,6 +477,8 @@ $$$csv-pad-short-rows$$$
 
     Set `true` to read such a row instead, with the fields it lacks as `null`, under every `error_mode`. Each padded row is reported with a `Warning` header, because a padded `null` cannot otherwise be told from a `null` the file carries.
 
+    A query answered from cached statistics rather than by reading the file carries no such header, as it carries no warning any reader raises. A `COUNT` repeated over an unchanged dataset is the common case.
+
 $$$csv-multiline-fields$$$
 
 `multiline_fields` {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`

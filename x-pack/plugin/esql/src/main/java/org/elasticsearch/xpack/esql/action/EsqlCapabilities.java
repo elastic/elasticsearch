@@ -5048,17 +5048,12 @@ public class EsqlCapabilities {
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
         /**
-         * A conversion of a field mapped to different types across indices validates its other arguments, like the options of
-         * {@code TO_IP(x, {...})}. Older nodes silently ignored unknown options there, and reported an invalid option value
-         * without the position of the call.
+         * A conversion of a field mapped to different types across indices validates its other arguments. The options of
+         * {@code TO_IP(x, {...})} are checked: older nodes silently ignored unknown options there, and reported an invalid option
+         * value without the position of the call. {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} fail like any other type
+         * conflict: older nodes failed with an internal server error.
          */
         UNION_TYPES_VALIDATE_CONVERSION_ARGUMENTS,
-
-        /**
-         * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} of a field mapped to different types across indices fail like any
-         * other type conflict. Older nodes failed with an internal server error.
-         */
-        UNION_TYPES_REJECT_CONVERSIONS_WITH_BASE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

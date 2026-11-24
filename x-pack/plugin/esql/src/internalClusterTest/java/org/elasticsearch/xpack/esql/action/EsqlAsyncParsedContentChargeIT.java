@@ -118,11 +118,11 @@ public class EsqlAsyncParsedContentChargeIT extends AbstractPausableIntegTestCas
             scriptPermits.release(numberOfDocs());
             try {
                 assertBusy(() -> assertThat(asyncQueryTasks(), empty()));
+                scriptPermits.drainPermits();
             } catch (Exception | AssertionError e) {
-                // Log rather than throw, so a failure of the test body is not hidden.
-                logger.warn("async query still running after releasing script permits", e);
+                // Log rather than throw, so a failure of the test body is not hidden. The permits stay for a query that may still run.
+                logger.warn("failed to wait for the async query to end after releasing script permits", e);
             }
-            scriptPermits.drainPermits();
             scriptWaits.drainPermits();
         }
     }

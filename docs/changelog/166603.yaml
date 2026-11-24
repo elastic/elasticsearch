@@ -1,5 +1,5 @@
 area: Machine Learning
 issues: []
 pr: 166603
-summary: "ES|QL datafeeds: `EsqlDatafeedJobsIT` and preview row separator fix"
+summary: "Normalize whitespaced for datafeed preview"
 type: bug

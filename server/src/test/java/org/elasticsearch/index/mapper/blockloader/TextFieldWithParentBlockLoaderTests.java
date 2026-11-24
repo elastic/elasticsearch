@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
@@ -64,19 +65,19 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         var fieldValue = runner.mapDoc().get("parent");
 
         Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        runner.mapperService(mapperServiceForParams(mappingXContent));
+        runner.mapperService(mapperServiceForParams(mapping));
         runner.fieldName("parent.subfield_text");
         runner.run(expected);
     }
 
-    private MapperService mapperServiceForParams(XContentBuilder mappingXContent) throws IOException {
+    private MapperService mapperServiceForParams(Mapping mapping) throws IOException {
         // Columnar index modes preserve array order via offsets recorded on the keyword parent. The text subfield delegates its block
         // loader to that parent, so the index must actually be built in columnar mode for the offsets to exist - otherwise the delegate
         // falls back to sorted ordinal order and no longer matches the arrival-order expectation.
         if (params.indexMode().isColumnar()) {
-            return createMapperService(BlockLoaderTestCase.getSettingsForParams(params).build(), mappingXContent);
+            return createMapperServiceWithParams(BlockLoaderTestCase.getSettingsForParams(params).build(), mapping);
         }
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         return params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
     }
 

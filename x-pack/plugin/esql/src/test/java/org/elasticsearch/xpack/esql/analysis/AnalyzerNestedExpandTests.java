@@ -495,7 +495,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         for (IndexFieldCapabilities field : fields) {
             byName.put(field.name(), field);
         }
-        return new FieldCapabilitiesIndexResponse(name, name, byName, true, mode, 1, 0, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(name, name, byName, true, mode, 1, 0, 1L, 1L, null);
     }
 
     private static IndexFieldCapabilities field(String name, String type) {

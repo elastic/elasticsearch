@@ -1,6 +1,0 @@
-area: Mapping
-issues:
- - 165637
-pr: 166394
-summary: Load stored fields of flattened mapped sub-fields
-type: bug

@@ -10,6 +10,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.RamUsageEstimates;
@@ -32,6 +33,7 @@ public final class SearchHitRamUsageEstimator {
     private static final long TEXT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Text.class);
     private static final long EXPLANATION_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Explanation.class);
     private static final long FLOAT_SHALLOW_SIZE = RamUsageEstimates.FLOAT_SHALLOW_SIZE;
+    private static final long BYTES_REF_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
     private static final long HASH_MAP_NODE_SIZE = RamUsageEstimates.HASH_MAP_NODE_SIZE;
     private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimates.LINKED_HASH_MAP_NODE_SIZE;
 
@@ -79,8 +81,21 @@ public final class SearchHitRamUsageEstimator {
     }
 
     public static long estimate(SearchHit hit) {
-        long size = BASE_BYTES + hit.rawSourceLength();
+        return estimate(hit, true);
+    }
+
+    /**
+     * Like {@link #estimate}, but leaves out the source of {@code hit} and of its inner hits at every level, for a hit read from a
+     * buffer whose size the caller already charges.
+     */
+    public static long estimateWithoutSources(SearchHit hit) {
+        return estimate(hit, false);
+    }
+
+    private static long estimate(SearchHit hit, boolean withSources) {
+        long size = BASE_BYTES + (withSources ? hit.rawSourceLength() : 0);
         size += estimateSubPhaseOutput(hit);
+        size += estimateSortValues(hit.getSortValues()) + estimateSortValues(hit.getRawSortValues());
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
             size += RamUsageEstimates.HASH_MAP_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHits.size()
@@ -91,7 +106,7 @@ public final class SearchHitRamUsageEstimator {
                 size += SEARCH_HITS_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHitsArray.length
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
                 for (SearchHit innerHit : innerHitsArray) {
-                    size += estimate(innerHit);
+                    size += estimate(innerHit, withSources);
                 }
             }
         }
@@ -163,9 +178,7 @@ public final class SearchHitRamUsageEstimator {
             visited++;
             size += EXPLANATION_SHALLOW_SIZE;
             size += RamUsageEstimator.sizeOf(node.getDescription());
-            // Always a boxed float in practice; shallowSizeOf falls back to uncached reflection per node.
-            Number value = node.getValue();
-            size += value instanceof Float ? FLOAT_SHALLOW_SIZE : RamUsageEstimator.shallowSizeOf(value);
+            size += RamUsageEstimates.shallowSizeOf(node.getValue());
             // An unmodifiable view over an exactly sized ArrayList, both allocated even when empty.
             size += RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
             // getDetails() copies into a fresh array per call, so ask once and size the retained list instead.
@@ -190,6 +203,20 @@ public final class SearchHitRamUsageEstimator {
             * (LINKED_HASH_MAP_NODE_SIZE + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         for (String name : matchedQueries.keySet()) {
             size += RamUsageEstimator.sizeOf(name) + FLOAT_SHALLOW_SIZE;
+        }
+        return size;
+    }
+
+    private static long estimateSortValues(Object[] sortValues) {
+        if (sortValues.length == 0) {
+            return 0L;
+        }
+        long size = RamUsageEstimator.shallowSizeOf(sortValues);
+        for (Object value : sortValues) {
+            // RamUsageEstimator.sizeOfObject bills a BytesRef at its unknown object default, whatever its length
+            size += value instanceof BytesRef bytesRef
+                ? BYTES_REF_SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytesRef.bytes)
+                : RamUsageEstimator.sizeOfObject(value);
         }
         return size;
     }

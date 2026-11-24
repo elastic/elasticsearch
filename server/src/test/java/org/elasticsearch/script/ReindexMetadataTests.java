@@ -162,7 +162,7 @@ public class ReindexMetadataTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
         assertFalse(metadata.routingChangedWithSlice(false));
-        assertTrue(metadata.routingChangedWithSlice(true));
+        assertFalse(metadata.routingChangedWithSlice(true));
 
         metadata.put(SliceIndexing.FIELD_NAME, ROUTING);
         assertFalse(metadata.routingChanged());
@@ -183,6 +183,16 @@ public class ReindexMetadataTests extends ESTestCase {
         metadata.put("_routing", "routing2");
         assertTrue(metadata.routingChanged());
         assertTrue(metadata.routingChangedWithSlice(false));
+        assertTrue(metadata.routingChangedWithSlice(true));
+    }
+
+    public void testRoutingChangedWithSliceTracksRemovingNullRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        metadata = new ReindexMetadata(INDEX, ID, VERSION, null, OP, TIMESTAMP);
+
+        assertFalse(metadata.routingChangedWithSlice(true));
+        metadata.remove("_routing");
+        assertFalse(metadata.routingChanged());
         assertTrue(metadata.routingChangedWithSlice(true));
     }
 

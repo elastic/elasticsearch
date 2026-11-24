@@ -71,6 +71,7 @@ public class ReindexMetadata extends Metadata {
     protected final Long version;
     protected final String routing;
     private boolean routingFromSlice;
+    private boolean routingWritten;
 
     public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
         super(metadataMap(index, id, version, routing, op, timestamp), PROPERTIES);
@@ -99,6 +100,9 @@ public class ReindexMetadata extends Metadata {
 
     @Override
     public Object put(String key, Object value) {
+        if (ROUTING.equals(key) || SLICE.equals(key)) {
+            routingWritten = true;
+        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.put(ROUTING, value);
             super.put(SLICE, value);
@@ -110,6 +114,9 @@ public class ReindexMetadata extends Metadata {
 
     @Override
     public Object remove(String key) {
+        if (ROUTING.equals(key) || SLICE.equals(key)) {
+            routingWritten = true;
+        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
             final Object previous = super.remove(ROUTING);
             super.remove(SLICE);
@@ -179,8 +186,13 @@ public class ReindexMetadata extends Metadata {
         return Objects.equals(routing, getString(ROUTING)) == false;
     }
 
+    /**
+     * The routing value is compared against the hit, so re-assigning the hit's own routing is not a change. The slice provenance is
+     * compared against the request, and only if the script wrote {@code _routing} or {@code _slice}, since {@link #routingFromSlice}
+     * starts at {@code false} whether or not the request is slice-routed.
+     */
     public boolean routingChangedWithSlice(boolean previousRoutingFromSlice) {
-        return Objects.equals(routing, getString(ROUTING)) == false || routingFromSlice != previousRoutingFromSlice;
+        return routingChanged() || (routingWritten && routingFromSlice != previousRoutingFromSlice);
     }
 
     public boolean isRoutingFromSlice() {

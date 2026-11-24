@@ -128,6 +128,60 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         assertFalse(result.isRoutingFromSlice());
     }
 
+    public void testSetRoutingSameValueDoesNotOverrideDestinationRouting() throws Exception {
+        String sourceRouting = randomRealisticUnicodeOfLengthBetween(5, 20);
+        String destinationRouting = randomValueOtherThan(sourceRouting, () -> randomRealisticUnicodeOfLengthBetween(5, 20));
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing(destinationRouting);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting(sourceRouting);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> ctx.put("_routing", sourceRouting), request, index, doc);
+        assertEquals(destinationRouting, result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
+    /**
+     * A script that only edits the source must not disturb the slice that copying the hit's routing left on the request.
+     */
+    public void testScriptThatLeavesRoutingAloneKeepsSliceProvenance() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing("tenant-a").setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting("tenant-a");
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {}, request, index, doc);
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * A script that leaves routing alone must keep the destination slice even though the hit carries no routing.
+     */
+    public void testScriptThatLeavesRoutingAloneKeepsDestinationSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar")).routing("tenant-a").setRoutingFromSlice(true);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0);
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {}, request, index, doc);
+        assertEquals("tenant-a", result.routing());
+        assertTrue(result.isRoutingFromSlice());
+    }
+
+    /**
+     * When the slice was dropped for a non-sliced destination, a script that leaves routing alone must not bring it back.
+     */
+    public void testScriptThatLeavesRoutingAloneDoesNotRestoreDroppedSlice() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = request();
+        IndexRequest index = new IndexRequest("index").id("1").source(Map.of("foo", "bar"));
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0).setRouting("tenant-a");
+
+        IndexRequest result = applyScriptToRequest((Map<String, Object> ctx) -> {}, request, index, doc);
+        assertNull(result.routing());
+        assertFalse(result.isRoutingFromSlice());
+    }
+
     public void testSetSlice() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);

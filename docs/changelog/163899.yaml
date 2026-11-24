@@ -1,0 +1,6 @@
+area: Columnar
+issues:
+ - 163824
+pr: 163899
+summary: Fix bool column promotion past the end of the value bitset
+type: bug

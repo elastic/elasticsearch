@@ -18,6 +18,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -221,7 +222,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 if (disruptRealtime) {
                     lookbackFinished.awaitMatched(TimeValue.timeValueSeconds(30).millis());
                     assertBusy(
-                        () -> assertThat(getDataCounts(jobId).getProcessedRecordCount(), equalTo(INITIAL_DOCS)),
+                        () -> assertThat(processedRecordCount(scenario.masterNode(), jobId), equalTo(INITIAL_DOCS)),
                         30,
                         TimeUnit.SECONDS
                     );
@@ -250,7 +251,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 // Heal only after the failed cycle has completed; healing right after the DEBUG line would let the retry succeed.
                 failedCycleLoggedAtWarn.awaitMatched(TimeValue.timeValueSeconds(30).millis());
                 // Nothing may have been processed while the only shard copy was unreachable.
-                assertThat(getDataCounts(jobId).getProcessedRecordCount(), equalTo(processedBeforeChurn));
+                assertThat(processedRecordCount(scenario.masterNode(), jobId), equalTo(processedBeforeChurn));
 
                 releaseRequest.countDown();
                 networkDisruption.removeAndEnsureHealthy(internalCluster());
@@ -273,7 +274,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 safeAwait(resumedQueryReachedVictim, TimeValue.timeValueSeconds(60));
 
                 long expected = expectedProcessed;
-                assertBusy(() -> assertThat(getDataCounts(jobId).getProcessedRecordCount(), equalTo(expected)), 30, TimeUnit.SECONDS);
+                assertBusy(() -> assertThat(processedRecordCount(scenario.masterNode(), jobId), equalTo(expected)), 30, TimeUnit.SECONDS);
                 assertBusy(() -> assertThat(getDatafeedState(datafeedId), equalTo(DatafeedState.STARTED)), 30, TimeUnit.SECONDS);
 
                 // Only now -- after the retry, its resolution, and the datafeed settling back to STARTED --
@@ -291,11 +292,33 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
     }
 
     /**
+     * Reads the job's processed record count through the master-only node. That node is never on the isolated side of the
+     * partition, so it always reaches the node running the job. Through the isolated node the stats call falls back to
+     * persisted data counts, which can still be 0. The node name is passed in because looking up the master can itself
+     * go through the isolated node, which has no master while the partition is up.
+     */
+    private static long processedRecordCount(String masterNode, String jobId) {
+        GetJobsStatsAction.Response response = client(masterNode).execute(
+            GetJobsStatsAction.INSTANCE,
+            new GetJobsStatsAction.Request(jobId)
+        ).actionGet();
+        assertThat(response.getResponse().results().size(), equalTo(1));
+        return response.getResponse().results().get(0).getDataCounts().getProcessedRecordCount();
+    }
+
+    /**
      * Result of {@link #setUpChurnScenario}: a 3-node cluster with an open job/datafeed pair and a
      * single-shard, zero-replica source index pinned to the "victim" node, distinct from the node
      * running the job's persistent task.
      */
-    private record ChurnScenario(String jobId, String datafeedId, String indexName, String victimNode, long windowStart) {}
+    private record ChurnScenario(
+        String jobId,
+        String datafeedId,
+        String indexName,
+        String victimNode,
+        String masterNode,
+        long windowStart
+    ) {}
 
     /**
      * Starts a 3-node cluster (1 master-only, 2 data+ml), opens a job, pins a zero-replica source
@@ -304,7 +327,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
      */
     private ChurnScenario setUpChurnScenario() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
-        internalCluster().startMasterOnlyNode();
+        String masterNode = internalCluster().startMasterOnlyNode();
         String nodeA = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         String nodeB = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster(3);
@@ -339,7 +362,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
-        return new ChurnScenario(jobId, datafeedId, indexName, victimNode, windowStart);
+        return new ChurnScenario(jobId, datafeedId, indexName, victimNode, masterNode, windowStart);
     }
 
     private static Job.Builder buildEsqlJobBuilder(String jobId) {

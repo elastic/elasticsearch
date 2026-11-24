@@ -1,0 +1,1481 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.fixtures;
+
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+/**
+ * The declaration is load-bearing: the whole test set derives from it, so these pin the properties
+ * that make the derivation sound rather than merely checking it parses.
+ */
+public class FixtureDimensionsTests extends ESTestCase {
+
+    private final FixtureDimensions dimensions = FixtureDimensions.get();
+
+    private static final Pattern PER_FORMAT_DEFAULT = Pattern.compile("dimension\\.[a-z_]+(?:\\.[a-z_]+)?\\.default\\.(.+)");
+    /** A format-local tier selection: {@code dimension.<n>.tier.<value>.<format>}, four segments deep. */
+    private static final Pattern PER_FORMAT_TIER = Pattern.compile("dimension\\.[a-z_]+(?:\\.[a-z_]+)?\\.tier\\.[a-z_]+\\.(.+)");
+
+    /**
+     * The pair table must be total. This is the gate that turns "did anyone think about this
+     * combination?" from a question nobody asks into a build failure: adding a nineteenth dimension
+     * leaves the build red until its eighteen new relationships are recorded.
+     */
+    public void testEveryPairHasAVerdict() {
+        List<String> names = dimensions.names();
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                dimensions.verdict(names.get(i), names.get(j));
+            }
+        }
+        assertThat(names.size(), greaterThan(1));
+    }
+
+    /** Every dimension needs a default, because it is the anchor every generated vector sits on. */
+    public void testEveryDimensionHasADefaultAmongItsValues() {
+        for (String d : dimensions.names()) {
+            assertThat(d, dimensions.values(d), hasItem(dimensions.defaultValue(d)));
+        }
+    }
+
+    /** A dimension nothing knows how to apply would generate vectors that cannot be run. */
+    public void testEveryDimensionDeclaresHowItBinds() {
+        for (String d : dimensions.names()) {
+            assertThat(d, FixtureDimensions.BINDS, hasItem(dimensions.binds(d)));
+        }
+    }
+
+    /**
+     * Groups are cliques, so by construction every pair inside one interacts. If that ever fails the
+     * derivation is wrong, and cells are being generated for pairs declared not to need them.
+     */
+    public void testEveryPairWithinAGroupInteracts() {
+        for (Set<String> group : dimensions.groups()) {
+            List<String> members = List.copyOf(group);
+            for (int i = 0; i < members.size(); i++) {
+                for (int j = i + 1; j < members.size(); j++) {
+                    assertTrue(group + " is not a clique", dimensions.crosses(members.get(i), members.get(j)));
+                }
+            }
+        }
+    }
+
+    /**
+     * The guarantee the whole scheme rests on: any two dimensions that interact are crossed somewhere.
+     * A pair that interacts but shares no group would have its combinations silently untested.
+     */
+    public void testEveryInteractingPairIsCrossedInSomeGroup() {
+        List<String> names = dimensions.names();
+        List<Set<String>> groups = dimensions.groups();
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                String a = names.get(i);
+                String b = names.get(j);
+                if (dimensions.crosses(a, b) == false) {
+                    continue;
+                }
+                boolean covered = groups.stream().anyMatch(g -> g.contains(a) && g.contains(b));
+                assertTrue("interacting pair [" + a + ", " + b + "] appears in no group", covered);
+            }
+        }
+    }
+
+    /** Every value of every dimension must appear in some generated vector, or it is never exercised. */
+    public void testEveryValueAppearsInSomeVector() {
+        List<Map<String, String>> vectors = dimensions.vectors();
+        for (String d : dimensions.names()) {
+            for (String value : dimensions.values(d)) {
+                if (dimensions.appliesTo(d).isEmpty() == false) {
+                    continue; // format-scoped values are covered only where their formats are legal
+                }
+                boolean seen = vectors.stream().anyMatch(v -> value.equals(v.get(d)));
+                assertTrue("no vector exercises " + d + "=" + value, seen);
+            }
+        }
+    }
+
+    /** A vector differs from the baseline in one group's dimensions only -- that is what makes a red test readable. */
+    public void testVectorsAreCompleteAndDeduplicated() {
+        List<Map<String, String>> vectors = dimensions.vectors();
+        assertThat(vectors.size(), greaterThan(0));
+        for (Map<String, String> v : vectors) {
+            assertThat("every vector assigns every dimension", v.keySet(), equalTo(Set.copyOf(dimensions.names())));
+        }
+        assertThat(vectors.size(), equalTo(Set.copyOf(vectors).size()));
+    }
+
+    /** Disjoint pairs cannot be crossed, so they must never be treated as needing cells. */
+    public void testDisjointPairsAreNeverCrossed() {
+        List<String> names = dimensions.names();
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                if (dimensions.verdict(names.get(i), names.get(j)) == FixtureDimensions.Verdict.DISJOINT) {
+                    assertFalse(names.get(i) + " x " + names.get(j), dimensions.crosses(names.get(i), names.get(j)));
+                }
+            }
+        }
+    }
+
+    private static Properties declaration(String... lines) {
+        Properties props = new Properties();
+        for (String line : lines) {
+            int eq = line.indexOf('=');
+            props.setProperty(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+        }
+        return props;
+    }
+
+    /** A minimal well-formed declaration, so each test below alters exactly one thing. */
+    private static String[] wellFormed() {
+        return new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "pair.data.format.dataset.error_mode = interacting",
+            // Appended last on purpose: the tests below edit this array by index.
+            "dimension.dataset.error_mode.key = error_mode" };
+    }
+
+    public void testAWellFormedDeclarationParses() {
+        FixtureDimensions parsed = FixtureDimensions.parse(declaration(wellFormed()));
+        assertThat(parsed.names(), equalTo(List.of("data.format", "dataset.error_mode")));
+        assertThat(parsed.binds("data.format"), equalTo("fixture"));
+    }
+
+    /** An unrecognised key is a typo or an invented attribute; either way it would do nothing silently. */
+    public void testUnknownKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.data.format.colour = blue");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("colour"));
+    }
+
+    /** The default anchors every generated vector, so one outside its own values makes the baseline a fiction. */
+    public void testADefaultOutsideItsOwnValuesIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[1] = "dimension.data.format.default = orc";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("orc"));
+    }
+
+    /** A dimension nothing knows how to apply would generate vectors that cannot be run. */
+    public void testAMissingBindsIsRejected() {
+        String[] lines = new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "pair.data.format.dataset.error_mode = interacting" };
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("binds"));
+    }
+
+    /**
+     * The gate that makes this a mechanism: a dimension added without saying how it relates to the
+     * existing ones leaves the build red rather than silently generating nothing for those pairs.
+     */
+    public void testAnIncompletePairTableIsRejected() {
+        String[] lines = new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive" };
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("data.format.dataset.error_mode"));
+    }
+
+    /** An unknown verdict is not a fourth state to be guessed at; it is a typo. */
+    public void testAnUnknownVerdictIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[6] = "pair.data.format.dataset.error_mode = probably";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("probably"));
+    }
+
+    /**
+     * `binds = directive` says the value travels in the WITH clause, not what it becomes there. Without
+     * a key the vector cannot be turned into a query, and the suite would run its default everywhere
+     * while reporting the dimension as covered.
+     */
+    public void testADirectiveDimensionWithoutAKeyOrDerivedIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[7] = "dimension.dataset.error_mode.applies_to = csv, parquet";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("neither a key nor derived"));
+    }
+
+    /**
+     * A key and derived are ORTHOGONAL, not alternatives: the key says WHERE the value travels, derived
+     * says the value is not a constant. schema_mode needs both -- it rides `mappings`, and its content is
+     * the dataset's schema.
+     *
+     * <p>The invariant that matters is the consequence: directiveSettings must NOT emit a derived slot.
+     * When it did, the literal string "declared_open" went under mappings, the reader rejected it, and
+     * the code that builds the real schema then skipped the slot as already declared -- 7,416 failures
+     * from one missing exclusion.
+     */
+    public void testDirectiveSettingsNeverEmitsADerivedSlot() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat("schema_mode declares both", d.directiveKey("dataset.schema_mode"), equalTo("mappings"));
+        assertThat(d.derivedFrom("dataset.schema_mode"), equalTo("dataset_schema"));
+
+        Map<String, String> varied = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            varied.put(name, d.defaultValue(name));
+        }
+        varied.put("dataset.schema_mode", "declared_open");
+        assertThat("its value is not a constant, so nothing may inject it", d.directiveSettings(varied), equalTo(Map.of()));
+    }
+
+    /**
+     * A data-source setting is not a dataset setting, and the separation is the point: these travel on
+     * {@code PUT /_query/data_source} and the dataset validator rejects them as unknown keys. Before the
+     * bind existed the key routing sent anything it did not recognise to the directive map, so this
+     * dimension's key would have been emitted into the dataset body.
+     */
+    public void testADataSourceDimensionTravelsUnderItsOwnKeyAndNotTheDirectiveOne() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
+
+        assertThat(d.binds("endpoint"), equalTo("data_source"));
+        assertThat(d.dataSourceKey("endpoint"), equalTo("endpoint"));
+        assertThat("a data-source key is not a directive key", d.directiveKey("endpoint"), nullValue());
+
+        Map<String, String> vector = new LinkedHashMap<>(
+            Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "endpoint", "custom")
+        );
+        assertThat(d.dataSourceSettings(vector), equalTo(Map.of("endpoint", "custom")));
+        assertThat("the dataset body must not carry it", d.directiveSettings(vector), equalTo(Map.of()));
+    }
+
+    /** Omission is the default on this side too, exactly as it is for a directive slot. */
+    public void testDataSourceSettingsOmitSlotsAtTheirDefault() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
+        Map<String, String> baseline = new LinkedHashMap<>(
+            Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "endpoint", "default")
+        );
+        assertThat(d.dataSourceSettings(baseline), equalTo(Map.of()));
+    }
+
+    /**
+     * The seam decides whether a suite can express the cell. A suite that registers no data source of its
+     * own cannot, and saying so is what keeps the cell out of the crossing rather than into it as a
+     * silent pass.
+     */
+    public void testTheDataSourceCellIsServedOnlyByTheDataSourceSeam() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
+        assertThat(d.seamServes("endpoint", "custom", "csv", Set.of(FixtureDimensions.Seam.DATA_SOURCE)), equalTo(true));
+        assertThat(d.seamServes("endpoint", "custom", "csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)), equalTo(false));
+    }
+
+    /** A declaration carrying one data-source-bound dimension alongside the well-formed pair. */
+    private static String[] withDataSourceDimension() {
+        return new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "dimension.endpoint.values = default, custom",
+            "dimension.endpoint.default = default",
+            "dimension.endpoint.binds = data_source",
+            "dimension.endpoint.key = endpoint",
+            "pair.data.format.dataset.error_mode = interacting",
+            "pair.data.format.endpoint = interacting",
+            "pair.dataset.error_mode.endpoint = interacting" };
+    }
+
+    /**
+     * A key under a bind that carries none is dead text: nothing would ever read it. The rejection is the
+     * point rather than the filing -- such a key used to be accepted and quietly kept as a directive key,
+     * so a mis-declaration became a setting on every dataset instead of a failure to parse.
+     */
+    public void testAKeyOnABindThatCarriesNoneIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.data.format.key = format");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("binds as [fixture]"));
+        assertThat(e.getMessage(), containsString("carries no key"));
+    }
+
+    /** A value mapping naming a value the dimension does not declare is dead text that never fires. */
+    public void testAValueMappingForAnUndeclaredValueIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.value.explode = boom");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("explode"));
+    }
+
+    /**
+     * Omission IS the default, so a slot at its default must inject nothing -- that is what lets a suite
+     * move onto vectors one dimension at a time without changing what it sent before.
+     */
+    public void testDirectiveSettingsOmitDefaultsAndDerivedSlots() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> allDefaults = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            allDefaults.put(name, d.defaultValue(name));
+        }
+        assertThat(d.directiveSettings(allDefaults), equalTo(Map.of()));
+
+        Map<String, String> varied = new LinkedHashMap<>(allDefaults);
+        varied.put("dataset.error_mode", "skip_row");
+        varied.put("dataset.schema_mode", "declared_closed");
+        Map<String, String> settings = d.directiveSettings(varied);
+        assertThat("a constant slot off its default is injected", settings, equalTo(Map.of("error_mode", "skip_row")));
+        assertThat("a derived slot cannot be a constant here", d.derivedFrom("dataset.schema_mode"), equalTo("dataset_schema"));
+    }
+
+    /** The declaration maps a value to a different spelling only where it says so. */
+    public void testAValueMappingIsAppliedAndOthersPassThrough() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.settingValue("dataset.datetime_format", "custom"), equalTo("strict_date_optional_time"));
+        assertThat(d.settingValue("dataset.error_mode", "skip_row"), equalTo("skip_row"));
+    }
+
+    /** The baseline has no off-default slot, so it must not render as an empty name. */
+    public void testTheAllDefaultsVectorRendersAsDefaults() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> allDefaults = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            allDefaults.put(name, d.defaultValue(name));
+        }
+        assertThat(d.render(allDefaults), equalTo("defaults"));
+    }
+
+    /** A rendered name lists only what differs, so a failure names the combination rather than the world. */
+    public void testRenderListsOnlyOffDefaultSlots() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> v = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            v.put(name, d.defaultValue(name));
+        }
+        v.put("dataset.error_mode", "skip_row");
+        assertThat(d.render(v), equalTo("dataset.error_mode=skip_row"));
+    }
+
+    /**
+     * Every off-default slot of a selected vector must be servable by a seam the suite declares. A slot
+     * served by nothing would be injected nowhere and run at its default, so the case would assert a
+     * configuration it never used -- the misbind this contract exists to catch.
+     */
+    public void testEveryOffDefaultSlotIsServedBySomeDeclaredSeam() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : List.of("csv", "tsv", "ndjson", "parquet")) { // dimension-copy-ok: a test that pins per-format expectations
+                                                                           // must name the formats it pins
+            for (Map<String, String> vector : d.directiveExpressibleVectors(format)) {
+                for (Map.Entry<String, String> slot : vector.entrySet()) {
+                    String dimension = slot.getKey();
+                    if (dimension.equals("data.format") || slot.getValue().equals(d.defaultValue(dimension, format))) {
+                        continue;
+                    }
+                    boolean served = d.directiveKey(dimension) != null || FixtureCapabilities.renders(dimension, slot.getValue(), format);
+                    assertThat(dimension + "=" + slot.getValue() + " on " + format + " is served by nothing", served, equalTo(true));
+                }
+            }
+        }
+    }
+
+    /** Distinct parameterisations, or the suite would run the same combination twice under two names. */
+    public void testDirectiveExpressibleVectorsAreDistinct() {
+        FixtureDimensions d = FixtureDimensions.get();
+        List<String> names = d.directiveExpressibleVectors("csv").stream().map(d::render).toList();
+        assertThat(names.size(), equalTo(Set.copyOf(names).size()));
+    }
+
+    /** Every vector must survive the round trip through its own name, or the suite runs the wrong thing. */
+    public void testEveryDirectiveExpressibleVectorRoundTripsThroughItsName() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (Map<String, String> vector : d.directiveExpressibleVectors("csv")) {
+            Map<String, String> back = d.parseRendered(d.render(vector));
+            assertThat(d.directiveSettings(back), equalTo(d.directiveSettings(vector)));
+        }
+    }
+
+    /** A name naming a dimension that no longer exists must fail loudly, not inject nothing. */
+    public void testARenderedNameWithAnUnknownDimensionIsRejected() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("nonesuch=x"));
+        assertThat(e.getMessage(), containsString("nonesuch"));
+    }
+
+    /** Likewise a value the dimension has since dropped. */
+    public void testARenderedNameWithAnUndeclaredValueIsRejected() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("error_mode=explode"));
+        assertThat(e.getMessage(), containsString("explode"));
+    }
+
+    /**
+     * A value needing a companion setting cannot be injected alone: the dataset registration is rejected
+     * outright. Generating such a vector produces a red test that says nothing about the product, so the
+     * selection has to drop it -- and the declaration has to be why, not a hard-coded name here.
+     */
+    public void testDirectiveExpressibleVectorsExcludeValuesThatNeedACompanion() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (Map<String, String> vector : d.directiveExpressibleVectors("csv")) {
+            for (Map.Entry<String, String> slot : vector.entrySet()) {
+                if (slot.getValue().equals(d.defaultValue(slot.getKey()))) {
+                    continue;
+                }
+                assertThat(
+                    "slot [" + slot.getKey() + "=" + slot.getValue() + "] needs a companion and cannot stand alone",
+                    d.derivedFromForValue(slot.getKey(), slot.getValue()),
+                    nullValue()
+                );
+            }
+        }
+    }
+
+    /** The specific case the generated suite found: template detection needs the path template with it. */
+    public void testTemplatePartitionDetectionIsDeclaredAsNeedingAPath() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.derivedFromForValue("dataset.partition_detection", "template"), equalTo("partition_path"));
+        assertThat("the other values stand alone", d.derivedFromForValue("dataset.partition_detection", "hive"), nullValue());
+    }
+
+    /**
+     * F1, and it is load-bearing. A pragma is not a dataset setting. If its key reached the directive map
+     * the dimension would look directive-expressible, the per-format vector counts would move, and every
+     * dataset WITH clause would carry an unknown key -- breaking suites that pass today.
+     */
+    public void testAPragmaKeyIsNotADirectiveSetting() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat("distribution binds as a pragma", d.binds("query.distribution"), equalTo("pragma"));
+        assertThat(d.pragmaKey("query.distribution"), equalTo("external_distribution"));
+        assertThat("and must NOT be reachable as a directive", d.directiveKey("query.distribution"), nullValue());
+
+        Map<String, String> varied = new LinkedHashMap<>();
+        for (String name : d.names()) {
+            varied.put(name, d.defaultValue(name));
+        }
+        varied.put("query.distribution", "round_robin");
+        assertThat("a pragma slot contributes no WITH settings", d.directiveSettings(varied), equalTo(Map.of()));
+    }
+
+    /**
+     * The counts the live vector suites are built on. A silent move here changes what CI runs.
+     *
+     * <p>tsv is 18, but not for the reason it was 18 before. A per-format default has to be applied in
+     * all three places that consult one -- the baseline fill, the rendered name, and this selection --
+     * or they disagree and the disagreement decides. Filled globally, tsv vectors carried quoted and ran
+     * as plain: right count, wrong configuration. Filled per format while the predicate stayed global,
+     * the same vectors were rejected: wrong count. Consistent, they carry plain, which IS tsv's default,
+     * and are selected because nothing about them is off-default.
+     */
+    public void testDirectiveExpressibleCountsPerFormat() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1661));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1538));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(230));
+    }
+
+    /**
+     * The slot values a vector actually carries must agree with the format it names. A vector that says
+     * tsv while carrying csv's text_mode is a misbind: the suite injects nothing, the reader applies its
+     * own per-extension default, and the case asserts a configuration it never ran.
+     */
+    public void testEveryVectorCarriesItsOwnFormatsDefaults() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("data.format")) {
+            for (Map<String, String> vector : d.directiveExpressibleVectors(format)) {
+                for (String name : d.names()) {
+                    if (d.render(vector).contains(name + "=")) {
+                        continue;
+                    }
+                    assertThat(
+                        "slot [" + name + "] of an unrendered vector must sit at " + format + " default",
+                        vector.get(name),
+                        equalTo(d.defaultValue(name, format))
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * A per-format default is format-local. Declaring one for tsv decides what tsv's own unlisted slots
+     * are filled with, and it must not move a single vector of any other format -- if it does, the
+     * default has leaked out of the format it was declared for and into the shared derivation.
+     *
+     * <p>It does legitimately move tsv's own vectors, and with them the total: the baseline fill is what
+     * unlisted slots sit at, so a tsv baseline of (plain, tab) yields a different -- measured here, 142
+     * smaller -- tsv universe than the global (quoted, comma) would. Locality is the property worth
+     * pinning. Equality of the total is not true and never was: the assertion that stood here claimed it
+     * in prose while only ever counting vectors under one set of defaults, so nothing tested the claim.
+     *
+     * <p>Format-local TIER selections collapse with the defaults they were written against, because they
+     * depend on them: {@code text_mode=quoted} is a selection on tsv only while tsv's default is plain,
+     * and collapsing that default turns the same line into a tier on the baseline, which the parser
+     * rightly refuses. Dropping them changes nothing this test reads -- it compares nightly universes,
+     * and the nightly tier is the whole universe whatever any tier declares.
+     */
+    public void testAPerFormatDefaultOnlyMovesItsOwnFormatsVectors() {
+        FixtureDimensions declared = FixtureDimensions.get();
+        Properties collapsed = realDeclaration();
+        Set<String> ownDefault = new TreeSet<>();
+        for (String key : new TreeSet<>(collapsed.stringPropertyNames())) {
+            Matcher matcher = PER_FORMAT_DEFAULT.matcher(key);
+            if (matcher.matches()) {
+                ownDefault.add(matcher.group(1));
+                collapsed.remove(key);
+            } else if (PER_FORMAT_TIER.matcher(key).matches()) {
+                collapsed.remove(key);
+            }
+        }
+        assertThat("no per-format default is declared, so this test proves nothing", ownDefault, not(empty()));
+
+        Map<String, Set<Map<String, String>>> before = universeByFormat(declared);
+        Map<String, Set<Map<String, String>>> after = universeByFormat(FixtureDimensions.parse(collapsed));
+        for (String format : declared.values("data.format")) {
+            if (ownDefault.contains(format)) {
+                continue;
+            }
+            assertThat(
+                "[" + format + "] declares no per-format default, so removing " + ownDefault + "'s must not move it",
+                after.get(format),
+                equalTo(before.get(format))
+            );
+        }
+    }
+
+    /**
+     * The pull-request battery's size, per format, measured rather than argued.
+     *
+     * <p>Pinned because the number is the whole constraint. The tier exists to fit inside a build that
+     * already runs, so a declaration change that doubles it has to be a decision somebody made, not
+     * something noticed later from a timeout. A drop matters just as much: it means a selection stopped
+     * selecting, which reads as a faster build and is actually lost coverage.
+     */
+    public void testTheCiTierVectorCountIsPinnedPerFormat() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, Integer> expected = Map.of("csv", 125, "tsv", 121, "ndjson", 55, "orc", 46, "parquet", 46); // dimension-copy-ok:
+        // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
+        // this line rather than be counted silently into a battery nobody sized.
+        Map<String, Integer> actual = new LinkedHashMap<>();
+        for (String format : d.values("data.format")) {
+            actual.put(format, ciVectors(d, format).size());
+        }
+        assertThat(actual, equalTo(expected));
+        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(393));
+    }
+
+    /**
+     * The nightly battery's size, per format, and the number the pull-request tier is argued against.
+     *
+     * <p>Pinned for the same reason as the CI count, and it was missing while that one was there --
+     * which left the comparison the whole two-tier argument rests on ("393 vectors against 9,378") with
+     * only one half anchored. A change that shrank the nightly would have made the pull-request tier
+     * look like a smaller fraction of it without either number moving in a diff.
+     *
+     * <p>This is the EXPRESSIBLE count per suite, not the universe {@code testTheVectorUniverseSizeIsPinned}
+     * pins: the universe is every crossing the declaration admits, while this is what a suite can actually
+     * ask for through the seams it declares.
+     */
+    public void testTheNightlyTierVectorCountIsPinnedPerFormat() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, Integer> expected = Map.of("csv", 3582, "tsv", 3385, "ndjson", 1082, "orc", 452, "parquet", 877); // dimension-copy-ok:
+        // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
+        // this line rather than be counted silently into a battery nobody sized.
+        Map<String, Integer> actual = new LinkedHashMap<>();
+        for (String format : d.values("data.format")) {
+            Set<FixtureDimensions.Seam> seams = FixtureMatrix.get().seams(format + "-vector");
+            actual.put(format, d.expressibleVectors(format, seams, FixtureDimensions.Tier.NIGHTLY).size());
+        }
+        assertThat(actual, equalTo(expected));
+        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(9378));
+    }
+
+    /**
+     * The nightly tier IS the universe. Not a near-copy of it: if restricting to a tier could drop a
+     * vector the unrestricted derivation emits, then every count this file pins would depend on which
+     * overload a caller reached for, and the tier axis would have quietly narrowed the exhaustive run.
+     */
+    public void testTheNightlyTierIsTheWholeUniverse() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("data.format")) {
+            Set<FixtureDimensions.Seam> seams = FixtureMatrix.get().seams(format + "-vector");
+            assertThat(
+                "nightly must equal the unrestricted derivation for " + format,
+                d.expressibleVectors(format, seams, FixtureDimensions.Tier.NIGHTLY),
+                equalTo(d.expressibleVectors(format, seams))
+            );
+        }
+    }
+
+    /**
+     * The selection is exactly what the declaration says it is. A vector in the pull-request battery
+     * carries, in every slot, either that format's default or a value declared {@code ci:} -- so a value
+     * cannot reach the battery by riding along in a clique with one that was selected.
+     */
+    public void testTheCiTierCarriesOnlyDefaultsAndDeclaredCiValues() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("data.format")) {
+            for (Map<String, String> vector : ciVectors(d, format)) {
+                for (Map.Entry<String, String> slot : vector.entrySet()) {
+                    if (slot.getKey().equals("data.format")) {
+                        continue;
+                    }
+                    String value = slot.getValue();
+                    if (value.equals(d.defaultValue(slot.getKey(), format))) {
+                        continue;
+                    }
+                    String reason = d.tierReason(slot.getKey(), value, format);
+                    assertThat(
+                        "CI vector on " + format + " carries undeclared [" + slot.getKey() + "=" + value + "]",
+                        reason,
+                        notNullValue()
+                    );
+                    assertThat(reason, containsString("ci:"));
+                }
+            }
+        }
+    }
+
+    /** Every format keeps a battery. A format whose CI selection is empty would gate nothing at all. */
+    public void testEveryConsumedFormatHasCiVectors() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("data.format")) {
+            if (FixtureCapabilities.formatIsConsumed(d, format)) {
+                assertThat("format [" + format + "] would gate no pull request", ciVectors(d, format), not(empty()));
+            }
+        }
+    }
+
+    /**
+     * A CI cell earns its place from a defect that reached it. Without the citation the tier is an
+     * opinion, and the argument for running it on every pull request cannot be checked by anyone.
+     */
+    public void testACiTierCitingNoIssueIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.dataset.error_mode.tier.skip_row = ci: it feels important" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("cites no issue"));
+    }
+
+    /**
+     * The citation rule is scoped to CI, and this is the control that proves it. Holding a value OUT of
+     * the pull-request battery is a judgement about cost, not a report of a defect, so demanding an issue
+     * for it would force people to cite something irrelevant.
+     */
+    public void testANightlyTierNeedsNoCitation() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.dataset.error_mode.tier.skip_row = nightly: too slow to earn a place on every pull request" }
+        );
+        FixtureDimensions parsed = FixtureDimensions.parse(declaration(lines));
+        assertThat(parsed.tierReason("dataset.error_mode", "skip_row", "csv"), containsString("nightly:"));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(false));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "csv", FixtureDimensions.Tier.NIGHTLY), equalTo(true));
+    }
+
+    public void testATierReasonNamingNoTierIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.dataset.error_mode.tier.skip_row = elastic/esql-planning#1842 -- no tier named" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("[ci:] or [nightly:]"));
+    }
+
+    /** A tier on the baseline selects nothing: every battery carries the default already. */
+    public void testATierOnTheDefaultValueIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.dataset.error_mode.tier.fail_fast = ci: elastic/esql-planning#1842 -- the default" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("effective default value"));
+    }
+
+    /**
+     * The one that matters most. Promoting a cell nobody can run announces coverage that does not exist,
+     * which is worse than declaring the gap -- a green battery reporting a configuration it never built.
+     */
+    public void testATierOnAnAbsentCellIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] {
+                "dimension.dataset.error_mode.gap.skip_row = gap: nobody has written the fixture",
+                "dimension.dataset.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declared absent"));
+    }
+
+    /** A bare absence covers every format, so a per-format tier cannot slip past it either. */
+    public void testAPerFormatTierOnABarelyAbsentCellIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] {
+                "dimension.dataset.error_mode.gap.skip_row = gap: nobody has written the fixture",
+                "dimension.dataset.error_mode.tier.skip_row.parquet = ci: elastic/esql-planning#1842 -- reaches the policy path" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declared absent"));
+    }
+
+    public void testATierOnAnUndeclaredValueIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.dataset.error_mode.tier.nonesuch = ci: elastic/esql-planning#1842 -- no such value" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("does not declare"));
+    }
+
+    /**
+     * A per-format entry wins, which is the mechanism the text dialects need: a value that is one format's
+     * default and another's variation has to be selectable on the second without being declared on the
+     * first, where it would be rejected as a tier on the baseline.
+     */
+    public void testAPerFormatTierOverridesABareOne() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] {
+                "dimension.dataset.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path",
+                "dimension.dataset.error_mode.tier.skip_row.parquet = nightly: columnar reads never reach the row policy" }
+        );
+        FixtureDimensions parsed = FixtureDimensions.parse(declaration(lines));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(true));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "parquet", FixtureDimensions.Tier.CI), equalTo(false));
+    }
+
+    private static List<Map<String, String>> ciVectors(FixtureDimensions d, String format) {
+        return d.expressibleVectors(format, FixtureMatrix.get().seams(format + "-vector"), FixtureDimensions.Tier.CI);
+    }
+
+    /**
+     * Every dimension key that is scoped to some formats is on the format-specific list.
+     *
+     * <p>The list is a mirror of the plugins' {@code FormatSpec.configKeys()} and cannot be derived from
+     * them here, so it drifts in two directions with very different symptoms. A key the plugins have and
+     * the list lacks makes a dataset register and then 400 -- loud, and the crossing cannot prevent it.
+     * A key the list has spuriously only over-filters, which is silent.
+     *
+     * <p>This catches the half we CAN check: a dimension declaring {@code applies_to} travels under a key
+     * not every format understands, so adding one without listing it here reintroduces exactly the gap
+     * that let {@code column_prefix} go missing.
+     */
+    public void testEveryFormatScopedDimensionKeyIsDeclaredFormatSpecific() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Set<String> declared = d.formatSpecificKeys();
+        List<String> missing = new ArrayList<>();
+        for (String name : d.names()) {
+            if (d.appliesTo(name).isEmpty()) {
+                continue;
+            }
+            String key = d.directiveKey(name);
+            if (key == null) {
+                key = d.readKey(name);
+            }
+            if (key != null && declared.contains(key) == false) {
+                missing.add(name + " -> " + key);
+            }
+        }
+        assertThat("a format-scoped dimension's key must be on format_specific_keys", missing, empty());
+    }
+
+    /**
+     * A checkpoint on the size of the universe, not an invariant: every dimension added to the contract
+     * moves this number, and moving it is how a coverage change announces itself in the diff. Update it
+     * when the contract changed on purpose; investigate when it moved and nothing was meant to.
+     */
+    public void testTheVectorUniverseSizeIsPinned() {
+        int[] seen = { 0 };
+        FixtureDimensions.get().forEachVector(v -> seen[0]++);
+        assertThat(seen[0], equalTo(33932));
+    }
+
+    private static Properties realDeclaration() {
+        Properties props = new Properties();
+        try (InputStream in = FixtureDimensions.class.getResourceAsStream("fixture-dimensions.properties")) {
+            assertThat("the declaration must be on the test classpath", in, notNullValue());
+            props.load(in);
+        } catch (IOException e) {
+            throw new AssertionError("could not read the declaration", e);
+        }
+        return props;
+    }
+
+    private static Map<String, Set<Map<String, String>>> universeByFormat(FixtureDimensions dimensions) {
+        Map<String, Set<Map<String, String>>> byFormat = new LinkedHashMap<>();
+        for (String format : dimensions.values("data.format")) {
+            byFormat.put(format, new LinkedHashSet<>());
+        }
+        dimensions.forEachVector(vector -> byFormat.get(vector.get("data.format")).add(vector));
+        return byFormat;
+    }
+
+    /** No vector may survive carrying a combination the reader rejects outright. */
+    public void testNoVectorCarriesADisjointValuePair() {
+        FixtureDimensions d = FixtureDimensions.get();
+        int[] offenders = { 0 };
+        d.forEachVector(v -> {
+            if (d.carriesDisjointValues(v)) {
+                offenders[0]++;
+            }
+        });
+        assertThat(offenders[0], equalTo(0));
+    }
+
+    /**
+     * The disjoint removal must not touch what any suite runs: every declared disjoint pair is
+     * unconstructible, so a moved count would mean the declaration had caught something expressible and
+     * was wrong. The counts are duplicated from testDirectiveExpressibleCountsPerFormat deliberately --
+     * there they record what the crossing yields, here they pin that the disjoint declaration did not
+     * change it, and a single assertion could not fail for both reasons.
+     */
+    public void testDisjointRemovalLeavesEveryFormatsSelectionUntouched() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.directiveExpressibleVectors("csv").size(), equalTo(1661));
+        assertThat(d.directiveExpressibleVectors("tsv").size(), equalTo(1538));
+        assertThat(d.directiveExpressibleVectors("ndjson").size(), equalTo(316));
+        assertThat(d.directiveExpressibleVectors("parquet").size(), equalTo(230));
+    }
+
+    /** A hole nobody explained is indistinguishable from a forgotten line. */
+    public void testAValueDisjointWithoutAWhyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = skip_row:parquet");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declares no why"));
+    }
+
+    /** A disjoint naming a value the dimension does not declare would silently match nothing. */
+    public void testAValueDisjointNamingAnUndeclaredValueIsRejected() {
+        String[] lines = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = explode:parquet"),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = because"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("explode"));
+    }
+
+    /** The reader default is per-extension: a .tsv is read plain where a .csv is read quoted. */
+    public void testAPerFormatDefaultOverridesTheBaseDefault() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.defaultValue("data.text_mode"), equalTo("quoted"));
+        assertThat(d.defaultValue("data.text_mode", "tsv"), equalTo("plain"));
+        assertThat("a format with no override falls back", d.defaultValue("data.text_mode", "csv"), equalTo("quoted"));
+    }
+
+    /** The scheme-to-backend correspondence is declared, so renaming a backend cannot rot it silently. */
+    public void testTheSchemeToBackendCorrespondenceIsDeclaredAndTotal() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.backendFor("datasource.storage_scheme", "wasbs"), equalTo("AZURE"));
+        assertThat(d.backendFor("datasource.storage_scheme", "file"), equalTo("LOCAL"));
+        for (String scheme : d.values("datasource.storage_scheme")) {
+            assertThat("every scheme names a backend", d.backendFor("datasource.storage_scheme", scheme), notNullValue());
+        }
+    }
+
+    /** A read key on a binding nothing announces would be wiring that only looks like it exists. */
+    public void testAReadKeyOnANonFixtureDimensionIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.read_key = mode");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("read_key"));
+    }
+
+    /** An unknown binding is a typo that would otherwise silently exclude the dimension from every seam. */
+    public void testAnUnknownBindsIsRejected() {
+        String[] lines = wellFormed().clone();
+        lines[2] = "dimension.data.format.binds = magic";
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("magic"));
+    }
+
+    /** A per-format default naming a format that does not exist would never apply to anything. */
+    public void testAPerFormatDefaultForAnUndeclaredFormatIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.default.orc = skip_row");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("undeclared format"));
+    }
+
+    /** A partial backend map is a forgotten line wearing a decision's face. */
+    public void testAPartialBackendMapIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.data.format.backend.csv = LOCAL");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("parquet"));
+    }
+
+    /** An absence whose reason contradicts its own key would render a report that argues with itself. */
+    public void testAnAbsenceWhoseReasonKindDisagreesWithItsKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.gap.skip_row = rule: not really a gap");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("gap:"));
+    }
+
+    /**
+     * A whitespace-only value is refused rather than silently emptied.
+     *
+     * <p>Properties decodes {@code \t} and {@code \u0020} before the parser sees them, so a deliberate tab
+     * arrives as a real character and the trim deletes it, handing the caller a well-formed empty string.
+     * That is exactly how the delimiter dimension came to ask the renderer for an empty field separator --
+     * caught only because delimiterChar happened to require one character. Nothing protected the next
+     * dimension, and null_value (whose CSV default IS the empty string) would have been the next to hit it
+     * with no assertion to trip.
+     */
+    public void testAWhitespaceOnlyValueIsRejectedRatherThanEmptied() {
+        // Set the property directly rather than through declaration(): that helper trims the value itself,
+        // which the real loader does NOT -- Properties.load decodes `\t` into a tab that reaches the parser
+        // intact. Going through the helper would destroy the character before the guard could see it, and
+        // the test would pass for the wrong reason.
+        Properties props = declaration(wellFormed());
+        props.setProperty("dimension.dataset.error_mode.value.skip_row", "\t");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(props));
+        assertThat(e.getMessage(), containsString("entirely whitespace"));
+        assertThat("names the offending key", e.getMessage(), containsString("dimension.dataset.error_mode.value.skip_row"));
+    }
+
+    /** A genuinely empty value is not whitespace destruction, and stays allowed. */
+    public void testATrulyEmptyValueIsStillAccepted() {
+        Properties props = declaration(wellFormed());
+        props.setProperty("dimension.dataset.error_mode.value.skip_row", "");
+        FixtureDimensions.parse(props);
+    }
+
+    public void testAnAbsenceOnTheDefaultValueIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.gap.fail_fast = gap: nope");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("effective default"));
+    }
+
+    /** A per-format absence wins over a bare one, so one value can be a rule here and a gap there. */
+    public void testAPerFormatAbsenceWinsOverABareOne() {
+        String[] lines = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.gap.skip_row = gap: nothing writes a bad row yet"),
+            "dimension.dataset.error_mode.rule.skip_row.parquet = rule: parquet rejects the file, not the row"
+        );
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        assertThat(d.absenceReason("dataset.error_mode", "skip_row", "csv"), containsString("nothing writes"));
+        assertThat(d.absenceReason("dataset.error_mode", "skip_row", "parquet"), containsString("rejects the file"));
+        assertThat("a value with no absence is not licensed", d.absenceReason("dataset.error_mode", "fail_fast", "csv"), nullValue());
+    }
+
+    /**
+     * Every declared format is consumed by some suite. This replaces a test that pinned the opposite for
+     * ORC -- that its fixtures were generated for every layout and read by nothing -- which was true, and
+     * was declared as {@code format.rule.orc} on the grounds that ORC vector suites were out of scope by
+     * decision. A decision is not an impossibility: the fixtures already existed, so closing it needed a
+     * suite class and a task, not a generator. OrcVectorSpecIT consumes them now.
+     *
+     * <p>Stated as a total over the declared formats rather than as a fact about ORC, so the next format
+     * added to the contract cannot arrive with its directory full and nothing reading it -- which is the
+     * mistake this contract exists to prevent, and the one ORC spent its whole life demonstrating.
+     */
+    public void testEveryDeclaredFormatIsConsumedBySomeSuite() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Set<FixtureDimensions.Seam> all = Set.of(FixtureDimensions.Seam.values());
+        for (String format : d.values("data.format")) {
+            assertThat(
+                "format [" + format + "] is declared but no suite yields vectors for it; either wire a suite or declare the absence",
+                d.expressibleVectors(format, all),
+                not(empty())
+            );
+        }
+    }
+
+    /**
+     * The fixture seam is now load-bearing, and this is the measurement of it. Withdraw FIXTURE and the
+     * codec vectors vanish, because a compressed file is bytes a suite must be able to read, not a
+     * setting it can pass. The gap between the two numbers IS the seam: it was zero before any cell
+     * rendered, and it grows by exactly the cells that earned a capability row.
+     */
+    public void testWithdrawingTheFixtureSeamWithdrawsTheCellsItRenders() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Set<FixtureDimensions.Seam> directiveOnly = Set.of(FixtureDimensions.Seam.DIRECTIVE);
+        Set<FixtureDimensions.Seam> both = Set.of(FixtureDimensions.Seam.DIRECTIVE, FixtureDimensions.Seam.FIXTURE);
+        // The gap is the number of vectors that exist only because the fixture seam renders bytes -- the
+        // codec and dialect trees. It moves whenever a value becomes writable, which is exactly what
+        // these numbers are here to announce: all three grew when lz4 and snappy stopped being gaps and
+        // the generators began producing them. ndjson sits well below csv and tsv because it carries the
+        // codecs and none of the dialects.
+        Map<String, Integer> expectedGap = Map.of("csv", 1555, "tsv", 1432, "ndjson", 210); // dimension-copy-ok: a test that pins
+                                                                                            // per-format
+                                                                                            // expectations must name the formats it pins
+        for (String format : List.of("csv", "tsv", "ndjson")) { // dimension-copy-ok: a test that pins per-format expectations must name the
+                                                                // formats it pins
+            assertThat(
+                "the fixture seam is load-bearing on " + format,
+                d.expressibleVectors(format, both).size() - d.expressibleVectors(format, directiveOnly).size(),
+                equalTo(expectedGap.get(format))
+            );
+        }
+        // parquet has no text codec and no dialect, so this gap was zero for as long as every parquet
+        // codec was a gap. It counts VECTORS withdrawn, not cells -- those coincided while each codec
+        // produced exactly one vector, and stopped coinciding once t-way completion began emitting
+        // several vectors per codec. The claim that survives is the one that was always the point: the
+        // seam is load-bearing on parquet, and it is load-bearing because of the codec trees.
+        assertThat(
+            "the parquet codec trees make the fixture seam load-bearing there",
+            d.expressibleVectors("parquet", both).size() - d.expressibleVectors("parquet", directiveOnly).size(),
+            equalTo(165)
+        );
+    }
+
+    /** csv needs no capability row: it is the default format, so its vectors never carry the slot off default. */
+    public void testTheDefaultFormatNeedsNoCapabilityRow() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(FixtureCapabilities.renders("data.format", "csv", "csv"), equalTo(false));
+        assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(106));
+    }
+
+    /**
+     * The glob shape must reach exactly ONE dataset.
+     *
+     * <p>Both obvious patterns over-match, and both were found by a run rather than by reading:
+     * {@code employees*} also matches employees_no_mv (a COUNT returned 321 where 221 was expected), and
+     * {@code employees.*} also matches the compressed variants that generateCompressedFixtures writes
+     * into the same directory. The shape in use is {@code employee?.csv} -- one wildcard inside the name,
+     * extension literal.
+     *
+     * <p>Asserted here because it is a property of the DATASET NAMES, so it holds today and could stop
+     * holding the moment someone adds a dataset one character from an existing one. A silent over-match
+     * reads as a wrong answer, not as an error.
+     */
+    public void testTheGlobShapeIsUnambiguousForEveryStandaloneDataset() {
+        FixtureMatrix matrix = FixtureMatrix.get();
+        Set<String> datasets = new LinkedHashSet<>();
+        for (String format : matrix.formats()) {
+            datasets.addAll(matrix.datasetsFor(format));
+        }
+        for (String dataset : datasets) {
+            String pattern = dataset.substring(0, dataset.length() - 1) + "?";
+            for (String other : datasets) {
+                if (other.equals(dataset) || other.length() != dataset.length()) {
+                    continue;
+                }
+                boolean collides = other.substring(0, other.length() - 1).equals(pattern.substring(0, pattern.length() - 1));
+                assertThat("glob for [" + dataset + "] would also match [" + other + "]", collides, equalTo(false));
+            }
+        }
+    }
+
+    /** Renders the derived set so a reader can see what the declaration produces without running it. */
+    public void testRenderDerivedSet() {
+        List<Set<String>> groups = dimensions.groups();
+        StringBuilder out = new StringBuilder("\nderived test set\n");
+        for (Set<String> g : groups) {
+            out.append(
+                String.format(
+                    Locale.ROOT,
+                    "  %d  %-58s formats=%s fixtureBound=%s%n",
+                    g.size(),
+                    String.join(",", g),
+                    dimensions.formatsFor(g),
+                    dimensions.fixtureBound(g)
+                )
+            );
+        }
+        out.append("  groups=").append(groups.size()).append("  vectors=").append(dimensions.vectors().size()).append('\n');
+        logger.info(out.toString());
+        assertThat(groups, not(hasItem(Set.of())));
+    }
+
+    /** A tier named by a system property that matches nothing must fail, not silently select a battery. */
+    public void testAnUnknownTierIsRejected() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.Tier.parse("weekly"));
+        assertThat(e.getMessage(), containsString("unknown tier [weekly]"));
+    }
+
+    /**
+     * A char-valued slot names a character. A spelling longer than one is a declaration that renders one
+     * byte and announces another, which produces bytes that parse cleanly and mean something else.
+     */
+    public void testAMultiCharacterSpellingForACharValuedSlotIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.value.skip_row = ;;");
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        Exception e = expectThrows(IllegalStateException.class, () -> d.charValue("dataset.error_mode", "skip_row"));
+        assertThat(e.getMessage(), containsString("not one character"));
+    }
+
+    /** The escape survives Properties and the contract parser's trim, so it still reaches the writer. */
+    public void testTheTabEscapeDecodesToARealTab() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.value.skip_row = \\t");
+        assertThat(FixtureDimensions.parse(declaration(lines)).charValue("dataset.error_mode", "skip_row"), equalTo('\t'));
+    }
+
+    /** A cluster setting is applied around the query, so it is collected apart from the dataset settings. */
+    public void testClusterSettingsCarryOnlyClusterBoundSlotsOffTheirDefault() {
+        String[] lines = new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "dimension.cache.values = on, off",
+            "dimension.cache.default = on",
+            "dimension.cache.binds = cluster_setting",
+            "dimension.cache.key = esql.external.cache.enabled",
+            "pair.data.format.dataset.error_mode = interacting",
+            "pair.cache.data.format = interacting",
+            "pair.cache.dataset.error_mode = interacting" };
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        Map<String, String> off = new LinkedHashMap<>(Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "cache", "off"));
+        assertThat(d.clusterSettings(off, "csv"), equalTo(Map.of("esql.external.cache.enabled", "off")));
+        assertThat("the dataset body must not carry it", d.directiveSettings(off), equalTo(Map.of()));
+
+        Map<String, String> on = new LinkedHashMap<>(Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "cache", "on"));
+        assertThat("omission is the default here too", d.clusterSettings(on, "csv"), equalTo(Map.of()));
+    }
+
+    /** A key with no dot names no dimension, so nothing would ever read it. */
+    public void testAMalformedDimensionKeyIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.nodot = x");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("malformed dimension key"));
+    }
+
+    /**
+     * A disjoint pair blamed on a defect claims a fix is owed. Without the issue there is nothing to close
+     * the entry when the defect is fixed, so it outlives its reason and keeps cutting cells silently.
+     */
+    public void testADisjointPairBlamedOnADefectMustCiteIt() {
+        String[] uncited = ArrayUtils.append(
+            wellFormed(),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = bug: it breaks sometimes"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(uncited)));
+        assertThat(e.getMessage(), containsString("cites no issue"));
+
+        String[] cited = ArrayUtils.append(
+            wellFormed(),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = bug: elastic/esql-planning#1 it breaks sometimes"
+        );
+        assertThat(
+            "the same reason carrying its issue is accepted",
+            FixtureDimensions.parse(declaration(cited)).names(),
+            equalTo(List.of("data.format", "dataset.error_mode"))
+        );
+    }
+
+    /** A dimension with no default has no baseline, so every generated vector would be off an unknown one. */
+    public void testADimensionWithoutADefaultIsRejected() {
+        String[] lines = new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "pair.data.format.dataset.error_mode = interacting" };
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declares no default"));
+    }
+
+    /** A derived value naming a dimension or a value that does not exist is dead text that never fires. */
+    public void testDerivedValuesMustNameSomethingDeclared() {
+        String[] unknownDimension = ArrayUtils.append(wellFormed(), "dimension.ghost.derived.x = something");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownDimension))).getMessage(),
+            containsString("unknown dimension [ghost]")
+        );
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.derived.nope = something");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
+            containsString("names a value the dimension does not declare")
+        );
+    }
+
+    /** A value mapping for a dimension that does not exist would silently never be applied. */
+    public void testAValueMappingForAnUnknownDimensionIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.ghost.value.x = y");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("unknown dimension [ghost]"));
+    }
+
+    /**
+     * A value_disjoint entry removes cells, and a removal nothing ever reports missing is the failure this
+     * contract exists to prevent -- so every part of it has to name something real.
+     */
+    public void testAMalformedValueDisjointEntryIsRejected() {
+        String[] notAPair = ArrayUtils.append(wellFormed(), "pair.dataset.error_mode..value_disjoint = skip_row:csv");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(notAPair))).getMessage(),
+            containsString("malformed value_disjoint pair")
+        );
+        String[] notAColonPair = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = skip_row"),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = rule: they cannot coexist"
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(notAColonPair))).getMessage(),
+            containsString("is not <value>:<value>")
+        );
+        String[] undeclared = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = skip_row:orc"),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = rule: they cannot coexist"
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(undeclared))).getMessage(),
+            containsString("names undeclared value")
+        );
+    }
+
+    /** A per-format default outside the dimension's own values makes that format's baseline a fiction. */
+    public void testAPerFormatDefaultOutsideItsValuesIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.default.parquet = nope");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("is not one of the dimension's values"));
+    }
+
+    /** The tier is written by hand into a system property, so it is matched without regard to case. */
+    public void testTierNamesAreMatchedCaseInsensitively() {
+        assertThat(FixtureDimensions.Tier.parse("CI"), equalTo(FixtureDimensions.Tier.CI));
+        assertThat(FixtureDimensions.Tier.parse(" nightly "), equalTo(FixtureDimensions.Tier.NIGHTLY));
+    }
+
+    /** The delimiter's spelling is the character the writer emits and the reader is told to expect. */
+    public void testTheDelimiterSpellingResolvesToOneCharacter() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.delimiterChar("comma"), equalTo(','));
+        assertThat(d.delimiterChar("tab"), equalTo('\t'));
+        assertThat(d.delimiterChar("pipe"), equalTo('|'));
+    }
+
+    /** A codec's file extension is declared, so a renamed codec cannot keep an extension nothing writes. */
+    public void testACodecExtensionComesFromTheDeclaration() {
+        FixtureDimensions d = FixtureDimensions.get();
+        assertThat(d.extensionFor("data.text_codec", "gzip"), equalTo("gz"));
+        assertThat("a value with no declared extension has none", d.extensionFor("data.text_codec", "none"), nullValue());
+    }
+
+    /** A qualifier on an attribute that takes none is dead text: nothing reads the extra segment. */
+    public void testAnAttributeQualifierIsRejectedWhereNoneIsTaken() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.binds.extra = directive");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("takes no qualifier"));
+    }
+
+    /** The mirror: an attribute that is per-value means nothing without the value it applies to. */
+    public void testAPerValueAttributeWithoutItsValueIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rule = rule: no value named");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("requires a value name"));
+    }
+
+    /**
+     * An absence removes a cell from the crossing. Naming a value or a format that does not exist removes
+     * nothing, and nothing would ever report that the reason is inert.
+     */
+    public void testAnAbsenceMustNameARealValueAndFormat() {
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rule.nope = rule: cannot be written");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
+            containsString("names a value the dimension does not declare")
+        );
+        String[] unknownFormat = ArrayUtils.append(
+            wellFormed(),
+            "dimension.dataset.error_mode.rule.skip_row.orc = rule: cannot be written"
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownFormat))).getMessage(),
+            containsString("names an undeclared format")
+        );
+    }
+
+    /** A tier promotes a cell into the pull-request battery, so it cannot name a format that has none. */
+    public void testATierMustNameADeclaredFormat() {
+        String[] lines = ArrayUtils.append(
+            wellFormed(),
+            "dimension.dataset.error_mode.tier.skip_row.orc = ci: elastic/esql-planning#1 -- the row-error path"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("names an undeclared format"));
+    }
+
+    /** A backend mapping for a value the dimension does not declare would never be consulted. */
+    public void testABackendMappingMustNameADeclaredValue() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.backend.nope = S3");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("names a value the dimension does not declare"));
+    }
+
+    /**
+     * A stray key is a typo or an invented attribute, and either way nothing would read it -- except a
+     * trailing .why or .needs, which is prose hanging off an entry declared elsewhere and is skipped
+     * rather than refused.
+     */
+    public void testAStrayTopLevelKeyIsRejectedUnlessItIsAReason() {
+        String[] stray = ArrayUtils.append(wellFormed(), "nonsense.attribute = because");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(stray)));
+        assertThat(e.getMessage(), containsString("expected 'dimension.<n>.*' or 'pair.<a>.<b>'"));
+
+        String[] reason = ArrayUtils.append(wellFormed(), "nonsense.why = because");
+        assertThat(
+            "prose attached to an entry declared elsewhere is skipped, not refused",
+            FixtureDimensions.parse(declaration(reason)).names(),
+            equalTo(List.of("data.format", "dataset.error_mode"))
+        );
+    }
+
+    /** An untraced pair is treated as interacting, so uncertainty costs test executions, never coverage. */
+    public void testAnUnverifiedPairIsTreatedAsInteracting() {
+        String[] lines = wellFormed().clone();
+        lines[6] = "pair.data.format.dataset.error_mode = unverified";
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        assertThat(d.verdict("dataset.error_mode", "data.format"), equalTo(FixtureDimensions.Verdict.UNVERIFIED));
+    }
+
+    /** Asking for a dimension the declaration does not have is a caller bug, not an empty answer. */
+    public void testAskingForAnUnknownDimensionIsRejected() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.get().values("ghost"));
+        assertThat(e.getMessage(), containsString("unknown dimension [ghost]"));
+    }
+
+    /** Likewise a pair: an absent verdict would otherwise read as "does not interact" and cut cells. */
+    public void testAskingForAVerdictOnAnUnknownPairIsRejected() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.get().verdict("data.format", "ghost"));
+        assertThat(e.getMessage(), containsString("no verdict for pair"));
+    }
+
+    /**
+     * A vector name carries the slots that are off their default and no others, so the name means the
+     * same configuration whichever tier generated it. The baseline slots are recovered from the
+     * declaration rather than from the name, which is why the round trip returns only the pinned ones.
+     */
+    public void testAVectorNameCarriesTheOffDefaultSlotsAndRoundTrips() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, String> pinned = new LinkedHashMap<>(Map.of("data.format", "tsv", "data.text_mode", "escaped"));
+        assertThat(d.parseRendered(d.render(pinned)), equalTo(pinned));
+
+        Map<String, String> atBaseline = new LinkedHashMap<>(Map.of("data.format", "csv", "data.text_mode", "escaped"));
+        assertThat(
+            "csv is the default format, so it is not spelled into the name",
+            d.parseRendered(d.render(atBaseline)),
+            equalTo(Map.of("data.text_mode", "escaped"))
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("not-a-vector"));
+        assertThat(e.getMessage(), containsString("malformed vector name"));
+    }
+
+    /**
+     * The second outcome a case can expect: the registration is refused, and the message is the assertion.
+     * Distinct from an absence, which says the cell cannot be built at all -- this one is built, offered,
+     * and turned down, which is a claim a test can check.
+     */
+    public void testARejectedValueCarriesTheMessageItMustBeRefusedWith() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(rejecting()));
+        assertThat(d.rejectionMessage("segment_size", "tiny", "csv"), containsString("below the minimum"));
+        assertThat("an accepted value has no refusal", d.rejectionMessage("segment_size", "default", "csv"), nullValue());
+    }
+
+    /** A per-format refusal wins over a bare one, exactly as absences and tiers resolve. */
+    public void testAPerFormatRejectionWinsOverABareOne() {
+        String[] lines = ArrayUtils.append(rejecting(), "dimension.segment_size.rejected.tiny.parquet = parquet ignores segment_size");
+        FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
+        assertThat(d.rejectionMessage("segment_size", "tiny", "parquet"), equalTo("parquet ignores segment_size"));
+        assertThat(d.rejectionMessage("segment_size", "tiny", "csv"), containsString("below the minimum"));
+    }
+
+    /**
+     * A refusal is visible only where the registration is: the dataset never comes into existence, so a
+     * query-path seam has nothing to read. Offering the cell to one would be coverage that cannot assert.
+     */
+    public void testARejectedValueIsServedOnlyByTheRegistrationSeam() {
+        FixtureDimensions d = FixtureDimensions.parse(declaration(rejecting()));
+        assertThat(d.seamServes("segment_size", "tiny", "csv", Set.of(FixtureDimensions.Seam.REGISTRATION)), equalTo(true));
+        assertThat(d.seamServes("segment_size", "tiny", "csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)), equalTo(false));
+        assertThat(
+            "an accepted value is still served by the seam it binds as",
+            d.seamServes("segment_size", "big", "csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)),
+            equalTo(true)
+        );
+    }
+
+    /** Asserting only that some 400 came back passes when the wrong setting is refused for the wrong reason. */
+    public void testARejectionWithoutAMessageIsRefused() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.skip_row = ");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declares no message"));
+    }
+
+    /**
+     * Every vector carries the baseline, so a refused default would make the whole crossing
+     * unregisterable -- and silently, because every case failing the same way reads as one broken suite
+     * rather than one wrong line.
+     */
+    public void testRefusingTheDefaultIsRejected() {
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.fail_fast = it is refused");
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("refuses the dimension's default"));
+    }
+
+    /** Cannot-be-built and must-be-refused are different claims, and a cell cannot make both. */
+    public void testACellCannotBeBothAbsentAndRejected() {
+        String[] lines = ArrayUtils.append(
+            ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.skip_row = it is refused"),
+            "dimension.dataset.error_mode.rule.skip_row = rule: nothing writes it"
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("cannot also be refused"));
+    }
+
+    /** A refusal naming a value or format that does not exist refuses nothing. */
+    public void testARejectionMustNameARealValueAndFormat() {
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.nope = it is refused");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
+            containsString("names a value the dimension does not declare")
+        );
+        String[] unknownFormat = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.skip_row.orc = it is refused");
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownFormat))).getMessage(),
+            containsString("names an undeclared format")
+        );
+    }
+
+    /** A dimension whose off-default values are a mix of accepted and refused ones. */
+    private static String[] rejecting() {
+        return new String[] {
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.segment_size.values = default, big, tiny",
+            "dimension.segment_size.default = default",
+            "dimension.segment_size.binds = directive",
+            "dimension.segment_size.key = segment_size",
+            "dimension.segment_size.rejected.tiny = [1b] is below the minimum segment size of [64kb]",
+            "pair.data.format.segment_size = interacting" };
+    }
+}

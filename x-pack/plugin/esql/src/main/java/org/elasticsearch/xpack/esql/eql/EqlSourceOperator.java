@@ -9,19 +9,30 @@ package org.elasticsearch.xpack.esql.eql;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Coordinator-local source operator that delegates to the EQL engine: on first poll it issues a single
@@ -41,7 +52,8 @@ public class EqlSourceOperator extends SourceOperator {
         EqlRelation.Mode mode,
         List<Attribute> schema,
         Source source,
-        boolean warnOnDefaultSize
+        boolean warnOnDefaultSize,
+        EsqlExecutionInfo executionInfo
     ) implements SourceOperatorFactory {
         @Override
         public String describe() {
@@ -50,9 +62,11 @@ public class EqlSourceOperator extends SourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new EqlSourceOperator(driverContext, client, request, mode, schema, source, warnOnDefaultSize);
+            return new EqlSourceOperator(driverContext, client, request, mode, schema, source, warnOnDefaultSize, executionInfo);
         }
     }
+
+    private static final int MAX_REPORTED_FAILURES = 5;
 
     private final DriverContext driverContext;
     private final Client client;
@@ -61,15 +75,13 @@ public class EqlSourceOperator extends SourceOperator {
     private final List<Attribute> schema;
     private final Source source;
     private final boolean warnOnDefaultSize;
+    private final EsqlExecutionInfo executionInfo;
 
     private boolean requested;
     private boolean emitted;
     private SubscribableListener<Void> blocked;
     private volatile Page page;
     private volatile Exception failure;
-    // Whether the EQL response was partial (a shard failed or timed out). Only possible when the enclosing ES|QL query
-    // allows partial results; surfaced as a warning so the incomplete result is not reported as complete.
-    private volatile boolean partial;
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
@@ -81,7 +93,8 @@ public class EqlSourceOperator extends SourceOperator {
         EqlRelation.Mode mode,
         List<Attribute> schema,
         Source source,
-        boolean warnOnDefaultSize
+        boolean warnOnDefaultSize,
+        EsqlExecutionInfo executionInfo
     ) {
         this.driverContext = driverContext;
         this.client = client;
@@ -90,12 +103,16 @@ public class EqlSourceOperator extends SourceOperator {
         this.schema = schema;
         this.source = source;
         this.warnOnDefaultSize = warnOnDefaultSize;
+        this.executionInfo = executionInfo;
     }
 
     private void ensureRequested() {
         if (requested) {
             return;
         }
+        // A failure that names no cluster comes from the cluster that ran the search. Work it out before the request goes
+        // out: the EQL engine strips the cluster from the indices of a search it hands to a single remote cluster.
+        String searchedCluster = searchedCluster(request.indices(), executionInfo.clusterAliases());
         requested = true;
         blocked = new SubscribableListener<>();
         driverContext.addAsyncAction();
@@ -110,7 +127,8 @@ public class EqlSourceOperator extends SourceOperator {
                 // decRef it ourselves (doing so over-releases).
                 // This callback runs on the EQL response thread, outside the driver run loop, so the blocks must come from
                 // the root factory: the driver's local breaker may only be touched by the driver thread.
-                partial = response.isPartial();
+                // isPartial() only flags a still-running async response; a completed one reports lost shards in shardFailures().
+                recordPartialResults(response, searchedCluster);
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
                 synchronized (this) {
                     if (closed) {
@@ -153,30 +171,12 @@ public class EqlSourceOperator extends SourceOperator {
             throw ExceptionsHelper.convertToRuntime(e);
         }
         if (page != null) {
-            // Warn before handing off the page: if a warning throws, the page is still held and close() releases it.
-            maybeWarnPartial();
             Page result = page;
             page = null;
             emitted = true;
             return result;
         }
         return null;
-    }
-
-    /**
-     * Emits a warning on the driver thread when the EQL response was partial (a shard failed or timed out), so an
-     * incomplete result is surfaced to the user. This only happens when the enclosing ES|QL query allows partial
-     * results; when it does not, the delegate fails the query outright and no page is emitted.
-     *
-     * <p>Known boundary: this surfaces the partial state as a warning only. It does not yet flip the ES|QL response's
-     * {@code is_partial} flag, because a source operator has no handle on the query-level {@code EsqlExecutionInfo};
-     * wiring that through is a follow-up (a client keying off {@code is_partial} alone would not see the shard failure).
-     */
-    private void maybeWarnPartial() {
-        if (partial) {
-            driverContext.createOnlyWarnings(source)
-                .registerWarning("EQL query returned partial results (one or more shards failed or timed out); some events may be missing");
-        }
     }
 
     private void maybeWarnDefaultSize() {
@@ -186,6 +186,78 @@ public class EqlSourceOperator extends SourceOperator {
                     "EQL query used the default size of [" + request.size() + "] matches. Set WITH {\"size\": n} to return more."
                 );
         }
+    }
+
+    private void recordPartialResults(EqlSearchResponse response, String searchedCluster) {
+        if (response.isTimeout()) {
+            executionInfo.markPartial();
+        }
+        ShardSearchFailure[] failures = response.shardFailures();
+        if (CollectionUtils.isEmpty(failures)) {
+            return;
+        }
+        executionInfo.markPartial();
+        Map<String, List<ShardSearchFailure>> failuresByCluster = new HashMap<>();
+        for (ShardSearchFailure failure : failures) {
+            String cluster = failure.shard() == null || failure.shard().getClusterAlias() == null
+                ? searchedCluster
+                : failure.shard().getClusterAlias();
+            failuresByCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
+        }
+        boolean mainPlan = executionInfo.isMainPlan();
+        failuresByCluster.forEach((cluster, clusterFailures) -> {
+            if (executionInfo.getCluster(cluster) != null) {
+                executionInfo.swapCluster(cluster, (alias, current) -> withFailures(current, clusterFailures, mainPlan));
+            }
+        });
+    }
+
+    private static EsqlExecutionInfo.Cluster withFailures(
+        EsqlExecutionInfo.Cluster cluster,
+        List<ShardSearchFailure> failures,
+        boolean mainPlan
+    ) {
+        Set<String> listed = new HashSet<>();
+        for (ShardSearchFailure failure : cluster.getFailures()) {
+            listed.add(failedShard(failure));
+        }
+        List<ShardSearchFailure> added = new ArrayList<>();
+        for (ShardSearchFailure failure : failures) {
+            if (added.size() < MAX_REPORTED_FAILURES && listed.add(failedShard(failure))) {
+                added.add(failure);
+            }
+        }
+        EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(added);
+        // The main plan only searches a remote cluster that is still RUNNING, so a subplan leaves a remote cluster's status to it.
+        boolean local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster.getClusterAlias());
+        if ((mainPlan || local)
+            && (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING
+                || cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)) {
+            builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+        }
+        return builder.build();
+    }
+
+    // EQL lists a shard once per search that lost it, and a FORK runs the search once per branch.
+    private static String failedShard(ShardSearchFailure failure) {
+        return failure.shard() == null ? failure.reason() : failure.shard().getShardId().toString();
+    }
+
+    private static String searchedCluster(String[] indices, Set<String> queryClusters) {
+        Set<String> clusters = new HashSet<>();
+        for (String index : indices) {
+            String cluster = RemoteClusterAware.splitIndexName(index).getClusterGroupingKey();
+            if (Regex.isSimpleMatchPattern(cluster) == false) {
+                clusters.add(cluster);
+                continue;
+            }
+            for (String alias : queryClusters) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(alias) == false && Regex.simpleMatch(cluster, alias)) {
+                    clusters.add(alias);
+                }
+            }
+        }
+        return clusters.size() == 1 ? clusters.iterator().next() : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
     }
 
     @Override

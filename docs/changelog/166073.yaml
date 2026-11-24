@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165617
+pr: 166073
+summary: Charge the JSON that LOAD_ALL builds
+type: bug

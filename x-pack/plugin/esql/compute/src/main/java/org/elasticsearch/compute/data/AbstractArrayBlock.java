@@ -125,7 +125,8 @@ abstract class AbstractArrayBlock extends AbstractBlockRefCounted implements Blo
         return nullsMask != null;
     }
 
-    final int nullValuesCount() {
+    @Override
+    public final int nullValuesCount() {
         return mayHaveNulls() ? nullsMask.cardinality() : 0;
     }
 

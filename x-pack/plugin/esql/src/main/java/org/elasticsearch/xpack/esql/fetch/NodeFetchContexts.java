@@ -167,6 +167,8 @@ public final class NodeFetchContexts implements Releasable {
         if (open == null) {
             throw new IllegalStateException("[" + id + "] isn't an open fetch context of this request");
         }
+        // #discarded relies on it: the request ends once all of its drivers finished
+        assert closed == false : "[" + id + "] a block of documents went to the sink after the request ended";
         open.leavingBlocks.incrementAndGet();
         return open.origin;
     }
@@ -189,8 +191,10 @@ public final class NodeFetchContexts implements Releasable {
                     }
                     int left = open.leavingBlocks.decrementAndGet();
                     assert left >= 0 : "[" + open.readerContext.id() + "] discarded more blocks than went to the sink";
-                    // read after the count: a request that ends in between sees the count at zero, and frees the context itself
-                    if (left == 0 && closed) {
+                    // Read closed after the count: a request that ends in between sees the count at zero, and frees the
+                    // context itself. Then read the count again: a driver may have sent another block of the context before
+                    // the request ended, and the request kept the context for it. Once closed, the count only goes down.
+                    if (left == 0 && closed && open.leavingBlocks.get() == 0) {
                         unsent.add(open);
                     }
                 }
@@ -234,8 +238,8 @@ public final class NodeFetchContexts implements Releasable {
 
     /**
      * Keeps the contexts some rows that left the node read, with the keep-alive of the request, and frees the others. Called
-     * last, once the request closed the search contexts of its query phase. The sink can still discard pages after that,
-     * see {@link #discarded}.
+     * last, once all drivers of the request finished and the request closed the search contexts of its query phase. So no
+     * block of documents goes to the sink after it, but the sink can still discard pages, see {@link #discarded}.
      * <p>
      * Runs on the free context executor of {@link SearchService}, like the frees of {@code _search}. Dropping the last
      * reference to a reader can unmap files and block, and a request can end on a transport thread, for example when the

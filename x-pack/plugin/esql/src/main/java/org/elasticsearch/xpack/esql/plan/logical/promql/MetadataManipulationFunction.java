@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -186,7 +187,8 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * Because ES|QL treats {@code null} and {@code ""} as distinct grouping keys while Prometheus treats an absent label
      * and an empty label value alike, every "label absent" outcome is normalized to {@code ""}: an absent source is
      * coalesced to {@code ""} before matching, and {@code label_replace}'s no-match ({@code null}) is coalesced back to
-     * {@code ""}. All such series therefore fall into the same group, matching Prometheus.
+     * {@code ""}. The destination then reads an empty value as absent, a {@code null}, as Prometheus removes a label set to
+     * an empty value. All such series therefore fall into the same group, matching Prometheus.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
@@ -214,17 +216,21 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
 
         Source source = source();
         Attribute destination = destination();
-        Expression destinationValue = definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
-            ? labelReplaceValue(context, source, aggregated)
-            : labelJoinValue(context, source, aggregated);
-        if (context.containerFunctions()) {
-            // An empty value removes the label, as in Prometheus: the destination reads as absent, like a label never set.
-            Expression empty = new Equals(source, destinationValue, Literal.keyword(source, ""));
-            destinationValue = new Case(source, empty, List.of(new Literal(source, null, DataType.KEYWORD), destinationValue));
-        }
+        // The value once, under a column of its own the destination reads: an empty value removes the label, as in
+        // Prometheus, so the destination reads as absent, like a label never set.
+        Alias computed = new Alias(
+            source,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(destination.name()),
+            definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
+                ? labelReplaceValue(context, source, aggregated)
+                : labelJoinValue(context, source, aggregated)
+        );
+        Attribute value = computed.toAttribute();
+        Expression empty = new Equals(source, value, Literal.keyword(source, ""));
+        Expression destinationValue = new Case(source, empty, List.of(new Literal(source, null, DataType.KEYWORD), value));
 
         Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
-        LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(derived));
+        LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(computed, derived));
         boolean opaque = aggregated.schema().isOpen();
         if (context.containerFunctions() && opaque) {
             // The label is written into every packing holding it too, so the series' identity is the relabeled one.
@@ -248,6 +254,9 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         }
         var unshadowed = new ArrayList<NamedExpression>();
         for (Attribute attribute : plan.output()) {
+            if (attribute.id().equals(computed.id())) {
+                continue;
+            }
             if (attribute.id().equals(derived.id()) || TranslationContext.mapFinite(attribute).equals(name) == false) {
                 unshadowed.add(attribute);
             }

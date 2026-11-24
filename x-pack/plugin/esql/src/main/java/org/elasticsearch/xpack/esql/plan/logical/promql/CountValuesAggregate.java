@@ -160,7 +160,11 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
         String keyName = label;
         if (table.valueColumn().resolved() == false) {
             Set<String> taken = new HashSet<>(List.of(label, table.valueColumn().name()));
-            table.plan().output().forEach(a -> taken.add(a.name()));
+            for (Attribute a : table.plan().output()) {
+                // the regroup finds a key by its canonical label name, which drops a physical field prefix
+                taken.add(a.name());
+                taken.add(TranslationContext.mapFinite(a));
+            }
             keyName = label + "$key";
             while (taken.contains(keyName)) {
                 keyName += "$";

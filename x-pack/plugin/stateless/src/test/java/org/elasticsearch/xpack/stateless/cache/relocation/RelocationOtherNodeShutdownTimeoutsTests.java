@@ -42,10 +42,10 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
     private static final TimeValue PLAIN_TIMEOUT =
         SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.getDefault(Settings.EMPTY);
 
-    /// The shards with a later deadline use the slots as well, as the recoveries are not scheduled by the deadline. Node A has 1 relocating
-    /// shard and 4s left, node B 5 relocating shards and 8s left, the limit is 2 concurrent relocations. The 2 shards due by A's deadline
-    /// get `2 * 2 / 7` of the slots, so A gives `4s / 2 * 2 * 2 / 7 ≈ 1.1s`, and B gives `8s / 7 * 2 ≈ 2.3s`. The tightest of them
-    /// decides.
+    /// Each grace deadline is checked with the shards due by it. Node A has 1 relocating shard and 4s left, node B 5 relocating shards and
+    /// 8s left, the limit is 2 concurrent relocations. A's deadline is shared by this shard and A's shard, which fit in the 2 slots, so A
+    /// gives `4s / 2 * 2 = 4s`. B's deadline is shared by this shard and the 6 relocating ones, so B gives `8s / 7 * 2 ≈ 2.3s`. The
+    /// tightest of them decides.
     public void testChecksEachShutdownGraceDeadline() {
         try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
             final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
@@ -62,12 +62,16 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
 
             final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
             assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
-            // equal share for the early node deadline: 4s / (1 + 1), with 2 * (1 + 1) / (1 + 5 + 1) of the slots
-            assertThat(plan.timeout().millis(), equalTo(Math.round(4000 / 2.0 * (2.0 * 2 / 7))));
+            // equal share for the late node deadline: 8s / (1 + 5 + 1) recoveries, for 2 slots
+            assertThat(plan.timeout().millis(), equalTo(Math.round(8000 / 7.0 * 2)));
 
             // once the early deadline has passed its shard may still be queued for a slot, so the wait is over
             threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 6500);
             final var afterEarlyDeadline = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
+            assertThat(
+                afterEarlyDeadline.timeoutContext(),
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_GRACE_ELAPSED)
+            );
             assertThat(afterEarlyDeadline.timeout().millis(), equalTo(0L));
         }
     }
@@ -87,8 +91,9 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
 
             // 3 relocating shards and this one do not fit in the 2 slots
             final var queued = timeouts.timeout(relocationWithOtherNodeShuttingDown(3, index, now), RELOCATION_TARGET_NODE, null);
-            assertThat(queued.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(queued.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_GRACE_ELAPSED));
             assertThat(queued.timeout().millis(), equalTo(0L));
+            assertThat(queued.extendable(), is(false));
 
             // 1 relocating shard and this one fit in the 2 slots
             final var fitting = timeouts.timeout(relocationWithOtherNodeShuttingDown(1, index, now), RELOCATION_TARGET_NODE, null);
@@ -97,23 +102,23 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
         }
     }
 
-    /// A relocation with a later deadline competes for the slots of an earlier deadline, as the recoveries are not scheduled by the
-    /// deadline. With 2 slots, this shard, 1 shard due in 60s and 1 shard due in 600s, the shard that is due first could queue behind
-    /// both of the others. It gets `2 * 2 / 3` of the slots, so the wait is `60s / 2 * 2 * 2 / 3 = 40s`, instead of the 400s that the later
-    /// deadline allows.
-    public void testALaterDeadlineRelocationCompetesForTheSlotsOfAnEarlierDeadline() {
+    /// The shards with a later deadline have time to spare, so they do not take the share of an earlier deadline, though they are
+    /// recovering on the target. With 2 slots, this shard, 1 shard due in 1s and 50 shards due in 600s, the early deadline is shared by
+    /// this shard and the early shard only, which fit in the slots, so it gives `1s / 2 * 2 = 1s`. The late deadline gives
+    /// `600s / 52 * 2 ≈ 23s`, so the early deadline is the tightest. Dividing the 1s by all the 52 recoveries would leave `38ms`.
+    public void testALaterDeadlineRelocationDoesNotTakeTheShareOfAnEarlierDeadline() {
         try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
             final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, withGraceCap("10m"));
             threadPool.setCurrentTimeInMillis(randomLongBetween(1_000_000, 2_000_000));
             final long now = threadPool.absoluteTimeInMillis();
             final var state = relocationWithOtherNodesShuttingDown(
                 new Index("idx", randomUUID()),
-                List.of(new ShuttingDownNode("early-node", 1, now - 540_000), new ShuttingDownNode("late-node", 1, now))
+                List.of(new ShuttingDownNode("early-node", 1, now - 599_000), new ShuttingDownNode("late-node", 50, now))
             );
 
             final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
             assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
-            assertThat(plan.timeout().millis(), equalTo(40_000L));
+            assertThat(plan.timeout().millis(), equalTo(1000L));
         }
     }
 

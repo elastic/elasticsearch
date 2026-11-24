@@ -67,6 +67,13 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             MayFollow.ANY_PLAN,
             true
         ),
+        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_GRACE_ELAPSED(
+            "relocation source not shutting down, cluster shutdown metadata present (grace period of the tightest deadline elapsed)",
+            false,
+            Phase.OTHER,
+            MayFollow.NO_PLAN,
+            false
+        ),
         RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED(
             "relocation source shutting down (grace period elapsed)",
             false,

@@ -56,13 +56,19 @@ public class RelocationOtherNodeShutdownTimeouts {
     }
 
     /// Returns the warming timeout for a shard relocating to `targetNodeId` from a source that is not shutting down, while other nodes are.
-    /// For each grace deadline, the time left until it is divided between this shard and the shards of the shutting-down nodes with an
-    /// earlier or equal deadline. The smallest such equal share is the wait, so that this shard takes no more than its share of the slots.
+    /// The shard must not use the slots of the target for longer than its fair share, or the shards of the shutting-down nodes may miss
+    /// their grace deadlines. The fair share is worked out for each grace deadline:
     ///
-    /// A re-evaluation (`previousPlan`) extends the wait only by the time saved by shards that finished early, as handing out a fresh equal
-    /// share every time would add up to the whole time left.
+    /// 1. The recoveries that compete for the slots up to the deadline are: this shard, the shards of the shutting-down nodes due by it and
+    /// the other recoveries on the target. The shards due later have time to spare, so they are not counted.
+    /// 2. The time left until the deadline is split equally between those recoveries, and scaled to the slots they can use at once.
     ///
-    /// The plain relocation-with-shutdown timeout applies when everything fits in the slots, and when
+    /// The smallest of these shares is the wait, so that no deadline is missed.
+    ///
+    /// A re-evaluation (`previousPlan`) extends the wait only by the time that finished recoveries saved: the part of the fresh equal
+    /// share above the one the previous plan gave.
+    ///
+    /// The plain relocation-with-shutdown timeout (fallback) applies when everything fits in the slots, and when
     /// [SearchRecoveryTimeoutCalculationService#OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING] is disabled or a
     /// shutting-down node still holds shards that have not begun to relocate, as then the relocations to the target are not all known.
     public SearchRecoveryTimeout timeout(ClusterState state, String targetNodeId, @Nullable SearchRecoveryTimeout previousPlan) {
@@ -70,7 +76,8 @@ public class RelocationOtherNodeShutdownTimeouts {
             return fallbackTimeout();
         }
         final var deadlineShares = deadlineShares(state, targetNodeId);
-        if (deadlineShares.stream().allMatch(DeadlineShare::hasSlotForEachCompetingShard)) {
+        // the recoveries only grow with the deadline, so we only need to check the latest deadline, which is the first one
+        if (deadlineShares.isEmpty() || deadlineShares.getFirst().noShardWaitingForRelocationSlot()) {
             // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
             // not a shutting-down node
             return new SearchRecoveryTimeout(
@@ -80,48 +87,46 @@ public class RelocationOtherNodeShutdownTimeouts {
         }
 
         // Use the deadline with the smallest equal share, so that no deadline is missed.
-        final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::equalShareMs));
-        final double timePerRecoveryMs = tightestDeadline.timePerRecoveryMs();
+        final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::waitMs));
+        if (tightestDeadline.remainingMs() == 0) {
+            // the warming cap does not free a slot, so the shards of the passed deadline may still be queued for one
+            return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_GRACE_ELAPSED);
+        }
         final double waitMs;
-        if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
-            waitMs = tightestDeadline.waitForTimeSavedSince(previousPlan.perShardShareMs());
+        if (previousPlan != null && previousPlan.isEqualSharePlan()) {
+            waitMs = tightestDeadline.extensionMs(previousPlan);
         } else {
-            waitMs = tightestDeadline.equalShareMs();
+            waitMs = tightestDeadline.waitMs();
         }
         return new SearchRecoveryTimeout(
             TimeValue.timeValueMillis(Math.round(waitMs)),
             TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE,
-            timePerRecoveryMs
+            tightestDeadline.perShardShareMs()
         );
     }
 
-    /// What each grace deadline leaves to the shards competing for the target, from the earliest deadline to the latest.
+    /// What each grace deadline leaves to the shards competing for the target, from the latest deadline to the earliest.
     /// A deadline that has passed leaves nothing: the warming cap does not free a slot, so its shards may still be queued for one.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
-        // All the non-critical recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as
-        // the recoveries are not scheduled by the deadline.
         final int recoveriesOnTarget = SearchShardRelocations.countNonCriticalInitializing(state, targetNodeId);
         final int slots = targetRelocationSlotsEstimator.slotsForNonCriticalRecoveries();
         final long now = threadPool.absoluteTimeInMillis();
-        // the shards competing before each deadline rely on the order
+        // the shards with a later deadline are counted while going from the latest deadline to the earliest
         final var shardsOfShuttingDownNodes = shardsOfShuttingDownNodes(state, targetNodeId).sorted(
-            comparingLong(ShuttingDownNodeShards::graceDeadlineMillis)
+            comparingLong(ShuttingDownNodeShards::graceDeadlineMillis).reversed()
         ).toList();
-        final var deadlineShares = new ArrayList<DeadlineShare>();
-        long shardsWithEarlierOrSameDeadline = 0;
+        final var deadlineShares = new ArrayList<DeadlineShare>(shardsOfShuttingDownNodes.size());
+        long shardsWithLaterDeadline = 0;
         for (final var nodeShards : shardsOfShuttingDownNodes) {
-            shardsWithEarlierOrSameDeadline += nodeShards.shards();
             final long remainingMs = Math.max(0, nodeShards.graceDeadlineMillis() - now);
-            final long shardsCompetingForTarget = shardsWithEarlierOrSameDeadline + 1;
-            deadlineShares.add(
-                new DeadlineShare(
-                    remainingMs,
-                    shardsCompetingForTarget,
-                    recoveriesOnTarget,
-                    slotShareOfCompetingShards(slots, shardsCompetingForTarget, recoveriesOnTarget)
-                )
-            );
+            // All the shards of the shutting-down nodes are recoveries on the target here, as none is pending. The shards with a later
+            // deadline have time to spare, so they only count towards their own deadline, and the other recoveries, which include this
+            // shard, compete for every deadline.
+            deadlineShares.add(new DeadlineShare(remainingMs, recoveriesOnTarget - shardsWithLaterDeadline, slots));
+            shardsWithLaterDeadline += nodeShards.shards();
         }
+        assert recoveriesOnTarget - shardsWithLaterDeadline >= 1 || deadlineShares.isEmpty()
+            : "the relocation of this shard to [" + targetNodeId + "] is not among the recoveries on it";
         return deadlineShares;
     }
 
@@ -143,45 +148,40 @@ public class RelocationOtherNodeShutdownTimeouts {
             .filter(nodeShards -> nodeShards.shards() > 0);
     }
 
-    /// The slots of the target are shared equally by all the non-critical recoveries on it. This is the part of them that the
-    /// `shardsCompetingForTarget` shards get: `min(N, slots * N / recoveries)`. It can be fractional. A cluster state that does not show
-    /// all the competing shards yet gives fewer recoveries than shards, so the recoveries are taken to be at least the competing shards.
-    private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int recoveriesOnTarget) {
-        return Math.min(
-            shardsCompetingForTarget,
-            (double) slots * shardsCompetingForTarget / Math.max(shardsCompetingForTarget, recoveriesOnTarget)
-        );
-    }
-
     /// The `shards` of a shutting-down node that are relocating to the target, which have to be through before the node's
     /// `graceDeadlineMillis`.
     private record ShuttingDownNodeShards(long graceDeadlineMillis, long shards) {}
 
-    /// What one grace deadline leaves to the shards competing for the target: the time left until it, the shards competing for the target
-    /// before it, all the recoveries on the target, and the share of the target's relocation limit of the competing shards.
-    private record DeadlineShare(long remainingMs, long shardsCompetingForTarget, long recoveriesOnTarget, double slotShare) {
+    /// What one grace deadline leaves to the shards competing for the target: the time left until it, the non-critical recoveries that
+    /// share the target's slots with them, and the slots. The `recoveries` are the shards due by the deadline, this shard, and the other
+    /// recoveries on the target, but not the shards with a later deadline.
+    private record DeadlineShare(long remainingMs, long recoveries, long slots) {
 
         /// The time left per recovery that shares the target's slots with the competing shards. It is what a plan budgets, so that the
-        /// recoveries of the shards with later deadlines that finish are taken into account.
-        double timePerRecoveryMs() {
-            return remainingMs / (double) Math.max(shardsCompetingForTarget, recoveriesOnTarget);
+        /// other recoveries that finish are taken into account.
+        double perShardShareMs() {
+            return remainingMs / (double) recoveries;
         }
 
-        double equalShareMs() {
-            return remainingMs / (double) shardsCompetingForTarget * slotShare;
+        /// How many of the recoveries can run at once: all of them, up to the slots.
+        private long concurrentRecoveries() {
+            return Math.min(recoveries, slots);
+        }
+
+        /// The per-shard share scaled to the recoveries that run at once, which is how long they can use the slots together.
+        double waitMs() {
+            return perShardShareMs() * concurrentRecoveries();
         }
 
         /// The extension for the time that finished recoveries saved: the per-recovery share above the one the previous plan budgeted,
-        /// scaled to the slots of the competing shards.
-        double waitForTimeSavedSince(double budgetedTimePerRecoveryMs) {
-            final double recoveriesPerCompetingShard = Math.max(shardsCompetingForTarget, recoveriesOnTarget)
-                / (double) shardsCompetingForTarget;
-            return Math.max(0.0, timePerRecoveryMs() - budgetedTimePerRecoveryMs) * slotShare * recoveriesPerCompetingShard;
+        /// scaled to the recoveries that run at once.
+        double extensionMs(SearchRecoveryTimeout previousPlan) {
+            return Math.max(0.0, perShardShareMs() - previousPlan.perShardShareMs()) * concurrentRecoveries();
         }
 
-        /// Whether the shards competing before this deadline get a slot each, so nobody queues behind anybody.
-        boolean hasSlotForEachCompetingShard() {
-            return slotShare >= shardsCompetingForTarget;
+        /// Whether all the recoveries get a slot each, so nobody queues behind anybody.
+        boolean noShardWaitingForRelocationSlot() {
+            return slots >= recoveries;
         }
     }
 

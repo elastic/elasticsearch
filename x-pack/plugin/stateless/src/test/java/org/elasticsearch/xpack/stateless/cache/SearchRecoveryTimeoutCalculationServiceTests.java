@@ -1154,6 +1154,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         final var metadataPresent = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
         final var slotsAvailable = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE;
         final var otherNodeEqualShare = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE;
+        final var otherNodeGraceElapsed = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_GRACE_ELAPSED;
         final var graceElapsed = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED;
         final var dataVolume = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME;
         final var warmAmount = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT;
@@ -1176,7 +1177,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     warmAmount,
                     equalShare
                 ),
-                EnumSet.of(reshardTarget, graceElapsed, skip)
+                EnumSet.of(reshardTarget, graceElapsed, otherNodeGraceElapsed, skip)
             ),
             noShutdown,
             Tuple.tuple(
@@ -1190,14 +1191,14 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     warmAmount,
                     equalShare
                 ),
-                EnumSet.of(reshardTarget, graceElapsed, skip)
+                EnumSet.of(reshardTarget, graceElapsed, otherNodeGraceElapsed, skip)
             ),
             // staying in "metadata present" does not extend again, and a data-volume plan is only handed out as the first plan, so it does
             // not follow the equal-share plan. The data-volume plan itself is not extendable, so it is not listed as a previous plan
             metadataPresent,
             Tuple.tuple(
                 EnumSet.of(anotherActiveCopy, noShutdown, slotsAvailable, otherNodeEqualShare, dataVolume, warmAmount, equalShare),
-                EnumSet.of(reshardTarget, metadataPresent, graceElapsed, skip)
+                EnumSet.of(reshardTarget, metadataPresent, graceElapsed, otherNodeGraceElapsed, skip)
             ),
             // when no other shard queues behind this one, the plan behaves like "no shutdown" as the previous plan
             slotsAvailable,
@@ -1212,7 +1213,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     warmAmount,
                     equalShare
                 ),
-                EnumSet.of(reshardTarget, graceElapsed, skip)
+                EnumSet.of(reshardTarget, graceElapsed, otherNodeGraceElapsed, skip)
             ),
             // the shards competing with the shutting-down node's ones were budgeted by the previous plan, which the calculation takes into
             // account, so any plan may follow it, as it may follow a plan without a shutdown involved
@@ -1228,13 +1229,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     warmAmount,
                     equalShare
                 ),
-                EnumSet.of(reshardTarget, graceElapsed, skip)
+                EnumSet.of(reshardTarget, graceElapsed, otherNodeGraceElapsed, skip)
             ),
             // within the shutdown phase only time saved by finished shards is handed out; a data-volume or warm-amount plan never follows
             equalShare,
             Tuple.tuple(
                 EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, slotsAvailable, otherNodeEqualShare, equalShare),
-                EnumSet.of(reshardTarget, dataVolume, warmAmount, graceElapsed, skip)
+                EnumSet.of(reshardTarget, dataVolume, warmAmount, graceElapsed, otherNodeGraceElapsed, skip)
             )
         );
 

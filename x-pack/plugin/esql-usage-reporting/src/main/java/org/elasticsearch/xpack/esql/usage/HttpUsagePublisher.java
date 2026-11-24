@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.usage;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -55,7 +56,8 @@ import javax.net.ssl.SSLParameters;
  * <p>
  * It blocks, so it runs on the reporter thread only. The client is rebuilt when the SSL profile reloads, so that a renewed
  * certificate is used without a restart. The protocols and cipher suites of the profile are applied to the client; its
- * {@code verification_mode} is not: the JDK client always verifies the host name of the server, whatever the profile says.
+ * {@code verification_mode} cannot be: the JDK client always verifies the host name of the server, whatever the profile says, and
+ * a warning is logged when the profile asks for less.
  */
 public final class HttpUsagePublisher implements UsagePublisher {
 
@@ -261,15 +263,35 @@ public final class HttpUsagePublisher implements UsagePublisher {
 
     private HttpClient newClient() {
         SSLContext context = sslProfile.sslContext();
+        SslConfiguration configuration = sslProfile.configuration();
+        warnIfHostNameVerificationCannotBeSwitchedOff(configuration);
         HttpClient built = HttpClient.newBuilder()
             .sslContext(context)
-            .sslParameters(sslParameters(context, sslProfile.configuration()))
+            .sslParameters(sslParameters(context, configuration))
             .connectTimeout(Duration.ofMillis(requestTimeout.millis()))
             // One request at a time, so multiplexing has nothing to offer, and HTTP/1.1 avoids the cleartext upgrade handshake.
             .version(HttpClient.Version.HTTP_1_1)
             .build();
         clientContext = context;
         return built;
+    }
+
+    /**
+     * The JDK client always verifies the host name of the server and has no per-client switch, so a profile that asks not to
+     * ({@code verification_mode} {@code certificate} or {@code none}) is not followed: say so, instead of leaving the operator to
+     * find out from handshake failures that only show at debug level.
+     */
+    private static void warnIfHostNameVerificationCannotBeSwitchedOff(SslConfiguration configuration) {
+        SslVerificationMode mode = configuration.verificationMode();
+        if (mode.isHostnameVerificationEnabled() == false) {
+            logger.warn(
+                "[{}.verification_mode] is [{}] but the usage reporting client always verifies the host name of the Usage API: "
+                    + "the certificate of the server must match the host name of [{}.url]",
+                configuration.settingPrefix(),
+                mode,
+                UsageReportingSettings.PREFIX
+            );
+        }
     }
 
     /**

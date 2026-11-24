@@ -470,6 +470,38 @@ public class HttpUsagePublisherTests extends ESTestCase {
         assertThat(publisher.httpClient().sslContext(), sameInstance(before));
     }
 
+    public void testAProfileThatSwitchesHostNameVerificationOffIsWarnedAbout() throws Exception {
+        for (SslVerificationMode mode : new SslVerificationMode[] { SslVerificationMode.CERTIFICATE, SslVerificationMode.NONE }) {
+            profile.verificationMode = mode;
+            try (MockLog mockLog = MockLog.capture(HttpUsagePublisher.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "ignored " + mode,
+                        HttpUsagePublisher.class.getCanonicalName(),
+                        Level.WARN,
+                        "[xpack.esql.usage_reporting.ssl.verification_mode] is ["
+                            + mode
+                            + "] but the usage reporting client always "
+                            + "verifies the host name*"
+                    )
+                );
+                newPublisher(TimeValue.timeValueSeconds(10)).close();
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
+    public void testNoWarningWhenTheProfileVerifiesTheHostName() throws Exception {
+        try (MockLog mockLog = MockLog.capture(HttpUsagePublisher.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warning", HttpUsagePublisher.class.getCanonicalName(), Level.WARN, "*")
+            );
+            newPublisher(TimeValue.timeValueSeconds(10)).close();
+            profile.reload();
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     public void testProtocolsAndCipherSuitesOfTheProfileAreApplied() {
         assertThat(Arrays.asList(publisher.httpClient().sslParameters().getProtocols()), equalTo(List.of("TLSv1.3")));
         assertThat(Arrays.asList(publisher.httpClient().sslParameters().getCipherSuites()), equalTo(List.of("TLS_AES_256_GCM_SHA384")));
@@ -608,6 +640,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
     private static final class TestSslProfile implements SslProfile {
         volatile SSLContext current = newContext();
         volatile List<String> protocols = List.of("TLSv1.3");
+        volatile SslVerificationMode verificationMode = SslVerificationMode.FULL;
         /** When set, the next listener registration is preceded by a reload, as if it raced with the constructor. */
         volatile boolean rotateOnRegistration;
         private final List<Consumer<SslProfile>> listeners = new ArrayList<>();
@@ -649,7 +682,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
                 true,
                 DefaultJdkTrustConfig.DEFAULT_INSTANCE,
                 EmptyKeyConfig.INSTANCE,
-                SslVerificationMode.FULL,
+                verificationMode,
                 SslClientAuthenticationMode.NONE,
                 // The second suite does not exist: it checks that suites the JVM does not support are left out.
                 List.of("TLS_AES_256_GCM_SHA384", "NOT_A_CIPHER_SUITE"),

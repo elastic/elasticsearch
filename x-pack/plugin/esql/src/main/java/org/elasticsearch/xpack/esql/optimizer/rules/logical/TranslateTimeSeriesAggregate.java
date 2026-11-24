@@ -299,7 +299,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             .map(NamedExpression.class::cast)
             .forEach(extractTimeBucket);
         NamedExpression timeBucket = timeBucketRef.get();
-        boolean[] packPositions = new boolean[aggregate.groupings().size()];
+        // per grouping position, the unpacked dimension the final projection emits, or null if the grouping is not packed
+        NamedExpression[] unpacked = new NamedExpression[aggregate.groupings().size()];
+        Map<NameId, Attribute> unpackedByDimension = new HashMap<>();
         for (int i = 0; i < aggregate.groupings().size(); i++) {
             var group = aggregate.groupings().get(i);
             if (group instanceof Attribute || group instanceof Alias) {
@@ -324,7 +326,18 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
-                        addAttribute(g, a, firstPassAggs, secondPassGroupings, context, packDimensions, unpackDimensions, packPositions, i);
+                        addAttribute(
+                            g,
+                            a,
+                            firstPassAggs,
+                            secondPassGroupings,
+                            context,
+                            packDimensions,
+                            unpackDimensions,
+                            unpackedByDimension,
+                            unpacked,
+                            i
+                        );
                     } else {
                         assert g instanceof Alias : "g must be an Alias at this point";
                         if (unwrapped instanceof Bucket bucket && bucket.field().dataType().isHistogram()) {
@@ -397,10 +410,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 projects.add(Expressions.attribute(agg));
             }
             int groupPos = 0;
-            int dimPos = 0;
             for (int i = 0; i < aggregate.groupings().size(); i++) {
-                if (packPositions[i]) {
-                    projects.add(unpackDimensions.get(dimPos++));
+                if (unpacked[i] != null) {
+                    projects.add(unpacked[i]);
                 } else {
                     projects.add(Expressions.attribute(secondPassGroupings.get(groupPos++)));
                 }
@@ -520,17 +532,34 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         AnalyzerContext context,
         List<Attribute> packDimensions,
         List<Attribute> unpackDimensions,
-        boolean[] packPositions,
+        Map<NameId, Attribute> unpackedByDimension,
+        NamedExpression[] unpacked,
         int position
     ) {
+        if (attribute.isDimension()) {
+            Attribute first = unpackedByDimension.get(attribute.id());
+            if (first != null) {
+                // the same dimension grouped again, e.g. BY cluster, c2 = cluster: pack it once and rename it after unpacking
+                unpacked[position] = new Alias(group.source(), group.name(), first, group.id());
+                return;
+            }
+        }
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
         firstPassAggs.add(valuesAgg);
         if (attribute.isDimension()) {
             packDimensions.add(valuesAgg.toAttribute());
-            unpackDimensions.add(
-                new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
+            Attribute unpackedDimension = new ReferenceAttribute(
+                group.source(),
+                null,
+                group.name(),
+                attribute.dataType(),
+                Nullability.TRUE,
+                group.id(),
+                false
             );
-            packPositions[position] = true;
+            unpackDimensions.add(unpackedDimension);
+            unpackedByDimension.put(attribute.id(), unpackedDimension);
+            unpacked[position] = unpackedDimension;
         } else {
             // VALUES turns TEXT into KEYWORD. Keep the original type on the grouping so that the output type does not drift
             // from what parent plans (e.g. a Project created by DROP/KEEP) resolved against before this translation.

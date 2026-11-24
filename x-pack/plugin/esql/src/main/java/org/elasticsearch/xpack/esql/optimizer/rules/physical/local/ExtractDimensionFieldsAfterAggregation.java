@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,8 +83,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             return oldAgg;
         }
         List<NamedExpression> newAggregates = new ArrayList<>();
-        // a dimension may be requested more than once (e.g. {@code BY cluster, c2 = cluster}) but must be read once
-        Map<NameId, Attribute> readDims = new LinkedHashMap<>();
+        List<Attribute> readDims = new ArrayList<>();
         List<Attribute> packDims = new ArrayList<>();
         List<Alias> aliases = new ArrayList<>();
         Attribute packedAttr = null;
@@ -107,8 +104,9 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         }
                         packedAttr = partial ? oldIntermediates.get(intermediateOffset) : agg.toAttribute();
                         for (Expression dim : packDimsAgg.fields()) {
-                            // packDims stays positional: UnpackDims maps its outputs by position
-                            packDims.add(readDims.computeIfAbsent(((Attribute) dim).id(), id -> readDimAttribute((Attribute) dim)));
+                            Attribute attr = readDimAttribute((Attribute) dim);
+                            readDims.add(attr);
+                            packDims.add(attr);
                         }
                         intermediateOffset += size;
                     } else if (partial == false) {
@@ -126,9 +124,9 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                 );
                             }
                             Attribute oldAttr = partial ? oldIntermediates.get(intermediateOffset) : agg.toAttribute();
-                            Attribute field = dimensionField;
-                            dimensionField = readDims.computeIfAbsent(field.id(), id -> readDimAttribute(field));
+                            dimensionField = readDimAttribute(dimensionField);
                             aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
+                            readDims.add(dimensionField);
                         } else if (partial) {
                             for (int i = 0; i < size; i++) {
                                 newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
@@ -174,7 +172,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                 plan,
                 docAttr,
                 tsidAttr,
-                List.copyOf(readDims.values()),
+                readDims,
                 context.configuration().pragmas().fieldExtractPreference()
             );
         }

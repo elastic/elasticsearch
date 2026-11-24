@@ -21,18 +21,21 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -49,7 +52,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * Several threads ("parts") searching one segment through a shared {@link IVFSegmentScan} must visit exactly the
@@ -92,17 +96,69 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
                     float[] query = randomBoolean() ? repeated : randomVector(dims);
                     Bits accept = randomAcceptBits(leaf);
                     float visitRatio = randomBoolean() ? 0f : randomFloatBetween(0.01f, 0.3f, true);
-                    Result alone = merge(runParts(threads, leaf, query, accept, visitRatio, null, 1, -1));
-                    Result one = searchInParts(threads, leaf, query, accept, visitRatio, 1, -1);
-                    Result many = searchInParts(threads, leaf, query, accept, visitRatio, randomIntBetween(2, 8), -1);
-                    // a scan shared by one part decides "collector full" by counting; a search on its own asks its collector
+                    Result alone = searchAlone(threads, leaf, query, accept, visitRatio, null);
+                    Result one = searchInParts(threads, leaf, query, accept, visitRatio, 1, -1, null);
+                    Result many = searchInParts(threads, leaf, query, accept, visitRatio, randomIntBetween(2, 8), -1, null);
                     assertEquals("visited", alone.visited, one.visited);
                     assertArrayEquals("docs", alone.docs, one.docs);
                     assertArrayEquals("scores", alone.scores, one.scores, 0f);
                     assertEquals("visited", one.visited, many.visited);
                     assertArrayEquals("docs", one.docs, many.docs);
                     assertArrayEquals("scores", one.scores, many.scores, 0f);
-                    assertOpeningFirstChangesNothing(threads, leaf, query, accept, visitRatio, one);
+                    assertPreparingFirstChangesNothing(threads, leaf, query, accept, visitRatio, null, one);
+                }
+            }
+        } finally {
+            terminate(threads);
+        }
+    }
+
+    /**
+     * The same for a nested field. Its collector keeps the best child of each parent and is full once it holds enough
+     * parents, however many children were scored: any number of parts must find the parents and children a single part finds.
+     */
+    public void testNestedPartsMatchASinglePart() throws Exception {
+        int dims = randomIntBetween(8, 64);
+        float[] repeated = randomVector(dims);
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(
+            TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 4)))
+        );
+        ExecutorService threads = Executors.newFixedThreadPool(8);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            int numParents = randomIntBetween(800, 2_000);
+            for (int p = 0; p < numParents; p++) {
+                List<Document> block = new ArrayList<>();
+                int children = randomIntBetween(1, 8);
+                // The chunks of one doc are often alike: they then land in the same posting lists, so many children are scored
+                // for few parents, and their scores tie. Copies of one vector make parents tie with each other too.
+                float[] alike = randomInt(3) == 0 ? null : randomInt(4) == 0 ? repeated : randomVector(dims);
+                for (int c = 0; c < children; c++) {
+                    Document child = new Document();
+                    float[] vector = alike != null ? alike : randomVector(dims);
+                    child.add(new KnnFloatVectorField(FIELD, vector, VectorSimilarityFunction.DOT_PRODUCT));
+                    block.add(child);
+                }
+                Document parent = new Document();
+                parent.add(new StringField("docType", "_parent", Field.Store.NO));
+                block.add(parent);
+                writer.addDocuments(block);
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                BitSet parents = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent"))).getBitSet(leaf.getContext());
+                warmUp(threads, leaf, dims);
+                for (int q = 0; q < 20; q++) {
+                    float[] query = randomBoolean() ? repeated : randomVector(dims);
+                    Bits accept = randomAcceptBits(leaf);
+                    // a small budget often ends before enough parents were found, so the search has to go on past it
+                    float visitRatio = randomFrom(0f, 0.01f, 0.05f, 0.3f);
+                    Result alone = searchAlone(threads, leaf, query, accept, visitRatio, parents);
+                    Result many = searchInParts(threads, leaf, query, accept, visitRatio, randomIntBetween(2, 8), -1, parents);
+                    assertEquals("visited", alone.visited, many.visited);
+                    assertArrayEquals("docs", alone.docs, many.docs);
+                    assertArrayEquals("scores", alone.scores, many.scores, 0f);
+                    assertPreparingFirstChangesNothing(threads, leaf, query, accept, visitRatio, parents, alone);
                 }
             }
         } finally {
@@ -125,8 +181,54 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
             writer.forceMerge(1);
             try (DirectoryReader reader = DirectoryReader.open(writer)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
-                Exception e = expectThrows(Exception.class, () -> searchInParts(threads, leaf, randomVector(dims), null, 1f, 4, 0));
+                Exception e = expectThrows(Exception.class, () -> searchInParts(threads, leaf, randomVector(dims), null, 1f, 4, 0, null));
                 assertTrue(e.getMessage(), e.getMessage().contains("injected"));
+            }
+        } finally {
+            terminate(threads);
+        }
+    }
+
+    /**
+     * Once every posting list within the budget is recorded as visited, another part may gather a part's hits out of its
+     * collector. So a part must be done with its collector before it records a posting list, also with publishing its score
+     * cutoff. Here a collector stalls while its cutoff is read, which lets the other parts get ahead, and notes any use
+     * after its hits were taken.
+     */
+    public void testAPartIsDoneWithItsCollectorBeforeItsHitsAreGathered() throws Exception {
+        int dims = randomIntBetween(8, 32);
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, 2)));
+        ExecutorService threads = Executors.newFixedThreadPool(4);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 4_000; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField(FIELD, randomVector(dims), VectorSimilarityFunction.DOT_PRODUCT));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                for (int q = 0; q < 10; q++) {
+                    float[] query = randomVector(dims);
+                    IVFSegmentScan scan = new IVFSegmentScan();
+                    SharedMinCompetitiveScore cutoff = new SharedMinCompetitiveScore();
+                    AtomicBoolean usedAfterItsHitsWereTaken = new AtomicBoolean();
+                    List<Future<?>> parts = new ArrayList<>();
+                    for (int p = 0; p < 4; p++) {
+                        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.1f, K, K, cutoff, scan);
+                        StallingCollector collector = new StallingCollector(K, strategy, usedAfterItsHitsWereTaken);
+                        strategy.setCollector(collector);
+                        parts.add(threads.submit(() -> {
+                            leaf.searchNearestVectors(FIELD, query, collector, acceptDocs(leaf, null));
+                            return null;
+                        }));
+                    }
+                    for (Future<?> part : parts) {
+                        part.get(30, TimeUnit.SECONDS);
+                    }
+                    assertNotNull("the parts searched the segment", scan.finalCollector());
+                    assertFalse("a part used its collector after another part took its hits", usedAfterItsHitsWereTaken.get());
+                }
             }
         } finally {
             terminate(threads);
@@ -164,14 +266,14 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
                     // a small budget, so the segment has posting lists past it
                     float visitRatio = randomFloatBetween(0.01f, 0.1f, true);
                     int parts = randomIntBetween(2, 8);
-                    Set<String> alone = prefetches(prefetched, () -> runParts(threads, leaf, query, accept, visitRatio, null, 1, -1));
+                    Set<String> alone = prefetches(prefetched, () -> runParts(threads, leaf, query, accept, visitRatio, null, 1, -1, null));
                     Set<String> one = prefetches(
                         prefetched,
-                        () -> runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), 1, -1)
+                        () -> runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), 1, -1, null)
                     );
                     Set<String> many = prefetches(
                         prefetched,
-                        () -> runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), parts, -1)
+                        () -> runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), parts, -1, null)
                     );
                     assertFalse("the search prefetches posting lists", alone.isEmpty());
                     assertEquals("one part", alone, one);
@@ -199,36 +301,53 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
     private static void warmUp(ExecutorService threads, LeafReader leaf, int dims) throws Exception {
         for (int q = 0; q < 30; q++) {
             float visitRatio = randomBoolean() ? 0f : randomFloatBetween(0.01f, 0.3f, true);
-            searchInParts(threads, leaf, randomVector(dims), randomAcceptBits(leaf), visitRatio, randomIntBetween(1, 8), -1);
+            searchInParts(threads, leaf, randomVector(dims), randomAcceptBits(leaf), visitRatio, randomIntBetween(1, 8), -1, null);
         }
     }
 
     /**
-     * A split leaf is opened before its parts run: one part plans the search and lists the budget without claiming any of
-     * it. Opening first must change nothing, and the parts must share the query quantized per centroid.
+     * A split leaf is prepared before its parts run: one part plans the search and lists the budget without claiming any of
+     * it. Preparing first must change nothing, and the parts must share the query quantized per centroid.
      */
-    private static void assertOpeningFirstChangesNothing(
+    private static void assertPreparingFirstChangesNothing(
         ExecutorService threads,
         LeafReader leaf,
         float[] query,
         Bits accept,
         float visitRatio,
-        Result notOpened
+        BitSet parents,
+        Result notPrepared
     ) throws Exception {
         int parts = randomIntBetween(1, 8);
         IVFSegmentScan scan = new IVFSegmentScan();
-        scan.pause();
-        List<MaxScoreTopKnnCollector> collectors = new ArrayList<>(runParts(threads, leaf, query, accept, visitRatio, scan, 1, -1));
-        scan.resume();
-        collectors.addAll(runParts(threads, leaf, query, accept, visitRatio, scan, parts, -1));
+        scan.holdClaims();
+        runParts(threads, leaf, query, accept, visitRatio, scan, 1, -1, parents);
+        scan.releaseClaims();
+        runParts(threads, leaf, query, accept, visitRatio, scan, parts, -1, parents);
         assertFalse("the parts share the query quantized per centroid", scan.quantizedQueries().isEmpty());
-        Result opened = merge(collectors);
-        assertEquals("visited", notOpened.visited, opened.visited);
-        assertArrayEquals("docs", notOpened.docs, opened.docs);
-        assertArrayEquals("scores", notOpened.scores, opened.scores, 0f);
+        Result prepared = result(scan.finalCollector(), scan.visitedCount());
+        assertEquals("visited", notPrepared.visited, prepared.visited);
+        assertArrayEquals("docs", notPrepared.docs, prepared.docs);
+        assertArrayEquals("scores", notPrepared.scores, prepared.scores, 0f);
     }
 
-    /** Searches one leaf with {@code parts} threads sharing a scan; {@code failingPart} >= 0 makes that part throw. */
+    /** Searches one leaf with a single search on its own, without a shared scan. */
+    private static Result searchAlone(
+        ExecutorService threads,
+        LeafReader leaf,
+        float[] query,
+        Bits accept,
+        float visitRatio,
+        BitSet parents
+    ) throws Exception {
+        KnnCollector collector = runParts(threads, leaf, query, accept, visitRatio, null, 1, -1, parents).get(0);
+        return result(collector, collector.visitedCount());
+    }
+
+    /**
+     * Searches one leaf with {@code parts} threads sharing a scan; {@code failingPart} >= 0 makes that part throw. The hits
+     * are those of the collector the scan gathered every part's hits into.
+     */
     private static Result searchInParts(
         ExecutorService threads,
         LeafReader leaf,
@@ -236,16 +355,20 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         Bits accept,
         float visitRatio,
         int parts,
-        int failingPart
+        int failingPart,
+        BitSet parents
     ) throws Exception {
-        return merge(runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), parts, failingPart));
+        IVFSegmentScan scan = new IVFSegmentScan();
+        runParts(threads, leaf, query, accept, visitRatio, scan, parts, failingPart, parents);
+        return result(scan.finalCollector(), scan.visitedCount());
     }
 
     /**
      * Runs {@code parts} searches of one leaf through {@code scan} (null: one search on its own), each on its own thread,
-     * and returns their collectors.
+     * and returns their collectors. With {@code parents}, the leaf holds nested docs and the collectors keep the best child
+     * of each parent.
      */
-    private static List<MaxScoreTopKnnCollector> runParts(
+    private static List<AbstractMaxScoreKnnCollector> runParts(
         ExecutorService threads,
         LeafReader leaf,
         float[] query,
@@ -253,13 +376,17 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         float visitRatio,
         IVFSegmentScan scan,
         int parts,
-        int failingPart
+        int failingPart,
+        BitSet parents
     ) throws Exception {
-        List<MaxScoreTopKnnCollector> collectors = new ArrayList<>();
+        List<AbstractMaxScoreKnnCollector> collectors = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
         for (int p = 0; p < parts; p++) {
             IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, K, K, null, scan);
-            MaxScoreTopKnnCollector collector = new DelayingCollector(K, strategy, p == failingPart, new Random(random().nextLong()));
+            Random random = new Random(random().nextLong());
+            AbstractMaxScoreKnnCollector collector = parents == null
+                ? new DelayingCollector(K, strategy, p == failingPart, random)
+                : new DelayingNestedCollector(K, strategy, parents, random);
             strategy.setCollector(collector);
             collectors.add(collector);
             futures.add(threads.submit(() -> {
@@ -281,25 +408,15 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         return collectors;
     }
 
-    /** The exact top hits of all collectors, and their total visited count. */
-    private static Result merge(List<MaxScoreTopKnnCollector> collectors) {
-        BulkNeighborQueue merged = BulkNeighborQueue.forMerging(K);
-        long visited = 0;
-        for (MaxScoreTopKnnCollector collector : collectors) {
-            visited += collector.visitedCount();
-            TopDocs topDocs = collector.unsortedTopK();
-            for (ScoreDoc hit : topDocs.scoreDocs) {
-                merged.insertWithOverflowBulk(new int[] { hit.doc }, new float[] { hit.score }, 1, hit.score);
-            }
+    /** A collector's hits, best first, with the given visited count; no hits if no part visited anything. */
+    private static Result result(KnnCollector collector, long visited) {
+        ScoreDoc[] hits = collector == null ? new ScoreDoc[0] : collector.topDocs().scoreDocs;
+        int[] docs = new int[hits.length];
+        float[] scores = new float[hits.length];
+        for (int i = 0; i < hits.length; i++) {
+            docs[i] = hits[i].doc;
+            scores[i] = hits[i].score;
         }
-        int[] docs = new int[merged.size()];
-        float[] scores = new float[merged.size()];
-        AtomicInteger i = new AtomicInteger(docs.length - 1);
-        merged.drain(encoded -> {
-            int at = i.getAndDecrement();
-            docs[at] = merged.decodeNodeId(encoded);
-            scores[at] = merged.decodeScore(encoded);
-        });
         return new Result(visited, docs, scores);
     }
 
@@ -386,6 +503,60 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         @Override
         public PrefetchRecordingInput clone() {
             return new PrefetchRecordingInput(file, start, in.clone(), prefetched);
+        }
+    }
+
+    /** Stalls while its score cutoff is read, and notes any use after its hits were taken out of it. */
+    private static final class StallingCollector extends MaxScoreTopKnnCollector {
+        private final AtomicBoolean usedAfterItsHitsWereTaken;
+        private volatile boolean hitsTaken;
+
+        StallingCollector(int k, IVFKnnSearchStrategy strategy, AtomicBoolean usedAfterItsHitsWereTaken) {
+            super(k, Long.MAX_VALUE, strategy);
+            this.usedAfterItsHitsWereTaken = usedAfterItsHitsWereTaken;
+        }
+
+        @Override
+        public long getMinCompetitiveDocScore() {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+            noteUse();
+            return super.getMinCompetitiveDocScore();
+        }
+
+        @Override
+        public int bulkCollect(int[] docs, float[] scores, int count, float bestScore) {
+            noteUse();
+            return super.bulkCollect(docs, scores, count, bestScore);
+        }
+
+        @Override
+        public TopDocs unsortedTopK() {
+            hitsTaken = true;
+            return super.unsortedTopK();
+        }
+
+        private void noteUse() {
+            if (hitsTaken) {
+                usedAfterItsHitsWereTaken.set(true);
+            }
+        }
+    }
+
+    /** The collector of nested fields, yielding at random to shuffle which part claims which posting list. */
+    private static final class DelayingNestedCollector extends DiversifyingNearestChildrenKnnCollector {
+        private final Random random;
+
+        DelayingNestedCollector(int k, IVFKnnSearchStrategy strategy, BitSet parents, Random random) {
+            super(k, Integer.MAX_VALUE, strategy, parents);
+            this.random = random;
+        }
+
+        @Override
+        public boolean collect(int docId, float nodeScore) {
+            if (random.nextInt(64) == 0) {
+                Thread.yield();
+            }
+            return super.collect(docId, nodeScore);
         }
     }
 

@@ -603,7 +603,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                         scores
                     );
                 }
-                if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
+                if (PostingVisitor.isCompetitive(knnCollector, maxScore)) {
                     collectBulk(knnCollector, scores);
                 }
                 scoredDocs += docsToBulkScore;
@@ -635,7 +635,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                         qcDist
                     );
                     scoredDocs++;
-                    if (knnCollector.minCompetitiveSimilarity() <= score) {
+                    if (PostingVisitor.isCompetitive(knnCollector, score)) {
                         knnCollector.collect(doc, score);
                     }
                 } else {

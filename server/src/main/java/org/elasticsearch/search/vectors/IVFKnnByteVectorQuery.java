@@ -166,7 +166,7 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
 
     @Override
     boolean canSplitLeaves() {
-        return getClass() == IVFKnnByteVectorQuery.class; // subclasses (sliced, nested) search their leaves whole
+        return getClass() == IVFKnnByteVectorQuery.class; // a subclass has to opt in
     }
 
     @Override

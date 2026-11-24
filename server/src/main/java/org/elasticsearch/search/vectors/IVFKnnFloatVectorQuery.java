@@ -163,7 +163,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     @Override
     boolean canSplitLeaves() {
-        return getClass() == IVFKnnFloatVectorQuery.class; // subclasses (sliced, nested) search their leaves whole
+        return getClass() == IVFKnnFloatVectorQuery.class; // a subclass has to opt in
     }
 
     @Override

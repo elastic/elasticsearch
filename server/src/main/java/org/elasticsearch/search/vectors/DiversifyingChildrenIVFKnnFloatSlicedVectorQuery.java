@@ -80,6 +80,11 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     }
 
     @Override
+    boolean canSplitLeaves() {
+        return sliceKeys.isSingle() && getClass() == DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class; // a subclass has to opt in
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;

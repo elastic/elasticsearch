@@ -203,7 +203,10 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
             int index = nodeIdHeapIndex.indexOf(parentNode);
             if (index >= 0) {
                 int previousNodeIndex = nodeIdHeapIndex.indexGet(index);
-                if (heapNodes[previousNodeIndex].score < score) {
+                ParentChildScore previous = heapNodes[previousNodeIndex];
+                // On equal scores the lower child id wins, as everywhere in this heap, so that the child kept for a parent does
+                // not depend on the order its children were collected in.
+                if (previous.score < score || (previous.score == score && node < previous.child)) {
                     updateElement(previousNodeIndex, node, parentNode, score);
                     return true;
                 }

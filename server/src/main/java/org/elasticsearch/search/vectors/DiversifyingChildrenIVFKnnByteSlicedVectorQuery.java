@@ -81,6 +81,11 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteS
     }
 
     @Override
+    boolean canSplitLeaves() {
+        return sliceKeys.isSingle() && getClass() == DiversifyingChildrenIVFKnnByteSlicedVectorQuery.class; // a subclass has to opt in
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;

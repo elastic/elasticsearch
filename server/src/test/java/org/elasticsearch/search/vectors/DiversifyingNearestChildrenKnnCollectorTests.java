@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.test.ESTestCase;
@@ -35,5 +36,24 @@ public class DiversifyingNearestChildrenKnnCollectorTests extends ESTestCase {
 
         collector.collect(3, 0.8f);
         assertEquals(NeighborQueue.encodeRaw(3, 0.8f), collector.getMinCompetitiveDocScore());
+    }
+
+    /** Two children of one parent with the same score: the lower child id is kept, whichever was collected first. */
+    public void testEqualScoresKeepTheLowerChildWhateverTheOrder() {
+        for (boolean lowerFirst : new boolean[] { true, false }) {
+            FixedBitSet parents = new FixedBitSet(6);
+            parents.set(5);
+            DiversifyingNearestChildrenKnnCollector collector = new DiversifyingNearestChildrenKnnCollector(
+                2,
+                1000,
+                new IVFKnnSearchStrategy(0.5f, 100, 2, null),
+                parents
+            );
+            collector.collect(lowerFirst ? 1 : 3, 0.7f);
+            collector.collect(lowerFirst ? 3 : 1, 0.7f);
+            TopDocs topDocs = collector.topDocs();
+            assertEquals(1, topDocs.scoreDocs.length);
+            assertEquals(1, topDocs.scoreDocs[0].doc);
+        }
     }
 }

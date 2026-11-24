@@ -75,6 +75,11 @@ final class IVFSlicedSearchHelper {
         boolean isAll() {
             return this == ALL;
         }
+
+        /** Whether the query searches exactly one slice. */
+        boolean isSingle() {
+            return keys.length == 1;
+        }
     }
 
     /**
@@ -189,6 +194,90 @@ final class IVFSlicedSearchHelper {
             ? bulkKnnCollector.unsortedTopK()
             : knnCollector.topDocs();
         return results != null ? results : AbstractIVFKnnVectorQuery.NO_RESULTS;
+    }
+
+    /**
+     * Searches the only slice a query asks for, in this leaf, into {@code collector}: what {@link #getLeafResults} does for
+     * one slice, for a caller that brings the collector and reads its hits itself. Each part of a split leaf's search calls
+     * this on its own thread, so everything read from the leaf here belongs to the calling thread.
+     */
+    static void searchOnlySlice(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        KnnCollector collector,
+        String field,
+        String sliceField,
+        SliceKeys sliceKeys,
+        SliceSearcher sliceSearcher
+    ) throws IOException {
+        assert sliceKeys.isSingle();
+        final LeafReader reader = ctx.reader();
+        final SortedDocValues sortedDocValues = reader.getSortedDocValues(sliceField);
+        final DocValuesSkipper skipper = reader.getDocValuesSkipper(sliceField);
+        if (sortedDocValues == null || skipper == null) {
+            throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a SortedDocValues field with a skipper");
+        }
+        final int sliceOrd = sortedDocValues.lookupTerm(sliceKeys.keys()[0]);
+        if (sliceOrd < 0) {
+            return; // the leaf has no doc of the slice
+        }
+        IOSupplier<DocIdSetIterator> filterDocs = null;
+        LongSupplier filterCost = null;
+        if (filterWeight != null) {
+            ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+            if (supplier == null) {
+                return; // the filter matches nothing in the leaf
+            }
+            filterDocs = () -> supplier.get(Long.MAX_VALUE).iterator(); // pulled once, as there is only one slice
+            filterCost = supplier::cost;
+        }
+        searchOneSlice(
+            sortedDocValues,
+            skipper,
+            sliceOrd,
+            collector,
+            filterDocs,
+            filterCost,
+            reader.getLiveDocs(),
+            reader.maxDoc(),
+            ctx,
+            field,
+            sliceSearcher
+        );
+    }
+
+    /**
+     * About how many of a leaf's {@code numVectors} vectors lie in the only slice a query asks for: the slice's share of the
+     * leaf's docs. The share is read off the skipper alone, so it can be wrong by one skipper interval of docs. That is
+     * close enough to size the slice's search, and far cheaper than the slice's exact doc range, which takes a walk over
+     * doc values that costs as much as searching a small slice.
+     */
+    static int approximateSliceVectors(LeafReaderContext ctx, int numVectors, String sliceField, SliceKeys sliceKeys) throws IOException {
+        assert sliceKeys.isSingle();
+        final LeafReader reader = ctx.reader();
+        final SortedDocValues sortedDocValues = reader.getSortedDocValues(sliceField);
+        final DocValuesSkipper skipper = reader.getDocValuesSkipper(sliceField);
+        if (sortedDocValues == null || skipper == null) {
+            return 0; // the leaf has no slice field, which its search reports
+        }
+        final int sliceOrd = sortedDocValues.lookupTerm(sliceKeys.keys()[0]);
+        if (sliceOrd < 0) {
+            return 0; // the leaf has no doc of the slice
+        }
+        // Docs are sorted by slice. The slice starts in the first interval that holds its ordinal, and ends in the first
+        // interval that holds a higher one: take where those intervals start.
+        long start = 0;
+        if (skipper.minValue() != sliceOrd) {
+            skipper.advance(sliceOrd, Long.MAX_VALUE);
+            start = skipper.minDocID(0);
+        }
+        long end = skipper.docCount();
+        if (skipper.maxValue() != sliceOrd) {
+            skipper.advance(sliceOrd + 1, Long.MAX_VALUE);
+            end = skipper.minDocID(0);
+        }
+        double share = (double) Math.max(0, end - start) / reader.maxDoc();
+        return (int) Math.min(numVectors, Math.ceil(numVectors * share));
     }
 
     /**

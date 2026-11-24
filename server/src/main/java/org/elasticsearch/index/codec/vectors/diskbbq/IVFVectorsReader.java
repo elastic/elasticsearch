@@ -378,17 +378,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     /**
-     * Whether a search of {@code field} scans posting lists, so that parts of it can share an {@link IVFSegmentScan}; segments
-     * without centroids are searched by the raw delegate instead.
+     * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate. Only a
+     * search of an IVF structure scans posting lists, so only such a search can be split into parts sharing an
+     * {@link IVFSegmentScan}.
      */
-    public boolean searchesPostings(String field) {
-        return hasIvfStructure(field);
-    }
-
-    /**
-     * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate.
-     */
-    private boolean hasIvfStructure(String field) {
+    public boolean hasIvfStructure(String field) {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
             return false;
@@ -401,7 +395,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
             doSearch(field, new QueryTarget.FloatQuery(target), knnCollector, acceptDocs);
-        } else if (searchesWholeSegment(knnCollector)) {
+        } else {
+            assert sharedScan(knnCollector) == null : "only a search of posting lists can be split into parts";
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
         }
     }
@@ -410,7 +405,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (hasIvfStructure(field)) {
             doSearch(field, new QueryTarget.ByteQuery(target), knnCollector, acceptDocs);
-        } else if (searchesWholeSegment(knnCollector)) {
+        } else {
+            assert sharedScan(knnCollector) == null : "only a search of posting lists can be split into parts";
             // No IVF structure — byte fields on legacy codecs (which skip byte IVF indexing) fall
             // through here. Inline brute-force matches main's behavior and is required for CheckIndex
             // compatibility (delegating to getReaderForField().search() fails CheckIndex validation).
@@ -454,43 +450,54 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (values == null) {
             return;
         }
-        final IVFSegmentScan shared = sharedScan(knnCollector);
-        final IVFSegmentScan scan = shared != null ? shared : IVFSegmentScan.single();
-        // the plan gets its own vector values: parts of a shared scan visit postings while the plan's iterator runs
-        if (scan.openIfNeeded(
-            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
-        ) == false || scan.isDone()) {
-            return; // no vectors in this segment / slice, or other parts already finished it
+        final IVFSegmentScan scan = sharedScan(knnCollector);
+        if (scan == null) {
+            // A search on its own: nothing of the budget is used yet, and no doc is scored.
+            IVFSegmentScan.Plan plan = planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, values);
+            if (plan != null) {
+                PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, plan.acceptBits(), esAcceptDocs);
+                IVFSegmentScan.searchFrom(plan, visitor, knnCollector, 0, 0);
+            }
+            return; // no plan: no vectors in this segment / slice
         }
-        // parts share the plan's materialized filter, but take live docs on their own thread
-        Bits visitorBits = shared != null && acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : scan.acceptBits();
-        PostingVisitor visitor = getPostingVisitor(
+        try {
+            // The scan's plan gets vector values of its own: whichever part lists the budget or goes on past it advances the
+            // plan's posting order, not only the part that built the plan.
+            boolean hasWork = scan.planOnce(
+                () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
+            );
+            if (hasWork == false || scan.nothingToClaim()) {
+                return; // no vectors in this segment / slice, or the other parts already took all the work
+            }
+            // Each part reads its own live docs: Lucene's test readers check that the thread that acquired them reads them.
+            // A filter's docs are collected once, by the plan, and shared by the parts.
+            Bits visitorBits = acceptDocs instanceof ESAcceptDocs.BitsAcceptDocs ? acceptDocs.bits() : scan.acceptBits();
+            PostingVisitor visitor = postingVisitor(fieldInfo, entry, queryTarget, values, visitorBits, esAcceptDocs);
+            visitor.shareQuantizedQueries(scan.quantizedQueries());
+            scan.search(visitor, knnCollector);
+        } catch (Throwable t) {
+            scan.fail(); // the query has failed, so the other parts searching this segment stop
+            throw t;
+        }
+    }
+
+    private PostingVisitor postingVisitor(
+        FieldInfo fieldInfo,
+        E entry,
+        QueryTarget queryTarget,
+        KnnVectorValues values,
+        Bits acceptBits,
+        ESAcceptDocs esAcceptDocs
+    ) throws IOException {
+        return getPostingVisitor(
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters),
             queryTarget,
-            visitorBits,
+            acceptBits,
             entry.centroidSlice(ivfCentroids),
             esAcceptDocs
         );
-        if (shared != null) {
-            visitor.shareQuantizedQueries(shared.quantizedQueries());
-        }
-        int ticket;
-        while ((ticket = scan.claim(visitor, knnCollector)) >= 0) {
-            int scoredDocs = 0;
-            try {
-                scoredDocs = visitor.visit(knnCollector);
-            } catch (Throwable t) {
-                scan.fail();
-                throw t;
-            } finally {
-                scan.complete(ticket, scoredDocs);
-            }
-            if (knnCollector.getSearchStrategy() != null) {
-                knnCollector.getSearchStrategy().nextVectorsBlock();
-            }
-        }
     }
 
     private KnnVectorValues vectorValues(FieldInfo fieldInfo) throws IOException {
@@ -502,12 +509,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     /** The scan this search shares with other parts of the same segment's search, or null if it searches alone. */
     private static IVFSegmentScan sharedScan(KnnCollector knnCollector) {
         return knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfStrategy ? ivfStrategy.getSegmentScan() : null;
-    }
-
-    /** A segment without postings is searched whole, so of several parts sharing a scan only one may search it. */
-    private static boolean searchesWholeSegment(KnnCollector knnCollector) {
-        IVFSegmentScan scan = sharedScan(knnCollector);
-        return scan == null || scan.claimWhole();
     }
 
     /**
@@ -854,6 +855,15 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
+
+        /**
+         * Whether docs whose best score is {@code bestScore} should be offered to {@code collector}. Docs that only tie with
+         * the collector's worst hit are offered too. The collector then breaks the tie by doc id, so the hits do not depend on
+         * the order the posting lists were visited in, or on how a search was split across threads.
+         */
+        static boolean isCompetitive(KnnCollector collector, float bestScore) {
+            return collector.minCompetitiveSimilarity() <= bestScore;
+        }
     }
 
 }

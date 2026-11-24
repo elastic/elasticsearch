@@ -704,7 +704,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
          */
         void share(Map<Integer, QuantizedQuery> shared) {
             this.cache = shared;
-            this.evictedQuantizedQuery = null;
         }
 
         void quantizeQueryIfNecessary() throws IOException {
@@ -971,7 +970,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                         scores
                     );
                 }
-                if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
+                if (PostingVisitor.isCompetitive(knnCollector, maxScore)) {
                     collectBulk(knnCollector, scores, BULK_SIZE);
                 }
                 scoredDocs += docsToBulkScore;
@@ -1022,7 +1021,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                             tailSize
                         );
                     }
-                    if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
+                    if (PostingVisitor.isCompetitive(knnCollector, maxScore)) {
                         collectBulk(knnCollector, scores, tailSize);
                     }
                     scoredDocs += docsToBulkScore;

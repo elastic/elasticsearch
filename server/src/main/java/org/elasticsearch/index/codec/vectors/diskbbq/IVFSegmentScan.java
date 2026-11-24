@@ -10,105 +10,81 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.PostingVisitor;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QuantizedQuery;
+import org.elasticsearch.search.vectors.BulkKnnCollector;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Decides which posting lists one segment's IVF search visits: the centroid iterator's best-first order, cut by the visit
- * budget, then extended until the collector is full and, with filters or deletes, until enough docs were scored.
+ * Decides which posting lists one segment's IVF search visits: best centroid first, up to the visit budget, then on until
+ * the collector is full and, with filters or deletes, until enough docs were scored. {@link #searchFrom} is that search, as
+ * one thread runs it.
  * <p>
- * The decision lives here, apart from the visitors that score postings, so that several threads ("parts") can search one
- * segment through a shared scan and still visit exactly the postings a single-threaded search visits. Each part has its
- * own visitor and collector. A shared scan lists the postings within its budget once, when the first part arrives, and
- * parts then claim them by index without a lock. What follows the budget depends on how many docs were scored, so the
- * part that finishes the last listed posting continues alone (the "tail"). No part ever waits for another to finish.
+ * Keeping that decision here, apart from the visitors that score the posting lists, lets several threads search one segment
+ * and still visit exactly what a single thread would. They share a scan. Each thread searching the segment is a "part": it
+ * has its own visitor and collector, and the parts' collectors must be of the same kind and size.
+ * <ul>
+ *   <li>Within the budget, which posting lists to visit depends only on their sizes. They are listed once, and the parts
+ *   take them one by one, without a lock.</li>
+ *   <li>Past the budget, how far to go depends on what was found. So once every posting list within the budget was visited,
+ *   a single part gathers the hits of all the parts into its collector and goes on with {@link #searchFrom}, from where the
+ *   parts stopped.</li>
+ * </ul>
+ * Once the segment is planned and its budget is listed, no part waits for another.
  */
 public final class IVFSegmentScan {
 
-    /** What a search must know about a segment before it visits any posting. */
+    /** What a search must know about a segment before it visits any posting list. The budget counts posting list entries. */
     record Plan(CentroidIterator postings, long budget, int numVectors, float percentFiltered, Bits acceptBits) {}
 
-    private enum Phase {
-        BUDGET,
-        CATCH_UP,
-        DONE
-    }
+    /** The scan's posting lists within the budget, in visiting order, and how much of the budget they use. */
+    private record Listed(PostingMetadata[] postings, long budgetUsed) {}
 
-    /** The ticket of a posting claimed past the listed budget, or by a search on its own. */
-    private static final int UNLISTED = Integer.MAX_VALUE;
-
-    private final boolean shared;
-    private Plan plan;
-    private boolean empty;
-    private boolean wholeClaimed;
-    private volatile boolean failed;
-    // the sequential loop: a search on its own, or a shared scan's listing and tail; guarded by this
-    private Phase phase = Phase.BUDGET;
-    private long charged;
-    private float expectedScored;
-    private final AtomicLong scored = new AtomicLong();
-    // a shared scan's budget, listed once
-    private volatile PostingMetadata[] listed;
-    private boolean paused; // guarded by this
-    private volatile int claimLimit; // parts claim listed postings below this index
-    private final AtomicInteger nextListed = new AtomicInteger();
-    private final AtomicInteger completedListed = new AtomicInteger();
-    private final AtomicReference<PostingVisitor> tail = new AtomicReference<>();
     private final ConcurrentMap<Integer, QuantizedQuery> quantizedQueries = new ConcurrentHashMap<>();
+    private volatile boolean failed;
+    private volatile boolean claimsHeld;
 
-    /** A scan shared by the searches ("parts") of one segment; parts must use collectors of the same size. */
-    public IVFSegmentScan() {
-        this(true);
-    }
+    // Built once, by the first search to arrive; guarded by this. One thread at a time advances its posting order: the part
+    // that lists the budget, then the part that goes on past it, which starts from what was listed.
+    private Plan plan;
+    private boolean planned;
 
-    private IVFSegmentScan(boolean shared) {
-        this.shared = shared;
-    }
+    // what the scan listed, and how many of those posting lists the parts have taken
+    private volatile Listed listed;
+    private final AtomicInteger taken = new AtomicInteger();
+    // whether a part goes on past the budget, and the collector it gathered every part's hits into
+    private final AtomicBoolean pastBudget = new AtomicBoolean();
+    private KnnCollector finalCollector; // guarded by this
+    private final List<KnnCollector> collectors = new ArrayList<>(); // of the parts that joined; guarded by this
 
-    /** A scan used by a single search on its own; it reads "collector full" from the collector itself. */
-    static IVFSegmentScan single() {
-        return new IVFSegmentScan(false);
-    }
+    // what the parts did within the budget: posting lists visited to the end, and docs scored
+    private final AtomicInteger visited = new AtomicInteger();
+    private final AtomicLong scored = new AtomicLong();
 
     /** The query quantized per centroid by the parts' visitors, shared so that each centroid's is computed once. */
     public ConcurrentMap<Integer, QuantizedQuery> quantizedQueries() {
         return quantizedQueries;
     }
 
-    /** Builds the plan with {@code planner} unless already open. Returns false if the segment has nothing to search. */
-    synchronized boolean openIfNeeded(IOSupplier<Plan> planner) throws IOException {
-        if (plan == null && empty == false && failed == false) {
-            try {
-                plan = planner.get();
-            } catch (IOException | RuntimeException e) {
-                fail();
-                throw e;
-            }
-            empty = plan == null;
+    /** Plans the search with {@code planner}, unless a part already did. Returns false if the segment has nothing to search. */
+    synchronized boolean planOnce(IOSupplier<Plan> planner) throws IOException {
+        if (planned == false) {
+            planned = true;
+            plan = planner.get();
         }
-        return empty == false && failed == false;
-    }
-
-    /**
-     * True once no part starting now could claim a posting list, so it need not prepare to visit any: the search is over, or
-     * every posting it may claim is taken and the tail is not its to take (a listed posting is unfinished, or paused). Parts
-     * that start late check it before allocating anything.
-     */
-    public boolean isDone() {
-        PostingMetadata[] postings = listed;
-        boolean nothingToClaim = postings != null && nextListed.get() >= claimLimit && completedListed.get() < postings.length;
-        return failed || tail.get() != null || nothingToClaim;
+        return plan != null && failed == false;
     }
 
     /** The docs the search may score, shared read-only by every visitor of this segment. */
@@ -116,168 +92,172 @@ public final class IVFSegmentScan {
         return plan.acceptBits();
     }
 
-    /** For segments searched without postings: true for exactly one part, which then searches the whole segment. */
-    synchronized boolean claimWhole() {
-        boolean first = wholeClaimed == false;
-        wholeClaimed = true;
-        return first;
+    /** A part joins the scan with the collector it fills, and gets the plan. */
+    private synchronized Plan join(KnnCollector collector) {
+        collectors.add(collector);
+        return plan;
     }
 
     /**
-     * Moves {@code visitor} onto the next posting list if the search should still visit one. Returns a ticket to pass back
-     * to {@link #complete}, or -1 when the search is done or paused.
+     * Once the search is over: the collector that holds the segment's hits, which is the one the hits of all the parts were
+     * gathered into. Null if no part visited anything.
      */
-    int claim(PostingVisitor visitor, KnnCollector collector) throws IOException {
-        if (failed) {
-            return -1;
-        }
-        if (shared == false) {
-            return claimNext(visitor, collector);
-        }
-        PostingMetadata[] postings = listed != null ? listed : list(visitor);
-        if (postings == null) {
-            return -1; // listing failed
-        }
-        int i;
-        do {
-            i = nextListed.get();
-            if (i >= claimLimit) {
-                return claimTail(visitor, collector);
-            }
-        } while (nextListed.compareAndSet(i, i + 1) == false);
-        reset(visitor, postings[i]);
-        return i;
+    public synchronized KnnCollector finalCollector() {
+        return finalCollector;
     }
 
-    /** Records that the posting of {@code ticket} was visited, scoring {@code scoredDocs} docs. */
-    void complete(int ticket, int scoredDocs) {
-        scored.addAndGet(scoredDocs);
-        if (ticket != UNLISTED) {
-            completedListed.incrementAndGet();
+    /** Once the search is over: how many vectors its parts visited, all together. */
+    public synchronized long visitedCount() {
+        long total = 0;
+        for (KnnCollector collector : collectors) {
+            total += collector.visitedCount();
         }
+        return total;
     }
 
     /**
-     * Lets the first part list the budget without claiming any of it, until {@link #resume}, so that the other parts start
-     * with work instead of waiting for the plan. Must not be called while parts run.
+     * True when a part starting now would find nothing to visit: the search failed, a part already goes on past the budget,
+     * or every posting list within the budget is taken and some are still being visited. Parts that start late check this
+     * before they allocate anything.
      */
-    public synchronized void pause() {
-        paused = true;
-        if (listed != null) {
-            claimLimit = 0;
-        }
+    public boolean nothingToClaim() {
+        Listed listed = this.listed;
+        boolean budgetTaken = listed != null && taken.get() >= listed.postings().length && visited.get() < listed.postings().length;
+        return failed || pastBudget.get() || budgetTaken;
     }
 
-    public synchronized void resume() {
-        paused = false;
-        if (listed != null) {
-            claimLimit = listed.length;
-        }
+    /**
+     * While claims are held, a search of the segment plans it and lists its budget, but visits nothing. Preparing a segment
+     * this way before its parts start means they find their work waiting, rather than wake up to wait for the plan. Must not
+     * be called while parts are searching.
+     */
+    public void holdClaims() {
+        claimsHeld = true;
     }
 
-    /** Stops every part: a part failed, so the search fails and the others should not keep scanning. */
+    public void releaseClaims() {
+        claimsHeld = false;
+    }
+
+    /** Stops the other parts within the budget: one of them failed, so the query fails and the rest of their work would be wasted. */
     void fail() {
         failed = true;
     }
 
-    /** Lists the postings within the budget, in order and charging their sizes, so that parts can claim them by index. */
-    private synchronized PostingMetadata[] list(PostingVisitor visitor) throws IOException {
+    /**
+     * Searches the segment as one part of the scan, with {@code visitor}, into {@code collector}. The parts take the posting
+     * lists within the budget one by one, and a single part goes on past them, as a search on its own does from the start.
+     */
+    void search(PostingVisitor visitor, KnnCollector collector) throws IOException {
+        Plan plan = join(collector);
+        Listed listed = this.listed != null ? this.listed : listBudget(visitor);
+        if (listed == null || claimsHeld) {
+            return;
+        }
+        PostingMetadata[] withinBudget = listed.postings();
+        for (int next = taken.getAndIncrement(); next < withinBudget.length && failed == false; next = taken.getAndIncrement()) {
+            visitor.resetPostingsScorer(withinBudget[next]);
+            int scoredDocs = visit(visitor, collector);
+            // Recorded last, when this thread is done with its collector: once every posting list within the budget is recorded,
+            // another part may gather the collector's hits. The scored docs first: whoever then sees every posting list visited
+            // also sees all their scored docs.
+            scored.addAndGet(scoredDocs);
+            visited.incrementAndGet();
+        }
+        // Past the budget only one part goes on: the first to get here once every posting list within it was visited.
+        if (failed || visited.get() < withinBudget.length || pastBudget.compareAndSet(false, true) == false) {
+            return;
+        }
+        gatherHitsInto(collector);
+        searchFrom(plan, visitor, collector, listed.budgetUsed(), scored.get());
+    }
+
+    /**
+     * Searches a segment as one thread does, from what was already done: {@code budgetUsed} posting list entries visited and
+     * {@code scored} docs scored. A search on its own starts from zero. The part of a scan that goes on past the budget
+     * starts from what the parts did within it.
+     */
+    static void searchFrom(Plan plan, PostingVisitor visitor, KnnCollector collector, long budgetUsed, long scored) throws IOException {
+        CentroidIterator postings = plan.postings();
+        // Within the budget, and on until the collector is full.
+        // TODO do we need to handle nested doc counts similarly to how we handle
+        // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
+        while (postings.hasNext() && (budgetUsed < plan.budget() || collector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
+            budgetUsed += visitor.resetPostingsScorer(postings.nextPosting());
+            scored += visit(visitor, collector);
+        }
+        if (plan.acceptBits() == null) {
+            return;
+        }
+        // Filters and deletes skip docs, so keep going until about as many docs were scored as an unfiltered search scores.
+        // TODO Adjust the value here when using centroid filtering
+        float unfilteredRatioVisited = (float) budgetUsed / plan.numVectors();
+        int filteredVectors = (int) Math.ceil(plan.numVectors() * plan.percentFiltered());
+        float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, budgetUsed / 2f);
+        while (postings.hasNext() && (scored < expectedScored || scored < collector.k())) {
+            visitor.resetPostingsScorer(postings.nextPosting());
+            scored += visit(visitor, collector);
+        }
+    }
+
+    /** Visits the posting list {@code visitor} was moved onto. Returns how many docs it scored. */
+    private static int visit(PostingVisitor visitor, KnnCollector collector) throws IOException {
+        int scoredDocs = visitor.visit(collector);
+        if (collector.getSearchStrategy() != null) {
+            collector.getSearchStrategy().nextVectorsBlock();
+        }
+        return scoredDocs;
+    }
+
+    /** Lists the posting lists within the budget, in visiting order, so that parts can take them by index. */
+    private synchronized Listed listBudget(PostingVisitor visitor) throws IOException {
         if (listed == null && failed == false) {
-            PostingMetadata[] postings = new PostingMetadata[16];
-            int count = 0;
-            while (plan.postings().hasNext() && charged < plan.budget()) {
-                PostingMetadata posting = next();
-                if (count == postings.length) {
-                    postings = ArrayUtil.growExact(postings, count * 2);
-                }
-                postings[count++] = posting;
-                charged += reset(visitor, posting);
+            List<PostingMetadata> postings = new ArrayList<>();
+            long budgetUsed = 0;
+            while (plan.postings().hasNext() && budgetUsed < plan.budget()) {
+                PostingMetadata posting = plan.postings().nextPosting();
+                postings.add(posting);
+                // a posting list's size is only known once a visitor is moved onto it
+                budgetUsed += visitor.resetPostingsScorer(posting);
             }
-            claimLimit = paused ? 0 : count;
-            listed = Arrays.copyOf(postings, count); // published last: parts read claimLimit after reading it
+            listed = new Listed(postings.toArray(PostingMetadata[]::new), budgetUsed);
         }
         return listed;
     }
 
     /**
-     * Past the parts' share of the listed budget. Once every listed posting is finished, what comes next depends only on how
-     * many docs they scored: the first part to get here continues alone.
+     * Moves the hits of every other part into {@code collector}, which then holds what the collector of a search on its own
+     * would hold. So the part that goes on can ask its collector whether it is full, whatever the collector counts: docs, or
+     * parent docs for nested fields. The other parts are done with their collectors by now: each recorded its last posting
+     * list after it last used its collector.
      */
-    private int claimTail(PostingVisitor visitor, KnnCollector collector) throws IOException {
-        boolean owner = tail.get() == visitor || (completedListed.get() == listed.length && tail.compareAndSet(null, visitor));
-        return owner ? claimNext(visitor, collector) : -1;
-    }
-
-    /** The sequential loop's next posting, if its conditions say to visit one. */
-    private synchronized int claimNext(PostingVisitor visitor, KnnCollector collector) throws IOException {
-        if (failed || decide(collector) == false) {
-            return -1;
-        }
-        int size = reset(visitor, next());
-        if (phase == Phase.BUDGET) {
-            charged += size;
-        }
-        return UNLISTED;
-    }
-
-    private PostingMetadata next() throws IOException {
-        try {
-            return plan.postings().nextPosting();
-        } catch (IOException | RuntimeException e) {
-            fail();
-            throw e;
-        }
-    }
-
-    private int reset(PostingVisitor visitor, PostingMetadata posting) throws IOException {
-        try {
-            return visitor.resetPostingsScorer(posting);
-        } catch (IOException | RuntimeException e) {
-            fail();
-            throw e;
-        }
-    }
-
-    /** The search loop's conditions, evaluated on the scan's counters: whether to visit another posting. */
-    private boolean decide(KnnCollector collector) {
-        // TODO do we need to handle nested doc counts similarly to how we handle
-        // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-        if (phase == Phase.BUDGET) {
-            if (plan.postings().hasNext() && (charged < plan.budget() || scoredBelow(collector.k(), collector))) {
-                return true;
+    private synchronized void gatherHitsInto(KnnCollector collector) throws IOException {
+        for (KnnCollector other : collectors) {
+            if (other != collector) {
+                TopDocs hits = other instanceof BulkKnnCollector bulk ? bulk.unsortedTopK() : other.topDocs();
+                if (hits != null) {
+                    collect(collector, hits.scoreDocs);
+                }
             }
-            startCatchUp();
         }
-        if (phase == Phase.CATCH_UP) {
-            if (plan.postings().hasNext() && scoredBelow(Math.max(expectedScored, collector.k()), null)) {
-                return true;
+        finalCollector = collector;
+    }
+
+    private static void collect(KnnCollector collector, ScoreDoc[] hits) {
+        if (hits.length > 0 && collector instanceof BulkKnnCollector bulk) {
+            int[] docs = new int[hits.length];
+            float[] scores = new float[hits.length];
+            float best = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < hits.length; i++) {
+                docs[i] = hits[i].doc;
+                scores[i] = hits[i].score;
+                best = Math.max(best, scores[i]);
             }
-            phase = Phase.DONE;
+            bulk.bulkCollect(docs, scores, hits.length, best);
+        } else {
+            for (ScoreDoc hit : hits) {
+                collector.collect(hit.doc, hit.score);
+            }
         }
-        return false;
-    }
-
-    /**
-     * Whether fewer than {@code threshold} docs were scored. A single search's fill check asks its {@code collector}
-     * instead, which may count differently (e.g. by parent for nested docs).
-     */
-    private boolean scoredBelow(float threshold, KnnCollector collector) {
-        if (shared == false && collector != null) {
-            return collector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY;
-        }
-        return scored.get() < threshold;
-    }
-
-    /** Filters and deletes skip docs, so keep going until about as many docs were scored as an unfiltered search scores. */
-    private void startCatchUp() {
-        if (plan.acceptBits() == null) {
-            phase = Phase.DONE;
-            return;
-        }
-        // TODO Adjust the value here when using centroid filtering
-        float unfilteredRatioVisited = (float) charged / plan.numVectors();
-        int filteredVectors = (int) Math.ceil(plan.numVectors() * plan.percentFiltered());
-        expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, charged / 2f);
-        phase = Phase.CATCH_UP;
     }
 }

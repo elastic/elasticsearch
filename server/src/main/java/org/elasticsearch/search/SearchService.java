@@ -283,8 +283,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     /**
-     * Lets a DiskBBQ (IVF) kNN query scan a shard in parallel, in tasks of about equal work on the search pool: small segments
-     * grouped into one task, large segments split into parts that share the segment's scan.
+     * Lets a DiskBBQ (IVF) kNN query split a segment that holds a large share of a shard's work into parts, which threads of
+     * the search pool search at the same time, sharing the segment's scan. Every other segment is searched as without it.
      */
     public static final Setting<Boolean> IVF_PARALLEL_SCAN_ENABLED = Setting.boolSetting(
         "search.vectors.ivf.parallel_scan.enabled",

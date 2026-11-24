@@ -66,6 +66,13 @@ public class DiversifyingChildrenIVFKnnByteVectorQuery extends IVFKnnByteVectorQ
     }
 
     @Override
+    boolean canSplitLeaves() {
+        // Each part keeps its best child per parent. The scan gathers the parts' hits into one such collector before it asks
+        // whether enough parents were found, so a split leaf returns what a whole-leaf search returns.
+        return getClass() == DiversifyingChildrenIVFKnnByteVectorQuery.class;
+    }
+
+    @Override
     int leafCollectorBudget(float segmentOversample) {
         // The parent-keyed heap absorbs overspill duplicates, so no extra headroom is needed.
         return IvfSegmentConfig.shardMergeBudget(k, segmentOversample);

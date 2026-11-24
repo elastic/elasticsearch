@@ -289,7 +289,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         } else {
             settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
-        // DiskBBQ slicing must return the same hits as searching each segment whole
+        // DiskBBQ's parallel scan must return the same hits as searching each segment whole
         settingBuilder.put(SearchService.IVF_PARALLEL_SCAN_ENABLED.getKey(), randomBoolean());
         Settings settings = settingBuilder.build();
 

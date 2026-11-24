@@ -61,8 +61,6 @@ public final class MappingLookup {
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
     private final Set<String> vectorEmbeddingFields;
-    private final Set<String> ignoredSourceVectorFields;
-    private final Set<String> ignoredSourceVectorPatchFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
     private final int runtimeFieldMappersCount;
@@ -272,8 +270,6 @@ public final class MappingLookup {
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         Set<String> syntheticVectorFields = new LinkedHashSet<>();
         Set<String> vectorEmbeddingFields = new LinkedHashSet<>();
-        Set<String> ignoredSourceVectorFields = new LinkedHashSet<>();
-        Set<String> ignoredSourceVectorPatchFields = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -284,18 +280,10 @@ public final class MappingLookup {
             if (mapper.fieldType().isVectorEmbedding()) {
                 vectorEmbeddingFields.add(mapper.fullPath());
             }
-            if (mapper.ignoredSourceVectorsLoader() != null) {
-                ignoredSourceVectorFields.add(mapper.fullPath());
-                if (mapper.fullPath().equals(mapper.leafName()) == false) {
-                    ignoredSourceVectorPatchFields.add(mapper.fullPath());
-                }
-            }
         }
         this.inferenceFields = Collections.unmodifiableMap(inferenceFields);
         this.syntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
         this.vectorEmbeddingFields = Collections.unmodifiableSet(vectorEmbeddingFields);
-        this.ignoredSourceVectorFields = Collections.unmodifiableSet(ignoredSourceVectorFields);
-        this.ignoredSourceVectorPatchFields = Collections.unmodifiableSet(ignoredSourceVectorPatchFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -502,34 +490,17 @@ public final class MappingLookup {
      * aggregate their children, and excluding a path already excludes everything below it.
      */
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
-        return vectorsPatchLoader(syntheticVectorFields, filter, FieldMapper::syntheticVectorsLoader);
-    }
-
-    /**
-     * Like {@link #syntheticVectorsLoader}, the loader that patches into a synthetic {@code _source} the vector fields left out of
-     * {@code _ignored_source} ({@link #ignoredSourceVectorFields()}), or {@code null} when there are none. Only fields under an object
-     * take part: one at the root is never inside a kept object, and its own synthetic loader always writes it.
-     */
-    public SourceLoader.SyntheticVectorsLoader ignoredSourceVectorsLoader(@Nullable SourceFilter filter) {
-        return vectorsPatchLoader(ignoredSourceVectorPatchFields, filter, FieldMapper::ignoredSourceVectorsLoader);
-    }
-
-    private SourceLoader.SyntheticVectorsLoader vectorsPatchLoader(
-        Set<String> fields,
-        @Nullable SourceFilter filter,
-        Function<FieldMapper, SourceLoader.SyntheticVectorsLoader> fieldLoader
-    ) {
-        if (fields.isEmpty()) {
+        if (syntheticVectorFields.isEmpty()) {
             return null;
         }
         // Grouped by the innermost nested object each field sits under, or "" for those under none.
         Map<String, List<SourceLoader.SyntheticVectorsLoader>> byNestedParent = new LinkedHashMap<>();
-        for (String field : fields) {
+        for (String field : syntheticVectorFields) {
             if (filter != null && filter.isPathFiltered(field, false)) {
                 continue;
             }
             if (getMapper(field) instanceof FieldMapper fieldMapper) {
-                var loader = fieldLoader.apply(fieldMapper);
+                var loader = fieldMapper.syntheticVectorsLoader();
                 if (loader != null) {
                     groupUnder(byNestedParent, nestedLookup.getNestedParent(field), loader);
                 }
@@ -609,13 +580,6 @@ public final class MappingLookup {
      */
     public Set<String> vectorEmbeddingFields() {
         return vectorEmbeddingFields;
-    }
-
-    /**
-     * The fields whose values are never copied to {@code _ignored_source}, see {@link FieldMapper#ignoredSourceVectorsLoader()}.
-     */
-    public Set<String> ignoredSourceVectorFields() {
-        return ignoredSourceVectorFields;
     }
 
     public NestedLookup nestedLookup() {
@@ -758,8 +722,8 @@ public final class MappingLookup {
                 mapping.ignoredSourceFormat()
             );
             // columnar_stored leaves vectors out of its blob, so they are patched back in from the vector index or doc values.
-            // A synthetic _source rebuilds them with the loader above, except where _ignored_source holds their enclosing object.
-            var patchLoader = isSourceColumnarStored() ? syntheticVectorsLoader(filter) : ignoredSourceVectorsLoader(filter);
+            // A synthetic _source has no patch loader: the loader above already rebuilds them.
+            var patchLoader = syntheticVectorsLoader(filter);
             return patchLoader == null ? loader : new SourceLoader.SyntheticVectors(loader, patchLoader);
         }
         var syntheticVectorsLoader = syntheticVectorsLoader(filter);

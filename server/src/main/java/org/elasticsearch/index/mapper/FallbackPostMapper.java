@@ -187,11 +187,11 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * Like {@link #effectiveKeepMode(Optional, IndexSettings)} for a field, except that a field whose values must stay out of
-     * {@code _ignored_source} ({@link MappingLookup#ignoredSourceVectorFields}) keeps none of its source, whatever it is set to.
+     * Like {@link #effectiveKeepMode(Optional, IndexSettings)} for a field, except that a field that
+     * {@link FieldMapper#ignoresSyntheticSourceKeep() ignores synthetic_source_keep} keeps none of its source, whatever it is set to.
      */
     static Mapper.SourceKeepMode effectiveKeepMode(DocumentParserContext ctx, FieldMapper mapper) {
-        return ctx.mappingLookup().ignoredSourceVectorFields().contains(mapper.fullPath())
+        return mapper.ignoresSyntheticSourceKeep()
             ? Mapper.SourceKeepMode.NONE
             : effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
     }

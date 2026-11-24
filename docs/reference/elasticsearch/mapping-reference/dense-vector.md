@@ -646,6 +646,8 @@ $$$dense-vector-index-options$$$
 
 `dense_vector` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) .
 
+When `index.mapping.exclude_source_vectors` is enabled, [`synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep) set on a `dense_vector` field is ignored: the vector is always rebuilt from its internal format, so its original text isn't stored a second time. However, a vector inside an object or an array of objects that is kept by `synthetic_source_keep` is still stored in its original form as part of that object. This includes arrays of objects in indices that use the [`logsdb` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting), where `index.mapping.synthetic_source_keep` defaults to `arrays`.
+
 
 ## Indexing and searching bit vectors [dense-vector-index-bit]
 

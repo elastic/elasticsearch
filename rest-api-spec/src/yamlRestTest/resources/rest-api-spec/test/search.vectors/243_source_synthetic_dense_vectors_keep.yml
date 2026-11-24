@@ -1,7 +1,7 @@
 setup:
   - requires:
       cluster_features: [ "mapper.exclude_source_vectors_from_ignored_source" ]
-      reason: 'excluded vectors are left out of _ignored_source'
+      reason: 'synthetic_source_keep on an excluded vector field is ignored'
       test_runner_features: [ close_to ]
 
   - do:
@@ -57,9 +57,6 @@ setup:
                     similarity: l2_norm
 
   # Every vector is kept by synthetic_source_keep: by its own mapping, its object's, or the index setting for arrays of objects.
-  # Rebuilt from the index, [1, 3.14159265358979, -2] comes back as float32, [1.0, 3.1415927, -2.0], rather than as the indexed
-  # text. cos is not unit length: it is indexed normalized and rebuilt scaled back by its magnitude. b64 is
-  # [1.0, 3.1415927, -2.0] as base64 encoded big-endian floats.
   - do:
       index:
         index: test
@@ -74,7 +71,7 @@ setup:
           nested: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ]
 
 ---
-"excluded vectors are rebuilt from the index":
+"synthetic_source_keep on an excluded vector field is ignored":
   - do:
       search:
         index: test
@@ -82,13 +79,15 @@ setup:
           _source:
             exclude_vectors: false
 
+  # A vector that keeps its own source is rebuilt from the index rather than from _ignored_source: [1, 3.14159265358979, -2] comes
+  # back as float32, [1.0, 3.1415927, -2.0]. cos is not unit length: it is indexed normalized and rebuilt scaled back by its
+  # magnitude. b64 is [1.0, 3.1415927, -2.0] as base64 encoded big-endian floats.
   - match: { hits.hits.0._source.vector: [ 1.0, 3.1415927, -2.0 ] }
   - close_to: { hits.hits.0._source.cos.0: { value: 3.0, error: 0.00001 } }
   - close_to: { hits.hits.0._source.cos.1: { value: 4.0, error: 0.00001 } }
   - close_to: { hits.hits.0._source.cos.2: { value: 0.0, error: 0.00001 } }
   - match: { hits.hits.0._source.b64: [ 1.0, 3.1415927, -2.0 ] }
-  - match: { hits.hits.0._source.obj: { vector: [ 1.0, 3.1415927, -2.0 ] } }
-  # as with a stored _source, a vector in an array of objects is patched into the first object
-  - match: { hits.hits.0._source.arr: [ { k: first, vector: [ 1.0, 3.1415927, -2.0 ] }, { k: second } ] }
-  # nested objects are patched by offset
-  - match: { hits.hits.0._source.nested: [ { k: first }, { k: second, vector: [ 1.0, 3.1415927, -2.0 ] } ] }
+  # A vector inside a kept object or array is kept in _ignored_source along with it, as indexed.
+  - match: { hits.hits.0._source.obj: { vector: [ 1, 3.14159265358979, -2 ] } }
+  - match: { hits.hits.0._source.arr: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ] }
+  - match: { hits.hits.0._source.nested: [ { k: first }, { k: second, vector: [ 1, 3.14159265358979, -2 ] } ] }

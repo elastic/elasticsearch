@@ -10,9 +10,11 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -263,7 +265,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return values.advanceExact(0) && values.advanceExact(maxDoc - 1);
     }
 
-    // Checks that the current segment is either directly sorted by descending timestamp,
+    // Checks that the current segment is either directly sorted by descending timestamp (with missing values last, or with no
+    // missing values at all),
     // or that it is sorted by host.name and then timestamp, where host.name has either no
     // values or only a single value, so timestamp is effectively the primary sort.
     private static boolean segmentSortedByDescTimestamp(LeafReaderContext context) throws IOException {
@@ -275,7 +278,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             if ("@timestamp".equals(sortField.getField())) {
                 if (sortField.getMissingValue() != null) {
                     long missingValue = (long) sortField.getMissingValue();
-                    if (missingValue != Long.MIN_VALUE) {
+                    // Missing-first only matters if some documents lack a @timestamp, otherwise the segment order is the same.
+                    if (missingValue != Long.MIN_VALUE && allDocsHaveValue(context.reader(), "@timestamp") == false) {
                         return false;
                     }
                 }
@@ -287,6 +291,16 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             return false;
         }
         return false;
+    }
+
+    // Whether every document of the segment has a value for the field, false if that can't be determined cheaply.
+    private static boolean allDocsHaveValue(LeafReader reader, String field) throws IOException {
+        DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+        if (skipper != null) {
+            return skipper.docCount() == reader.maxDoc();
+        }
+        PointValues points = reader.getPointValues(field);
+        return points != null && points.getDocCount() == reader.maxDoc();
     }
 
     private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {

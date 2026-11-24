@@ -169,7 +169,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false, false),
             false, /* lookup indices never read nested fields */
             indexPattern,
             false, /* lookup indices should do not be empty */
@@ -236,7 +236,8 @@ public class IndexResolver {
                 requestFilter,
                 includeAllDimensions,
                 nestedScope,
-                false
+                false,
+                hasTimeSeriesAggregation
             ),
             nestedScope,
             indexPattern,
@@ -277,7 +278,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, false, true),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, false, true, false),
             false, /* exemplar data streams never read nested fields */
             indexPattern,
             true, /* the derived data streams may not exist */
@@ -355,7 +356,8 @@ public class IndexResolver {
                 requestFilter,
                 includeAllDimensions,
                 nestedScope,
-                true
+                true,
+                hasTimeSeriesAggregation
             ),
             nestedScope,
             indexPattern,
@@ -703,7 +705,22 @@ public class IndexResolver {
         EsField nestedNamespace = fieldsInfo.nestedScope()
             ? NestedScopeField.namespace(
                 indexResponses,
-                (name, fullName, occurrences) -> createField(fieldsInfo, name, fullName, occurrences, false, indexDedupCache, true)
+                (name, fullName, occurrences) -> createField(
+                    fieldsInfo,
+                    name,
+                    fullName,
+                    fieldsInfo.objectsAreNotLeaves() && mapsAsALeafToo(occurrences)
+                        ? occurrences.stream().filter(fc -> isObject(fc) == false).toList()
+                        : occurrences,
+                    false,
+                    indexDedupCache,
+                    true
+                ),
+                fieldsInfo.keyNames(),
+                (name, fields) -> {
+                    IndexFieldCapabilities root = flattenedRoot(fields, name);
+                    return root != null && NestedScopeField.inNestedScope(root, fields) ? key(name, root) : null;
+                }
             )
             : null;
         if (nestedNamespace != null) {
@@ -718,7 +735,10 @@ public class IndexResolver {
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
-            indexProperties.put(ir.getIndexName(), new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards(), ir.getCreatedVersion()));
+            indexProperties.put(
+                ir.getIndexName(),
+                new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards(), ir.getCreatedVersion(), ir.getTimeSeriesStats())
+            );
             var split = RemoteClusterAware.splitIndexName(ir.getIndexName());
             concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), k -> new ArrayList<>()).add(split.indexExpression());
         }
@@ -813,9 +833,8 @@ public class IndexResolver {
         if (objectsAreNotLeaves) {
             // Where another index maps the name of an object as a field, the object only shapes the fields under it
             for (IndexFieldCapabilitiesWithSourceHash caps : fieldsCaps.values()) {
-                List<IndexFieldCapabilities> all = caps.fieldCapabilities;
-                if (all.stream().anyMatch(fc -> isObject(fc) == false)) {
-                    all.removeIf(IndexResolver::isObject);
+                if (mapsAsALeafToo(caps.fieldCapabilities)) {
+                    caps.fieldCapabilities.removeIf(IndexResolver::isObject);
                 }
             }
         }
@@ -1144,6 +1163,11 @@ public class IndexResolver {
         );
     }
 
+    /** Whether some index maps the name of {@code occurrences} as something other than an object, which only shapes the fields under it. */
+    private static boolean mapsAsALeafToo(List<IndexFieldCapabilities> occurrences) {
+        return occurrences.stream().anyMatch(fc -> isObject(fc) == false);
+    }
+
     private static boolean isObject(IndexFieldCapabilities fc) {
         return ObjectMapper.CONTENT_TYPE.equals(fc.type());
     }
@@ -1171,9 +1195,11 @@ public class IndexResolver {
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
         boolean nestedScope,
-        boolean includeResolvedTo
+        boolean includeResolvedTo,
+        boolean includeTimeSeriesStats
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.includeTimeSeriesStats(includeTimeSeriesStats);
         request.indices(Strings.commaDelimitedListToStringArray(index));
         request.fields(fieldNames.toArray(String[]::new));
         request.includeUnmapped(true);

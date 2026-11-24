@@ -100,6 +100,11 @@ public final class Re2RegExp {
      * it returns; the caller accounts the automaton it gets.
      */
     public Automaton toAutomaton(CircuitBreaker breaker, String label) {
+        return toAutomaton(breaker, label, CircuitBreakingRegExp.DEFAULT_WORK_LIMIT);
+    }
+
+    /** {@link #toAutomaton(CircuitBreaker, String)} within {@code workLimit} rather than the default, so tests can reach it. */
+    Automaton toAutomaton(CircuitBreaker breaker, String label, long workLimit) {
         if (literals != null) {
             if (literals.size() == 1) {
                 return Automata.makeString(literals.getFirst());
@@ -109,8 +114,8 @@ public final class Re2RegExp {
         }
         // the program is as large as its counted repeats expand to, so its size is bounded and reserved before it is built
         long instructions = parsed.programSize();
-        if (instructions > MAX_BUILT_STATES_AND_TRANSITIONS) {
-            throw new TooComplexToDeterminizeException(Automata.makeEmpty(), CircuitBreakingRegExp.DEFAULT_WORK_LIMIT);
+        if (instructions > workLimit / WORK_PER_BUILT_STATE_OR_TRANSITION) {
+            throw new TooComplexToDeterminizeException(Automata.makeEmpty(), Math.toIntExact(workLimit));
         }
         long programBytes = 0;
         if (breaker != null) {
@@ -119,7 +124,7 @@ public final class Re2RegExp {
         }
         Builder builder = null;
         try {
-            builder = new Builder(parsed.compile(), breaker, label);
+            builder = new Builder(parsed.compile(), breaker, label, workLimit);
             Automaton automaton = builder.build();
             if (builder.mayHaveDeadStates == false) {
                 return automaton;
@@ -243,11 +248,13 @@ public final class Re2RegExp {
          */
         private long steps;
         private long reserved;
+        private final long workLimit;
 
-        Builder(Program prog, CircuitBreaker breaker, String label) {
+        Builder(Program prog, CircuitBreaker breaker, String label, long workLimit) {
             this.prog = prog;
             this.breaker = breaker;
             this.label = label;
+            this.workLimit = workLimit;
             int n = prog.numInst();
             this.holds = new boolean[n];
             BitSet afterRune = null;
@@ -315,8 +322,8 @@ public final class Re2RegExp {
 
         /** Stops the build past its work limit. */
         private void checkWork() {
-            if (steps + (states + transitions) * WORK_PER_BUILT_STATE_OR_TRANSITION > CircuitBreakingRegExp.DEFAULT_WORK_LIMIT) {
-                throw new TooComplexToDeterminizeException(Automata.makeEmpty(), CircuitBreakingRegExp.DEFAULT_WORK_LIMIT);
+            if (steps + (states + transitions) * WORK_PER_BUILT_STATE_OR_TRANSITION > workLimit) {
+                throw new TooComplexToDeterminizeException(Automata.makeEmpty(), Math.toIntExact(workLimit));
             }
         }
 

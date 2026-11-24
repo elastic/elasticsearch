@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * What {@link Re2RegExp} matches and rejects. The expectations are those of Go's {@code regexp}, parsed and anchored
@@ -451,12 +452,16 @@ public class Re2RegExpTests extends ESTestCase {
     }
 
     /**
-     * The walk of the empty moves is bounded too: each of the 2,000 states after an {@code a} walks the 250,000 capture
-     * instructions of 125 copies of {@code (){1000}} to reach {@code b}, half a billion steps for a few thousand transitions.
+     * The walk of the empty moves is bounded too: each of the 2,000 states after an {@code a} walks the 4,000 capture
+     * instructions of {@code (){1000}(){1000}} to reach {@code b}, 8,000,000 steps for an automaton whose states and
+     * transitions are well within a limit of 2,000,000.
      */
     public void testClosureWalkIsBounded() {
-        Re2RegExp regExp = new Re2RegExp("a{0,1000}a{0,1000}" + "(){1000}".repeat(125) + "b", FLAGS);
-        expectThrows(TooComplexToDeterminizeException.class, regExp::toAutomaton);
+        long workLimit = 2_000_000;
+        Re2RegExp regExp = new Re2RegExp("a{0,1000}a{0,1000}(){1000}(){1000}b", FLAGS);
+        Automaton automaton = regExp.toAutomaton();
+        assertThat((automaton.getNumStates() + automaton.getNumTransitions()) * 64L, lessThan(workLimit / 2));
+        expectThrows(TooComplexToDeterminizeException.class, () -> regExp.toAutomaton(null, null, workLimit));
     }
 
     /** A class of {@code ranges} single runes, every other one from U+1000, so that none merges with the next. */

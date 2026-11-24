@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.parquet.write;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -75,6 +76,8 @@ public class ParquetFlushTriggersIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // the engine has no row path, and the test cluster turns this kill switch off for some seeds
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
             .put(Environment.PATH_REPO_SETTING.getKey(), repoRoot)
             // a shard that has had no write for a second is idle, and the node looks every second
             .put("indices.memory.shard_inactive_time", "1s")

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.parquet.write;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -40,6 +41,15 @@ public class ParquetLinkageFailureIT extends ESIntegTestCase {
         protected ShardTable openTable(ShardId shardId, Settings indexSettings, String historyUuid) throws IOException {
             throw new NoClassDefFoundError("org/apache/iceberg/TableMetadata");
         }
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // the engine has no row path, and the test cluster turns this kill switch off for some seeds
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
+            .build();
     }
 
     @Override

@@ -22,6 +22,7 @@ import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -61,6 +62,15 @@ public class ParquetWriteEngineIT extends ESIntegTestCase {
 
     private static final String INDEX = "parquet-index";
     private static final long BASE_TIMESTAMP = 1_700_000_000_000L;
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // the engine has no row path, and the test cluster turns this kill switch off for some seeds
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

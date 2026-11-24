@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStringPattern;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,24 +72,11 @@ public final class AutomatonUtils {
      * Extracts an exact match if the automaton matches only a single string.
      *
      * @param automaton the automaton to analyze
-     * @return the single matched string, or null if it matches zero or multiple strings
+     * @return the single matched string, or null if it matches zero or multiple strings, or one no keyword can hold
+     * @see AbstractStringPattern#exactMatch(Automaton)
      */
     public static String matchesExact(Automaton automaton) {
-        if (automaton.getNumStates() == 0) {
-            return null; // Empty automaton
-        }
-        IntsRef singleton = Operations.getSingleton(automaton);
-        if (singleton == null) {
-            return null;
-        }
-        for (int i = singleton.offset; i < singleton.offset + singleton.length; i++) {
-            // a surrogate code point, as RE2's \x{D800} names, is in no valid UTF-8 and so in no label value; as a keyword
-            // it would encode to U+FFFD and match that, so the regex is matched as it is, which no value matches
-            if (singleton.ints[i] >= Character.MIN_SURROGATE && singleton.ints[i] <= Character.MAX_SURROGATE) {
-                return null;
-            }
-        }
-        return UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length);
+        return AbstractStringPattern.exactMatch(automaton);
     }
 
     /**
@@ -277,13 +263,9 @@ public final class AutomatonUtils {
             return null;
         }
 
+        // the anchors are taken off each part, which keeps a part that can't be lowered as it is written: in RE2 an anchor
+        // can be quantified, as in ^*prod, and a $ can be escaped, as in prod\$, so the part without it may not compile
         String normalized = pattern;
-
-        // Remove anchors
-        normalized = removeStartingAnchor(normalized);
-        normalized = removeEndingAnchor(normalized);
-
-        // Check for alternation pattern
 
         // Avoid nested groups
         if (normalized.contains("(") || normalized.contains(")")) {
@@ -308,7 +290,8 @@ public final class AutomatonUtils {
 
         // same string IS a regex pattern and thus search for |
         // which gets optimized internally by the JVM
-        String[] parts = normalized.split("\\|");
+        // and an empty alternative, as in foo|, matches the empty value, so it is kept
+        String[] parts = normalized.split("\\|", -1);
         if (parts.length > MAX_IN_VALUES) {
             return null; // too many parts
         }

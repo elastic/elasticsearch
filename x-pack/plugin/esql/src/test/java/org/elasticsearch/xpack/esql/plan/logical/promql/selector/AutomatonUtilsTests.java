@@ -200,6 +200,20 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments.get(1).value(), equalTo(" foo"));
     }
 
+    public void testExtractFragments_EmptyAlternative() {
+        // an empty alternative matches the empty value wherever it is
+        assertFragments(extractFragments("foo|"), new Object[][] { { EXACT, "foo" }, { EXACT, "" } });
+        assertFragments(extractFragments("|foo"), new Object[][] { { EXACT, "" }, { EXACT, "foo" } });
+        assertFragments(extractFragments("a||b"), new Object[][] { { EXACT, "a" }, { EXACT, "" }, { EXACT, "b" } });
+    }
+
+    public void testExtractFragments_PartThatIsNotLoweredKeepsItsAnchors() {
+        // a quantified anchor and an escaped $ aren't anchors to take off, so the part is matched as it is written
+        assertFragments(extractFragments("^*prod.*"), new Object[][] { { REGEX, "^*prod.*" } });
+        assertFragments(extractFragments("prod\\$"), new Object[][] { { REGEX, "prod\\$" } });
+        assertFragments(extractFragments("a|^*b"), new Object[][] { { EXACT, "a" }, { REGEX, "^*b" } });
+    }
+
     public void testExtractFragments_RegexMetacharactersInAlternation() {
         // Pattern with regex metacharacters - should classify correctly
         List<PatternFragment> fragments = extractFragments("test.*|prod[0-9]");

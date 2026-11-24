@@ -62,12 +62,28 @@ public abstract class AbstractStringPattern implements StringPattern, NodeString
 
     @Override
     public String exactMatch() {
-        Automaton a = automaton();
+        return exactMatch(automaton());
+    }
+
+    /**
+     * The only string {@code a} accepts, or null if it accepts none or several. A string with a surrogate code point, as
+     * RE2's {@code \x{D800}} names, is null too: it is in no valid UTF-8 and so in no indexed value, but as a keyword it
+     * would encode to U+FFFD and match that, so it is matched as a pattern, which no value matches.
+     */
+    public static String exactMatch(Automaton a) {
         if (a.getNumStates() == 0) { // workaround for https://github.com/elastic/elasticsearch/pull/128887
             return null; // Empty automaton has no matches
         }
         IntsRef singleton = Operations.getSingleton(a);
-        return singleton != null ? UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length) : null;
+        if (singleton == null) {
+            return null;
+        }
+        for (int i = singleton.offset; i < singleton.offset + singleton.length; i++) {
+            if (singleton.ints[i] >= Character.MIN_SURROGATE && singleton.ints[i] <= Character.MAX_SURROGATE) {
+                return null;
+            }
+        }
+        return UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length);
     }
 
     /**

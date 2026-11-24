@@ -63,11 +63,17 @@ public final class Re2RegExp {
     public static final long BYTES_PER_INSTRUCTION = 256L;
 
     /**
+     * Work units per state or transition built, against one per instruction a closure walks, as a Lucene regular
+     * expression's build weighs them.
+     */
+    private static final long WORK_PER_BUILT_STATE_OR_TRANSITION = 64L;
+
+    /**
      * Most states and transitions one build may make: as many as {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT} lets a
      * Lucene regular expression build. Concatenated repeats of a class with many ranges, such as {@code \pL{1000}\pL{1000}},
      * pass the parser's limit on nested repeats and add a transition per range per copy.
      */
-    static final long MAX_BUILT_STATES_AND_TRANSITIONS = CircuitBreakingRegExp.DEFAULT_WORK_LIMIT / 64L;
+    static final long MAX_BUILT_STATES_AND_TRANSITIONS = CircuitBreakingRegExp.DEFAULT_WORK_LIMIT / WORK_PER_BUILT_STATE_OR_TRANSITION;
 
     /**
      * Peak bytes per state and per transition while building: the builder's entries with growth headroom, the finished
@@ -81,7 +87,9 @@ public final class Re2RegExp {
     /**
      * The automaton accepting the strings the expression matches whole; it is not determinized.
      *
-     * @throws TooComplexToDeterminizeException if it has more than {@link #MAX_BUILT_STATES_AND_TRANSITIONS}
+     * @throws TooComplexToDeterminizeException if building it takes more work than {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT}:
+     *         a unit per instruction the empty moves from each state walk, and {@link #WORK_PER_BUILT_STATE_OR_TRANSITION}
+     *         per state and transition it has
      */
     public Automaton toAutomaton() {
         return toAutomaton(null, null);
@@ -229,6 +237,11 @@ public final class Re2RegExp {
         private final String label;
         private long states;
         private long transitions;
+        /**
+         * The instructions the closures walked: a closure may walk a long run of empty moves, such as {@code (){1000}},
+         * from every state and add few transitions, so the walk is bounded as well as what it builds.
+         */
+        private long steps;
         private long reserved;
 
         Builder(Program prog, CircuitBreaker breaker, String label) {
@@ -300,11 +313,16 @@ public final class Re2RegExp {
             automaton.addTransition(from, to, min, max);
         }
 
-        /** Stops the build past its bound, and reserves what it has grown by on the breaker. */
-        private void charge() {
-            if (states + transitions > MAX_BUILT_STATES_AND_TRANSITIONS) {
+        /** Stops the build past its work limit. */
+        private void checkWork() {
+            if (steps + (states + transitions) * WORK_PER_BUILT_STATE_OR_TRANSITION > CircuitBreakingRegExp.DEFAULT_WORK_LIMIT) {
                 throw new TooComplexToDeterminizeException(Automata.makeEmpty(), CircuitBreakingRegExp.DEFAULT_WORK_LIMIT);
             }
+        }
+
+        /** Stops the build past its work limit, and reserves what it has grown by on the breaker. */
+        private void charge() {
+            checkWork();
             if (breaker == null) {
                 return;
             }
@@ -337,6 +355,8 @@ public final class Re2RegExp {
                     continue;
                 }
                 visitedIn[item] = closure;
+                steps++;
+                checkWork();
                 Instruction inst = prog.getInst(item >>> 4);
                 int next = item & ALL;
                 switch (inst.op) {

@@ -450,6 +450,15 @@ public class Re2RegExpTests extends ESTestCase {
         expectThrows(TooComplexToDeterminizeException.class, regExp::toAutomaton);
     }
 
+    /**
+     * The walk of the empty moves is bounded too: each of the 2,000 states after an {@code a} walks the 250,000 capture
+     * instructions of 125 copies of {@code (){1000}} to reach {@code b}, half a billion steps for a few thousand transitions.
+     */
+    public void testClosureWalkIsBounded() {
+        Re2RegExp regExp = new Re2RegExp("a{0,1000}a{0,1000}" + "(){1000}".repeat(125) + "b", FLAGS);
+        expectThrows(TooComplexToDeterminizeException.class, regExp::toAutomaton);
+    }
+
     /** A class of {@code ranges} single runes, every other one from U+1000, so that none merges with the next. */
     private static String wideClass(int ranges) {
         StringBuilder regex = new StringBuilder("[");

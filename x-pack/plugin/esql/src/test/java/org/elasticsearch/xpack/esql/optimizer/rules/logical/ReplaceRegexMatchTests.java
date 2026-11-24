@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -89,6 +91,16 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
         assertEquals("abc", BytesRefs.toString(eq.right().fold(FoldContext.small())));
+    }
+
+    /**
+     * A surrogate code point, as RE2's {@code \x{D800}} names, is in no indexed value, but as a keyword it would encode to
+     * U+FFFD and match that, so the match stays as it is, which no value matches.
+     */
+    public void testSurrogateIsNotReplacedByEquality() {
+        FieldAttribute fa = getFieldAttribute();
+        Re2Like l = new Re2Like(EMPTY, fa, new Re2Pattern(randomFrom("\\x{D800}", "a\\x{DFFF}")));
+        assertEquals(l, replaceRegexMatch(l));
     }
 
     public void testLikePrefixDecomposesToStartsWith() {

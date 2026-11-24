@@ -13,8 +13,6 @@
   <suppress files="plugin[/\\]sql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]SqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
   <suppress files="plugin[/\\]eql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]eql[/\\]parser[/\\]EqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
   <suppress files="plugin[/\\]esql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]esql[/\\]parser[/\\](EsqlBase|PromqlBase)(Parser|Lexer).*.java" checks="." />
-  <!-- These files are forked from RE2/J and kept as RE2/J has them, so that they diff against it. -->
-  <suppress files="plugin[/\\]esql[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]esql[/\\]core[/\\]expression[/\\]predicate[/\\]regex[/\\]re2[/\\]" checks="." />
   <suppress files="x-pack[/\\]plugin[/\\]otel-data[/\\]build[/\\]generated[/\\]sources[/\\]" checks="." />
   <suppress files="x-pack[/\\]plugin[/\\]prometheus[/\\]build[/\\]generated[/\\]sources[/\\]" checks="." />
 

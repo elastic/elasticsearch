@@ -205,10 +205,11 @@ public class ExternalSourceResolver {
      * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
      * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
      * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
-     * leaves a few megabytes of slack at the default discovered-files cap. A file with its own attribute list
-     * can exceed it.
+     * leaves a few megabytes of slack at the discovered-files floor. A file with its own attribute list
+     * can exceed it. Package-visible so {@link ExternalSourceSettings} can size the discovered-files
+     * default from the same billed bytes.
      */
-    private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
+    static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
     /**
@@ -3153,7 +3154,7 @@ public class ExternalSourceResolver {
      * would re-key - and re-read - every file each time it does. Rounded, the keys move only when the count crosses a
      * power of two, and stop moving once the per-file floor is reached.
      * <p>
-     * Deliberately not clamped: listings are capped at 1,000,000 files by
+     * Deliberately not clamped: listings are capped at 10,000,000 files by
      * {@link ExternalSourceSettings#MAX_DISCOVERED_FILES}, far below the first {@code int} overflow at {@code 2^30}.
      */
     static int schemaSampleShare(int fileCount) {

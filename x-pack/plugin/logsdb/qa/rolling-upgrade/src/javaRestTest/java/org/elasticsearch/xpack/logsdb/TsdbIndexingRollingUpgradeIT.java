@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexFeatures;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,7 +36,10 @@ import static org.elasticsearch.xpack.logsdb.TsdbIT.getTemplate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
@@ -48,7 +53,11 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         Boolean disableSeqNo = oldClusterHasFeature(IndexFeatures.TIME_SERIES_NO_SEQNO) ? randomBoolean() : null;
 
         String dataStreamName = "k9s";
-        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), getTemplate(useSyntheticId, disableSeqNo));
+        createTemplate(
+            dataStreamName,
+            getClass().getSimpleName().toLowerCase(Locale.ROOT),
+            templateWithNetworkGauges(useSyntheticId, disableSeqNo)
+        );
 
         Instant startTime = Instant.now().minusSeconds(60 * 60);
         bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
@@ -80,6 +89,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         ensureGreen(dataStreamName);
         search(dataStreamName);
         query(dataStreamName);
+        queryTimeSeries(dataStreamName);
 
         AtomicReference<Instant> startTimeRef = new AtomicReference<>(startTime);
         clusterRollingUpgrade(index -> {
@@ -87,6 +97,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
             bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
+            queryTimeSeries(dataStreamName);
         });
 
         var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
@@ -96,6 +107,18 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         ensureGreen(dataStreamName);
         search(dataStreamName);
         query(dataStreamName);
+        queryTimeSeries(dataStreamName);
+    }
+
+    /**
+     * The shared TSDB template, with the network fields mapped as gauges. {@code METRICS_INFO} and {@code TS_INFO} only report
+     * fields that are time series metrics.
+     */
+    private static String templateWithNetworkGauges(Boolean useSyntheticId, Boolean disableSeqNo) {
+        String template = getTemplate(useSyntheticId, disableSeqNo);
+        String withGauges = template.replace("\"type\": \"long\"", "\"type\": \"long\", \"time_series_metric\": \"gauge\"");
+        assertThat("expected the network fields to be mapped as long", withGauges, not(equalTo(template)));
+        return withGauges;
     }
 
     static String docSupplier(Instant time, int j) {
@@ -182,6 +205,73 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         assertThat(maxRx, notNullValue());
         Long maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
         assertThat(maxTx, notNullValue());
+    }
+
+    /**
+     * Runs {@code TS}, {@code METRICS_INFO} and {@code TS_INFO} against the data stream. Each command only runs once every node
+     * supports it, so in a mixed cluster the old and new nodes exchange its plans and pages.
+     */
+    void queryTimeSeries(String dataStreamName) throws Exception {
+        if (clusterSupportsEsql("ts_command_v0")) {
+            Map<String, Object> response = esql(
+                "TS " + dataStreamName + " | STATS max_rx = max(max_over_time(k8s.pod.network.rx)) BY metricset | LIMIT 10"
+            );
+            List<List<Object>> rows = ObjectPath.evaluate(response, "values");
+            assertThat(rows, hasSize(1));
+            assertThat(column(response, rows.getFirst(), "metricset"), equalTo("pod"));
+            assertThat(column(response, rows.getFirst(), "max_rx"), notNullValue());
+        }
+        if (clusterSupportsEsql("metrics_info_command")) {
+            Map<String, Object> response = esql("TS " + dataStreamName + " | METRICS_INFO | SORT metric_name | LIMIT 10");
+            List<List<Object>> rows = ObjectPath.evaluate(response, "values");
+            assertThat(rows, hasSize(2));
+            assertThat(column(response, rows.get(0), "metric_name"), equalTo("k8s.pod.network.rx"));
+            assertThat(column(response, rows.get(1), "metric_name"), equalTo("k8s.pod.network.tx"));
+            for (List<Object> row : rows) {
+                assertThat(column(response, row, "data_stream"), equalTo(dataStreamName));
+                assertThat(column(response, row, "metric_type"), equalTo("gauge"));
+            }
+        }
+        if (clusterSupportsEsql("ts_info_command")) {
+            // Every document has its own uid, so there are far more series than the limit. The limit is pushed down to
+            // TS_INFO, which sends it to the data nodes with the plan.
+            Map<String, Object> response = esql("TS " + dataStreamName + " | TS_INFO | KEEP metric_name, data_stream | LIMIT 10");
+            List<List<Object>> rows = ObjectPath.evaluate(response, "values");
+            assertThat(rows, hasSize(10));
+            for (List<Object> row : rows) {
+                assertThat(column(response, row, "metric_name"), oneOf("k8s.pod.network.rx", "k8s.pod.network.tx"));
+                assertThat(column(response, row, "data_stream"), equalTo(dataStreamName));
+            }
+        }
+    }
+
+    /** Whether every node supports the ES|QL capability. */
+    private static boolean clusterSupportsEsql(String capability) throws IOException {
+        Request request = new Request("GET", "/_capabilities");
+        request.addParameter("method", "POST");
+        request.addParameter("path", "/_query");
+        request.addParameter("capabilities", capability);
+        Response response = client().performRequest(request);
+        assertOK(response);
+        return Boolean.TRUE.equals(entityAsMap(response).get("supported"));
+    }
+
+    private static Map<String, Object> esql(String query) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("query", query).endObject()));
+        Response response = client().performRequest(request);
+        assertOK(response);
+        return entityAsMap(response);
+    }
+
+    private static Object column(Map<String, Object> response, List<Object> row, String name) throws IOException {
+        List<Map<String, Object>> columns = ObjectPath.evaluate(response, "columns");
+        for (int i = 0; i < columns.size(); i++) {
+            if (name.equals(columns.get(i).get("name"))) {
+                return row.get(i);
+            }
+        }
+        throw new AssertionError("no column [" + name + "] in " + columns);
     }
 
     static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {

@@ -31,7 +31,7 @@ public class EsqlBaseParser extends ParserConfig {
     RERANK=14, ROW=15, SAMPLE=16, SORT=17, STATS=18, WHERE=19, URI_PARTS=20, 
     METRICS_INFO=21, REGISTERED_DOMAIN=22, TS_INFO=23, USER_AGENT=24, TS_COLLAPSE=25, 
     IP_LOCATION=26, DEV_DESCRIBE=27, DEV_FILLNULL=28, FROM=29, TS=30, DEV_EXTERNAL=31, 
-    DEV_EQL=32, FORK=33, DEV_LET=34, FUSE=35, HIGHLIGHT=36, INLINE=37, INLINESTATS=38, 
+    DEV_EQL=32, FORK=33, LET=34, FUSE=35, HIGHLIGHT=36, INLINE=37, INLINESTATS=38, 
     DEV_INTO=39, JOIN_LOOKUP=40, DEV_JOIN_FULL=41, DEV_JOIN_LEFT=42, DEV_JOIN_INNER=43, 
     DEV_JOIN_RIGHT=44, DEV_LOOKUP=45, MMR=46, MV_EXPAND=47, DEV_NESTED_EXPAND=48, 
     DROP=49, KEEP=50, PROMQL=51, RENAME=52, SET=53, SHOW=54, UNKNOWN_CMD=55, 
@@ -156,7 +156,7 @@ public class EsqlBaseParser extends ParserConfig {
       "'rerank'", "'row'", "'sample'", "'sort'", null, "'where'", "'uri_parts'", 
       "'metrics_info'", "'registered_domain'", "'ts_info'", "'user_agent'", 
       "'ts_collapse'", "'ip_location'", null, null, "'from'", "'ts'", null, 
-      null, "'fork'", null, "'fuse'", "'highlight'", "'inline'", "'inlinestats'", 
+      null, "'fork'", "'let'", "'fuse'", "'highlight'", "'inline'", "'inlinestats'", 
       null, "'lookup'", null, null, null, null, null, "'mmr'", "'mv_expand'", 
       null, "'drop'", "'keep'", "'promql'", "'rename'", "'set'", "'show'", 
       null, null, null, null, null, null, null, null, null, null, null, null, 
@@ -183,7 +183,7 @@ public class EsqlBaseParser extends ParserConfig {
       "GROK", "LIMIT", "RERANK", "ROW", "SAMPLE", "SORT", "STATS", "WHERE", 
       "URI_PARTS", "METRICS_INFO", "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", 
       "TS_COLLAPSE", "IP_LOCATION", "DEV_DESCRIBE", "DEV_FILLNULL", "FROM", 
-      "TS", "DEV_EXTERNAL", "DEV_EQL", "FORK", "DEV_LET", "FUSE", "HIGHLIGHT", 
+      "TS", "DEV_EXTERNAL", "DEV_EQL", "FORK", "LET", "FUSE", "HIGHLIGHT", 
       "INLINE", "INLINESTATS", "DEV_INTO", "JOIN_LOOKUP", "DEV_JOIN_FULL", 
       "DEV_JOIN_LEFT", "DEV_JOIN_INNER", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MMR", 
       "MV_EXPAND", "DEV_NESTED_EXPAND", "DROP", "KEEP", "PROMQL", "RENAME", 
@@ -6957,7 +6957,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class LetCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_LET() { return getToken(EsqlBaseParser.DEV_LET, 0); }
+    public TerminalNode LET() { return getToken(EsqlBaseParser.LET, 0); }
     public LetBindingContext letBinding() {
       return getRuleContext(LetBindingContext.class,0);
     }
@@ -6989,7 +6989,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(911);
-      match(DEV_LET);
+      match(LET);
       setState(912);
       letBinding();
       setState(913);

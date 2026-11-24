@@ -466,7 +466,7 @@ setField
     ;
 
 letCommand
-    : DEV_LET letBinding SEMICOLON
+    : LET letBinding SEMICOLON
     ;
 
 letBinding

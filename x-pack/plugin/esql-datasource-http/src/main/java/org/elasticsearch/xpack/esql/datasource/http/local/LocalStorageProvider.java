@@ -21,6 +21,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -85,7 +86,7 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new IOException("Directory does not exist: " + prefix.objectName());
+            throw new NoSuchFileException(prefix.objectName());
         }
 
         if (Files.isDirectory(dirPath) == false) {
@@ -108,7 +109,7 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new IOException("Directory does not exist: " + prefix.objectName());
+            throw new NoSuchFileException(prefix.objectName());
         }
         if (Files.isDirectory(dirPath) == false) {
             throw new IOException("Path is not a directory: " + prefix.objectName());
@@ -123,7 +124,7 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new IOException("Directory does not exist: " + prefix.objectName());
+            throw new NoSuchFileException(prefix.objectName());
         }
         if (Files.isDirectory(dirPath) == false) {
             throw new IOException("Path is not a directory: " + prefix.objectName());

@@ -47,10 +47,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
- * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
+ * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
+ * charges the query breaker and coordinating indexing pressure.
  */
 public final class IntoPageWriter {
-    static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory {
@@ -105,7 +105,7 @@ public final class IntoPageWriter {
             this.columns = columns;
             this.types = types;
             this.writer = indexing == Indexing.INDEX
-                ? bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity)
+                ? bulks.newWriter(client, breaker, destination, bulks.defaultPolicy(), this::onResponse, this::onCapacity)
                 : null;
         }
 

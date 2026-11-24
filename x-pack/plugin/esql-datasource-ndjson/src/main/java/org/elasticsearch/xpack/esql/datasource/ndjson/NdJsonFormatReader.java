@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -453,7 +452,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
             } catch (IOException e) {
                 try {
-                    object.abortStream(raw);
+                    raw.close();
                 } catch (IOException ignored) {}
                 throw e;
             }
@@ -474,7 +473,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 closed = true;
                 // only abort the raw stream; the PushbackInputStream/BufferedInputStream wrappers hold no external resources
-                object.abortStream(raw);
+                raw.close();
             }
         };
     }
@@ -612,7 +611,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // the connection (the schema sample touches only a small prefix). Wrapping the abort in
         // a Closeable lets try-with-resources attach any abort-time error as a suppressed
         // exception on the primary failure rather than replacing it.
-        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+        try (stream) {
             CountingInputStream counted = new CountingInputStream(stream);
             InputStream limited = Streams.limitStream(counted, schemaSampleBytes);
             List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();

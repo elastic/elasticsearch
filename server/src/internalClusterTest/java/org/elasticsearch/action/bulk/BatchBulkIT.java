@@ -4040,8 +4040,8 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * Bulk-indexes {@code sources} and asserts that the batch path did not take them: {@code ShardBatchMapper} reports that the mapping
-     * defines nested objects and {@code ShardBatchIndexer} never reports a batch indexed on the primary.
+     * Bulk-indexes {@code sources} and asserts that batch indexing was disabled because of the use of nested field types.
+     * Via followup changes will replace this assertion that batch indexing is enabled.
      */
     private void assertNestedBulkFallsBack(String index, Map<String, String> sources) {
         final Logger mapperLogger = LogManager.getLogger(ShardBatchMapper.class);

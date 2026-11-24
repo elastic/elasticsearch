@@ -27,21 +27,17 @@ import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
- * Oracle for nested fields on the columnar batch path (Phase 0 of elastic/elasticsearch#167077).
+ * Tests for nested fields on the columnar batch path (Phase 0 of elastic/elasticsearch#167077).
  * <p>
  * Today {@code ShardBatchMapper#resolveMappers} sends every batch to the sequential path when the mapping has a {@code nested}
- * mapper, so the batch path cannot yet be compared with x-content. This class therefore has three parts:
+ * mapper, so the batch path cannot be compared with x-content yet. The tests are in three groups:
  * <ul>
- *   <li><b>Parity scenarios.</b> They go through {@link #assertNestedParity}, which today checks that the sequential path indexes
- *       the expected number of children for each nested path and that the batch path refuses the documents. Phase 1 step 3 changes
- *       its body to {@link #assertColumnarMatchesXContent}, which compares the block of every document with x-content.</li>
- *   <li><b>Fallback pins.</b> They check that a shape the batch path must not take is refused. They pass today because the whole
- *       mapping falls back, and they must keep passing when the refusal moves into the nested shredder.</li>
- *   <li><b>Row-path probes.</b> They record what the sequential path does with shapes that the plan does not pin down yet, so that
- *       Phase 1 can accept or refuse each one on facts.</li>
+ *   <li>Parity scenarios: for now they check the child counts on the sequential path and that the batch path refuses. Phase 1 changes
+ *       {@link #assertNestedParity} to compare with x-content, using {@link #assertColumnarMatchesXContent}.</li>
+ *   <li>Fallback pins: shapes that the batch path must refuse. They must still pass when the refusal moves into the nested shredder.</li>
+ *   <li>Row path probes: what the sequential path does with shapes that are not decided yet.</li>
  * </ul>
- * Runtime fields have no fallback pin: every strict-columnar index mode rejects them at mapping time, so a runtime field that
- * shadows a child path cannot exist in these modes.
+ * There is no fallback pin for runtime fields, because the strict columnar modes reject them at mapping time.
  */
 public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
@@ -53,15 +49,15 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
 
     /** What the sequential path does with the sources of a fallback pin. */
     private enum RowPath {
-        /** It indexes them, which proves that the sources are legal and the refusal is not vacuous. */
+        /** It indexes them, so the sources are valid. */
         ACCEPTS,
-        /** It rejects them with a document error that the batch path cannot report, so the batch path must refuse. */
+        /** It fails with a document error, which only the sequential path can report. */
         REJECTS,
-        /** It trips an assertion, see {@link #testProbeDottedKeysIntoNestedTripAnAssertion}, so there is nothing to assert about it. */
+        /** It trips an assertion, see {@link #testProbeDottedKeysIntoNestedTripAnAssertion}. */
         ASSERTS
     }
 
-    /** The child documents that one input document must index: the number of children for each nested path. */
+    /** The number of children for each nested path. */
     private record ExpectedChildren(Map<String, Integer> countByPath) {}
 
     /** An input document and the children that the sequential path indexes for it. */
@@ -74,10 +70,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }
     }
 
-    /**
-     * An input document with no routing, version {@code 1} and sequence number {@code seqNo}. {@code pathsAndCounts} alternates a
-     * nested path and the number of children that path must have, for example {@code "n", 2, "other", 1}; omit it for no children.
-     */
+    /** A document without routing. {@code pathsAndCounts} alternates a nested path and its number of children, like {@code "n", 2}. */
     private static NestedDoc nd(String id, long seqNo, String source, Object... pathsAndCounts) {
         final Map<String, Integer> counts = new TreeMap<>();
         for (int i = 0; i < pathsAndCounts.length; i += 2) {
@@ -98,7 +91,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         return mode == IndexMode.LOGSDB_COLUMNAR;
     }
 
-    /** A mapping of {@code fields} that also maps {@code @timestamp} in the modes that need it. */
+    /** A mapping of {@code fields}, plus {@code @timestamp} where the mode needs it. */
     private static XContentBuilder mappingFor(IndexMode mode, CheckedConsumer<XContentBuilder, IOException> fields) throws IOException {
         return mapping(b -> {
             if (needsTimestamp(mode)) {
@@ -108,7 +101,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         });
     }
 
-    /** A JSON object of {@code members}, which also holds an {@code @timestamp} in the modes that need it. */
+    /** A JSON object of {@code members}, plus {@code @timestamp} where the mode needs it. */
     private static String src(IndexMode mode, String members) {
         final List<String> all = new ArrayList<>();
         if (needsTimestamp(mode)) {
@@ -120,7 +113,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         return "{" + String.join(",", all) + "}";
     }
 
-    /** The standard nested mapping of these tests: a root {@code host} and {@code n} with a keyword {@code k} and a long {@code v}. */
+    /** A root {@code host}, and a nested {@code n} with a keyword {@code k} and a long {@code v}. */
     private static CheckedConsumer<XContentBuilder, IOException> hostAndN() {
         return b -> {
             b.startObject("host").field("type", "keyword").endObject();
@@ -132,10 +125,9 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     }
 
     /**
-     * Parity check of {@code scenarios} against x-content, in every strict-columnar mode and, where the mode supports it, with
-     * {@code columnar_stored} source. {@code sources} is a function of the mode because only some modes need an {@code @timestamp}.
-     * <p>
-     * Until the batch path maps nested values this is a guard rather than the real comparison; see the class comment.
+     * Runs {@code scenarios} in every strict columnar mode, with {@code columnar_stored} source where the mode supports it. The
+     * scenarios depend on the mode, because only some modes need {@code @timestamp}. For now this checks the child counts on the
+     * sequential path and that the batch path refuses; Phase 1 changes it to compare with x-content.
      */
     private void assertNestedParity(
         CheckedConsumer<XContentBuilder, IOException> fields,
@@ -177,7 +169,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }
     }
 
-    /** The number of children that the sequential path indexes for {@code doc}, by the value of their {@code _nested_path}. */
+    /** The number of children that the sequential path indexes for {@code doc}, by {@code _nested_path}. */
     private static Map<String, Integer> childCounts(MapperService mapperService, Doc doc) throws IOException {
         final ParsedDocument parsed = mapperService.documentMapper()
             .parse(
@@ -298,10 +290,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
-    /**
-     * Provided {@code _id}s on the children, with the columnar id mode on and off, because the children carry the identity term
-     * and, in the columnar id mode, a doc-values copy of the id.
-     */
+    /** Provided {@code _id}s on the children, with the columnar id mode on and off. */
     public void testChildIds() throws IOException {
         for (boolean columnarId : new boolean[] { true, false }) {
             assertNestedParity(
@@ -319,7 +308,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }
     }
 
-    /** A child keyword value above {@code ignore_above} is not indexed, and the root document records it in {@code _ignored}. */
+    /** A child value above {@code ignore_above} is recorded in {@code _ignored} of the root document. */
     public void testIgnoreAboveOnChild() throws IOException {
         assertNestedParity(b -> {
             b.startObject("n").field("type", "nested").startObject("properties");
@@ -379,7 +368,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
-    /** A nested field under a plain object: the nested mapper is a direct root child with the full path {@code meta.comments}. */
+    /** A nested field under a plain object has the full path {@code meta.comments}. */
     public void testNestedUnderPlainObject() throws IOException {
         assertNestedParity(b -> {
             b.startObject("meta").startObject("properties");
@@ -412,10 +401,8 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     // ---------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * Asserts that the batch path refuses {@code sources} for a mapping of {@code fields} in every strict-columnar mode, with both
-     * source modes where the mode supports them. {@code rowPath} says what the sequential path does with the sources: when it accepts
-     * them, the pin also proves that the sources are legal, so that the refusal is not vacuous; when it rejects them, the sequential path
-     * must report the document error that the batch path cannot.
+     * Asserts that the batch path refuses {@code sources} in every strict columnar mode, with both source modes where the mode supports
+     * them. {@code rowPath} says what the sequential path does with the sources.
      */
     private void assertRefusedInAllModes(
         CheckedConsumer<XContentBuilder, IOException> fields,
@@ -455,8 +442,8 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     }
 
     /**
-     * {@code include_in_parent} and {@code include_in_root} copy the children's fields into another document. Strict columnar will
-     * reject them at mapping time once elastic/elasticsearch#166393 merges; until then, and in older indices, the batch path refuses.
+     * {@code include_in_parent} and {@code include_in_root} copy the child fields to another document. Strict columnar will reject them
+     * at mapping time once elastic/elasticsearch#166393 merges; until then the batch path refuses them.
      */
     public void testIncludeInParentAndRootFallBack() throws IOException {
         for (String include : List.of("include_in_parent", "include_in_root")) {
@@ -468,7 +455,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }
     }
 
-    /** Nested fields in an index that is not strict columnar, here {@code time_series}, which can have {@code index.batch_indexing}. */
+    /** A nested field in a {@code time_series} index, which is not strict columnar, with {@code index.batch_indexing} enabled. */
     public void testNestedInNonColumnarModeFallsBack() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
@@ -490,8 +477,8 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     }
 
     /**
-     * An object value inside a nested element makes an extra level of child documents under {@code subobjects: false}, which is how
-     * the columnar modes map objects (see {@code SyntheticVersusColumnarStoredSourceIT#testNestedWithObjectArraySubfield}).
+     * An object inside a nested element makes an extra level of child documents, see
+     * {@code SyntheticVersusColumnarStoredSourceIT#testNestedWithObjectArraySubfield}.
      */
     public void testObjectArrayInsideElementFallsBack() throws IOException {
         assertRefusedInAllModes(b -> {
@@ -511,7 +498,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
-    /** An object inside an element arrives as a {@code KEY_VALUE} blob inside the element. */
+    /** An object inside an element arrives as a {@code KEY_VALUE} blob. */
     public void testObjectInsideElementFallsBack() throws IOException {
         assertRefusedInAllModes(b -> {
             b.startObject("n").field("type", "nested").startObject("properties");
@@ -568,7 +555,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }
     }
 
-    /** A floating-point number inside an element does not keep its lexical form in the blob, so it cannot go to a keyword child. */
+    /** A floating-point number in the blob does not keep its lexical form, so it cannot go to a keyword child. */
     public void testFloatingPointValueOnKeywordChildFallsBack() throws IOException {
         assertRefusedInAllModes(
             hostAndN(),
@@ -578,7 +565,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         );
     }
 
-    /** A missing or null value for a child with {@code nullability: false} is a document error that only the sequential path reports. */
+    /** A missing child value with {@code nullability: false} is a document error, which only the sequential path reports. */
     public void testNullabilityViolationOnChildFallsBack() throws IOException {
         assertRefusedInAllModes(b -> {
             b.startObject("n").field("type", "nested").startObject("properties");
@@ -592,16 +579,13 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     // ---------------------------------------------------------------------------------------------------------------------------
 
     /**
-     * A dotted key that crosses the nested boundary, as in {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, makes the
-     * sequential path of the columnar modes trip an assertion in {@code DocumentParser#getLeafMapper}: the root finds no mapper for
-     * the dotted name, then finds the child's field type and takes it for a runtime field, which the assertion rejects. Reading the
-     * code, a production node, which runs without assertions, takes the no-op mapper for a runtime field and drops the value. It is
-     * lost for good: it is not indexed, and in these modes it is not in {@code _source} either, because the source is rebuilt from
-     * the mapped fields and the no-op mapper writes none. We did not run this without assertions to confirm it.
+     * A dotted key across the nested boundary, like {@code {"n.k":"a"}} or {@code {"meta":{"comments.text":"a"}}}, trips an assertion
+     * in {@code DocumentParser#getLeafMapper}: the root finds no mapper for the dotted name, finds the child's field type and takes it
+     * for a runtime field. Without assertions the no-op mapper for runtime fields drops the value, and in these modes it is then also
+     * missing from {@code _source}, because the source is rebuilt from the mapped fields. We read this in the code and did not run it
+     * without assertions.
      * <p>
-     * Phase 1 must therefore refuse these shapes, which keeps today's behavior exactly, and not map them as the object spelling.
-     * This probe fails when the sequential path starts to handle them; revisit the rule "a dotted key across the boundary falls back"
-     * then.
+     * Phase 1 must refuse these shapes. This probe fails when the sequential path starts to handle them.
      */
     public void testProbeDottedKeysIntoNestedTripAnAssertion() throws IOException {
         for (IndexMode mode : STRICT_COLUMNAR_MODES) {
@@ -619,10 +603,7 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }
     }
 
-    /**
-     * The dotted value spelling {@code {"meta.comments":[...]}} of a nested field under a plain object: unlike a dotted key that
-     * crosses the boundary, the sequential path indexes it, and gives the same children as the object spelling.
-     */
+    /** The dotted value spelling {@code {"meta.comments":[...]}} is indexed like the object spelling. */
     public void testProbeDottedValueSpelling() throws IOException {
         for (IndexMode mode : STRICT_COLUMNAR_MODES) {
             final MapperService mapperService = createMapperService(settings(mode), mappingFor(mode, b -> {
@@ -660,8 +641,8 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     }
 
     /**
-     * Both spellings in one row can only be written as a duplicate key, {@code {"n":[...],"n":{...}}}. The sequential path rejects a
-     * duplicate key, so the rule "a row uses both spellings" needs a fallback only if the ESCF encoder accepts such a row.
+     * Both spellings in one row can only be written as a duplicate key, which the sequential path rejects. The batch path needs a rule
+     * for it only if the ESCF encoder accepts such a row.
      */
     public void testProbeBothSpellingsInOneRow() throws IOException {
         for (IndexMode mode : STRICT_COLUMNAR_MODES) {

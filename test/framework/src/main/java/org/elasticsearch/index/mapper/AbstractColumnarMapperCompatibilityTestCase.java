@@ -364,7 +364,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     mc.setVersion(i, docs.get(i).version());
                 }
 
-                // Materialize the x-content blocks up front: for each input document, its nested children then its root.
+                // The expected blocks from x-content: the nested children of each document, then its root.
                 final IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
                 final List<DocBlock> xcBlocks = new ArrayList<>(docCount);
                 for (int i = 0; i < docCount; i++) {
@@ -395,7 +395,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     xcBlocks.add(toBlock(pd.docs(), indexVersionCreated));
                 }
 
-                // Materialize the blocks that the row cursor hands to the engine's row write, and compare them with x-content.
+                // Compare the blocks that the row cursor hands to the engine's row write with x-content.
                 final MappedColumns.RowCursor rowCursor = mc.rowCursor();
                 for (int i = 0; i < docCount; i++) {
                     assertBlocksEqual(
@@ -405,14 +405,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                     );
                 }
 
-                // A column batch holds one Lucene document per row: it has no place for nested children yet, so a scenario whose
-                // documents have children is compared through the row cursor only. Phase 1 of elastic/elasticsearch#167077 writes
-                // such rows through the row path, and Phase 2 gives toColumnBatch() the block layout and removes this skip.
+                // A column batch has one Lucene document per row and no place for nested children yet, so documents with children are
+                // only compared through the row cursor. Phase 2 of elastic/elasticsearch#167077 adds the block layout and removes this.
                 if (xcBlocks.stream().anyMatch(DocBlock::hasChildren)) {
                     return;
                 }
 
-                // Populate per-doc lists with column-batch descriptors and compare them with the x-content roots.
+                // Compare the column batch with the x-content roots.
                 final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
                 for (int i = 0; i < docCount; i++) {
                     descsPerDoc.add(new ArrayList<>());
@@ -447,10 +446,10 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     }
 
     /**
-     * Every Lucene document that one input document indexes, in the shape the engine writes them as one block: the nested children
-     * grouped by their {@code _nested_path}, each group in source order, and then the root document, which is always last.
+     * The Lucene documents of one input document, as the engine writes them in one block: the nested children grouped by
+     * {@code _nested_path}, each group in source order, then the root.
      *
-     * @param childrenByNestedPath the field sets of the children of each nested path; empty when the document has no children
+     * @param childrenByNestedPath the field sets of the children of each nested path; empty without children
      * @param root the field set of the root document
      */
     private record DocBlock(Map<String, List<List<FieldDescriptor>>> childrenByNestedPath, List<FieldDescriptor> root) {
@@ -460,10 +459,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
-    /**
-     * Groups the documents of a parsed document into a {@link DocBlock}. The last document is the root; every document before it is a
-     * child, and its {@code _nested_path} field names the group it belongs to.
-     */
+    /** Groups the documents of a parsed document: the last one is the root, and the others are children grouped by {@code _nested_path}. */
     private static DocBlock toBlock(List<LuceneDocument> documents, IndexVersion indexVersionCreated) {
         final String nestedPathField = NestedPathFieldMapper.name(indexVersionCreated);
         final Map<String, List<List<FieldDescriptor>>> children = new TreeMap<>();
@@ -480,19 +476,15 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     }
 
     /**
-     * Reads the next document of the batch the way the engine's row write does. Until the columnar path maps nested values, a batch
-     * hands over a root document only, so the block never has children. This is the one place that changes when
-     * {@code MappedColumns} gains a block cursor (Phase 1 of elastic/elasticsearch#167077).
+     * Reads the next document from the row cursor. For now a batch only has a root document, so the block has no children. Phase 1 of
+     * elastic/elasticsearch#167077 changes this when {@code MappedColumns} gets a block cursor.
      */
     private static DocBlock actualBlock(MappedColumns.RowCursor rowCursor) {
         rowCursor.advance();
         return new DocBlock(Map.of(), toDescriptors(rowCursor.fields()));
     }
 
-    /**
-     * Asserts that two blocks hold the same documents: the same nested paths, the same number of children for each path, equal field
-     * sets child by child in source order, and an equal root. The order of the nested paths themselves is not compared.
-     */
+    /** Asserts that two blocks have the same nested paths, the same children for each path in source order, and the same root. */
     private void assertBlocksEqual(DocBlock expected, DocBlock actual, String message) {
         assertEquals(message + ": nested paths", expected.childrenByNestedPath().keySet(), actual.childrenByNestedPath().keySet());
         for (Map.Entry<String, List<List<FieldDescriptor>>> entry : expected.childrenByNestedPath().entrySet()) {
@@ -526,12 +518,11 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     }
 
     /**
-     * Asserts that the batch path does not take these documents, so that production indexes them through the sequential path. The
-     * batch path can refuse in two places: {@code resolveMappers} refuses the mapping and schema, or {@code mapColumnBatch} returns
-     * {@code null} for the data. This helper accepts either, because a test that pins "falls back" must not also pin where; the
-     * place changes when nested values are mapped on the columnar path (Phase 1 of elastic/elasticsearch#167077).
+     * Asserts that the batch path does not take these documents, so production indexes them through the sequential path. The batch
+     * path can refuse in {@code resolveMappers} or in {@code mapColumnBatch}, which returns {@code null} for the data. Both are
+     * accepted, so a test does not depend on where Phase 1 of elastic/elasticsearch#167077 moves the refusal.
      *
-     * @return the place of the refusal, for the tests of this harness that must prove that both places are reached
+     * @return where the batch path refused
      */
     protected final BatchRefusal assertBatchPathRefuses(MapperService mapperService, SourceEncoder encoder, String... sources)
         throws IOException {

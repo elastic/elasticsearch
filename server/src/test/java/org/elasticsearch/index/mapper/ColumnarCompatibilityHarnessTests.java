@@ -73,10 +73,8 @@ public class ColumnarCompatibilityHarnessTests extends AbstractColumnarMapperCom
     }
 
     /**
-     * {@code assertBatchPathRefuses} must reach {@code mapColumnBatch} for a batch that {@code resolveMappers} accepts, and must pass
-     * when that returns {@code null}. A {@code null} value breaks {@code nullability: false}, which only the data shows. Without this
-     * test a broken request or context setup, which makes every {@code mapColumnBatch} return {@code null}, would let the fallback pins
-     * pass without testing anything.
+     * The mapping is accepted by {@code resolveMappers}, but the nulls are not allowed, so batch indexing falls back.
+     * This should fail late when actually mapping the column, because null validation depends on reading the source column.
      */
     public void testBatchRefusalByMapColumnBatchIsAccepted() throws IOException {
         final MapperService mapperService = createMapperService(
@@ -91,7 +89,7 @@ public class ColumnarCompatibilityHarnessTests extends AbstractColumnarMapperCom
         }
     }
 
-    /** A refusal by {@code resolveMappers}, here for a leaf without a mapper, is reported as such. */
+    /** {@code resolveMappers} refuses the batch early, because the leaf {@code extra} has no mapper. */
     public void testBatchRefusalByResolveMappersIsAccepted() throws IOException {
         final MapperService mapperService = createMapperService(
             columnarSettings(),
@@ -102,7 +100,7 @@ public class ColumnarCompatibilityHarnessTests extends AbstractColumnarMapperCom
         }
     }
 
-    /** A batch that the batch path maps is not a refusal, so the helper fails; it is not satisfied by whatever documents it gets. */
+    /** The batch path maps this batch, so it is not a refusal and the helper must fail. */
     public void testBatchPathAcceptingTheBatchFailsTheRefusalCheck() throws IOException {
         final MapperService mapperService = createMapperService(
             columnarSettings(),

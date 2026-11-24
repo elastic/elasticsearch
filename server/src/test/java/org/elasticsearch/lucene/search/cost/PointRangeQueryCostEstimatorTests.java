@@ -16,9 +16,14 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class PointRangeQueryCostEstimatorTests extends ESTestCase {
+
+    /** Traversal scratch of a one-dimension, four-byte point range. */
+    private static final long BKD_SCRATCH_BYTES = PointRangeQueryCostEstimator.MAX_POINTS_IN_LEAF_NODE * 4L;
 
     public void testConstructorRejectsNegativeArguments() {
         expectThrows(IllegalArgumentException.class, () -> new PointRangeQueryCostEstimator(-1, 4));
@@ -52,46 +57,92 @@ public class PointRangeQueryCostEstimatorTests extends ESTestCase {
     }
 
     public void testExecutionBytesForMatchAllIsZero() {
-        assertEquals(0L, PointRangeQueryCostEstimator.executionBytesForLeaf(1000000, 1000000, true, true, 1, 4));
+        int maxDoc = 1000000;
+        assertEquals(0L, PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, maxDoc, maxDoc, true, 1, 4));
+    }
+
+    /** Lucene only skips the intersection when every doc has a value; otherwise even a range covering all values fills a builder. */
+    public void testExecutionBytesForMatchAllOnSparseFieldIsCharged() {
+        int maxDoc = 1000000;
+        int docCount = maxDoc - 1;
+        long expected = DocIdSetBuilderCostEstimator.forPoints(docCount, docCount, docCount, maxDoc).estimate() + BKD_SCRATCH_BYTES;
+        assertEquals(expected, PointRangeQueryCostEstimator.executionBytesForLeaf(docCount, maxDoc, docCount, docCount, true, 1, 4));
     }
 
     public void testExecutionBytesForEmptyLeafIsZero() {
-        assertEquals(0L, PointRangeQueryCostEstimator.executionBytesForLeaf(0, 0, true, false, 1, 4));
+        assertEquals(0L, PointRangeQueryCostEstimator.executionBytesForLeaf(0, 0, 0, 0, false, 1, 4));
     }
 
     public void testExecutionBytesDenseSingleValuedAllocatesFullBitset() {
         int maxDoc = 1000000;
-        long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, true, false, 1, 4);
-        long expectedBitset = FixedBitSetCost.scorerBytes(maxDoc);
-        long bkdScratch = PointRangeQueryCostEstimator.MAX_POINTS_IN_LEAF_NODE * 4L;
-        assertEquals(expectedBitset + bkdScratch, dense);
+        long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, maxDoc, maxDoc, false, 1, 4);
+        assertEquals(FixedBitSetCost.scorerBytes(maxDoc) + BKD_SCRATCH_BYTES, dense);
+    }
+
+    /** Lucene only takes the inverse path when every doc has exactly one value; otherwise a dense range upgrades the builder. */
+    public void testExecutionBytesDenseInverseNeedsEveryDocToHaveAValue() {
+        int maxDoc = 1000000;
+        int docCount = maxDoc - 1;
+        long expected = DocIdSetBuilderCostEstimator.forPoints(docCount, docCount, docCount, maxDoc).estimate() + BKD_SCRATCH_BYTES;
+        assertEquals(expected, PointRangeQueryCostEstimator.executionBytesForLeaf(docCount, maxDoc, docCount, docCount, false, 1, 4));
+        assertThat(expected, greaterThan(FixedBitSetCost.bytes(maxDoc)));
     }
 
     public void testExecutionBytesSelectiveIsCheaperThanDense() {
         int maxDoc = 1000000;
-        long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, true, false, 1, 4);
-        long selective = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc / 1000, maxDoc, true, false, 1, 4);
-        assertTrue("a selective range must be charged less than the dense worst case", selective < dense);
+        long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, maxDoc, maxDoc, false, 1, 4);
+        long selective = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc / 10000, maxDoc, maxDoc, maxDoc, false, 1, 4);
+        assertThat("a selective range must be charged less than the dense worst case", selective, lessThan(dense));
     }
 
-    public void testExecutionBytesIsCappedByDenseBitset() {
+    /**
+     * {@code DocIdSetBuilder} upgrades to a {@code FixedBitSet} once its buffers would pass {@code maxDoc >>> 7} entries, long
+     * before {@code 4 * cost} buffer bytes reach the size of that bit set at {@code cost = maxDoc / 32}.
+     */
+    public void testExecutionBytesChargesBitSetPastBuilderThreshold() {
         int maxDoc = 1000000;
-        long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, false, false, 1, 4);
-        long hugeCost = PointRangeQueryCostEstimator.executionBytesForLeaf(Long.MAX_VALUE / 8, maxDoc, false, false, 1, 4);
+        long cost = randomLongBetween((maxDoc >>> 7) + 1, maxDoc / 32);
+        long charged = PointRangeQueryCostEstimator.executionBytesForLeaf(cost, maxDoc, maxDoc, maxDoc, false, 1, 4);
+        assertThat(charged, greaterThanOrEqualTo(FixedBitSetCost.bytes(maxDoc) + BKD_SCRATCH_BYTES));
+    }
+
+    /** The builder buffers one entry per point, so on a multivalued field it reaches its threshold at fewer matching docs. */
+    public void testExecutionBytesScalesWithValuesPerDoc() {
+        int maxDoc = 1000000;
+        int valuesPerDoc = 4;
+        long multiValuedSize = (long) valuesPerDoc * maxDoc;
+        long selective = maxDoc / 10000;
+        long singleValued = PointRangeQueryCostEstimator.executionBytesForLeaf(selective, maxDoc, maxDoc, maxDoc, false, 1, 4);
+        long multiValued = PointRangeQueryCostEstimator.executionBytesForLeaf(selective, maxDoc, multiValuedSize, maxDoc, false, 1, 4);
+        assertThat(multiValued, greaterThan(singleValued));
+
+        long pastThreshold = (maxDoc >>> 7) / valuesPerDoc + 1;
+        assertThat(
+            PointRangeQueryCostEstimator.executionBytesForLeaf(pastThreshold, maxDoc, multiValuedSize, maxDoc, false, 1, 4),
+            greaterThanOrEqualTo(FixedBitSetCost.bytes(maxDoc) + BKD_SCRATCH_BYTES)
+        );
+    }
+
+    public void testExecutionBytesIsCappedByDenseBuilder() {
+        int maxDoc = 1000000;
+        long size = 2L * maxDoc;
+        long dense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, size, maxDoc, false, 1, 4);
+        long hugeCost = PointRangeQueryCostEstimator.executionBytesForLeaf(Long.MAX_VALUE / 8, maxDoc, size, maxDoc, false, 1, 4);
         assertEquals(dense, hugeCost);
-    }
-
-    public void testExecutionBytesMultiValuedNeverUsesDensePathDirectly() {
-        int maxDoc = 1000000;
-        long multiValued = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, false, false, 1, 4);
-        long singleValuedDense = PointRangeQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc, true, false, 1, 4);
-        assertEquals(singleValuedDense, multiValued);
     }
 
     public void testExecutionBytesSaturatesOnOverflow() {
         assertEquals(
             Long.MAX_VALUE,
-            PointRangeQueryCostEstimator.executionBytesForLeaf(1, Integer.MAX_VALUE, true, false, Integer.MAX_VALUE, Integer.MAX_VALUE)
+            PointRangeQueryCostEstimator.executionBytesForLeaf(
+                1,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                false,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE
+            )
         );
     }
 
@@ -99,8 +150,7 @@ public class PointRangeQueryCostEstimatorTests extends ESTestCase {
         for (int maxDoc : new int[] { 1, 100, 10000, 1000000 }) {
             for (int matches : new int[] { 1, Math.max(1, maxDoc / 1000), Math.max(1, maxDoc / 2), maxDoc }) {
                 long measured = docIdSetRamBytes(maxDoc, matches);
-                boolean singleValued = true;
-                long estimated = PointRangeQueryCostEstimator.executionBytesForLeaf(matches, maxDoc, singleValued, false, 1, 4);
+                long estimated = PointRangeQueryCostEstimator.executionBytesForLeaf(matches, maxDoc, maxDoc, maxDoc, false, 1, 4);
                 assertThat(
                     String.format(
                         Locale.ROOT,

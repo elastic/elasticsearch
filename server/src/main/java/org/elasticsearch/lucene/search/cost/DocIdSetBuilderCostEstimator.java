@@ -73,6 +73,32 @@ public final class DocIdSetBuilderCostEstimator implements QueryCostEstimator {
         this.dense = grownValues > threshold || allocatedEntries + grownValues > threshold;
     }
 
+    /**
+     * For a points query that intersects a field's BKD tree into a {@code DocIdSetBuilder(maxDoc, values)}, whose
+     * {@code ScorerSupplier#cost()} is {@code PointValues#estimateDocCount} of that intersection.
+     *
+     * @param cost     the estimated doc count of the intersection
+     * @param size     {@code PointValues#size()} of the field in the leaf
+     * @param docCount {@code PointValues#getDocCount()} of the field in the leaf
+     * @param maxDoc   {@code ctx.reader().maxDoc()} of the leaf
+     */
+    public static DocIdSetBuilderCostEstimator forPoints(long cost, long size, int docCount, int maxDoc) {
+        return new DocIdSetBuilderCostEstimator(grownPoints(cost, size, docCount), maxDoc);
+    }
+
+    /**
+     * Bound on the count a points intersection whose estimated doc count is {@code cost} passes to {@code grow}. The BKD
+     * reader grows by a whole leaf block where the block crosses the query, and {@code PointValues#estimatePointCount}
+     * counts such a block as half matching, so the intersection grows by at most twice the estimated point count. On a
+     * multivalued field the builder buffers one entry per point, and the estimated doc count is that point count scaled
+     * down by at most {@code size / docCount}, and then truncated.
+     */
+    private static long grownPoints(long cost, long size, int docCount) {
+        final double valuesPerDoc = docCount > 0 && size > docCount ? (double) size / docCount : 1d;
+        // the cast saturates at Long.MAX_VALUE
+        return (long) Math.ceil(2d * (cost + 1) * valuesPerDoc);
+    }
+
     /** Ceiling on the bytes the builder and the set it builds hold at once. */
     @Override
     public long estimate() {

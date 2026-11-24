@@ -46,21 +46,6 @@ class PointsExecutionEstimator implements LeafExecutionEstimator {
 
     /** Sizes the set the query collects its matches in, on a leaf with points for the field and an estimated doc count above 0. */
     long bytesForMatches(PointValues values, int maxDoc, long cost) {
-        return new DocIdSetBuilderCostEstimator(grownValues(cost, values), maxDoc).estimate();
-    }
-
-    /**
-     * Bound on the count an intersection whose estimated doc count is {@code cost} passes to {@code DocIdSetBuilder#grow}.
-     * The BKD reader grows by a whole leaf block where the block crosses the query, and {@link PointValues#estimatePointCount}
-     * counts such a block as half matching, so the intersection grows by at most twice the estimated point count. On a
-     * multivalued field the estimated doc count is that point count scaled down by at most {@code size / docCount}, and
-     * then truncated.
-     */
-    private static long grownValues(long cost, PointValues values) {
-        final int docCount = values.getDocCount();
-        final long size = values.size();
-        final double valuesPerDoc = docCount > 0 && size > docCount ? (double) size / docCount : 1d;
-        // the cast saturates at Long.MAX_VALUE
-        return (long) Math.ceil(2d * (cost + 1) * valuesPerDoc);
+        return DocIdSetBuilderCostEstimator.forPoints(cost, values.size(), values.getDocCount(), maxDoc).estimate();
     }
 }

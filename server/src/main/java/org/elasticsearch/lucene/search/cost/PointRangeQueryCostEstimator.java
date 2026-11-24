@@ -43,20 +43,6 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
     public static final long ARRAY_HEADER_BYTES = 16L;
 
     /**
-     * Fixed per-segment overhead charged for the sparse {@code DocIdSetBuilder} path (the builder object
-     * plus its growable {@code int[]} buffer header). Conservative on a compressed-oops JVM.
-     */
-    public static final long DOC_ID_SET_BUILDER_BASE_BYTES = 48L;
-
-    /**
-     * Bytes the sparse {@code DocIdSetBuilder} buffer holds per candidate document id (a single
-     * {@code int}). The buffer can grow up to one entry per matching document before Lucene upgrades it
-     * to a {@code FixedBitSet}, so the sparse cost is bounded by the dense cost (see
-     * {@link #executionBytesForLeaf}).
-     */
-    public static final long BYTES_PER_DOC_ID = 4L;
-
-    /**
      * Maximum number of points held in a BKD leaf block ({@code BKDConfig}'s default). The per-segment
      * BKD traversal scratch is bounded by this many encoded points, i.e.
      * {@code MAX_POINTS_IN_LEAF_NODE · numDims · bytesPerDim} bytes.
@@ -106,19 +92,19 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
      * Conservative ceiling on the RAM a single leaf's point-range scorer allocates, modelled on Lucene
      * 10.x {@code PointRangeQuery}:
      * <ul>
-     *   <li><b>match-all</b> — the query covers the leaf's whole value range, so Lucene returns a
-     *       {@code DocIdSetIterator.all(maxDoc)} without touching the BKD tree: {@code 0} bytes.</li>
-     *   <li><b>dense single-valued</b> ({@code cost > maxDoc/2}) — the inverse path allocates a full
+     *   <li><b>match-all</b> — every doc has a value and the query covers the leaf's whole value range, so
+     *       Lucene returns a {@code DocIdSetIterator.all(maxDoc)} without touching the BKD tree: {@code 0} bytes.</li>
+     *   <li><b>dense inverse</b> — every doc has exactly one value and {@code cost > maxDoc/2}: a full
      *       {@code FixedBitSet(maxDoc)}.</li>
-     *   <li><b>otherwise</b> — a {@code DocIdSetBuilder} buffer sized to the matching-doc estimate
-     *       ({@code cost}), capped by the dense {@code FixedBitSet} size since Lucene upgrades a dense
-     *       builder to a bitset.</li>
+     *   <li><b>otherwise</b> — the {@code DocIdSetBuilder} the intersection fills, sized by
+     *       {@link DocIdSetBuilderCostEstimator#forPoints}.</li>
      * </ul>
      * plus, for the two non-match-all paths, the BKD leaf-block traversal scratch.
      *
      * @param cost        the {@code ScorerSupplier.cost()} BKD estimate of matching documents for this leaf
      * @param leafMaxDoc  {@code ctx.reader().maxDoc()} of the leaf. {@code 0} yields {@code 0} bytes.
-     * @param singleValued whether the field has at most one value per document in this leaf
+     * @param size        {@code PointValues#size()} of the field in this leaf
+     * @param docCount    {@code PointValues#getDocCount()} of the field in this leaf
      * @param matchAll    whether the query range covers the leaf's entire indexed value range
      * @param numDims     number of indexed dimensions
      * @param bytesPerDim number of bytes encoding each dimension
@@ -127,7 +113,8 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
     public static long executionBytesForLeaf(
         long cost,
         int leafMaxDoc,
-        boolean singleValued,
+        long size,
+        int docCount,
         boolean matchAll,
         int numDims,
         int bytesPerDim
@@ -135,19 +122,16 @@ public final class PointRangeQueryCostEstimator implements QueryCostEstimator {
         if (leafMaxDoc <= 0) {
             return 0L;
         }
-        if (matchAll) {
+        boolean allDocsHaveValue = docCount == leafMaxDoc;
+        if (matchAll && allDocsHaveValue) {
             return 0L;
         }
         try {
-            long denseBytes = FixedBitSetCost.scorerBytes(leafMaxDoc);
-
             long docSetBytes;
-            if (singleValued && cost > leafMaxDoc / 2L) {
-                docSetBytes = denseBytes;
+            if (allDocsHaveValue && size == docCount && cost > leafMaxDoc / 2L) {
+                docSetBytes = FixedBitSetCost.scorerBytes(leafMaxDoc);
             } else {
-                long boundedCost = Math.max(0L, cost);
-                long builderBytes = Math.addExact(DOC_ID_SET_BUILDER_BASE_BYTES, Math.multiplyExact(boundedCost, BYTES_PER_DOC_ID));
-                docSetBytes = Math.min(denseBytes, builderBytes);
+                docSetBytes = DocIdSetBuilderCostEstimator.forPoints(cost, size, docCount, leafMaxDoc).estimate();
             }
 
             long pointLen = Math.multiplyExact(numDims, (long) bytesPerDim);

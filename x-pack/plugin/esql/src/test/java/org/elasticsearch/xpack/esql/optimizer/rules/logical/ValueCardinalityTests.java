@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -259,6 +261,19 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
     public void testEarlierAggregateValuesIsUnknown() {
         String query = "FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v";
         assertThat(cardinalityOfKey(query, "v"), equalTo(MAYBE_MULTI));
+    }
+
+    /**
+     * Unlike a {@code STATS} key, a dimension key of a time-series {@code STATS} can hold a list. The dimensions are collected per
+     * time series with a form of {@code VALUES}, grouped as one packed value, and unpacked by {@code UnpackDims}, so a list in a
+     * document stays a list.
+     */
+    public void testEarlierTimeSeriesAggregateDimensionKeyIsUnknown() {
+        String query = "TS k8s | STATS m = MAX(RATE(network.total_bytes_in)) BY cluster | STATS n = COUNT(*) BY cluster";
+        for (LogicalPlan plan : List.of(metricsAnalyzer().query(query), planMetrics(query))) {
+            assertThat("the key comes out of UnpackDims", plan.collect(UnpackDims.class), hasSize(1));
+            assertThat(cardinalityOfKey(plan, "cluster"), equalTo(MAYBE_MULTI));
+        }
     }
 
     /**

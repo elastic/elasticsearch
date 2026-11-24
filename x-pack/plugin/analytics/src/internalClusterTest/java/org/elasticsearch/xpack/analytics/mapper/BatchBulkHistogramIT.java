@@ -29,6 +29,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
@@ -338,7 +339,7 @@ public class BatchBulkHistogramIT extends ESIntegTestCase {
             "@timestamp": { "type": "date" },
             "series_id": { "type": "long", "time_series_dimension": true },
             """ : "";
-        final String mapping = """
+        final String mapping = Strings.format("""
             {
               "dynamic": "strict",
               "properties": {
@@ -347,7 +348,7 @@ public class BatchBulkHistogramIT extends ESIntegTestCase {
                 "h": { "type": "histogram", "ignore_malformed": %s }
               }
             }
-            """.formatted(timeSeriesFields, ignoreMalformed);
+            """, timeSeriesFields, ignoreMalformed);
         if (mode == IndexMode.TIME_SERIES) {
             final var template = new TransportPutComposableIndexTemplateAction.Request(target + "-template");
             template.indexTemplate(

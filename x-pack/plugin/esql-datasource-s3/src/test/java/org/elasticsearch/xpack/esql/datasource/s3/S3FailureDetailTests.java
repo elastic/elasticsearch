@@ -59,6 +59,15 @@ public class S3FailureDetailTests extends ESTestCase {
         assertFalse(S3FailureDetail.isCredentialsRejected((S3Exception) S3Exception.builder().statusCode(403).build()));
     }
 
+    public void testInvalidAccessKeyIdExceptionIsOnlyThatCodeOn403() {
+        assertTrue(S3FailureDetail.isInvalidAccessKeyIdException(withCode(403, "InvalidAccessKeyId")));
+        assertFalse(S3FailureDetail.isInvalidAccessKeyIdException(withCode(403, "AccessDenied")));
+        assertFalse(S3FailureDetail.isInvalidAccessKeyIdException(withCode(403, "SignatureDoesNotMatch")));
+        assertFalse(S3FailureDetail.isInvalidAccessKeyIdException(withCode(400, "InvalidAccessKeyId")));
+        assertFalse(S3FailureDetail.isInvalidAccessKeyIdException((S3Exception) S3Exception.builder().statusCode(403).build()));
+        assertFalse(S3FailureDetail.isInvalidAccessKeyIdException(new RuntimeException(withCode(403, "InvalidAccessKeyId"))));
+    }
+
     public void testArchivedIsKeyedOnTheErrorCode() {
         assertTrue(S3FailureDetail.isArchived(withCode(403, "InvalidObjectState")));
         assertFalse(S3FailureDetail.isArchived(withCode(403, "AccessDenied")));

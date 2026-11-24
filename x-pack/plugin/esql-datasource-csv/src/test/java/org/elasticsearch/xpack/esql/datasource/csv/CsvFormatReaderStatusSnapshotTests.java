@@ -93,6 +93,21 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         );
     }
 
+    public void testPerReadBlockFactoryCopyUsesTheSameCounters() throws IOException {
+        CsvFormatReader node = new CsvFormatReader(blockFactory);
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader perRead = node.withBlockFactory(other);
+        assertNotSame(node, perRead);
+        CsvReaderCounters counters = (CsvReaderCounters) node.newReadCounters();
+
+        drain(perRead, counters);
+
+        assertTrue(
+            "withBlockFactory runs per read; passing the same counters object threads work through to the caller",
+            counters.snapshot().rowsEmitted() > 0
+        );
+    }
+
     private void drain(CsvFormatReader reader, CsvReaderCounters counters) throws IOException {
         String csv = """
             id:long,name:keyword

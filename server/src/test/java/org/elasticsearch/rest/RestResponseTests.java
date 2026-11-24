@@ -68,6 +68,7 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
+import static org.elasticsearch.rest.RestController.ERROR_TRACE_PARAM;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -206,7 +207,7 @@ public class RestResponseTests extends ESTestCase {
                     } else {
                         assertThat(response.status(), is(RestStatus.BAD_REQUEST));
                     }
-                    boolean traceExists = request.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled();
+                    boolean traceExists = request.paramAsBoolean(ERROR_TRACE_PARAM, ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled();
                     if (traceExists) {
                         assertThat(response.content().utf8ToString(), containsString(ElasticsearchException.STACK_TRACE));
                     } else {

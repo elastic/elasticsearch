@@ -543,6 +543,6 @@ public class DenseVectorFieldMapperColumnarCompatibilityTests extends AbstractCo
     private boolean supportsColumnarParse(XContentBuilder mapping) throws IOException {
         final MapperService mapperService = createMapperService(vectordbColumnarSettings(), mapping);
         final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        return mapper.supportsColumnarParse(mapperService.getIndexSettings());
+        return mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of());
     }
 }

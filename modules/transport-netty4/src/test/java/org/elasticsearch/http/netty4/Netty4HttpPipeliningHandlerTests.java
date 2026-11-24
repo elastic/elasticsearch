@@ -67,6 +67,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -510,6 +511,130 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen, hasSize(2));
         assertThat(messagesSeen.get(0), instanceOf(Netty4ChunkedHttpResponse.class));
         assertThat(messagesSeen.get(1), instanceOf(DefaultHttpContent.class));
+    }
+
+    public void testReleasesEncodedChunkIfWriteSetupFails() {
+        final List<Object> messagesSeen = new ArrayList<>();
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
+        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
+        final Netty4HttpRequest request = embeddedChannel.readInbound();
+        final AtomicBoolean encoded = new AtomicBoolean();
+        final List<ReleasableBytesReference> chunks = new ArrayList<>();
+        final AtomicBoolean released = new AtomicBoolean();
+        final ChunkedRestResponseBodyPart body = new ChunkedRestResponseBodyPart() {
+            @Override
+            public boolean isPartComplete() {
+                // Fails once the chunk is encoded, before the handler has written it.
+                if (encoded.get()) {
+                    throw new IllegalStateException("simulated failure after encoding");
+                }
+                return false;
+            }
+
+            @Override
+            public boolean isLastPart() {
+                return true;
+            }
+
+            @Override
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                fail("no continuations here");
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                assertTrue(encoded.compareAndSet(false, true));
+                final var chunk = new ReleasableBytesReference(
+                    new BytesArray(randomByteArrayOfLength(between(1, 1024))),
+                    () -> released.set(true)
+                );
+                // An extra reference, so that a second release by the handler would release the chunk.
+                chunk.mustIncRef();
+                chunks.add(chunk);
+                return chunk;
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return "application/octet-stream";
+            }
+        };
+        final ChannelPromise promise = embeddedChannel.newPromise();
+        embeddedChannel.write(request.createResponse(RestStatus.OK, body), promise);
+        embeddedChannel.flush();
+        embeddedChannel.runPendingTasks();
+
+        assertThat(chunks, hasSize(1));
+        assertTrue(promise.isDone());
+        assertFalse(promise.isSuccess());
+        assertFalse(embeddedChannel.isOpen());
+        assertFalse("the handler released the chunk more than once", released.get());
+
+        // Dropping the extra reference releases the chunk only if the handler released its own.
+        chunks.getFirst().decRef();
+        assertTrue("the handler never released the chunk", released.get());
+    }
+
+    public void testReleasesPendingChunkOnceWhenChannelCloses() {
+        final List<Object> messagesSeen = new ArrayList<>();
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
+        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
+        final Netty4HttpRequest request = embeddedChannel.readInbound();
+        // Above the high watermark, so the channel is not writable after the first chunk and no other chunk is encoded.
+        final int chunkSize = embeddedChannel.config().getWriteBufferHighWaterMark() + 1;
+        final List<ReleasableBytesReference> chunks = new ArrayList<>();
+        final AtomicInteger released = new AtomicInteger();
+        final ChunkedRestResponseBodyPart body = new ChunkedRestResponseBodyPart() {
+            @Override
+            public boolean isPartComplete() {
+                return false;
+            }
+
+            @Override
+            public boolean isLastPart() {
+                return true;
+            }
+
+            @Override
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                fail("no continuations here");
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                final var chunk = new ReleasableBytesReference(
+                    new BytesArray(randomByteArrayOfLength(chunkSize)),
+                    released::incrementAndGet
+                );
+                chunks.add(chunk);
+                return chunk;
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return "application/octet-stream";
+            }
+        };
+        final ChannelPromise promise = embeddedChannel.newPromise();
+        // Written but not flushed, so the chunk's write is pending.
+        embeddedChannel.write(request.createResponse(RestStatus.OK, body), promise);
+        assertThat(chunks, hasSize(1));
+        assertEquals("the chunk must not be released while its write is pending", 0, released.get());
+        assertFalse(promise.isDone());
+
+        // An extra reference, so that a second release by the handler would release the chunk.
+        final ReleasableBytesReference chunk = chunks.getFirst();
+        chunk.mustIncRef();
+
+        // Closing the channel fails the pending write, which releases the chunk.
+        embeddedChannel.close().syncUninterruptibly();
+        assertThat(chunks, hasSize(1));
+        assertDoneWithClosedChannel(promise);
+        assertEquals("the handler released the chunk more than once", 0, released.get());
+
+        // Dropping the extra reference releases the chunk only if the handler released its own.
+        chunk.decRef();
+        assertEquals("the handler never released the chunk", 1, released.get());
     }
 
     public void testActivityTracking() {

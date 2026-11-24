@@ -16,7 +16,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.RemoteSink;
-import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -47,7 +46,7 @@ public class ComputeServiceRemoteSinkTests extends ESTestCase {
         assertFalse("the failure must wait until the target answers the close", future.isDone());
         // The original failure propagates whether or not the target acknowledges the close.
         if (randomBoolean()) {
-            sink.closeListener.onResponse(new ExchangeResponse(TestBlockFactory.getNonBreakingInstance(), null, true));
+            sink.closeListener.onResponse(new ExchangeResponse(null, true));
         } else {
             sink.closeListener.onFailure(new TaskCancelledException("cancelled"));
         }

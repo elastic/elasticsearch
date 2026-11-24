@@ -42,11 +42,11 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendDouble(evalValue(vector, p));
+        builder.appendDouble(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

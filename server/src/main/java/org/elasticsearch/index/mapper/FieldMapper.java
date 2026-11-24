@@ -146,6 +146,28 @@ public abstract class FieldMapper extends Mapper {
     );
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+
+    /**
+     * Whether {@code doc_values} is a no-op for an index: it is strict-columnar and was created on or after {@code since}.
+     * A {@code null} {@code indexSettings} (parsing without an index) is treated as non-columnar.
+     */
+    static boolean ignoresDocValuesAttribute(IndexSettings indexSettings, IndexVersion since) {
+        return indexSettings != null
+            && indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(since);
+    }
+
+    static void warnDocValuesIgnoredInColumnar(String field) {
+        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
+        deprecationLogger.warn(
+            DeprecationCategory.MAPPINGS,
+            "doc_values_ignored_in_columnar",
+            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
+                + "always enabled. Remove the parameter.",
+            field
+        );
+    }
+
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
@@ -261,8 +283,12 @@ public abstract class FieldMapper extends Mapper {
      *
      * @param indexSettings the settings of the index being mapped, for mappers whose columnar
      *                       support depends on index-level configuration
+     * @param relativeKeys   for a {@link #resolvesColumnGroup() group mapper}, the distinct relative keys of its leaves in one batch,
+     *                       as passed to {@link #mapColumnGroupBatch}, so that it can refuse keys its row parser would reject before
+     *                       any of the batch is mapped. Empty when only the mapping is checked, and always for other mappers.
      */
-    public final boolean supportsColumnarParse(IndexSettings indexSettings) {
+    public final boolean supportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
+        assert relativeKeys.isEmpty() || resolvesColumnGroup() != ColumnGroup.NONE : "[" + fullPath() + "] is not a group mapper";
         // Cross-cutting pre-conditions that apply to every mapper, mirroring how parse() handles script
         // enforcement and copyTo before delegating to parseCreateField().
         if (hasScript() || copyTo().copyToFields().isEmpty() == false) {
@@ -290,7 +316,7 @@ public abstract class FieldMapper extends Mapper {
                 return false;
             }
         }
-        if (doSupportsColumnarParse(indexSettings) == false) {
+        if (doSupportsColumnarParse(indexSettings, relativeKeys) == false) {
             return false;
         }
         if (resolvesColumnGroup() != ColumnGroup.NONE) {
@@ -302,14 +328,22 @@ public abstract class FieldMapper extends Mapper {
         }
         for (FieldMapper subMapper : builderParams.multiFields) {
             // The recursive call covers mul.
-            if (subMapper.resolvesColumnGroup() != ColumnGroup.NONE || subMapper.supportsColumnarParse(indexSettings) == false) {
+            if (subMapper.resolvesColumnGroup() != ColumnGroup.NONE || subMapper.supportsColumnarParse(indexSettings, Set.of()) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    /**
+     * The mapper-specific part of {@link #supportsColumnarParse(IndexSettings, Set)}.
+     *
+     * @param relativeKeys for a {@link #resolvesColumnGroup() group mapper}, the distinct relative keys of its leaves in one batch, or
+     *                     empty when only the mapping is checked; always empty for other mappers. Refusing a key here falls the batch
+     *                     back to the row path once, at resolution time, whereas a key rejected only in {@link #mapColumnGroupBatch}
+     *                     falls back per chunk, after other mappers have already mapped it.
+     */
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return false;
     }
 
@@ -365,14 +399,14 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Maps all documents in a batch for this field from the supplied ESCF source column, then hands the same column to each
      * multi-field sub-mapper. Called by the columnar bulk batch driver once per field per batch, only for mappers whose
-     * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting
+     * {@link #supportsColumnarParse(IndexSettings, Set)} returned {@code true}. Attaches the resulting
      * output columns to {@code ctx} via {@link BatchMappingContext#addColumn}.
      *
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
      * @param source the Escf column holding the field's source values for the batch
      */
     public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
+        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc(nullCountsAsValueBatch())) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
             );
@@ -478,7 +512,7 @@ public abstract class FieldMapper extends Mapper {
      * paths. A mapper returning anything but {@link ColumnGroup#NONE} receives every such leaf in one call to {@link #mapColumnGroupBatch},
      * and those leaves are never handed to a leaf mapper.
      * <p>
-     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must also return {@code true} from it to
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings, Set)}: a group mapper must also return {@code true} from it to
      * participate in the columnar path.
      */
     public ColumnGroup resolvesColumnGroup() {
@@ -654,6 +688,11 @@ public abstract class FieldMapper extends Mapper {
      */
     protected boolean shouldEnforceSingleValueBatch() {
         return false;
+    }
+
+    /** Whether a {@code null} array element counts as a value in the {@code multi_value=false} check; true unless the mapper drops it. */
+    protected boolean nullCountsAsValueBatch() {
+        return true;
     }
 
     /**
@@ -1722,8 +1761,29 @@ public abstract class FieldMapper extends Mapper {
             }, XContentBuilder::field, Objects::toString);
         }
 
+        /**
+         * Plain {@code doc_values}. For default-{@code true} mappers in strict-columnar indices since
+         * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS} the value is ignored, warning on {@code false}.
+         */
         public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
-            return Parameter.boolParam("doc_values", false, defaultValue);
+            return docValuesParam(defaultValue, IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS);
+        }
+
+        /**
+         * Like {@link #docValuesParam(boolean)} but the value is ignored in strict-columnar indices only since {@code since}, for mappers
+         * that adopted the no-op behavior after {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS}.
+         */
+        public static Parameter<Boolean> docValuesParam(boolean defaultValue, IndexVersion since) {
+            return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
+                boolean enabled = XContentMapValues.nodeBooleanValue(o, "doc_values");
+                if (defaultValue && ignoresDocValuesAttribute(c.getIndexSettings(), since)) {
+                    if (enabled == false) {
+                        warnDocValuesIgnoredInColumnar(n);
+                    }
+                    return true;
+                }
+                return enabled;
+            }, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> normsParam(boolean defaultValue) {
@@ -1891,8 +1951,7 @@ public abstract class FieldMapper extends Mapper {
             this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
-            this.ignoresDocValuesAttribute = supportsExtendedDocValues
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
+            this.ignoresDocValuesAttribute = ignoresDocValuesAttribute(indexSettings, IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
 
             multiValueParameter = new Parameter<>(
                 "multi_value",
@@ -2066,14 +2125,7 @@ public abstract class FieldMapper extends Mapper {
                 boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
                 if (ignoresDocValuesAttribute) {
                     if (enabled == false) {
-                        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
-                        deprecationLogger.warn(
-                            DeprecationCategory.MAPPINGS,
-                            "doc_values_ignored_in_columnar",
-                            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
-                                + "always enabled. Remove the parameter.",
-                            field
-                        );
+                        warnDocValuesIgnoredInColumnar(field);
                     }
                     // Leaving the value unset keeps it out of the persisted mapping.
                     return;

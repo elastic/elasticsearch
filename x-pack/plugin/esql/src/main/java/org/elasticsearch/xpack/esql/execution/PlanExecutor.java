@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
@@ -90,6 +91,8 @@ public class PlanExecutor {
     private final IntSupplier maxGlobExpansion;
     @Nullable
     private final IntSupplier maxListedObjects;
+    @Nullable
+    private final IntSupplier maxDirectoryListings;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -141,6 +144,44 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
@@ -158,6 +199,7 @@ public class PlanExecutor {
         this.maxDiscoveredFiles = maxDiscoveredFiles;
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
+        this.maxDirectoryListings = maxDirectoryListings;
     }
 
     /**
@@ -193,6 +235,7 @@ public class PlanExecutor {
             threadContext,
             null,
             null,
+            null,
             null
         );
     }
@@ -209,6 +252,34 @@ public class PlanExecutor {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        return createExternalSourceResolver(
+            externalSourceExecutor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            cancellation,
+            externalSourceConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    static ExternalSourceResolver createExternalSourceResolver(
+        Executor externalSourceExecutor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        ExternalSourceCacheService cacheService,
+        BooleanSupplier cancellation,
+        int externalSourceConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         return new ExternalSourceResolver(
             externalSourceExecutor,
             dataSourceModule,
@@ -219,7 +290,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
     }
 
@@ -279,7 +351,8 @@ public class PlanExecutor {
             threadContext,
             maxDiscoveredFiles,
             maxGlobExpansion,
-            maxListedObjects
+            maxListedObjects,
+            maxDirectoryListings
         );
         final var session = new EsqlSession(
             sessionId,
@@ -446,6 +519,20 @@ public class PlanExecutor {
     }
 
     /**
+     * How a query ended, from the exception it ended with, which is {@code null} for a query that succeeded: a
+     * {@link TaskCancelledException} anywhere in the cause chain means it was cancelled, whatever cancelled it (the user, the task
+     * management API, the expiry of an async query), and any other exception that it failed.
+     */
+    public static QueryMetricsListener.Outcome outcomeOf(@Nullable Throwable failure) {
+        if (failure == null) {
+            return QueryMetricsListener.Outcome.SUCCESS;
+        }
+        return ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null
+            ? QueryMetricsListener.Outcome.CANCELLED
+            : QueryMetricsListener.Outcome.FAILED;
+    }
+
+    /**
      * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
      * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
      * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
@@ -476,14 +563,11 @@ public class PlanExecutor {
         if (externalSource == false) {
             return;
         }
-        String outcome;
-        if (failure == null) {
-            outcome = ExternalSourceMetrics.OUTCOME_SUCCESS;
-        } else if (ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null) {
-            outcome = ExternalSourceMetrics.OUTCOME_CANCELLED;
-        } else {
-            outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
-        }
+        String outcome = switch (outcomeOf(failure)) {
+            case SUCCESS -> ExternalSourceMetrics.OUTCOME_SUCCESS;
+            case CANCELLED -> ExternalSourceMetrics.OUTCOME_CANCELLED;
+            case FAILED -> ExternalSourceMetrics.OUTCOME_FAILURE;
+        };
         if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
             QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
             externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, classified.errorType(), classified.status());

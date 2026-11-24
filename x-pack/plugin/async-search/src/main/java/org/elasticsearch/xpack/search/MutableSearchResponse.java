@@ -380,7 +380,7 @@ class MutableSearchResponse extends AbstractRefCounted {
                 finalResponse.getTotalShards(),
                 finalResponse.getSuccessfulShards(),
                 finalResponse.getSkippedShards(),
-                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
+                finalResponse.getShardFailures().size(),
                 finalResponse.status(),
                 clustersInStatus
             );

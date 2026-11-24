@@ -4435,7 +4435,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * and mappings still waiting for their dimensions.
      */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         final DenseVectorFieldType ft = fieldType();
         final ElementType elementType = ft.element.elementType();
         return ft.indexed && ft.dims != null && (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16);
@@ -4838,9 +4838,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         );
     }
 
+    /**
+     * Keeps the current leaf's state in instance fields, so only the loader for the most recently loaded leaf is valid.
+     * Leaf loaders may be used from different threads one after another, as peer recovery does, but never concurrently.
+     */
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
-        private FloatVectorValues floatValues;
-        private ByteVectorValues byteValues;
+        private KnnVectorValues vectorValues;
         private NumericDocValues magnitudeReader;
 
         private boolean hasValue;
@@ -4849,27 +4852,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
-        private final Thread creationThread;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
-            this.creationThread = Thread.currentThread();
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            floatValues = reader.getFloatVectorValues(fullPath());
-            if (floatValues != null) {
+            vectorValues = reader.getFloatVectorValues(fullPath());
+            if (vectorValues != null) {
                 if (shouldNormalize()) {
                     magnitudeReader = reader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
-                return createLoader(floatValues.iterator(), true);
+                return createLoader(vectorValues, true);
             }
 
-            byteValues = reader.getByteVectorValues(fullPath());
-            if (byteValues != null) {
-                return createLoader(byteValues.iterator(), false);
+            vectorValues = reader.getByteVectorValues(fullPath());
+            if (vectorValues != null) {
+                return createLoader(vectorValues, false);
             }
 
             return null;
@@ -4879,10 +4880,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity);
         }
 
-        private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
+        private DocValuesLoader createLoader(KnnVectorValues values, boolean checkMagnitude) {
+            KnnVectorValues.DocIndexIterator iterator = values.iterator();
             return docId -> {
-                assert creationThread == Thread.currentThread()
-                    : "Thread mismatch: created by [" + creationThread + "], but accessed by [" + Thread.currentThread() + "]";
+                assert values == vectorValues : "doc values loader for [" + fullPath() + "] used after the loader moved to another leaf";
                 if (iterator.docID() > docId) {
                     return hasValue = false;
                 }
@@ -4909,11 +4910,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             float magnitude = hasMagnitude ? Float.intBitsToFloat((int) magnitudeReader.longValue()) : Float.NaN;
             b.startArray(leafName());
-            if (floatValues != null) {
+            if (vectorValues instanceof FloatVectorValues floatValues) {
                 for (float v : floatValues.vectorValue(ord)) {
                     b.value(hasMagnitude ? v * magnitude : v);
                 }
-            } else if (byteValues != null) {
+            } else if (vectorValues instanceof ByteVectorValues byteValues) {
                 for (byte v : byteValues.vectorValue(ord)) {
                     b.value(v);
                 }
@@ -4929,7 +4930,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          */
         private List<?> copyVectorAsList() throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
-            if (floatValues != null) {
+            if (vectorValues instanceof FloatVectorValues floatValues) {
                 float[] raw = floatValues.vectorValue(ord);
                 List<Float> copyList = new ArrayList<>(raw.length);
 
@@ -4944,7 +4945,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
                 return copyList;
-            } else if (byteValues != null) {
+            } else if (vectorValues instanceof ByteVectorValues byteValues) {
                 byte[] raw = byteValues.vectorValue(ord);
                 List<Byte> copyList = new ArrayList<>(raw.length);
                 for (int i = 0; i < raw.length; i++) {

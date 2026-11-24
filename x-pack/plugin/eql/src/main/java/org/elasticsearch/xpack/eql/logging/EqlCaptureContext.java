@@ -70,7 +70,7 @@ public class EqlCaptureContext extends QueryCaptureContext {
     }
 
     private static int getFailedShards(EqlSearchResponse response) {
-        long failedShards = Arrays.stream(response.shardFailures()).map(ShardSearchFailure::shard).distinct().count();
+        long failedShards = response.shardFailures().stream().map(ShardSearchFailure::shard).distinct().count();
         return Math.clamp(failedShards, 0, Integer.MAX_VALUE);
     }
 

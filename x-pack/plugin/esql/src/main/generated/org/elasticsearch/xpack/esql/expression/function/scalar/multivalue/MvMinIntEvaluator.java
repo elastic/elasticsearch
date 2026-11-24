@@ -70,7 +70,7 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
@@ -115,7 +115,7 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
   private Block evalAscendingNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);

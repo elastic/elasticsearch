@@ -104,7 +104,7 @@ public final class ClampMaxIntegerEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector, IntVector maxVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int field = fieldVector.getInt(p);
         int max = maxVector.getInt(p);

@@ -134,7 +134,10 @@ public class TestPlannerOptimizer {
         return l;
     }
 
-    private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
+    /**
+     * The physical plan the mapper builds, before the physical optimizer has run any rule on it.
+     */
+    PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
         var optimizer = analyzer.context().minimumVersion().equals(this.analyzer.context().minimumVersion())
             ? logicalOptimizer
             : new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()));

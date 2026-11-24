@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -140,6 +142,14 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withBlockFactory(@Nullable BlockFactory blockFactory) {
+        // Delegate: a compressed .csv.gz builds pages on the same factory as the plain file. Without this the
+        // interface default returns the wrapper and per-read allocations stay on the node ctor factory.
+        FormatReader configured = inner.withBlockFactory(blockFactory);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
     public FormatReader withSchemaSampleShare(int files) {
         // Delegate: a compressed .csv.gz is sampled exactly like the plain file, so it must share the budget too.
         FormatReader configured = inner.withSchemaSampleShare(files);
@@ -209,7 +219,8 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public void close() throws IOException {
-        inner.close();
+    public void close() {
+        // Inner is owned by the registry prototype or the query-minted copy this wraps.
+        // Closing it here would double-close that shared instance on every per-file wrap.
     }
 }

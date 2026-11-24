@@ -115,11 +115,8 @@ public class InsertPartialWindowAggregates extends PhysicalOptimizerRules.Optimi
             newAggs,
             newAggregate.groupings()
         );
-        ExchangeExec newExchange = new ExchangeExec(
-            exchange.source(),
-            intermediateAttributes,
-            exchange.inBetweenAggs(),
-            fragment.withFragment(newAggregate)
+        ExchangeExec newExchange = exchange.passIdentityTo(
+            new ExchangeExec(exchange.source(), intermediateAttributes, exchange.inBetweenAggs(), fragment.withFragment(newAggregate))
         );
         return new TimeSeriesAggregateExec(
             aggExec.source(),

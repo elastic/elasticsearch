@@ -15,8 +15,10 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
+import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -54,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -202,6 +207,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     @Nullable
     private final DatasetListingService listingService;
+    /**
+     * Whether the node's external-source cache is accepting writes. Statistics are harvested to populate that
+     * cache, and {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} drops them when it is
+     * off. A supplier rather than a flag: the setting is dynamic and this factory is a per-node singleton.
+     */
+    private final BooleanSupplier externalSourceCacheEnabled;
     /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
     private final NodeWarningThrottle warnings = new NodeWarningThrottle();
 
@@ -272,7 +283,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             localFileAccess,
             externalSourceMetrics,
             listingService,
-            AdmissionTracker.NOOP
+            AdmissionTracker.NOOP,
+            // Test wiring: the setting, not the cache's live flag, so a dynamic toggle is not observed here.
+            () -> ExternalSourceCacheSettings.CACHE_ENABLED.get(settings != null ? settings : Settings.EMPTY)
         );
     }
 
@@ -285,7 +298,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService,
-        AdmissionTracker admissionTracker
+        AdmissionTracker admissionTracker,
+        BooleanSupplier externalSourceCacheEnabled
     ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
@@ -301,6 +315,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             admissionTracker
         );
         this.listingService = listingService;
+        Check.notNull(externalSourceCacheEnabled, "externalSourceCacheEnabled cannot be null");
+        this.externalSourceCacheEnabled = externalSourceCacheEnabled;
     }
 
     @Override
@@ -411,8 +427,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
+        FormatReader prototype = null;
+        Configured<FormatReader> resolvedReader = null;
         try {
-            Configured<FormatReader> resolvedReader = unwrappedDatasetReader(location, config).withConfigTrackingConsumedKeys(config);
+            prototype = unwrappedDatasetReader(location, config);
+            resolvedReader = prototype.withConfigTrackingConsumedKeys(config);
             ConfigKeyValidator.check(
                 config,
                 List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
@@ -430,6 +449,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             FileOrderConfig.validate(config);
         } finally {
+            if (resolvedReader != null) {
+                FormatReaders.closeDistinctFrom(resolvedReader.value(), prototype);
+            }
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
     }
@@ -437,18 +459,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         StorageProvider provider = null;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            FormatReader reader;
+            prototype = unwrappedDatasetReader(location, config);
+            reader = readerForListedObject(location, storagePath.objectName(), config);
             if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
@@ -461,6 +484,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // own diagnosis and never names the path.
             throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
+            FormatReaders.closeDistinctFrom(reader, prototype);
             StorageProviderCache.closeLease(provider);
         }
     }
@@ -482,8 +506,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
-        final StorageObject storageObject;
-        final FormatReader reader;
+        StorageObject storageObject;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         StorageProvider provider = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         boolean setupComplete = false;
@@ -504,6 +529,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 provider = storageRegistry.provider(storagePath);
             }
             int schemaSampleShare = hint != null ? hint.schemaSampleShare() : 1;
+            prototype = unwrappedDatasetReader(location, config);
             reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
@@ -527,6 +553,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return;
         } finally {
             if (setupComplete == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -537,6 +564,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 l.onFailure(e);
             }
         });
+        FormatReader minted = reader;
+        FormatReader mintedFrom = prototype;
+        completion = ActionListener.runAfter(completion, () -> FormatReaders.closeDistinctFrom(minted, mintedFrom));
         if (StorageProviderCache.isPooledLease(provider)) {
             StorageProvider leased = provider;
             completion = ActionListener.runAfter(completion, () -> StorageProviderCache.closeLease(leased));
@@ -550,6 +580,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         } finally {
             // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent.
             if (started == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -595,10 +626,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     storage = storageRegistry.provider(path);
                 }
 
-                FormatReader format = formatRegistry.byName(
+                FormatReader prototype = formatRegistry.byName(
                     FormatNameResolver.datasetFormat(config, datasetResource(context), formatRegistry)
-                )
-                    .withConfig(config)
+                );
+                FormatReader format = prototype.withConfig(config)
                     .withPushedFilter(context.pushedFilter())
                     .withSchema(context.attributes())
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
@@ -646,8 +677,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+                TaskId queryId = context.queryId();
+                QueryConcurrencyBudget budget;
                 if (allocator != null) {
-                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                    budget = allocator.register(queryId);
+                } else if (queryId != null && queryId.isSet()) {
+                    budget = new QueryConcurrencyBudget(0, QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS, null, AdmissionTracker.NOOP, queryId);
+                } else {
+                    budget = null;
+                }
+                if (budget != null) {
+                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, budget);
                     storage = budgeted;
                     Closeable lease = onClose;
                     onClose = lease == null ? budgeted : () -> IOUtils.close(budgeted, lease);
@@ -672,6 +712,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     && context.deferredExtraction()
                     && dropsRowsOnCoercionFailure == false;
 
+                // Once per read, so the two stats arguments below cannot straddle a toggle.
+                boolean harvestStatistics = externalSourceCacheEnabled.getAsBoolean();
+
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,
                     format,
@@ -693,10 +736,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .parsingParallelism(context.parsingParallelism())
                     .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                     .maxRecordBytes(context.maxRecordBytes())
-                    .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
-                    .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                    .statsStripeSize(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes() : -1L)
+                    .statsColumnScope(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings) : StripeColumnScope.NONE)
                     .streamingSegmentatorAdmission(segmentatorAdmission)
                     .formatReaderRegistry(formatRegistry)
+                    .registryPrototype(prototype)
                     .parallelism(context.parallelism())
                     .pushedExpressions(pushedExpressions)
                     .pushdownSupport(pushdownSupport)

@@ -12,6 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -114,7 +116,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction implements AnyNul
             // Points always have dimension 0, so return a constant
             return new ConstantPointDimensionEvaluator.Factory(toEvaluator.apply(spatialField()));
         }
-        return new StDimensionFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        return new StDimensionFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()), context -> new BytesRef());
     }
 
     @Override
@@ -138,8 +140,12 @@ public class StDimension extends SpatialUnaryDocValuesFunction implements AnyNul
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(IntBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        BytesRef scratch = new BytesRef();
+    static void fromWellKnownBinary(
+        IntBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         int maxDimension = 0;

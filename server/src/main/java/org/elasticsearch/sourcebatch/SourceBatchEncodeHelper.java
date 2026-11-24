@@ -37,7 +37,7 @@ public final class SourceBatchEncodeHelper {
      * array bytes. Returns a {@link PackedArray} describing the wire type and packed bytes.
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
-        return parseArray(parser, new ArrayScratch(), false);
+        return parseArray(parser, new ArrayScratch(), false, false); // rejectOversizedNumbers false never rejects
     }
 
     /**
@@ -48,7 +48,7 @@ public final class SourceBatchEncodeHelper {
      * where typing it first and reading it as a double would parse it twice. Non-number elements are packed as without it.
      */
     public static PackedArray packArray(XContentParser parser, ArrayScratch scratch, boolean floatElements) throws IOException {
-        return parseArray(parser, scratch, floatElements);
+        return parseArray(parser, scratch, floatElements, false);
     }
 
     /**
@@ -168,6 +168,18 @@ public final class SourceBatchEncodeHelper {
      * Parser must be positioned after START_OBJECT.
      */
     public static byte[] serializeKeyValue(XContentParser parser) throws IOException {
+        return serializeKeyValue(parser, false);
+    }
+
+    /**
+     * Serializes an object. With {@code rejectOversizedNumbers}, returns {@code null} only when the parser reports
+     * {@link XContentParser.NumberType#BIG_INTEGER} or {@link XContentParser.NumberType#BIG_DECIMAL}, including inside a
+     * nested object or array. A high-precision JSON decimal the parser reports as {@code DOUBLE} is still rounded into
+     * a double, so this flag does not prevent that loss. When the flag is false, big integers and big decimals are stored
+     * as strings.
+     */
+    @Nullable
+    public static byte[] serializeKeyValue(XContentParser parser, boolean rejectOversizedNumbers) throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -175,13 +187,21 @@ public final class SourceBatchEncodeHelper {
                 throw new IllegalStateException("Expected FIELD_NAME but got " + token);
             }
             String fieldName = parser.currentName();
-            token = parser.nextToken(); // value token
-            writeElementValue(writer, fieldName, parser, token);
+            token = parser.nextToken();
+            if (writeElementValue(writer, fieldName, parser, token, rejectOversizedNumbers) == false) {
+                return null;
+            }
         }
         return writer.toBytes();
     }
 
-    private static PackedArray parseArray(XContentParser parser, ArrayScratch scratch, boolean floatElements) throws IOException {
+    @Nullable
+    private static PackedArray parseArray(
+        XContentParser parser,
+        ArrayScratch scratch,
+        boolean floatElements,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
         int count = 0;
         try {
             boolean forceUnion = false;
@@ -190,7 +210,18 @@ public final class SourceBatchEncodeHelper {
                 if (count >= scratch.types.length) {
                     scratch.grow();
                 }
-                parseElement(parser, token, scratch.types, scratch.numerics, scratch.vars, count, floatElements);
+                if (parseElement(
+                    parser,
+                    token,
+                    scratch.types,
+                    scratch.numerics,
+                    scratch.vars,
+                    count,
+                    floatElements,
+                    rejectOversizedNumbers
+                ) == false) {
+                    return null;
+                }
                 if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
                     forceUnion = true;
                 }
@@ -202,23 +233,34 @@ public final class SourceBatchEncodeHelper {
         }
     }
 
-    /** Parses the array element at {@code token} into slot {@code i} of the element buffers. */
-    private static void parseElement(
+    /**
+     * Parses the array element at {@code token} into slot {@code i} of the element buffers. Returns {@code false} when
+     * {@code rejectOversizedNumbers} rejects it (see {@link #serializeKeyValue(XContentParser, boolean)}).
+     */
+    private static boolean parseElement(
         XContentParser parser,
         XContentParser.Token token,
         byte[] elemTypes,
         long[] elemNumeric,
         Object[] elemVar,
         int i,
-        boolean floatElements
+        boolean floatElements,
+        boolean rejectOversizedNumbers
     ) throws IOException {
         switch (token) {
             case START_OBJECT -> {
+                byte[] nested = serializeKeyValue(parser, rejectOversizedNumbers);
+                if (nested == null) {
+                    return false;
+                }
                 elemTypes[i] = SourceValueType.KEY_VALUE;
-                elemVar[i] = serializeKeyValue(parser);
+                elemVar[i] = nested;
             }
             case START_ARRAY -> {
-                PackedArray nested = parseArray(parser, new ArrayScratch(), false);
+                PackedArray nested = parseArray(parser, new ArrayScratch(), false, rejectOversizedNumbers);
+                if (nested == null) {
+                    return false;
+                }
                 elemTypes[i] = nested.arrayType();
                 elemVar[i] = nested.packed();
             }
@@ -230,56 +272,43 @@ public final class SourceBatchEncodeHelper {
                 if (floatElements) {
                     elemTypes[i] = SourceValueType.FLOAT;
                     elemNumeric[i] = Float.floatToRawIntBits(parser.floatValue());
-                    return;
-                }
-                XContentParser.NumberType numType = parser.numberType();
-                switch (numType) {
-                    case INT -> {
-                        elemTypes[i] = SourceValueType.INT;
-                        elemNumeric[i] = parser.intValue();
-                    }
-                    case LONG -> {
-                        elemTypes[i] = SourceValueType.LONG;
-                        elemNumeric[i] = parser.longValue();
-                    }
-                    case FLOAT -> {
-                        elemTypes[i] = SourceValueType.FLOAT;
-                        elemNumeric[i] = Float.floatToRawIntBits(parser.floatValue());
-                    }
-                    case DOUBLE -> {
-                        elemTypes[i] = SourceValueType.DOUBLE;
-                        elemNumeric[i] = Double.doubleToRawLongBits(parser.doubleValue());
-                    }
-                    default -> {
-                        elemTypes[i] = SourceValueType.STRING;
-                        elemVar[i] = parser.optimizedText().bytes();
-                    }
+                } else {
+                    return readNumber(parser, elemTypes, elemNumeric, elemVar, i, rejectOversizedNumbers);
                 }
             }
             case VALUE_BOOLEAN -> elemTypes[i] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
             case VALUE_NULL -> elemTypes[i] = SourceValueType.NULL;
             default -> throw new IllegalStateException("Unexpected token in array: " + token);
         }
+        return true;
     }
 
-    private static void writeElementValue(KeyValueWriter writer, String fieldName, XContentParser parser, XContentParser.Token token)
-        throws IOException {
+    private static boolean writeElementValue(
+        KeyValueWriter writer,
+        String fieldName,
+        XContentParser parser,
+        XContentParser.Token token,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
         switch (token) {
             case VALUE_STRING -> {
                 XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                 writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
             }
             case VALUE_NUMBER -> {
-                XContentParser.NumberType numType = parser.numberType();
-                switch (numType) {
+                switch (parser.numberType()) {
                     case INT -> writer.writeIntField(fieldName, parser.intValue());
                     case LONG -> writer.writeLongField(fieldName, parser.longValue());
                     case FLOAT -> writer.writeFloatField(fieldName, parser.floatValue());
                     case DOUBLE -> writer.writeDoubleField(fieldName, parser.doubleValue());
-                    default -> {
+                    case BIG_INTEGER, BIG_DECIMAL -> {
+                        if (rejectOversizedNumbers) {
+                            return false;
+                        }
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                         writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
                     }
+                    default -> throw new IllegalStateException("unexpected number type [" + parser.numberType() + "]");
                 }
             }
             case VALUE_BOOLEAN -> writer.writeBooleanField(fieldName, parser.booleanValue());
@@ -293,13 +322,59 @@ public final class SourceBatchEncodeHelper {
                     }
                     String nestedName = parser.currentName();
                     inner = parser.nextToken();
-                    writeElementValue(writer, nestedName, parser, inner);
+                    if (writeElementValue(writer, nestedName, parser, inner, rejectOversizedNumbers) == false) {
+                        return false;
+                    }
                 }
                 writer.endObjectField();
             }
-            case START_ARRAY -> writer.writeArrayField(fieldName, parseArray(parser, new ArrayScratch(), false));
+            case START_ARRAY -> {
+                PackedArray array = parseArray(parser, new ArrayScratch(), false, rejectOversizedNumbers);
+                if (array == null) {
+                    return false;
+                }
+                writer.writeArrayField(fieldName, array);
+            }
             default -> throw new IllegalStateException("Unexpected token: " + token);
         }
+        return true;
+    }
+
+    private static boolean readNumber(
+        XContentParser parser,
+        byte[] elemTypes,
+        long[] elemNumeric,
+        Object[] elemVar,
+        int count,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
+        switch (parser.numberType()) {
+            case INT -> {
+                elemTypes[count] = SourceValueType.INT;
+                elemNumeric[count] = parser.intValue();
+            }
+            case LONG -> {
+                elemTypes[count] = SourceValueType.LONG;
+                elemNumeric[count] = parser.longValue();
+            }
+            case FLOAT -> {
+                elemTypes[count] = SourceValueType.FLOAT;
+                elemNumeric[count] = Float.floatToRawIntBits(parser.floatValue());
+            }
+            case DOUBLE -> {
+                elemTypes[count] = SourceValueType.DOUBLE;
+                elemNumeric[count] = Double.doubleToRawLongBits(parser.doubleValue());
+            }
+            case BIG_INTEGER, BIG_DECIMAL -> {
+                if (rejectOversizedNumbers) {
+                    return false;
+                }
+                elemTypes[count] = SourceValueType.STRING;
+                elemVar[count] = parser.optimizedText().bytes();
+            }
+            default -> throw new IllegalStateException("unexpected number type [" + parser.numberType() + "]");
+        }
+        return true;
     }
 
     private static int elemDataSize(byte type, Object varData) {

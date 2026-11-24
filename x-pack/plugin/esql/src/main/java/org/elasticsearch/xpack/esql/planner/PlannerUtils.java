@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -196,19 +198,20 @@ public class PlannerUtils {
                 }
                 topmostMerge.set(merge);
                 skipBranch.set(true);
-                return new ExchangeSourceExec(merge.source(), merge.output(), false);
+                return new ExchangeSourceExec(merge.source(), merge.output(), false).withExchange(merge.exchange());
             }
             return p;
         });
         if (topmostMerge.get() == null) {
             return new SubPlan.Leaf(segmentPlan);
         }
-        List<SubPlan> children = topmostMerge.get()
-            .children()
-            .stream()
-            .map(child -> buildSubPlan(new ExchangeSinkExec(child.source(), child.output(), false, child)))
-            .toList();
-        return new SubPlan.Merge(segmentPlan, children, topmostMerge.get().kind());
+        MergeExec merge = topmostMerge.get();
+        List<SubPlan> children = new ArrayList<>(merge.children().size());
+        for (int i = 0; i < merge.children().size(); i++) {
+            PhysicalPlan child = merge.children().get(i);
+            children.add(buildSubPlan(mergeChildSink(merge, i, child)));
+        }
+        return new SubPlan.Merge(segmentPlan, List.copyOf(children), merge.kind());
     }
 
     /**
@@ -229,17 +232,28 @@ public class PlannerUtils {
         var subplans = new Holder<List<PhysicalPlan>>();
         var kind = new Holder<MergeExec.Kind>();
         PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
-            subplans.set(
-                me.children()
-                    .stream()
-                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
-                    .toList()
-            );
+            List<PhysicalPlan> sinks = new ArrayList<>(me.children().size());
+            for (int i = 0; i < me.children().size(); i++) {
+                sinks.add(mergeChildSink(me, i, me.children().get(i)));
+            }
+            subplans.set(List.copyOf(sinks));
             kind.set(me.kind());
-            return new ExchangeSourceExec(me.source(), me.output(), false);
+            return new ExchangeSourceExec(me.source(), me.output(), false).withExchange(me.exchange());
         });
 
         return new SubPlansAndMainPlan(subplans.get(), mainPlan, kind.get());
+    }
+
+    /**
+     * Wraps child {@code index} of {@code merge} in the sink that feeds the merge's source. Every sink of one merge shares the merge's
+     * exchange, and {@code index} tells them apart.
+     */
+    private static ExchangeSinkExec mergeChildSink(MergeExec merge, int index, PhysicalPlan child) {
+        ExchangeSinkExec sink = new ExchangeSinkExec(child.source(), child.output(), false, child);
+        if (merge.exchange() != null) {
+            sink.withExchange(merge.exchange().withChildIndex(index));
+        }
+        return sink;
     }
 
     /**
@@ -264,9 +278,9 @@ public class PlannerUtils {
                     // Multiple exchange points are not supported by this split helper.
                     throw new EsqlIllegalArgumentException("expected a single ExchangeExec when splitting coordinator and data node plans");
                 }
-                dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), e.child()));
+                dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), e.child()).withExchange(e.exchange()));
                 skipBranch.set(true);
-                return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+                return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs()).withExchange(e.exchange());
             }
             return p;
         });
@@ -316,6 +330,7 @@ public class PlannerUtils {
             case TimeSeriesAggregateExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case TsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case IntoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
@@ -346,7 +361,12 @@ public class PlannerUtils {
     /**
      * Result of local plan optimization containing both physical and logical plans.
      */
-    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString, boolean approximationApplied) {}
+    public record LocalPlanResult(
+        PhysicalPlan physicalPlan,
+        String logicalPlanString,
+        @Nullable String logicalPlanJson,
+        boolean approximationApplied
+    ) {}
 
     public static LocalPlanResult localPlanWithLogical(
         PlannerSettings plannerSettings,
@@ -384,7 +404,7 @@ public class PlannerUtils {
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
 
-        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, configuration.profile());
     }
 
     public static LocalPlanResult localPlanWithLogical(
@@ -393,11 +413,25 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, false);
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        boolean capturePlanJson
+    ) {
         var logicalPlanString = new Holder<String>(null);
+        var logicalPlanJson = new Holder<String>(null);
         PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
             logicalPlanString.set(optimizedFragment.toString());
+            if (capturePlanJson) {
+                logicalPlanJson.set(PlanJsonLog.toJsonOrNull(optimizedFragment));
+            }
         });
-        return new LocalPlanResult(resultPlan, logicalPlanString.get(), physicalOptimizer.approximationApplied());
+        return new LocalPlanResult(resultPlan, logicalPlanString.get(), logicalPlanJson.get(), physicalOptimizer.approximationApplied());
     }
 
     public static PhysicalPlan localPlan(

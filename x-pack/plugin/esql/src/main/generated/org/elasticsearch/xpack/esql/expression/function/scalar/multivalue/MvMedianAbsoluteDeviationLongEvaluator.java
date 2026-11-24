@@ -77,7 +77,7 @@ public final class MvMedianAbsoluteDeviationLongEvaluator extends AbstractMultiv
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -132,7 +132,7 @@ public final class MvMedianAbsoluteDeviationLongEvaluator extends AbstractMultiv
   public Block evalSingleValuedNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -174,7 +174,7 @@ public final class MvMedianAbsoluteDeviationLongEvaluator extends AbstractMultiv
   private Block evalAscendingNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       MvMedianAbsoluteDeviation.Longs work = new MvMedianAbsoluteDeviation.Longs();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);

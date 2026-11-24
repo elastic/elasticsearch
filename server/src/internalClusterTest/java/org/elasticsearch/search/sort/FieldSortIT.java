@@ -86,6 +86,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1010,7 +1011,7 @@ public class FieldSortIT extends ESIntegTestCase {
         }
 
         assertResponses(response -> {
-            assertThat(Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
+            assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(0));
 
             assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -1027,7 +1028,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("_first")),
             response -> {
-                assertThat(Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
+                assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(0));
 
                 assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
@@ -1039,7 +1040,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("b")),
             response -> {
-                assertThat(Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
+                assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(0));
 
                 assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -2181,9 +2182,8 @@ public class FieldSortIT extends ESIntegTestCase {
             assertResponse(
                 prepareSearch().setQuery(matchAllQuery()).setSize(1).addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos")),
                 response -> {
-                    assertNotNull(response.getShardFailures());
-                    assertThat(response.getShardFailures().length, equalTo(1));
-                    assertThat(response.getShardFailures()[0].toString(), containsString("are before the epoch in 1970"));
+                    assertThat(response.getShardFailures(), hasSize(1));
+                    assertThat(response.getShardFailures().getFirst().toString(), containsString("are before the epoch in 1970"));
                 }
             );
         }
@@ -2197,9 +2197,8 @@ public class FieldSortIT extends ESIntegTestCase {
                     .setSize(10)
                     .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos")),
                 response -> {
-                    assertNotNull(response.getShardFailures());
-                    assertThat(response.getShardFailures().length, equalTo(1));
-                    assertThat(response.getShardFailures()[0].toString(), containsString("are after 2262"));
+                    assertThat(response.getShardFailures(), hasSize(1));
+                    assertThat(response.getShardFailures().getFirst().toString(), containsString("are after 2262"));
                 }
             );
         }

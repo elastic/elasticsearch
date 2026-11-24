@@ -114,7 +114,7 @@ You can also work with views directly in {{kib}}:
 
 Views share a namespace with indices, aliases, and data streams. You can't create a view with the same name as an existing index, alias, or data stream, and you can't create any of these with the name of an existing view. {{es}} rejects the request with an error that names the conflicting resource. This keeps `FROM name` resolution unambiguous.
 
-{applies_to}`stack: preview 9.6+, experimental =9.5` The same rule applies to [datasets](/reference/query-languages/esql/esql-data-federation-datasets.md), which [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) uses to query external data.
+{applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: preview` The same rule applies to [datasets](/reference/query-languages/esql/esql-data-federation-datasets.md), which [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) uses to query external data.
 
 ## Query a view
 

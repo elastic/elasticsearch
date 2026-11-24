@@ -11,7 +11,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -36,6 +42,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -106,6 +113,72 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
 
         assertBusy(() -> assertThat(closedReaders.get(), equalTo(SHARDS - contributing.size())));
         List<ShardSearchContextId> kept = contributing.stream().map(c -> c.readerContext().id()).toList();
+        for (SearchContext searchContext : opened) {
+            ShardSearchContextId id = searchContext.readerContext().id();
+            assertThat("[" + id + "] is kept", isOpen(id), equalTo(kept.contains(id)));
+        }
+        freeAll(kept);
+        assertAllFreed();
+    }
+
+    /**
+     * The sink discards the pages it still buffers when the query is stopped, cancelled or fails, so their rows never left
+     * the node. A context stays kept while a page with its rows wasn't discarded, also when another page with its rows was.
+     */
+    public void testFreesTheContextsOfDiscardedPages() throws Exception {
+        createIndexWithDocs();
+        NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
+        List<SearchContext> opened = openEveryShard(contexts);
+        // three pages go to the sink: the first with rows of every shard, the other two with rows of some shards each
+        List<DocOrigin> first = opened.stream().map(contexts::originOf).toList();
+        List<SearchContext> discardedOnly = randomSubsetOf(between(1, SHARDS), opened);
+        List<DocOrigin> second = discardedOnly.stream().map(contexts::originOf).toList();
+        List<SearchContext> sent = opened.stream().filter(c -> discardedOnly.contains(c) == false).toList();
+        sent.forEach(contexts::originOf);
+        AtomicInteger closedReaders = countClosedReaders(opened);
+
+        // the sink sent the third page, and discarded the other two
+        discard(contexts, first);
+        discard(contexts, second);
+        endRequest(contexts);
+
+        assertBusy(() -> assertThat(closedReaders.get(), equalTo(discardedOnly.size())));
+        List<ShardSearchContextId> kept = sent.stream().map(c -> c.readerContext().id()).toList();
+        for (SearchContext searchContext : opened) {
+            ShardSearchContextId id = searchContext.readerContext().id();
+            assertThat("[" + id + "] is kept", isOpen(id), equalTo(kept.contains(id)));
+        }
+        freeAll(kept);
+        assertAllFreed();
+    }
+
+    /**
+     * A cancelled request ends before its sink discards its pages. The request keeps the contexts of those pages at first,
+     * and frees each one once the sink discarded its last block, but not one with a block that the sink sent.
+     */
+    public void testADiscardAfterTheRequestEndedFreesTheContextsItEmptied() throws Exception {
+        createIndexWithDocs();
+        // longer than the keep-alive a context opens with, so the test sees when the request kept it
+        long requested = searchService().getDefaultKeepAliveInMillis() + between(1, 3600) * 1000L;
+        NodeFetchContexts contexts = newNodeContexts(TimeValue.timeValueMillis(requested));
+        List<SearchContext> opened = openEveryShard(contexts);
+        // a page with rows of every shard, and another one with rows of some shards, go to the sink
+        List<DocOrigin> discardedPage = opened.stream().map(contexts::originOf).toList();
+        List<SearchContext> sent = randomSubsetOf(between(0, SHARDS - 1), opened);
+        sent.forEach(contexts::originOf);
+        AtomicInteger closedReaders = countClosedReaders(opened);
+        endRequest(contexts);
+        assertBusy(() -> {
+            for (SearchContext searchContext : opened) {
+                assertThat("kept", searchContext.readerContext().keepAlive(), equalTo(requested));
+            }
+        });
+
+        // the sink sent the second page, and discards the first one after the request ended
+        discard(contexts, discardedPage);
+
+        assertBusy(() -> assertThat(closedReaders.get(), equalTo(SHARDS - sent.size())));
+        List<ShardSearchContextId> kept = sent.stream().map(c -> c.readerContext().id()).toList();
         for (SearchContext searchContext : opened) {
             ShardSearchContextId id = searchContext.readerContext().id();
             assertThat("[" + id + "] is kept", isOpen(id), equalTo(kept.contains(id)));
@@ -222,6 +295,21 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * The drivers of a request finish before it ends, so no block of documents goes to the sink after that. A discard
+     * after the request ended relies on it to decide on a count that only goes down.
+     */
+    public void testABlockAfterTheRequestEndedTrips() throws Exception {
+        createIndexWithDocs();
+        NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
+        SearchContext searchContext = open(contexts, 0);
+        endRequest(contexts);
+
+        AssertionError e = expectThrows(AssertionError.class, () -> contexts.originOf(searchContext));
+        assertThat(e.getMessage(), containsString("a block of documents went to the sink after the request ended"));
+        assertAllFreed();
+    }
+
+    /**
      * Removing the index can race with the open while the context registers. The open fails and the context closes.
      */
     public void testIndexRemovalDuringOpenLeavesNothing() throws Exception {
@@ -297,7 +385,7 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
             null,
             SplitShardCountSummary.IRRELEVANT
         );
-        SearchContext searchContext = contexts.open(shardRequest);
+        SearchContext searchContext = contexts.open(shardRequest, null);
         querySearchContexts.add(searchContext);
         return searchContext;
     }
@@ -331,6 +419,25 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         for (ShardSearchContextId id : ids) {
             assertTrue("[" + id + "] is open", searchService().freeReaderContext(id));
             expectThrows(SearchContextMissingException.class, () -> searchService().findReaderContext(id, new LookupRequest(), null));
+        }
+    }
+
+    /**
+     * Discards a page with a row of each context of {@code origins}, the way the sink does. The sink releases the page after.
+     */
+    private static void discard(NodeFetchContexts contexts, List<DocOrigin> origins) {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Page page;
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, origins.size())) {
+            for (int o = 0; o < origins.size(); o++) {
+                builder.appendShard(o).appendSegment(0).appendDoc(o);
+            }
+            page = new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins))));
+        }
+        try {
+            contexts.discarded(page);
+        } finally {
+            page.releaseBlocks();
         }
     }
 

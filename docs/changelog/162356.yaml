@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 162356
+summary: Add chunk separators for ordered `PLAIN` keyword columns
+type: enhancement

@@ -99,7 +99,7 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

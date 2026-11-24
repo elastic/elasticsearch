@@ -6,6 +6,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -26,6 +28,8 @@ public final class MvContainsBytesRefEvaluator implements ExpressionEvaluator {
 
   private final Source source;
 
+  private final BytesRef scratch;
+
   private final ExpressionEvaluator superset;
 
   private final ExpressionEvaluator subset;
@@ -34,9 +38,10 @@ public final class MvContainsBytesRefEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public MvContainsBytesRefEvaluator(Source source, ExpressionEvaluator superset,
+  public MvContainsBytesRefEvaluator(Source source, BytesRef scratch, ExpressionEvaluator superset,
       ExpressionEvaluator subset, DriverContext driverContext) {
     this.source = source;
+    this.scratch = scratch;
     this.superset = superset;
     this.subset = subset;
     this.driverContext = driverContext;
@@ -63,7 +68,7 @@ public final class MvContainsBytesRefEvaluator implements ExpressionEvaluator {
       BytesRefBlock subsetBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(MvContains.process(p, supersetBlock, subsetBlock));
+        result.appendBoolean(MvContains.process(p, this.scratch, supersetBlock, subsetBlock));
       }
       return result.build();
     }
@@ -89,20 +94,23 @@ public final class MvContainsBytesRefEvaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
+    private final Function<DriverContext, BytesRef> scratch;
+
     private final ExpressionEvaluator.Factory superset;
 
     private final ExpressionEvaluator.Factory subset;
 
-    public Factory(Source source, ExpressionEvaluator.Factory superset,
-        ExpressionEvaluator.Factory subset) {
+    public Factory(Source source, Function<DriverContext, BytesRef> scratch,
+        ExpressionEvaluator.Factory superset, ExpressionEvaluator.Factory subset) {
       this.source = source;
+      this.scratch = scratch;
       this.superset = superset;
       this.subset = subset;
     }
 
     @Override
     public MvContainsBytesRefEvaluator get(DriverContext context) {
-      return new MvContainsBytesRefEvaluator(source, superset.get(context), subset.get(context), context);
+      return new MvContainsBytesRefEvaluator(source, scratch.apply(context), superset.get(context), subset.get(context), context);
     }
 
     @Override

@@ -152,10 +152,6 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Whether the query has a column named like {@code _unmapped_fields} of its own, at any node. A view contributes the column it
-     * outputs, not whatever its body had along the way.
-     */
-    /**
      * Whether the query has an index that could supply unmapped fields: not a lookup index, nor a view, which has no {@code _source}.
      * A view body is not looked into, and neither is its root, which {@link ViewUtils#anyMatchOutsideViews} would test: a view defined
      * as {@code FROM test} is not a source of the query because its body is one.
@@ -166,6 +162,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return found[0];
     }
 
+    /**
+     * Whether the query has a column named like {@code _unmapped_fields} of its own, at any node. A view contributes the column it
+     * outputs, not whatever its body had along the way.
+     */
     private static boolean hasColumnNamedLikeUnmappedFields(LogicalPlan plan) {
         return ViewUtils.anyMatchOutsideViews(
             plan,

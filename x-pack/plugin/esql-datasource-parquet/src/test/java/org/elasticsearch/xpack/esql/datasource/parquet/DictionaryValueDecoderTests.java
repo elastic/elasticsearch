@@ -287,6 +287,72 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> decoder.readIndices(out, 0, indices.length));
     }
 
+    /**
+     * {@code skip} moves over whole bit-packed groups without unpacking them, and unpacks only the group that it ends in. A random mix of
+     * {@code skip}, {@code readIndices} and {@code nextIndex} must give the values at the positions that the calls reach, for every bit width,
+     * for runs of both kinds, and for skips that end on, before and after a group boundary and a run boundary.
+     */
+    public void testSkipsReadsAndSingleValuesInAnyOrderGiveTheValuesAtTheirPositions() throws IOException {
+        for (int iteration = 0; iteration < 200; iteration++) {
+            int bitWidth = randomFrom(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16, 20, 31);
+            int maxValue = bitWidth == 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, (1L << bitWidth) - 1);
+            int[] indices = indicesWithRunsOfBothKinds(randomIntBetween(1, 600), maxValue);
+            DictionaryValueDecoder decoder = decoderFor(indices, bitWidth);
+            int position = 0;
+            while (position < indices.length) {
+                int left = indices.length - position;
+                switch (randomIntBetween(0, 3)) {
+                    case 0 -> {
+                        int count = randomBoolean() ? randomIntBetween(0, Math.min(left, 20)) : randomIntBetween(0, left);
+                        decoder.skip(count);
+                        position += count;
+                    }
+                    case 1 -> {
+                        int count = randomIntBetween(0, Math.min(left, 40));
+                        int[] out = new int[count];
+                        decoder.readIndices(out, 0, count);
+                        assertArrayEquals(
+                            "bit width " + bitWidth + ", read " + count + " at " + position,
+                            Arrays.copyOfRange(indices, position, position + count),
+                            out
+                        );
+                        position += count;
+                    }
+                    case 2 -> {
+                        assertEquals("bit width " + bitWidth + ", next at " + position, indices[position], decoder.nextIndex());
+                        position++;
+                    }
+                    case 3 -> {
+                        // the skip that ends exactly on the next group boundary of the stream, or one value before or after it
+                        int count = Math.min(left, 8 - (position % 8) + randomIntBetween(-1, 1));
+                        count = Math.max(count, 0);
+                        decoder.skip(count);
+                        position += count;
+                    }
+                    default -> throw new AssertionError();
+                }
+            }
+        }
+    }
+
+    /** Values in runs that the encoder writes as RLE (the same value many times) and as bit-packed groups (values that change). */
+    private int[] indicesWithRunsOfBothKinds(int length, int maxValue) {
+        int[] indices = new int[length];
+        int i = 0;
+        while (i < length) {
+            int runLength = Math.min(length - i, randomIntBetween(1, 70));
+            if (randomBoolean()) {
+                Arrays.fill(indices, i, i + runLength, randomIntBetween(0, maxValue));
+            } else {
+                for (int j = 0; j < runLength; j++) {
+                    indices[i + j] = randomIntBetween(0, maxValue);
+                }
+            }
+            i += runLength;
+        }
+        return indices;
+    }
+
     // --- helpers ---
 
     private static DictionaryValueDecoder decoderFor(int[] indices, int bitWidth) throws IOException {

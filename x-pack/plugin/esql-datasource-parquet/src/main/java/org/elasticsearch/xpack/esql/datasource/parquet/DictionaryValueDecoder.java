@@ -261,20 +261,34 @@ final class DictionaryValueDecoder {
         }
     }
 
+    /**
+     * Skips up to {@code remaining} values of the current bit-packed run and returns how many it skipped, fewer only when the run ends.
+     * A group of 8 values that is skipped whole is not unpacked: it occupies exactly {@code bitWidth} bytes, so skipping it moves the
+     * byte offset. Only a group that the skip ends in the middle of is unpacked, because the next read continues in it. Unpacking
+     * every group made this the largest cost of the queries that read a few rows of each page, such as the sparse reads behind a
+     * selective filter.
+     */
     private int skipPackedValues(int remaining) {
         int skipped = 0;
-        while (skipped < remaining) {
-            if (packedRemaining == 0) {
-                return skipped;
-            }
-            if (groupNext >= 8) {
-                if (packedRemaining == 0) {
-                    return skipped;
-                }
-                loadPackedGroup();
-            }
-            int inGroupAvail = 8 - groupNext;
-            int take = Math.min(inGroupAvail, remaining - skipped);
+        // finish the group that an earlier read left partly consumed, which is already unpacked
+        if (groupNext < 8 && packedRemaining > 0) {
+            int take = Math.min(8 - groupNext, remaining);
+            groupNext += take;
+            packedRemaining -= take;
+            skipped += take;
+        }
+        // Here either a whole number of groups is left in the run (groupNext == 8, and packedRemaining is a multiple of 8), or the
+        // request is used up. Skip the whole groups by moving the offset.
+        int wholeGroups = Math.min((remaining - skipped) >>> 3, packedRemaining >>> 3);
+        if (wholeGroups > 0 && groupNext >= 8) {
+            packedByteOffset += wholeGroups * bitWidth;
+            packedRemaining -= wholeGroups << 3;
+            skipped += wholeGroups << 3;
+        }
+        // the group that the skip ends in: unpack it, and leave the rest of it for the next read
+        if (skipped < remaining && packedRemaining > 0 && groupNext >= 8) {
+            loadPackedGroup();
+            int take = Math.min(8, remaining - skipped);
             groupNext += take;
             packedRemaining -= take;
             skipped += take;

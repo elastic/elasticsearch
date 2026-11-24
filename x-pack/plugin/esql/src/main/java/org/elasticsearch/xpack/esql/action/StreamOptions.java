@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -42,7 +41,7 @@ record StreamOptions(Store store, long maxRows, long maxBytes) {
                     return store;
                 }
             }
-            throw new IllegalArgumentException("[store] must be one of " + Arrays.toString(values()) + ", got [" + value + "]");
+            throw new IllegalArgumentException("[store] must be one of " + STORE_MODES + ", got [" + value + "]");
         }
 
         @Override

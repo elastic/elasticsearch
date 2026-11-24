@@ -115,6 +115,26 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         assertFalse(client().prepareGet(INDEX, streamId + "_1").setRouting(streamId).get().isExists());
     }
 
+    public void testFinalStatusIsWrittenWithoutWaitingForCapacity() throws Exception {
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
+
+        var writer = new SystemIndexStreamWriter(client(), BytesRefRecycler.NON_RECYCLING_INSTANCE, TransportVersion.current());
+        TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
+        Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
+        List<ColumnInfo> columns = List.of(new ColumnInfoImpl("value", "integer", null));
+        Map<String, String> headers = Map.of(randomIdentifier(), randomIdentifier());
+        List<String> warnings = List.of(randomAlphaOfLengthBetween(5, 30));
+
+        String streamId = writer.createStarted(taskId, expiration, columns, headers, warnings);
+        writer.markCanceled();
+        awaitCapacity(writer);
+
+        StreamMetadata expected = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings).canceled();
+        var response = client().prepareGet(INDEX, streamId).setRouting(streamId).get();
+        assertTrue(response.isExists());
+        assertThat(StreamMetadataDocument.fromSource(response.getSourceAsMap()), equalTo(expected));
+    }
+
     private static void awaitCapacity(SystemIndexStreamWriter writer) {
         var capacity = new CountDownLatch(1);
         writer.onCapacity(capacity::countDown);

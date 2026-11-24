@@ -35,7 +35,8 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
 
     private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(
         new EsqlCapabilities.Builder(false).build(),
-        BigArrays.NON_RECYCLING_INSTANCE
+        BigArrays.NON_RECYCLING_INSTANCE,
+        () -> true
     );
 
     public void testRoute() {
@@ -225,6 +226,26 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
                 expectThrows(XContentParseException.class, () -> parseStream(body));
             }
         }
+    }
+
+    public void testStoreIsRejectedWhenBatchIndexingIsNotSupported() {
+        assumeTrue("the stored modes need the feature flag", EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled());
+        RestEsqlStreamQueryAction unsupported = new RestEsqlStreamQueryAction(
+            new EsqlCapabilities.Builder(false).build(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            () -> false
+        );
+        StreamOptions.Store store = randomFrom(StreamOptions.Store.OVERFLOW, StreamOptions.Store.ALL);
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}"),
+            XContentType.JSON
+        ).build();
+
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo("[store] set to [" + store + "] requires batch indexing"),
+            () -> unsupported.handleRequest(request, new FakeRestChannel(request, true), null)
+        );
     }
 
     public void testUnknownStoreIsRejected() {

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.streaming;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -63,6 +63,11 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_TOTAL_ROWS;
 import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor.STREAM_WARNINGS;
 
+/**
+ * A {@link StoredStreamWriter} that keeps the stream in the system index defined by {@link EsqlStreamResultsIndexDescriptor}:
+ * one metadata document and one document per page. Writes are batched into bulk requests. Use {@link #onCapacity} to wait for
+ * the pending bulk requests to finish before producing more pages.
+ */
 public class SystemIndexStreamWriter implements StoredStreamWriter {
 
     private static final Logger logger = LogManager.getLogger(SystemIndexStreamWriter.class);
@@ -93,7 +98,7 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
         Map<String, String> headers,
         List<String> warnings
     ) {
-        var streamId = StreamId.newStreamId(taskId).toString();
+        var streamId = StreamId.newStreamId(taskId).encoded();
         addToCurrentBulk(true, false, bulk -> {
             metadata = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings);
             bulk.addMetadata(metadata);
@@ -163,7 +168,7 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             currentBulk = new Bulk();
         }
         consumer.accept(currentBulk);
-        if (force || !currentBulk.hasCapacity()) {
+        if (force || currentBulk.hasCapacity() == false) {
             flush(refresh);
         }
     }
@@ -257,7 +262,8 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             }
             row.finishRow();
             builder.commit(0);
-            requests.add(new IndexRequest(INDEX).id(streamId).routing(streamId).opType(DocWriteRequest.OpType.INDEX));
+            OpType opType = metadata.status() == StreamMetadata.Status.RUNNING ? OpType.CREATE : OpType.INDEX;
+            requests.add(new IndexRequest(INDEX).id(streamId).routing(streamId).opType(opType));
         }
 
         void addPage(int seq, long offset, Page page) {
@@ -277,7 +283,7 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             });
             row.finishRow();
             builder.commit(0);
-            requests.add(new IndexRequest(INDEX).id(streamId + "_" + seq).routing(streamId).opType(DocWriteRequest.OpType.CREATE));
+            requests.add(new IndexRequest(INDEX).id(streamId + "_" + seq).routing(streamId).opType(OpType.CREATE));
         }
 
         @FunctionalInterface

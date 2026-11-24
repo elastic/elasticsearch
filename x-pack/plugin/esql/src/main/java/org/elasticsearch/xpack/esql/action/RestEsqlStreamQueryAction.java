@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT;
@@ -36,10 +37,20 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER
  * as it is produced, one row per line. See {@link EsqlStreamResponseListener} for the response shape.
  *
  * <p>The body is the same as for {@code POST /_query}, except that {@code columnar} is not supported, plus three fields
- * that only this API has: {@code max_rows} and {@code max_bytes}, which end the response early, and {@code store}, where
- * only {@code none} is supported. {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON
- * number, which is a count of bytes, or a size string with a unit such as {@code "1mb"}. The query runs only for as long
- * as the response is open: a disconnect cancels it, and so does a response that ends at a limit.</p>
+ * that only this API has: {@code max_rows} and {@code max_bytes}, which end the response early, and {@code store}, which
+ * sets what is also kept in the stored results index:</p>
+ * <ul>
+ *   <li>{@code none}, the default: nothing is stored.</li>
+ *   <li>{@code overflow}: only the pages that are not sent to the client immediately, such as the rows beyond a limit.</li>
+ *   <li>{@code all}: every page.</li>
+ * </ul>
+ *
+ * <p>When anything is stored, the first line of the response carries a {@code stream_id}. The stored modes need the
+ * {@code esql_stream_results_stored} feature flag, which is on in snapshot builds; without it only {@code none} is accepted.
+ * {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON number, which is a count of bytes,
+ * or a size string with a unit such as {@code "1mb"}. With {@code store} set to {@code none} the query runs only for as long
+ * as the response is open: a disconnect cancels it, and so does a response that ends at a limit. With the other modes a
+ * response that ends at a limit does not cancel the query, which goes on to store the remaining pages.</p>
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestEsqlStreamQueryAction extends BaseRestHandler {
@@ -59,9 +70,12 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     private final BigArrays bigArrays;
 
-    public RestEsqlStreamQueryAction(EsqlCapabilities capabilities, BigArrays bigArrays) {
+    private final BooleanSupplier batchIndexingSupported;
+
+    public RestEsqlStreamQueryAction(EsqlCapabilities capabilities, BigArrays bigArrays, BooleanSupplier batchIndexingSupported) {
         this.capabilities = capabilities;
         this.bigArrays = bigArrays;
+        this.batchIndexingSupported = batchIndexingSupported;
     }
 
     @Override
@@ -84,6 +98,10 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         RequestXContent.ParsedStreamRequest parsed;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parsed = RequestXContent.parseStream(parser);
+        }
+        StreamOptions.Store store = parsed.options().store();
+        if (store != StreamOptions.Store.NONE && batchIndexingSupported.getAsBoolean() == false) {
+            throw new IllegalArgumentException("[store] set to [" + store + "] requires batch indexing");
         }
         return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, bigArrays.bytesRefRecycler());
     }

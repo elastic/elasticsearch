@@ -205,7 +205,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected CtxMap<UpdateByQueryMetadata> execute(PaginatedHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<UpdateByQueryMetadata> execute(
+                PaginatedHitSource.Hit doc,
+                Map<String, Object> source,
+                boolean routingFromSlice
+            ) {
                 if (update == null) {
                     update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
                 }

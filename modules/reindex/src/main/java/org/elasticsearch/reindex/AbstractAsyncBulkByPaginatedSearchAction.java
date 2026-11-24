@@ -1295,7 +1295,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 return request;
             }
 
-            CtxMap<T> ctxMap = execute(doc, request.getSource());
+            CtxMap<T> ctxMap = execute(doc, request.getSource(), request.isRoutingFromSlice());
 
             T metadata = ctxMap.getMetadata();
 
@@ -1306,7 +1306,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             return requestFromOp(request, metadata.getOp());
         }
 
-        protected abstract CtxMap<T> execute(PaginatedHitSource.Hit doc, Map<String, Object> source);
+        /**
+         * Run the script for {@code doc}; {@code routingFromSlice} is whether the request built for it is slice-routed.
+         */
+        protected abstract CtxMap<T> execute(PaginatedHitSource.Hit doc, Map<String, Object> source, boolean routingFromSlice);
 
         protected Runnable buildCancellationCheck() {
             BulkByPaginatedSearchTask task = taskWorker.getTask();

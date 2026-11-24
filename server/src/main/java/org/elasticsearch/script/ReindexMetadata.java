@@ -70,15 +70,22 @@ public class ReindexMetadata extends Metadata {
     protected final String id;
     protected final Long version;
     protected final String routing;
+    private final boolean requestRoutingFromSlice;
     private boolean routingFromSlice;
-    private boolean routingWritten;
 
-    public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
+    /**
+     * @param routing the hit's routing, which the script sees as {@code _routing} and {@code _slice}
+     * @param routingFromSlice whether the request is slice-routed; the script cannot see this, so it is the baseline for
+     *                         {@link #routingChangedWithSlice()} rather than something derived from the hit
+     */
+    public ReindexMetadata(String index, String id, Long version, String routing, boolean routingFromSlice, String op, long timestamp) {
         super(metadataMap(index, id, version, routing, op, timestamp), PROPERTIES);
         this.index = index;
         this.id = id;
         this.version = version;
         this.routing = routing;
+        this.requestRoutingFromSlice = routingFromSlice;
+        this.routingFromSlice = routingFromSlice;
     }
 
     /**
@@ -104,15 +111,9 @@ public class ReindexMetadata extends Metadata {
             final Object previous = super.put(ROUTING, value);
             super.put(SLICE, value);
             routingFromSlice = SLICE.equals(key);
-            routingWritten = true;
             return previous;
         }
-        final Object previous = super.put(key, value);
-        // Only after the write is accepted: a script may catch a rejected assignment, and that must not count as a routing change.
-        if (ROUTING.equals(key) || SLICE.equals(key)) {
-            routingWritten = true;
-        }
-        return previous;
+        return super.put(key, value);
     }
 
     @Override
@@ -121,14 +122,9 @@ public class ReindexMetadata extends Metadata {
             final Object previous = super.remove(ROUTING);
             super.remove(SLICE);
             routingFromSlice = false;
-            routingWritten = true;
             return previous;
         }
-        final Object previous = super.remove(key);
-        if (ROUTING.equals(key) || SLICE.equals(key)) {
-            routingWritten = true;
-        }
-        return previous;
+        return super.remove(key);
     }
 
     @Override
@@ -192,19 +188,10 @@ public class ReindexMetadata extends Metadata {
     }
 
     /**
-     * The routing value is compared against the hit, so re-assigning the hit's own routing is not a change. The slice provenance is
-     * compared against the request, and only if the script wrote {@code _routing} or {@code _slice}, since {@link #routingFromSlice}
-     * starts at {@code false} whether or not the request is slice-routed.
+     * Whether the script changed the routing value, compared against the hit, or its slice provenance, compared against the request.
      */
-    public boolean routingChangedWithSlice(boolean previousRoutingFromSlice) {
-        return routingChanged() || (routingWritten && routingFromSlice != previousRoutingFromSlice);
-    }
-
-    /**
-     * Whether the script wrote {@code _routing} or {@code _slice}, including a write of the value it already had.
-     */
-    public boolean routingWritten() {
-        return routingWritten;
+    public boolean routingChangedWithSlice() {
+        return routingChanged() || routingFromSlice != requestRoutingFromSlice;
     }
 
     public boolean isRoutingFromSlice() {

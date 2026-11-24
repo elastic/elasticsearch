@@ -1535,6 +1535,52 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    /** A failed blocked future fails the driver even when another operator is still blocked on a pending future. */
+    public void testDriverFailsWhenOneBlockedFutureFailedAndAnotherPending() {
+        DriverContext driverContext = driverContext();
+        SubscribableListener<Void> failed = SubscribableListener.newFailed(new IllegalStateException("blocked failed"));
+        SubscribableListener<Void> pending = new SubscribableListener<>();
+        boolean sourceFails = randomBoolean();
+        UsageSourceOperator source = new UsageSourceOperator(driverContext, new UsageStatus(3, 0, 0), false) {
+            @Override
+            public Page getOutput() {
+                return null;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return false;
+            }
+
+            @Override
+            public IsBlockedResult isBlocked() {
+                return new IsBlockedResult(sourceFails ? failed : pending, "source blocked");
+            }
+        };
+        Operator middle = new PassThroughOperator() {
+            @Override
+            public IsBlockedResult isBlocked() {
+                return new IsBlockedResult(sourceFails ? pending : failed, "middle blocked");
+            }
+        };
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            source,
+            List.of(middle),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            IllegalStateException failure = expectThrows(IllegalStateException.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            assertThat(failure.getMessage(), equalTo("blocked failed"));
+        } finally {
+            driver.close();
+            terminate(threadPool);
+        }
+    }
+
     /** Closing a driver that never ran only releases its operators: it does not read their status, as a failing driver does. */
     public void testClosingDriverThatNeverRanDoesNotReadOperatorStatus() {
         DriverContext driverContext = driverContext();

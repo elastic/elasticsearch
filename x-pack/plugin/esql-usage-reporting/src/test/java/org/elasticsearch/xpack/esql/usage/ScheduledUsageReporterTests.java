@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener.Outcome;
 
 import java.time.Clock;
@@ -31,9 +32,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Drives {@link ScheduledUsageReporter} with the real {@link UnboundedPendingStore}, a clock backed by a
- * {@link DeterministicTaskQueue}, and small scripted implementations of the accumulator, the builder and the publisher: the real
- * ones are other pieces of the plugin that this class must not depend on.
+ * Drives {@link ScheduledUsageReporter} with the simple {@link UnboundedPendingStore} (and the real {@link BoundedPendingStore} where the
+ * bound matters), a clock backed by a {@link DeterministicTaskQueue}, and small scripted implementations of the accumulator, the
+ * builder and the publisher, so that every failure of a piece can be scripted. A few tests use the real {@link AtomicUsageAccumulator},
+ * {@link HostedUsageRecordBuilder} and {@link BoundedPendingStore} instead, to check what a record really carries.
  */
 public class ScheduledUsageReporterTests extends ESTestCase {
 
@@ -127,9 +129,49 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         }
     }
 
+    /** A store that can fail to add, to check that the reporter goes on publishing what is pending. */
+    private static class FailingAddStore implements PendingStore {
+        private final UnboundedPendingStore delegate = new UnboundedPendingStore();
+        boolean failAdd;
+
+        @Override
+        public void add(List<UsageRecord> records) {
+            if (failAdd) {
+                throw new IllegalStateException("add failed");
+            }
+            delegate.add(records);
+        }
+
+        @Override
+        public List<UsageRecord> next(int max) {
+            return delegate.next(max);
+        }
+
+        @Override
+        public void acknowledge(Set<String> ids) {
+            delegate.acknowledge(ids);
+        }
+
+        @Override
+        public void drop(Set<String> ids, String reason) {
+            delegate.drop(ids, reason);
+        }
+
+        @Override
+        public int size() {
+            return delegate.size();
+        }
+
+        @Override
+        public java.util.Optional<Instant> oldestUsageTimestamp() {
+            return delegate.oldestUsageTimestamp();
+        }
+    }
+
     /** Answers every batch with the next function of the script, or with an acceptance of the whole batch when there is none. */
     private static class ScriptedPublisher implements UsagePublisher {
         final List<List<String>> batches = new ArrayList<>();
+        final List<UsageRecord> published = new ArrayList<>();
         final List<Function<List<UsageRecord>, PublishResult>> script = new ArrayList<>();
         RuntimeException failure;
         boolean closed;
@@ -137,6 +179,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         @Override
         public PublishResult publish(List<UsageRecord> records) {
             batches.add(records.stream().map(UsageRecord::id).toList());
+            published.addAll(records);
             if (failure != null) {
                 throw failure;
             }
@@ -166,10 +209,27 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     }
 
     private ScheduledUsageReporter reporter(int batchSize, String requestTimeout, PendingStore pendingStore) {
+        return reporter(batchSize, requestTimeout, pendingStore, UsageReportingSettings.PENDING_MAX.getDefault(Settings.EMPTY));
+    }
+
+    /** {@code pendingMax} is the bound of {@code pendingStore}: the plugin builds the store from the same setting. */
+    private ScheduledUsageReporter reporter(int batchSize, String requestTimeout, PendingStore pendingStore, int pendingMax) {
+        return reporter(accumulator, builder, batchSize, requestTimeout, pendingStore, pendingMax);
+    }
+
+    private ScheduledUsageReporter reporter(
+        UsageAccumulator accumulator,
+        UsageRecordBuilder builder,
+        int batchSize,
+        String requestTimeout,
+        PendingStore pendingStore,
+        int pendingMax
+    ) {
         Settings settings = Settings.builder()
             .put(UsageReportingSettings.PERIOD.getKey(), "5m")
             .put(UsageReportingSettings.BATCH_SIZE.getKey(), batchSize)
             .put(UsageReportingSettings.REQUEST_TIMEOUT.getKey(), requestTimeout)
+            .put(UsageReportingSettings.PENDING_MAX.getKey(), pendingMax)
             .build();
         return new ScheduledUsageReporter(
             UsageReportingSettings.of(settings),
@@ -282,9 +342,9 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     }
 
     /** With a full store, adding the last window first would evict the oldest pending record before it was published. */
-    public void testCloseGivesThePendingRecordsAChanceBeforeAddingTheLastWindow() {
+    public void testCloseGivesThePendingRecordsAChanceBeforeAddingTheLastWindowWhenTheStoreIsFull() {
         BoundedPendingStore bounded = new BoundedPendingStore(1);
-        ScheduledUsageReporter reporter = reporter(10, "1s", bounded);
+        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 1);
         bounded.add(pendingRecords(1)); // left by a cycle that could not publish; the store is full
         builder.recordsPerSnapshot = 1;
 
@@ -296,6 +356,157 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         assertThat(reporter.recordsSent(), equalTo(2L));
         assertThat(bounded.droppedCount(), equalTo(0L));
         assertThat(bounded.size(), equalTo(0));
+    }
+
+    /** A failure of the first publish of the flush is not followed by a second one that sends the same batch again at once. */
+    public void testCloseDoesNotPublishAgainAfterAFailureWhenThePendingRecordsGoFirst() {
+        BoundedPendingStore bounded = new BoundedPendingStore(1);
+        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 1);
+        bounded.add(pendingRecords(1));
+        builder.recordsPerSnapshot = 1;
+        publisher.script.add(records -> failed(PublishResult.FailureClass.RETRYABLE, Set.of()));
+
+        reporter.close();
+
+        assertThat(publisher.batches.size(), equalTo(1));
+        // The API is failing: the store makes room for the last window by dropping its oldest record, with an ERROR log, which is its
+        // policy when the Usage API stays unreachable.
+        assertThat(bounded.droppedCount(), equalTo(1L));
+        assertThat(bounded.next(10).stream().map(UsageRecord::id).toList(), contains("es-node_" + at("2026-11-23T10:03:20.001Z") + "_0"));
+    }
+
+    /** The last window just fits: nothing is evicted, so the pending records do not need to be published first. */
+    public void testCloseSendsEverythingInOneBatchWhenTheLastWindowJustFits() {
+        BoundedPendingStore bounded = new BoundedPendingStore(2);
+        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 2);
+        bounded.add(pendingRecords(1));
+        builder.recordsPerSnapshot = 1;
+
+        reporter.close();
+
+        assertThat(publisher.batches.size(), equalTo(1));
+        assertThat(publisher.batches.get(0).size(), equalTo(2));
+        assertThat(bounded.droppedCount(), equalTo(0L));
+    }
+
+    /** A last window of several records is counted: one record would fit, two do not. */
+    public void testCloseGivesThePendingRecordsAChanceWhenALastWindowOfSeveralRecordsDoesNotFit() {
+        BoundedPendingStore bounded = new BoundedPendingStore(2);
+        ScheduledUsageReporter reporter = reporter(10, "1s", bounded, 2);
+        bounded.add(pendingRecords(1));
+        builder.recordsPerSnapshot = 2;
+
+        reporter.close();
+
+        assertThat(publisher.batches.size(), equalTo(2));
+        assertThat(publisher.batches.get(0), contains("es-node_2026-11-23T10:00:00Z_0"));
+        assertThat(publisher.batches.get(1).size(), equalTo(2));
+        assertThat(bounded.droppedCount(), equalTo(0L));
+    }
+
+    public void testAStoreThatFailsToAddDoesNotKeepATickFromPublishingThePendingRecords() {
+        FailingAddStore failing = new FailingAddStore();
+        failing.add(pendingRecords(1));
+        failing.failAdd = true;
+        ScheduledUsageReporter reporter = reporter(10, "1s", failing);
+
+        try (MockLog mockLog = MockLog.capture(ScheduledUsageReporter.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "add failed",
+                    ScheduledUsageReporter.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to keep [1] usage records: they are lost"
+                )
+            );
+            reporter.tick(at("2026-11-23T10:05:00Z"));
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertThat(publisher.batches.size(), equalTo(1));
+        assertThat(failing.size(), equalTo(0));
+    }
+
+    public void testAStoreThatFailsToAddDoesNotKeepCloseFromFlushingThePendingRecords() {
+        FailingAddStore failing = new FailingAddStore();
+        failing.add(pendingRecords(1));
+        failing.failAdd = true;
+        ScheduledUsageReporter reporter = reporter(10, "1s", failing);
+
+        reporter.close();
+
+        assertThat(publisher.batches.size(), equalTo(1));
+        assertThat(failing.size(), equalTo(0));
+    }
+
+    /** The reporter with the real accumulator, builder and bounded store, which are what the plugin wires. */
+    private ScheduledUsageReporter realReporter(AtomicUsageAccumulator real, BoundedPendingStore bounded) {
+        return reporter(real, new HostedUsageRecordBuilder(), 10, "1s", bounded, 10);
+    }
+
+    /** A flush just after midnight of the first of a month covers its own minute: usage_timestamp is 00:00, not the previous month. */
+    public void testWithTheRealPiecesTheFinalDrainIsStampedInItsOwnWindow() {
+        clockLagMillis = clockLagFor("2026-11-30T23:55:00Z");
+        AtomicUsageAccumulator real = new AtomicUsageAccumulator();
+        BoundedPendingStore bounded = new BoundedPendingStore(10);
+        ScheduledUsageReporter reporter = realReporter(real, bounded);
+
+        real.record(Outcome.SUCCESS, Map.of(QueryMetricsListener.CPU_NANOS, 5_000_000L));
+        reporter.tick(at("2026-12-01T00:00:00Z"));
+        real.record(Outcome.SUCCESS, Map.of(QueryMetricsListener.CPU_NANOS, 2_000_000L));
+        clockLagMillis = clockLagFor("2026-12-01T00:01:00Z");
+        reporter.close();
+
+        assertThat(publisher.published.size(), equalTo(2));
+        UsageRecord tick = publisher.published.get(0);
+        assertThat(tick.id(), equalTo("es-node_es_esql_external_sources_cpu_2026-12-01T00:00:00.000Z"));
+        assertThat(tick.usageTimestamp(), equalTo(at("2026-11-30T23:55:00Z")));
+        assertThat(tick.periodSeconds(), equalTo(300L));
+        assertThat(tick.quantityMillis(), equalTo(5L));
+        UsageRecord last = publisher.published.get(1);
+        assertThat(last.id(), equalTo("es-node_es_esql_external_sources_cpu_2026-12-01T00:01:00.000Z"));
+        assertThat(last.usageTimestamp(), equalTo(at("2026-12-01T00:00:00Z")));
+        assertThat(last.periodSeconds(), equalTo(60L));
+        assertThat(last.quantityMillis(), equalTo(2L));
+        assertThat(bounded.size(), equalTo(0));
+    }
+
+    /** The final drain right after a tick gets the next millisecond, so the real ids differ and the store drops nothing. */
+    public void testWithTheRealPiecesAFinalDrainAtTheInstantOfATickKeepsBothRecords() {
+        AtomicUsageAccumulator real = new AtomicUsageAccumulator();
+        BoundedPendingStore bounded = new BoundedPendingStore(10);
+        ScheduledUsageReporter reporter = realReporter(real, bounded);
+
+        real.record(Outcome.SUCCESS, Map.of(QueryMetricsListener.CPU_NANOS, 5_000_000L));
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+        real.record(Outcome.SUCCESS, Map.of(QueryMetricsListener.CPU_NANOS, 3_000_000L));
+        clockLagMillis = clockLagFor("2026-11-23T10:05:00Z");
+        try (MockLog mockLog = MockLog.capture(BoundedPendingStore.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no loss", BoundedPendingStore.class.getCanonicalName(), Level.ERROR, "*")
+            );
+            reporter.close();
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertThat(publisher.published.stream().map(UsageRecord::id).distinct().count(), equalTo(2L));
+        assertThat(publisher.published.stream().mapToLong(UsageRecord::quantityMillis).sum(), equalTo(8L));
+        assertThat(bounded.droppedCount(), equalTo(0L));
+    }
+
+    /** Pins a known behaviour: a window under one second is sent with period_seconds 0 and its usage, which is not lost. */
+    public void testWithTheRealPiecesAWindowUnderOneSecondHasAPeriodOfZeroSeconds() {
+        AtomicUsageAccumulator real = new AtomicUsageAccumulator();
+        BoundedPendingStore bounded = new BoundedPendingStore(10);
+        ScheduledUsageReporter reporter = realReporter(real, bounded); // created at 10:03:20.000
+
+        real.record(Outcome.SUCCESS, Map.of(QueryMetricsListener.CPU_NANOS, 3_000_000L));
+        reporter.tick(at("2026-11-23T10:03:20.500Z"));
+
+        assertThat(publisher.published.size(), equalTo(1));
+        assertThat(publisher.published.get(0).periodSeconds(), equalTo(0L));
+        assertThat(publisher.published.get(0).quantityMillis(), equalTo(3L));
+        assertThat(publisher.published.get(0).usageTimestamp(), equalTo(at("2026-11-23T10:03:20Z")));
     }
 
     public void testTheFinalDrainDoesNotShareAnIdWithATickAtTheSameInstant() {
@@ -566,10 +777,11 @@ public class ScheduledUsageReporterTests extends ESTestCase {
             contains(at("2026-11-23T10:05:00Z"), at("2026-11-23T10:10:00Z"), at("2026-11-23T10:10:05Z"))
         );
         assertThat("the record of the last window covers the five seconds", builder.periods.get(2), equalTo(Duration.ofSeconds(5)));
-        // The pending record is published first, then the record of the last window, in a batch of its own.
-        List<List<String>> batches = publisher.batches;
-        assertThat(batches.get(batches.size() - 2), contains("es-node_2026-11-23T10:10:00Z_0"));
-        assertThat(batches.get(batches.size() - 1), contains("es-node_2026-11-23T10:10:05Z_0"));
+        // The store has room, so the pending record and the record of the last window go in the same batch, in one request.
+        assertThat(
+            publisher.batches.get(publisher.batches.size() - 1),
+            contains("es-node_2026-11-23T10:10:00Z_0", "es-node_2026-11-23T10:10:05Z_0")
+        );
 
         reporter.close(); // idempotent
         runUntil("2026-11-23T10:30:00Z");

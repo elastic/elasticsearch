@@ -232,11 +232,18 @@ enum ValueCardinality {
 
     /**
      * Whether {@code output} is one of the grouping keys of {@code aggregate}, rather than an aggregate function.
+     * <p>
+     * Matches an output that is the attribute of a grouping, or an alias of that attribute. For example,
+     * {@code BY k = languages + 1} outputs the attribute {@code k}, whereas, after optimization, {@code BY l = languages} outputs the
+     * alias {@code l = languages}.
+     * <p>
+     * ValueCardinality does not support INLINE STATS yet. If support is added, this method must be extended, because
+     * {@code INLINE STATS ... BY k = languages + 1} outputs the grouping alias {@code k = languages + 1}, not the attribute
+     * {@code k}.
      */
     private static boolean isGroupKey(Aggregate aggregate, NamedExpression output) {
         if (Alias.unwrap(output) instanceof Attribute outputAttribute) {
             for (Expression grouping : aggregate.groupings()) {
-                // The output of a group key is the attribute of the grouping, or an alias of it.
                 Attribute groupingAttribute = Expressions.attribute(grouping);
                 if (groupingAttribute != null && outputAttribute.id().equals(groupingAttribute.id())) {
                     return true;

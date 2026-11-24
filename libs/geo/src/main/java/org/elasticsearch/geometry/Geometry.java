@@ -24,6 +24,10 @@ public interface Geometry {
         return false;
     }
 
+    default boolean hasM() {
+        return false;
+    }
+
     default boolean hasAlt() {
         return hasZ();
     }

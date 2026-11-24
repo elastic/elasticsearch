@@ -45,6 +45,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
         // our chosen DocIDs to keep
         List<Integer> selectedDocRanks = new ArrayList<>();
+        // constant-time membership check for selectedDocRanks, indexed by rank - 1
+        boolean[] isSelected = new boolean[docs.length];
 
         // cache the similarity scores for the query vector vs. searchHits
         float[] querySimilarities = getQuerySimilarityForDocs(docs);
@@ -59,6 +61,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         int prevSelectedDocRank = 1 + bestDocIdx.getAsInt();
 
         selectedDocRanks.add(prevSelectedDocRank);
+        isSelected[prevSelectedDocRank - 1] = true;
         int topDocsSize = context.getSize();
 
         float[] maxSimilarityToSelected = new float[docs.length];
@@ -72,7 +75,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             for (RankDoc doc : docs) {
                 int docRank = doc.rank;
 
-                if (selectedDocRanks.contains(docRank)) {
+                if (isSelected[docRank - 1]) {
                     continue;
                 }
 
@@ -100,6 +103,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
             if (thisMaxMMRDocRank >= 0) {
                 selectedDocRanks.add(thisMaxMMRDocRank);
+                isSelected[thisMaxMMRDocRank - 1] = true;
                 prevSelectedDocRank = thisMaxMMRDocRank;
             }
         }

@@ -482,7 +482,7 @@ public class Driver implements Releasable, Describable {
                     failed = blocked;
                     break;
                 }
-                if (blocked.listener().isDone() == false) {
+                if (blocked.listener().isSuccess() == false) {
                     blockedResults.add(blocked);
                 }
             }

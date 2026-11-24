@@ -224,6 +224,11 @@ tests:
   - :docs:yamlRestTest
   method: test {yaml=reference/snapshot-restore/apis/restore-snapshot-api/line_60}
   issue: https://github.com/elastic/elasticsearch/issues/166584
+- class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:internalClusterTest
+  method: testNodesCachesStats
+  issue: https://github.com/elastic/elasticsearch/issues/166076
 
 # Examples:
 #

@@ -96,22 +96,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
-    /**
-     * Whether {@link #setMatchTailQuery()} was called, so segments that are sorted by descending {@code @timestamp}
-     * only collect the last documents of the segment.
-     */
     public boolean isMatchTailQuery() {
         return alwaysMatchTailQuery;
     }
 
     /**
-     * Marks the primary key of {@code sort} for the "match tail" optimization if it is an ascending sort on {@code @timestamp}
-     * and the index is sorted by descending {@code @timestamp}. The optimization is only correct for a query that matches every
-     * document, and that has no {@code search_after}, so the caller must check that first.
-     *
-     * @param indexSortConfig the sort configuration of the index that is searched
-     * @param sort the sort of the search, or {@code null} if the search is not sorted
-     * @return whether the sort was marked
+     * Enables the match tail optimization if {@code sort} is ascending on {@code @timestamp} and the index is sorted by
+     * descending {@code @timestamp}. The caller must check that the query matches all documents and has no {@code search_after}.
      */
     public static boolean maybeMarkAsMatchTail(IndexSortConfig indexSortConfig, @Nullable Sort sort) {
         if (sort == null || sort.getSort().length == 0 || indexSortConfig.containsDescendingTimestampSort() == false) {

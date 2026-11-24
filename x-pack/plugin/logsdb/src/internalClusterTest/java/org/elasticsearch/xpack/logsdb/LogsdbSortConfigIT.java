@@ -641,11 +641,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         checkTailSkipping(backingIndex, true);
     }
 
-    /**
-     * A collector keeps one queue for all the segments of a shard, so a segment can start with a full queue. If that segment
-     * has fewer documents than the queue holds, the end of the segment is the whole segment. It used to fail because the
-     * start of the tail was negative.
-     */
+    /** A segment with fewer documents than the queue holds, after a segment that filled the queue. */
     public void testMatchTailWithSegmentSmallerThanHits() throws Exception {
         final String dataStreamName = "test-logsdb-match-tail-with-segment-smaller-than-hits";
 
@@ -666,7 +662,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
         createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
 
-        // A refresh after each batch gives a segment with 25 documents and a segment with 5 documents
         int numHits = 10;
         for (int batchSize : new int[] { 25, 5 }) {
             List<DocWithId> docs = new ArrayList<>();
@@ -696,7 +691,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                 lv.setMatchTailQuery();
             }
 
-            // The collector is shared by the segments, so the queue is full when the second segment starts
+            // The queue is shared by the segments, so it is full when the second one starts
             Collector collector = new TopFieldCollectorManager(new Sort(sf), numHits, 4).newCollector();
             var leaves = searcher.getLeafContexts()
                 .stream()

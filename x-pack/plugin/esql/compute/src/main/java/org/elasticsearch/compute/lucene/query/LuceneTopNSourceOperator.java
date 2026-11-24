@@ -123,8 +123,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     }
                 }
             }
-            // Match-all query sorted by the reverse of the index sort: only the end of each segment is read, so there is
-            // nothing to split.
+            // Match tail reads only the end of each segment, so there is nothing to split
             if (LuceneSourceOperator.Factory.unwrapQuery(query) instanceof MatchAllDocsQuery) {
                 Optional<SortAndFormats> matchAllSort = ctx.buildSort(sorts, true);
                 if (matchAllSort.isPresent()
@@ -758,10 +757,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return newPerShardCollector(context, false);
         }
 
-        /**
-         * @param matchesAllDocs whether the query of the shard matches every document, which lets the sort read only the end
-         *                       of a segment that is sorted by the reverse of the sort
-         */
         PerShardCollector newPerShardCollector(ShardContext context, boolean matchesAllDocs) throws IOException {
             Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts, matchesAllDocs);
             if (sortAndFormats.isEmpty()) {

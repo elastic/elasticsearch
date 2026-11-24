@@ -1060,7 +1060,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts, boolean matchesAllDocs) throws IOException {
             Optional<SortAndFormats> sort = buildSort(sorts);
-            // The sort shape is checked here. maybeMarkAsMatchTail checks the index sort, and the comparator checks each segment.
             if (matchesAllDocs && sort.isPresent() && hasMatchTailSortShape(sorts)) {
                 LongValuesComparatorSource.maybeMarkAsMatchTail(ctx.getIndexSettings().getIndexSortConfig(), sort.get().sort);
             }
@@ -1068,13 +1067,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /**
-         * Whether the shape of the sort allows the "match tail" optimization: a single ascending key, with documents without a
-         * value last. A second key, or documents without a value that sort first, can need documents outside the tail, which
-         * holds only {@code LIMIT + 1} documents of each segment.
-         * <p>
-         * This is not enough by itself. The optimization also needs an index sorted by descending {@code @timestamp}, and a sort
-         * on {@code @timestamp}. {@link LongValuesComparatorSource#maybeMarkAsMatchTail} checks that for the index, and the
-         * comparator checks each segment.
+         * A single ascending key with nulls last. Other sorts can need documents outside the tail. The index sort is checked in
+         * {@link LongValuesComparatorSource#maybeMarkAsMatchTail}.
          */
         private static boolean hasMatchTailSortShape(List<SortBuilder<?>> sorts) {
             return sorts.size() == 1

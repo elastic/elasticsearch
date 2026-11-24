@@ -261,7 +261,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         }
         long end = request.getEndTime().getAsLong();
         if (EsqlDataExtractor.emitsBucketTimes(datafeed.getEsqlQuery()) == false) {
-            return end;
+            // Raw ES|QL still needs the date_nanos cap; DSL keeps the requested end.
+            return datafeed.getEsqlQuery() != null ? Math.min(end, cap) : end;
         }
         // An aggregating ES|QL datafeed emits one row per grouping-interval bucket, stamped with the bucket start, and the
         // extractor factory floors the window end so an open bucket is never extracted. A preview is a

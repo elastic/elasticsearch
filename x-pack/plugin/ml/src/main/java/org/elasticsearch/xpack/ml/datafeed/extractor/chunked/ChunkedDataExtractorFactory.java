@@ -45,8 +45,10 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         long alignedStart = alignStart(timeAligner, start);
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
         long alignedEnd = timeAligner.alignToFloor(end);
-        assert alignedStart <= alignedEnd : "window start [" + alignedStart + "] is after end [" + alignedEnd + "]";
         boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
+        // DSL ceils start and floors end, so a window inside one histogram bucket inverts and is treated as empty.
+        assert hasEsqlQuery == false || alignedStart <= alignedEnd
+            : "window start [" + alignedStart + "] is after end [" + alignedEnd + "]";
         boolean injectsEsqlRowLimit = hasEsqlQuery && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery());
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),

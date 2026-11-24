@@ -141,6 +141,14 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(unalignedEnd));
     }
 
+    public void testResolvePreviewEndTimeRawEsqlDatafeedBeyondDateNanosMaxShouldCapAtNanosMax() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        long nanosMax = DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 0L, nanosMax + 1_000L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true, datafeed), equalTo(nanosMax));
+    }
+
     public void testResolvePreviewEndTimeClassicDatafeedShouldNotAlignEnd() {
         DatafeedConfig datafeed = new DatafeedConfig.Builder("classic", "job").setIndices(List.of("logs-*")).build();
         PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeed, null, 1_000L, 5_123L);

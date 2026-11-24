@@ -63,6 +63,16 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(dataExtractor.getContext().end(), equalTo(9000L));
     }
 
+    public void testDslWindowInsideSingleHistogramBucketShouldBeEmpty() {
+        ChunkedDataExtractorFactory factory = createFactory(1000L);
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(2500, 2700);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(3000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(2000L));
+        assertThat(dataExtractor.hasNext(), is(false));
+    }
+
     public void testIntervalTimeAligner() {
         ChunkedDataExtractorContext.TimeAligner timeAligner = ChunkedDataExtractorFactory.newIntervalTimeAligner(100L);
         assertThat(timeAligner.alignToFloor(300L), equalTo(300L));

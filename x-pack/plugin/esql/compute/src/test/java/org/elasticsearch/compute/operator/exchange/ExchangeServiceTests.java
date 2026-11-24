@@ -1161,6 +1161,62 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Failing the sink of a cancelled fetch runs its completion listeners, and a compute's listener unregisters the sink. A
+     * compute request that looks the sink up right then must already see the cancellation marker: a missing exchange would
+     * replace the query's own error.
+     */
+    public void testCancelledFetchMarksSinkBeforeCompletionListeners() throws Exception {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange-" + randomAlphaOfLength(8);
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> opened = new PlainActionFuture<>();
+            ExchangeService.openExchange(
+                node0,
+                connection,
+                exchangeId,
+                randomExchangeBuffer(),
+                threadPool.executor(ESQL_TEST_EXECUTOR),
+                opened
+            );
+            opened.actionGet(10, TimeUnit.SECONDS);
+            ExchangeSinkHandler sink = exchange1.getSinkHandler(exchangeId);
+            PlainActionFuture<Exception> lookupFromListener = new PlainActionFuture<>();
+            sink.addCompletionListener(ActionListener.running(() -> {
+                exchange1.finishSinkHandler(exchangeId, null);
+                try {
+                    ExchangeSinkHandler found = exchange1.getSinkHandlerIfOpen(exchangeId);
+                    lookupFromListener.onFailure(new IllegalStateException("expected the lookup to fail, got " + found));
+                } catch (Exception e) {
+                    lookupFromListener.onResponse(e);
+                }
+            }));
+
+            CancellableTask queryTask = registerQueryTask(node0);
+            try {
+                RemoteSink remoteSink = exchange0.newRemoteSink(queryTask, exchangeId, node0, connection);
+                PlainActionFuture<Boolean> fetchedFinished = new PlainActionFuture<>();
+                remoteSink.fetchPageAsync(false, fetchedFinished.map(ExchangeResponse::finished));
+                assertBusy(() -> assertTrue("the fetch must wait on the sink", sink.hasListeners()));
+
+                PlainActionFuture<Void> cancelled = new PlainActionFuture<>();
+                node0.getTaskManager().cancelTaskAndDescendants(queryTask, "query failed", false, cancelled);
+                cancelled.actionGet(10, TimeUnit.SECONDS);
+                assertTrue("the cancelled fetch is answered as finished", fetchedFinished.actionGet(10, TimeUnit.SECONDS));
+                assertThat(lookupFromListener.actionGet(10, TimeUnit.SECONDS), instanceOf(TaskCancelledException.class));
+            } finally {
+                node0.getTaskManager().unregister(queryTask);
+            }
+        }
+    }
+
     /** The task of a query on the coordinator, which a failing query cancels together with its children. */
     private static CancellableTask registerQueryTask(TransportService transportService) {
         return (CancellableTask) transportService.getTaskManager().register("transport", "esql_query", new TaskAwareRequest() {

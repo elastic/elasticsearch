@@ -100,19 +100,17 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
      * Enables the match tail optimization if {@code sort} is ascending on {@code @timestamp} and the index is sorted by
      * descending {@code @timestamp}. The caller must check that the query matches all documents and has no {@code search_after}.
      */
-    public static boolean maybeMarkAsMatchTail(IndexSortConfig indexSortConfig, @Nullable Sort sort) {
+    public static void maybeMarkAsMatchTail(IndexSortConfig indexSortConfig, @Nullable Sort sort) {
         if (sort == null || sort.getSort().length == 0 || indexSortConfig.containsDescendingTimestampSort() == false) {
-            return false;
+            return;
         }
         SortField primarySort = sort.getSort()[0];
         if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
-            return false;
+            return;
         }
         if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
             source.setMatchTailQuery();
-            return true;
         }
-        return false;
     }
 
     private SortedNumericLongValues loadDocValues(LeafReaderContext context) {

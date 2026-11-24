@@ -23,12 +23,20 @@ dependencies {
   }
 
   // select just the parts of JLine that are needed
+  // jline-native is left out so the tests run with the same classes as the shipped CLI
   api("org.jline:jline-terminal-jna:${sqlVersions.jline}") {
     exclude group: "net.java.dev.jna"
+    exclude group: "org.jline", module: "jline-native"
   }
-  api "org.jline:jline-terminal:${sqlVersions.jline}"
-  api "org.jline:jline-reader:${sqlVersions.jline}"
-  api "org.jline:jline-style:${sqlVersions.jline}"
+  api("org.jline:jline-terminal:${sqlVersions.jline}") {
+    exclude group: "org.jline", module: "jline-native"
+  }
+  api("org.jline:jline-reader:${sqlVersions.jline}") {
+    exclude group: "org.jline", module: "jline-native"
+  }
+  api("org.jline:jline-style:${sqlVersions.jline}") {
+    exclude group: "org.jline", module: "jline-native"
+  }
 
   testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }
@@ -91,10 +99,17 @@ subprojects {
 
       javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${sqlVersions.jline}") {
         exclude group: "net.java.dev.jna"
+        exclude group: "org.jline", module: "jline-native"
       }
-      javaRestTestRuntimeOnly "org.jline:jline-terminal:${sqlVersions.jline}"
-      javaRestTestRuntimeOnly "org.jline:jline-reader:${sqlVersions.jline}"
-      javaRestTestRuntimeOnly "org.jline:jline-style:${sqlVersions.jline}"
+      javaRestTestRuntimeOnly("org.jline:jline-terminal:${sqlVersions.jline}") {
+        exclude group: "org.jline", module: "jline-native"
+      }
+      javaRestTestRuntimeOnly("org.jline:jline-reader:${sqlVersions.jline}") {
+        exclude group: "org.jline", module: "jline-native"
+      }
+      javaRestTestRuntimeOnly("org.jline:jline-style:${sqlVersions.jline}") {
+        exclude group: "org.jline", module: "jline-native"
+      }
 
       javaRestTestRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 

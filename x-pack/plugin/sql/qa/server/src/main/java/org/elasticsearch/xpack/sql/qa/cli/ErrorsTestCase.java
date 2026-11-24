@@ -19,7 +19,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     /**
      * Starting sequence commons to lots of errors.
      */
-    public static final String START = "[?1l>[?1000l[?2004l[31;1m";
+    public static final String START = EmbeddedCli.LINE_EDIT_END + "[31;1m";
     /**
      * Ending sequence common to lots of errors.
      */

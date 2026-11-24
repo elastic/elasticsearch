@@ -55,6 +55,12 @@ import static org.junit.Assert.fail;
 public class EmbeddedCli implements Closeable {
     private static final Logger logger = LogManager.getLogger(EmbeddedCli.class);
 
+    /**
+     * What jLine writes when it stops editing a line, so the first line of a command's output starts with it.
+     * The esc characters are left out like {@link #readLine()} does.
+     */
+    public static final String LINE_EDIT_END = "[?1l>[?1000l[?1002l[?1003l[?1005l[?1006l[?1015l[?1016l[?2004l";
+
     private final Thread exec;
     private final Cli cli;
     private final AtomicInteger returnCode = new AtomicInteger(Integer.MIN_VALUE);
@@ -180,7 +186,7 @@ public class EmbeddedCli implements Closeable {
                      * emit some state reset escape sequences before the
                      * prompt for the password.
                      */
-                    passwordPrompt = "[?1l>[?1000l[?2004l[?1h=[?2004hpassword: ";
+                    passwordPrompt = LINE_EDIT_END + "[?1h=[?2004hpassword: ";
                 }
                 assertEquals(passwordPrompt, readUntil(s -> s.endsWith(": ")));
                 out.write(security.password + "\n");
@@ -322,7 +328,7 @@ public class EmbeddedCli implements Closeable {
         // Every line gets an extra new line because, I dunno, but it looks right in the CLI
         result.add("");
         for (int i = 1; i < commandLines.size(); i++) {
-            result.add("[?1l>[?1000l[?2004l[?1h=[?2004h[33m   | [0m" + commandLines.get(i));
+            result.add(LINE_EDIT_END + "[?1h=[?2004h[33m   | [0m" + commandLines.get(i));
             // Every line gets an extra new line because, I dunno, but it looks right in the CLI
             result.add("");
         }

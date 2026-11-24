@@ -85,9 +85,9 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
             expectMatchesAdmin(adminSql, user, userSql, cli -> {
-                assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m1[0m", cli.command("fetch size = 1"));
+                assertEquals(EmbeddedCli.LINE_EDIT_END + "fetch size set to [90m1[0m", cli.command("fetch size = 1"));
                 assertEquals(
-                    "[?1l>[?1000l[?2004lfetch separator set to \"[90m -- fetch sep -- [0m\"",
+                    EmbeddedCli.LINE_EDIT_END + "fetch separator set to \"[90m -- fetch sep -- [0m\"",
                     cli.command("fetch separator = \" -- fetch sep -- \"")
                 );
             });

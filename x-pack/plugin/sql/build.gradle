@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 Map<String, String> sqlVersions = [
-  jline: "3.21.0",
+  jline: "3.30.17",
   csvjdbc: "1.0.34",
   h2: "1.4.197",
   h2gis: "1.5.0"

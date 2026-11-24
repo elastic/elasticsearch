@@ -10,10 +10,16 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
+import org.jline.terminal.impl.DumbTerminal;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -78,6 +84,56 @@ public class JLineTerminalTests extends SqlCliTestCase {
             assertEquals(ExitCodes.NOPERM, e.exitCode);
             assertEquals("password required", e.getMessage());
         }
+    }
+
+    /**
+     * A dumb terminal cannot hide input. The password must still be read, stay out of the history,
+     * and leave no jLine thread behind that keeps writing the prompt.
+     */
+    public void testReadPasswordOnDumbTerminal() throws IOException, UserException {
+        String password = randomAlphaOfLength(8);
+        Terminal dumb = dumbTerminal(password + "\nSELECT 1;\n");
+        LineReader dumbReader = LineReaderBuilder.builder().terminal(dumb).build();
+
+        try (JLineTerminal terminal = new JLineTerminal(dumb, dumbReader, randomBoolean())) {
+            assertEquals(password, terminal.readPassword("password: "));
+            assertEquals(0, dumbReader.getHistory().size());
+            assertFalse(maskThreadIsRunning());
+
+            assertEquals("SELECT 1;", terminal.readLine("sql> "));
+            assertEquals(1, dumbReader.getHistory().size());
+        }
+    }
+
+    /**
+     * A script written with CRLF line ends must read like one written with LF line ends.
+     */
+    public void testReadLineOnDumbTerminalIgnoresCarriageReturn() throws IOException {
+        Terminal dumb = dumbTerminal("SELECT 1;\r\nquit;\r\n");
+        LineReader dumbReader = LineReaderBuilder.builder().terminal(dumb).build();
+
+        try (JLineTerminal terminal = new JLineTerminal(dumb, dumbReader, randomBoolean())) {
+            assertEquals("SELECT 1;", terminal.readLine("sql> "));
+            assertEquals("quit;", terminal.readLine("sql> "));
+            assertNull(terminal.readLine("sql> "));
+        }
+    }
+
+    /**
+     * The terminal the CLI gets when its input does not come from a keyboard.
+     */
+    private Terminal dumbTerminal(String input) throws IOException {
+        ByteArrayInputStream in = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
+        String type = randomBoolean() ? Terminal.TYPE_DUMB : Terminal.TYPE_DUMB_COLOR;
+        return new DumbTerminal("test", type, in, new ByteArrayOutputStream(), StandardCharsets.UTF_8);
+    }
+
+    private static boolean maskThreadIsRunning() {
+        // jLine starts its mask thread from the reading thread, so it lands in this thread's group
+        ThreadGroup group = Thread.currentThread().getThreadGroup();
+        Thread[] threads = new Thread[group.activeCount() + 8];
+        int count = group.enumerate(threads);
+        return Arrays.stream(threads, 0, count).anyMatch(t -> t.getName().equals("JLine Mask Thread"));
     }
 
     public void testReadLineSuccess() throws IOException {

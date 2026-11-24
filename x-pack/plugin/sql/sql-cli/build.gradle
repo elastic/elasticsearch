@@ -28,12 +28,20 @@ def sqlVersions = project(':x-pack:plugin:sql').extensions.extraProperties.get('
 dependencies {
 
   // select just the parts of JLine that are needed
-  api "org.jline:jline-terminal:${sqlVersions.jline}"
+  // jline-native backs the JNI provider and two optional helpers in jline-terminal; the CLI uses neither
+  api("org.jline:jline-terminal:${sqlVersions.jline}") {
+    exclude group: "org.jline", module: "jline-native"
+  }
   api( "org.jline:jline-terminal-jna:${sqlVersions.jline}") {
     exclude group: "net.java.dev.jna"
+    exclude group: "org.jline", module: "jline-native"
   }
-  api "org.jline:jline-reader:${sqlVersions.jline}"
-  api "org.jline:jline-style:${sqlVersions.jline}"
+  api("org.jline:jline-reader:${sqlVersions.jline}") {
+    exclude group: "org.jline", module: "jline-native"
+  }
+  api("org.jline:jline-style:${sqlVersions.jline}") {
+    exclude group: "org.jline", module: "jline-native"
+  }
 
   api project(':x-pack:plugin:sql:sql-client')
   api project(":libs:cli")
@@ -43,6 +51,14 @@ dependencies {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jline-.*/, to: 'jline'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // optional helpers in jline-terminal that need jline-native
+    'org.jline.nativ.JLineLibrary',
+    'org.jline.nativ.JLineNativeLoader'
+  )
 }
 
 tasks.named("shadowJar").configure {

@@ -27,9 +27,9 @@ public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
 
-        assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m4[0m", command("fetch size = 4"));
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "fetch size set to [90m4[0m", command("fetch size = 4"));
         assertEquals(
-            "[?1l>[?1000l[?2004lfetch separator set to \"[90m -- fetch sep -- [0m\"",
+            EmbeddedCli.LINE_EDIT_END + "fetch separator set to \"[90m -- fetch sep -- [0m\"",
             command("fetch separator = \" -- fetch sep -- \"")
         );
         assertThat(command("SELECT * FROM test ORDER BY test_field ASC"), containsString("test_field"));
@@ -69,9 +69,9 @@ public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
 
-        assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m4[0m", command("fetch size = 4"));
+        assertEquals(EmbeddedCli.LINE_EDIT_END + "fetch size set to [90m4[0m", command("fetch size = 4"));
         assertEquals(
-            "[?1l>[?1000l[?2004lfetch separator set to \"[90m -- fetch sep -- [0m\"",
+            EmbeddedCli.LINE_EDIT_END + "fetch separator set to \"[90m -- fetch sep -- [0m\"",
             command("fetch separator = \" -- fetch sep -- \"")
         );
         assertThat(command("SELECT max(b) FROM test GROUP BY a ORDER BY max(b) DESC LIMIT 20"), containsString("max(b)"));

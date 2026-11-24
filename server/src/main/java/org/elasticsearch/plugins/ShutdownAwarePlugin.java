@@ -44,6 +44,8 @@ public interface ShutdownAwarePlugin {
      * this one is not tied to the Node Shutdown API: it is called once per node, when the node is built, and the result is used if that
      * node is later asked to shut down.
      * <p>
+     * The server also waits for some actions of its own, which a plugin need not repeat here.
+     * <p>
      * Without this, tasks that outlive the HTTP request that started them (e.g. async queries) or that run on behalf of a coordinator on
      * another node would be abandoned when the node closes. Tasks are matched by exact action name on the local task manager, so the
      * names must equal {@link org.elasticsearch.tasks.Task#getAction()}, including any suffix such as the one of the async tasks. The

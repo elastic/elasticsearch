@@ -102,7 +102,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
      * within the configured timeout.
      *
      * @return {@link Outcome#READY} only if the last status polled was {@link SingleNodeShutdownMetadata.Status#COMPLETE}; a failure to
-     *         register the shutdown or to poll its status, or a timeout, yields {@link Outcome#NOT_READY}
+     *         register the shutdown or to poll its status, a missing shutdown record, or a timeout, yields {@link Outcome#NOT_READY}
      * @throws RuntimeException if interrupted while waiting, with the interrupt status of the thread restored
      */
     @Override
@@ -388,7 +388,8 @@ public class SigtermTerminationHandler implements TerminationHandler {
 
     /**
      * Only the last status polled tells whether the node's shards are safe elsewhere. It is unset if the registration failed. Since
-     * polling stops at {@link SingleNodeShutdownMetadata.Status#COMPLETE}, a failed poll or a timeout leaves an earlier, incomplete one.
+     * polling stops at {@link SingleNodeShutdownMetadata.Status#COMPLETE}, a failed poll, a missing record or a timeout leaves an
+     * earlier, incomplete one.
      */
     private static boolean isReady(SingleNodeShutdownStatus lastStatus) {
         return lastStatus != null && lastStatus.overallStatus() == SingleNodeShutdownMetadata.Status.COMPLETE;
@@ -474,8 +475,17 @@ public class SigtermTerminationHandler implements TerminationHandler {
         // This transport action does not use a timeout, so we use INFINITE_MASTER_NODE_TIMEOUT as a way to express "this will not time out"
         final var request = new GetShutdownStatusAction.Request(INFINITE_MASTER_NODE_TIMEOUT, nodeId);
         client.execute(GetShutdownStatusAction.INSTANCE, request, ActionListener.wrap(res -> {
-            assert res.getShutdownStatuses().size() == 1 : "got more than this node's shutdown status";
-            SingleNodeShutdownStatus status = res.getShutdownStatuses().get(0);
+            final var statuses = res.getShutdownStatuses();
+            if (statuses.isEmpty()) {
+                // The record this node registered is gone, e.g. deleted through the API. Without it nothing tells whether the node's
+                // shards are safe elsewhere, so stop polling; the last status polled, if any, was not complete, which leaves the node
+                // not ready.
+                logger.warn("no shutdown record found for this node, ending shutdown status polling");
+                latch.countDown();
+                return;
+            }
+            assert statuses.size() == 1 : "got more than this node's shutdown status";
+            SingleNodeShutdownStatus status = statuses.get(0);
             lastStatus.set(status);
             if (status.migrationStatus().getStatus() == SingleNodeShutdownMetadata.Status.COMPLETE) {
                 migrationCompleteMillis.compareAndSet(UNSET, threadPool.rawRelativeTimeInMillis());

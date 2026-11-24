@@ -486,6 +486,80 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         assertThat(polls.get(), equalTo(2));
     }
 
+    public void testMissingShutdownRecordOnFirstPollIsNotReady() {
+        assertMissingRecordIsNotReady(false);
+    }
+
+    public void testMissingShutdownRecordAfterIncompleteStatusIsNotReady() {
+        assertMissingRecordIsNotReady(true);
+    }
+
+    private void assertMissingRecordIsNotReady(boolean incompleteFirst) {
+        final TimeValue timeout = timeValueSeconds(10);
+        final String nodeId = randomAlphaOfLength(10);
+        final var polls = new AtomicInteger();
+
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+        doAnswer(invocation -> {
+            ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+            final int poll = polls.getAndIncrement();
+            if (incompleteFirst && poll == 0) {
+                listener.onResponse(statusResponse(nodeId, timeout, SingleNodeShutdownMetadata.Status.IN_PROGRESS, true));
+            } else {
+                listener.onResponse(new GetShutdownStatusAction.Response(List.of()));
+            }
+            return null;
+        }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+        final var meterRegistry = new RecordingMeterRegistry();
+        try (var mockLog = MockLog.capture(SigtermTerminationHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "missing shutdown record",
+                    SigtermTerminationHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "no shutdown record found for this node, ending shutdown status polling"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no generic poll failure",
+                    SigtermTerminationHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to get shutdown status*"
+                )
+            );
+
+            final var outcome = new SigtermTerminationHandler(
+                client,
+                threadPool,
+                null,
+                null,
+                TimeValue.timeValueMillis(5),
+                timeout,
+                nodeId,
+                new SigtermShutdownMetrics(meterRegistry)
+            ).handleTermination();
+
+            mockLog.assertAllExpectationsMatched();
+            assertThat(outcome, equalTo(TerminationHandler.Outcome.NOT_READY));
+        }
+
+        assertThat(polls.get(), equalTo(incompleteFirst ? 2 : 1));
+        assertShutdownAndMigrationMetrics(
+            meterRegistry,
+            incompleteFirst ? SigtermTerminationHandler.ShutdownStatus.IN_PROGRESS : SigtermTerminationHandler.ShutdownStatus.UNKNOWN,
+            false,
+            false
+        );
+    }
+
     /**
      * Completed shard migration is not enough: on timeout, the node is ready only if the overall status was complete.
      */

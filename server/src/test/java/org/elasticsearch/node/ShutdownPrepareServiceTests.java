@@ -10,6 +10,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -31,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -468,6 +470,35 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testPrepareForShutdown_awaitsFieldCapsTaskWithHandler() throws Exception {
+        assertAwaitsServerDeclaredAction(TransportFieldCapabilitiesAction.NAME, () -> TerminationHandler.Outcome.READY);
+    }
+
+    public void testPrepareForShutdown_awaitsFieldCapsNodeTaskWithHandler() throws Exception {
+        assertAwaitsServerDeclaredAction(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, () -> TerminationHandler.Outcome.READY);
+    }
+
+    public void testPrepareForShutdown_awaitsFieldCapsTaskWithoutHandler() throws Exception {
+        assertAwaitsServerDeclaredAction(TransportFieldCapabilitiesAction.NAME, null);
+    }
+
+    public void testPrepareForShutdown_awaitsFieldCapsNodeTaskWithoutHandler() throws Exception {
+        assertAwaitsServerDeclaredAction(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, null);
+    }
+
+    private void assertAwaitsServerDeclaredAction(String action, @Nullable TerminationHandler handler) throws Exception {
+        final var service = newService(TimeValue.ZERO, handler, List.of(), List.of());
+        final Task task = registerTask(action);
+        final Thread shutdown = startShutdown(service);
+        try {
+            assertBusy(() -> assertThat(fakeTime.sleeps(), greaterThanOrEqualTo(1)));
+            assertStillWaiting(shutdown);
+        } finally {
+            taskManager.unregister(task);
+            safeJoin(shutdown);
+        }
+    }
+
     /**
      * With a termination handler, the drain starts only once the handler and every other hook have finished: a task registered after
      * the handler returned, while another hook was still running, is waited for, and so is the plugin drain.
@@ -787,14 +818,27 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         @Nullable TerminationHandler terminationHandler,
         List<PluginDrain> pluginDrains
     ) {
+        return newService(maxTimeout, terminationHandler, List.of(AWAITED_ACTION), pluginDrains);
+    }
+
+    private RecordingShutdownPrepareService newService(
+        TimeValue maxTimeout,
+        @Nullable TerminationHandler terminationHandler,
+        Collection<String> actionsToAwait,
+        List<PluginDrain> pluginDrains
+    ) {
         final var settings = Settings.builder()
             .put(ShutdownPrepareService.MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.getKey(), maxTimeout.getStringRep())
             .build();
-        return new RecordingShutdownPrepareService(settings, terminationHandler, pluginDrains);
+        return new RecordingShutdownPrepareService(settings, terminationHandler, actionsToAwait, pluginDrains);
     }
 
     private Task registerTask() {
-        return taskManager.register("transport", AWAITED_ACTION, new TaskAwareRequest() {
+        return registerTask(AWAITED_ACTION);
+    }
+
+    private Task registerTask(String action) {
+        return taskManager.register("transport", action, new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {}
 
@@ -836,14 +880,19 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
         final List<TimeValue> awaitTimeouts = new CopyOnWriteArrayList<>();
         final List<Boolean> awaitResults = new CopyOnWriteArrayList<>();
 
-        RecordingShutdownPrepareService(Settings settings, @Nullable TerminationHandler terminationHandler, List<PluginDrain> drains) {
+        RecordingShutdownPrepareService(
+            Settings settings,
+            @Nullable TerminationHandler terminationHandler,
+            Collection<String> actionsToAwait,
+            List<PluginDrain> drains
+        ) {
             super(
                 settings,
                 // an interface of which the service only calls close()
                 mock(HttpServerTransport.class),
                 transportService,
                 terminationHandler,
-                List.of(AWAITED_ACTION),
+                actionsToAwait,
                 drains,
                 fakeTime
             );

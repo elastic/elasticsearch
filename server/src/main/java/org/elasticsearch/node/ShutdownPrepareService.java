@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -49,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
@@ -58,9 +60,9 @@ import java.util.stream.Collectors;
  * <p>
  * The hooks run in parallel. On a node with a {@link TerminationHandler} (stateless), they are followed by a drain: once the handler
  * reports the node {@link TerminationHandler.Outcome#READY ready}, i.e. its shards are safe to serve elsewhere, the plugins drain the
- * work they accepted (see {@link ShutdownAwarePlugin#startDrainOnShutdown()}), then the node waits for the tasks of the awaited
- * actions. Everything is bounded by a single deadline, {@code node.maximum_shutdown_grace_period} after the shutdown starts, or by
- * nothing if that setting is zero.
+ * work they accepted (see {@link ShutdownAwarePlugin#startDrainOnShutdown()}), then the node waits for the tasks of the server and
+ * plugin actions that are awaited. Everything is bounded by a single deadline, {@code node.maximum_shutdown_grace_period} after the
+ * shutdown starts, or by nothing if that setting is zero.
  * <p>
  * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
  * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
@@ -100,6 +102,16 @@ public class ShutdownPrepareService {
 
     private static final Set<String> REINDEX_ACTIONS = Set.of(ReindexAction.NAME);
 
+    /**
+     * The actions of the server whose tasks graceful shutdown waits for, whatever the plugins declare. The node-level field caps task
+     * runs on behalf of a coordinator on another node. The coordinator-level one also serves requests that arrive over transport, from
+     * a remote cluster or from an internal caller, which the HTTP server's shutdown does not wait for.
+     */
+    private static final Set<String> SERVER_AWAITED_ACTIONS = Set.of(
+        TransportFieldCapabilitiesAction.NAME,
+        TransportFieldCapabilitiesAction.ACTION_NODE_NAME
+    );
+
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
     private final TimeValue maxTimeout;
@@ -116,8 +128,8 @@ public class ShutdownPrepareService {
     /**
      * Creates the service.
      *
-     * @param actionsToAwait names of the actions whose tasks the node waits for during graceful shutdown; collected from
-     *                       {@link ShutdownAwarePlugin#getActionsToAwaitOnShutdown()}
+     * @param actionsToAwait names of plugin actions whose tasks the node waits for during graceful shutdown, in addition to the
+     *                       server's own field caps actions; collected from {@link ShutdownAwarePlugin#getActionsToAwaitOnShutdown()}
      * @param pluginDrains   the drains started once the termination handler reports the node ready; collected from
      *                       {@link ShutdownAwarePlugin#startDrainOnShutdown()}
      */
@@ -151,7 +163,8 @@ public class ShutdownPrepareService {
         this.httpServerTransport = httpServerTransport;
         this.transportService = transportService;
         this.terminationHandler = terminationHandler;
-        this.awaitedActions = Set.copyOf(actionsToAwait);
+        this.awaitedActions = Stream.concat(SERVER_AWAITED_ACTIONS.stream(), actionsToAwait.stream())
+            .collect(Collectors.toUnmodifiableSet());
         this.pluginDrains = List.copyOf(pluginDrains);
         this.sleeper = sleeper;
     }
@@ -316,6 +329,10 @@ public class ShutdownPrepareService {
                 awaitedActions
             );
         }
+        // A task is unregistered when its response is handed to the channel, not when that response is written out (see
+        // TaskTransportChannel#sendResponse). So when this wait returns, the last response of the work waited for can still be queued
+        // for sending, and is lost if the node closes its connections first. Nothing waits for it: the transport service is among the
+        // last to stop, which in practice leaves the time to write it.
         final boolean tasksCompleted = awaitTasksComplete(
             deadline.awaitTimeout(),
             sleeper,

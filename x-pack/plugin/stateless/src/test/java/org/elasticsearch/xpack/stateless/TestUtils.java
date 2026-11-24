@@ -200,7 +200,7 @@ public class TestUtils {
         InternalFilesReplicatedRanges ranges = InternalFilesReplicatedRanges.from(replicatedRanges);
         commitFiles = Maps.transformValues(
             commitFiles,
-            location -> new BlobLocation(location.bccBlob(), ranges.dataSizeInBytes() + location.offset(), location.fileLength())
+            location -> new BlobLocation(location.blob(), ranges.dataSizeInBytes() + location.offset(), location.fileLength())
         );
 
         return new StatelessCompoundCommit(

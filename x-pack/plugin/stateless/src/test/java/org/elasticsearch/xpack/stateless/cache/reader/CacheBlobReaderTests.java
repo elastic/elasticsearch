@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -326,7 +327,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             (term) -> indexingDirectory.getBlobStoreCacheDirectory().getBlobContainer(term),
-                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).bccBlob(),
+                            virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()).blob(),
                             new MutableObjectStoreUploadTracker() {
                                 @Override
                                 public void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
@@ -782,7 +783,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             );
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
                 internalLocation.getKey(),
-                internalLocation.getValue().bccBlob()
+                internalLocation.getValue().blob()
             );
             final var cacheFileReader = new CacheFileReader(
                 cacheFile,
@@ -846,7 +847,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
                         LongFunction<BlobContainer> blobContainer,
-                        BccBlob bccBlob,
+                        Blob blob,
                         MutableObjectStoreUploadTracker objectStoreUploadTracker,
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
@@ -858,7 +859,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
                             blobContainer,
-                            bccBlob,
+                            blob,
                             objectStoreUploadTracker,
                             totalBytesReadFromObjectStore,
                             totalBytesReadFromIndexing,

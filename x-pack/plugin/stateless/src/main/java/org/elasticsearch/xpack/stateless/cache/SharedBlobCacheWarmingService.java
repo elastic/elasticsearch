@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -182,7 +183,7 @@ public class SharedBlobCacheWarmingService {
     }
 
     /** Region of a blob **/
-    private record BlobRegion(BccBlob blob, int region) {}
+    private record BlobRegion(Blob blob, int region) {}
 
     /** Range of a blob to warm in cache, with a listener to complete once it is warmed **/
     private record BlobRange(BlobLocation blobLocation, long position, long length, long timestampMillis, ActionListener<Void> listener)
@@ -1551,14 +1552,14 @@ public class SharedBlobCacheWarmingService {
             final long timestampMillis = directory.resolveRegionTimestampMillis(directory.getTimestampMillis(fileName));
 
             if (startRegion == endRegion) {
-                BlobRegion blobRegion = new BlobRegion(location.bccBlob(), startRegion);
+                BlobRegion blobRegion = new BlobRegion(location.blob(), startRegion);
                 enqueueLocation(blobRegion, location, start, length, timestampMillis, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
-                        BlobRegion blobRegion = new BlobRegion(location.bccBlob(), r);
+                        BlobRegion blobRegion = new BlobRegion(location.blob(), r);
                         enqueueLocation(blobRegion, location, range.start(), range.length(), timestampMillis, listeners.acquire());
                     }
                 }
@@ -1597,7 +1598,7 @@ public class SharedBlobCacheWarmingService {
                                     cfs,
                                     LuceneFilesExtensions.fromFile(entry.getKey()),
                                     new BlobLocation(
-                                        cfsLocation.bccBlob(),
+                                        cfsLocation.blob(),
                                         cfsLocation.offset() + entry.getValue().offset(),
                                         entry.getValue().length()
                                     )
@@ -1675,10 +1676,10 @@ public class SharedBlobCacheWarmingService {
         }
 
         void run() {
-            HashMap<BccBlob, Long> locations = new HashMap<>();
+            Map<Blob, Long> locations = new HashMap<>();
             for (BlobLocation location : locationsToWarm) {
                 // compute the largest position in the blob that needs to be warmed
-                locations.compute(location.bccBlob(), (blobFile, existingLength) -> {
+                locations.compute(location.blob(), (blob, existingLength) -> {
                     long embeddedEndOffset = location.offset() + location.fileLength();
                     if (existingLength == null) {
                         return embeddedEndOffset;
@@ -1689,10 +1690,10 @@ public class SharedBlobCacheWarmingService {
 
             }
 
-            locations.forEach((blobFile, length) -> {
+            locations.forEach((blob, length) -> {
                 int endingRegion = cacheService.getEndingRegion(length);
                 for (int i = 0; i <= endingRegion; i++) {
-                    scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blobFile, i, listeners.acquire()));
+                    scheduleWarmingTask(new WarmBlobRegionTask(warmingRun.type, blob, i, listeners.acquire()));
                 }
             });
         }
@@ -1918,18 +1919,18 @@ public class SharedBlobCacheWarmingService {
         /// Warms a single blob region. Holds the [#warmingTaskRunner] slot until the [SharedBlobCacheService#maybeFetchRegion] completes
         /// and so the number of the in flight to-read regions is bounded by the limit of [#warmingTaskRunner].
         protected class WarmBlobRegionTask extends AbstractWarmingTask {
-            private final BccBlob bccBlob;
+            private final Blob blob;
             private final int region;
             private final ActionListener<Void> listener;
 
-            WarmBlobRegionTask(Type type, BccBlob bccBlob, int region, ActionListener<Void> listener) {
+            WarmBlobRegionTask(Type type, Blob blob, int region, ActionListener<Void> listener) {
                 super(type, warmingTaskNumber.getAndIncrement());
                 assert region >= 0 : region;
-                this.bccBlob = Objects.requireNonNull(bccBlob);
+                this.blob = Objects.requireNonNull(blob);
                 this.region = region;
                 this.listener = listener;
 
-                logger.trace("{} {}: scheduled {} region {}", warmingRun.shardId(), warmingRun.type(), bccBlob, region);
+                logger.trace("{} {}: scheduled {} region {}", warmingRun.shardId(), warmingRun.type(), blob, region);
             }
 
             @Override
@@ -1944,7 +1945,7 @@ public class SharedBlobCacheWarmingService {
                     return;
                 }
 
-                var cacheKey = new FileCacheKey(warmingRun.shardId(), bccBlob.primaryTerm(), bccBlob.blobName());
+                var cacheKey = new FileCacheKey(warmingRun.shardId(), blob.primaryTerm(), blob.blobName());
                 long offset = (long) region * cacheService.getRegionSize();
 
                 cacheService.maybeFetchRegion(
@@ -1956,7 +1957,7 @@ public class SharedBlobCacheWarmingService {
                             WarmBlobRegionTask.this,
                             cacheKey.fileName(),
                             ByteRange.of(offset, offset + cacheService.getRegionSize()),
-                            directory.getCacheBlobReaderForWarming(bccBlob),
+                            directory.getCacheBlobReaderForWarming(blob),
                             () -> writeBuffer.get().clear(),
                             totalBytesCopied::addAndGet,
                             StatelessThreadPools.PREWARM_THREAD_POOL
@@ -1971,7 +1972,7 @@ public class SharedBlobCacheWarmingService {
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    () -> format("%s %s failed to warm blob %s region %d", warmingRun.shardId(), warmingRun.type(), bccBlob, region),
+                    () -> format("%s %s failed to warm blob %s region %d", warmingRun.shardId(), warmingRun.type(), blob, region),
                     e
                 );
                 listener.onFailure(e);
@@ -1979,7 +1980,7 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public String toString() {
-                return "WarmBlobRegionTask{blobFile=" + bccBlob + ", region=" + region + "}";
+                return "WarmBlobRegionTask{blobFile=" + blob + ", region=" + region + "}";
             }
         }
 
@@ -2017,7 +2018,7 @@ public class SharedBlobCacheWarmingService {
                             }
 
                             var blobLocation = item.blobLocation();
-                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation.bccBlob());
+                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation.blob());
                             var itemListener = ActionListener.releaseAfter(item.listener(), Releasables.assertOnce(refs.acquire()));
                             maybeFetchBlobRange(item, cacheBlobReader, cacheKey, itemListener.delegateResponse((l, e) -> {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {

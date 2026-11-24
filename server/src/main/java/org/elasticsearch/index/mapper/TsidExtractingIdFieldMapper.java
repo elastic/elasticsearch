@@ -36,6 +36,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
@@ -321,7 +322,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }
 

@@ -44,4 +44,15 @@ public interface EsqlResponse extends Releasable {
 
     /** Returns an iterable over the values in the given column. */
     Iterable<Object> column(int columnIndex);
+
+    /**
+     * The per-cluster metadata ES|QL reports as {@code _clusters} in the REST response, ordered by cluster alias
+     * (the local cluster, alias {@link EsqlClusterInfo#LOCAL_CLUSTER_ALIAS}, first). Empty when the REST response
+     * would carry no {@code _clusters}. When no metadata was requested and the result is partial, only the clusters
+     * that have failures are listed, as in the REST response.
+     * <p>
+     * The list is a snapshot of the query's cluster state taken when this method is called, so it is final for a
+     * completed query.
+     */
+    List<EsqlClusterInfo> clusters();
 }

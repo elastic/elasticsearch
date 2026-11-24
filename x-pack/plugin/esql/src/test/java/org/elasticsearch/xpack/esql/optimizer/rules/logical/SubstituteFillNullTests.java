@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
@@ -415,7 +415,7 @@ public class SubstituteFillNullTests extends AbstractLogicalPlanOptimizerTests {
             "FROM test | EVAL found = emp_no IN (FROM test | FILLNULL 0 ON emp_no | KEEP emp_no)"
         )) {
             LogicalPlan substituted = new SubstituteFillNull().apply(defaultAnalyzer().query(query));
-            AbstractSubqueryJoin join = as(substituted.collect(AbstractSubqueryJoin.class).getFirst(), AbstractSubqueryJoin.class);
+            AbstractInSubqueryJoin join = as(substituted.collect(AbstractInSubqueryJoin.class).getFirst(), AbstractInSubqueryJoin.class);
             Alias fill = fillAliases(join.right()).getFirst();
             assertThat(query, join.config().rightFields(), contains(fill.toAttribute()));
             assertFalse(query, plan(query).anyMatch(FillNull.class::isInstance));

@@ -183,6 +183,7 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                 createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build())
             );
             assertThat(plugin.reportExempt(), is(true));
+            assertThat(plugin.accumulator(), instanceOf(AtomicUsageAccumulator.class));
             component.start();
             component.close();
             mockLog.assertAllExpectationsMatched();

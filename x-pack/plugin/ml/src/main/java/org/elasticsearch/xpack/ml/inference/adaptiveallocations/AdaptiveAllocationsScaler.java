@@ -36,7 +36,8 @@ public class AdaptiveAllocationsScaler {
     private final KalmanFilter1d requestRateEstimator;
     private final KalmanFilter1d inferenceTimeEstimator;
     private final Supplier<Long> scaleToZeroAfterNoRequestsSeconds;
-    private double timeWithoutRequestsSeconds;
+    // null when the time without requests is not tracked yet
+    private Double timeWithoutRequestsSeconds;
 
     private int numberOfAllocations;
     private int neededNumberOfAllocations;
@@ -61,7 +62,7 @@ public class AdaptiveAllocationsScaler {
         // the number of allocations changes, which is passed explicitly to the estimator.
         requestRateEstimator = new KalmanFilter1d(deploymentId + ":rate", 100, true);
         inferenceTimeEstimator = new KalmanFilter1d(deploymentId + ":time", 100, false);
-        timeWithoutRequestsSeconds = 0.0;
+        timeWithoutRequestsSeconds = null;
         this.numberOfAllocations = numberOfAllocations;
         neededNumberOfAllocations = numberOfAllocations;
         minNumberOfAllocations = null;
@@ -83,7 +84,7 @@ public class AdaptiveAllocationsScaler {
         if (stats.requestCount() > 0) {
             timeWithoutRequestsSeconds = 0.0;
         } else {
-            timeWithoutRequestsSeconds += timeIntervalSeconds;
+            timeWithoutRequestsSeconds = (timeWithoutRequestsSeconds == null ? 0.0 : timeWithoutRequestsSeconds) + timeIntervalSeconds;
         }
 
         // The request rate (per second) is the request count divided by the time.
@@ -121,7 +122,19 @@ public class AdaptiveAllocationsScaler {
     }
 
     void resetTimeWithoutRequests() {
-        timeWithoutRequestsSeconds = 0;
+        timeWithoutRequestsSeconds = 0.0;
+    }
+
+    /**
+     * Initializes the time without requests, unless it has been tracked by this scaler already.
+     * A new scaler (for example on a newly elected master) would otherwise count the time without
+     * requests from zero, which delays scaling down to zero allocations by the time that has already
+     * passed without requests.
+     */
+    void maybeInitTimeWithoutRequestsSeconds(double timeWithoutRequestsSeconds) {
+        if (this.timeWithoutRequestsSeconds == null) {
+            this.timeWithoutRequestsSeconds = timeWithoutRequestsSeconds;
+        }
     }
 
     double getLoadLower() {
@@ -175,6 +188,7 @@ public class AdaptiveAllocationsScaler {
         }
 
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
+            && timeWithoutRequestsSeconds != null
             && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds.get()) {
 
             if (oldNumberOfAllocations != 0) {

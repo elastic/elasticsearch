@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -27,14 +26,13 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -42,9 +40,9 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
- * Pins that {@link AbstractSubqueryJoin#inlineData} output is a guarded ancestor of the Hive
+ * Pins that {@link AbstractInSubqueryJoin#inlineData} output is a guarded ancestor of the Hive
  * {@link ExternalRelation} — the missing composition between subquery inlining and L1 partition
- * pruning. {@code SubqueryJoinTests} already proves {@code Filter(In)} / {@code Filter(Not(In))}
+ * pruning. {@code AbstractInSubqueryJoinTests} already proves {@code Filter(In)} / {@code Filter(Not(In))}
  * over a dummy left; {@code SplitDiscoveryPhaseTests} already proves {@code guardedRelations} on a
  * hand-built {@code Filter}. This file is those two steps in sequence.
  *
@@ -53,7 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 public class InlinedSubqueryGuardedRelationsTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
-    private static final int HASH_JOIN_THRESHOLD = PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY);
+    private static final int HASH_JOIN_THRESHOLD = AbstractInSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
     private static final BlockFactory BLOCK_FACTORY = TestBlockFactory.getNonBreakingInstance();
 
     /**
@@ -66,7 +64,7 @@ public class InlinedSubqueryGuardedRelationsTests extends ESTestCase {
         Attribute right = rightYear();
         SemiJoin semiJoin = semiJoin(relation, year, right);
 
-        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, rightPage(right, 2025), HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = AbstractInSubqueryJoin.inlineData(semiJoin, rightPage(right, 2025), HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
 
         Filter filter = as(inlined, Filter.class);
         assertSame("filter path must keep the Hive relation as the child", relation, filter.child());
@@ -89,7 +87,7 @@ public class InlinedSubqueryGuardedRelationsTests extends ESTestCase {
         Attribute right = rightYear();
         AntiJoin antiJoin = antiJoin(relation, year, right);
 
-        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(antiJoin, rightPage(right, 2025), HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = AbstractInSubqueryJoin.inlineData(antiJoin, rightPage(right, 2025), HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
 
         Filter filter = as(inlined, Filter.class);
         assertSame("filter path must keep the Hive relation as the child", relation, filter.child());
@@ -112,7 +110,7 @@ public class InlinedSubqueryGuardedRelationsTests extends ESTestCase {
         Attribute right = rightYear();
         SemiJoin semiJoin = semiJoin(relation, relation.output().get(0), right);
 
-        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, dummyRight(right), HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = AbstractInSubqueryJoin.inlineData(semiJoin, dummyRight(right), HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
 
         as(inlined, LocalRelation.class);
         List<SplitDiscoveryPhase.GuardedRelation> guarded = SplitDiscoveryPhase.guardedRelations(inlined);
@@ -131,7 +129,7 @@ public class InlinedSubqueryGuardedRelationsTests extends ESTestCase {
         Attribute right = rightYear();
         SemiJoin semiJoin = semiJoin(relation, year, right);
 
-        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, rightPage(right, 2025), 0, BLOCK_FACTORY, null);
+        LogicalPlan inlined = AbstractInSubqueryJoin.inlineData(semiJoin, rightPage(right, 2025), 0, BLOCK_FACTORY, null);
 
         var project = as(inlined, Project.class);
         var join = as(as(project.child(), Filter.class).child(), Join.class);

@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
@@ -451,10 +452,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
 
-        Alias probeSignature = new Alias(cmd.source(), SIGNATURE, signature(probeLabels));
+        Alias probeSignature = new Alias(cmd.source(), SIGNATURE, signature(context, probeLabels));
         LogicalPlan probePlan = new Eval(cmd.source(), probe.plan(), List.of(probeSignature));
         Expression buildLabels = context.labels(build);
-        Alias buildSignature = new Alias(cmd.source(), SIGNATURE, signature(buildLabels));
+        Alias buildSignature = new Alias(cmd.source(), SIGNATURE, signature(context, buildLabels));
         var buildColumns = new ArrayList<Alias>(List.of(buildSignature));
         List<Attribute> added = new ArrayList<>(List.of(build.valueColumn()));
         Attribute oneLabels = null;
@@ -509,13 +510,25 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /** The labels two series match on: Prometheus' signature. */
-    private Expression signature(Expression labels) {
+    private Expression signature(TranslationContext context, Expression labels) {
         if (match.filter() == VectorMatch.Filter.ON) {
-            return new TimeSeriesMetadataFilter(labels.source(), labels, labelLiterals(labels.source(), match.filterLabels()), false);
+            return new TimeSeriesMetadataFilter(
+                labels.source(),
+                labels,
+                labelLiterals(context, labels.source(), match.filterLabels()),
+                false,
+                context.passthroughPaths()
+            );
         }
         var ignored = new TreeSet<String>(match.filterLabels());
         ignored.add(LabelMatcher.NAME);
-        return new TimeSeriesMetadataFilter(labels.source(), labels, labelLiterals(labels.source(), ignored), true);
+        return new TimeSeriesMetadataFilter(
+            labels.source(),
+            labels,
+            labelLiterals(context, labels.source(), ignored),
+            true,
+            context.passthroughPaths()
+        );
     }
 
     /**
@@ -529,8 +542,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             labels = new TimeSeriesMetadataFilter(
                 labels.source(),
                 labels,
-                labelLiterals(labels.source(), List.of(LabelMatcher.NAME)),
-                true
+                labelLiterals(context, labels.source(), List.of(LabelMatcher.NAME)),
+                true,
+                context.passthroughPaths()
             );
         }
         if (match.grouping() == Joining.NONE && match.filter() != VectorMatch.Filter.NONE) {
@@ -538,27 +552,40 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             labels = new TimeSeriesMetadataFilter(
                 labels.source(),
                 labels,
-                labelLiterals(labels.source(), match.filterLabels()),
-                keep == false
+                labelLiterals(context, labels.source(), match.filterLabels()),
+                keep == false,
+                context.passthroughPaths()
             );
         }
         for (String included : match.groupingLabels()) {
             Expression value = one == null
                 ? new Literal(source(), null, DataType.KEYWORD)
-                : new TimeSeriesMetadataPath(one.source(), one, Literal.keyword(one.source(), included));
+                : new TimeSeriesMetadataPath(
+                    one.source(),
+                    one,
+                    Literal.keyword(one.source(), context.labelName(included)),
+                    context.passthroughPaths()
+                );
             labels = new TimeSeriesMetadataSet(
                 labels.source(),
                 labels,
-                Literal.keyword(labels.source(), included),
+                Literal.keyword(labels.source(), context.labelName(included)),
                 value,
-                context.labelPath(included)
+                context.labelPath(included),
+                context.passthroughPaths()
             );
         }
         return labels;
     }
 
-    private static List<Expression> labelLiterals(Source source, Collection<String> labels) {
-        return new TreeSet<>(labels).stream().<Expression>map(label -> Literal.keyword(source, label)).toList();
+    /** The label names of {@code labels}, see {@link TranslationContext#labelName}, as the label container functions take them. */
+    private static List<Expression> labelLiterals(TranslationContext context, Source source, Collection<String> labels) {
+        return labels.stream()
+            .map(context::labelName)
+            .collect(Collectors.toCollection(TreeSet::new))
+            .stream()
+            .<Expression>map(label -> Literal.keyword(source, label))
+            .toList();
     }
 
     /** Composes a binary operator as an expression over the operands' shared aggregate. */

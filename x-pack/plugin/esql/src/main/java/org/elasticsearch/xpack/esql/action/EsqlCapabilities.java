@@ -4724,6 +4724,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_FIRST_LAST_SAMPLES,
 
+        /**
+         * {@code METRICS_INFO} reads which dimension and metric fields each time series has from doc values instead of
+         * {@code _source}. For a {@code flattened} dimension it reports the keys listed in {@code time_series_dimensions}
+         * rather than every key of the object.
+         */
+        METRICS_INFO_FIELD_PRESENCE,
+
         /** The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays as live score when every
          * branch either asked for {@code METADATA _score} or leaves the column null, so a scoring search after the merge,
          * such as a runtime {@code MATCH}, adds to it instead of being dropped. Rows from a branch without a score stay

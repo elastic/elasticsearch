@@ -15,7 +15,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -45,7 +44,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Concat", Concat::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Concat.class).unaryVariadic(Concat::new).name("concat");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Concat.class)
+        .unaryVariadic(Concat::new)
+        // A result over the limit is null with a warning instead of failing the query.
+        .capabilities("null_over_limit")
+        .name("concat");
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
@@ -54,6 +57,7 @@ public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
         returnType = "keyword",
         briefSummary = "Concatenates two or more strings.",
         description = "Concatenates two or more strings.",
+        note = "The result can be at most 1MB long. For a longer one, `CONCAT` returns `null` and emits a warning.",
         examples = @Example(file = "eval", tag = "docsConcat")
     )
     public Concat(
@@ -118,7 +122,7 @@ public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
         return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.grow(checkedTotalLength(values));
         scratch.clear();
@@ -134,7 +138,7 @@ public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
             length += v.length;
         }
         if (length > MAX_CONCAT_LENGTH) {
-            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
+            throw new IllegalArgumentException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
         }
         return length;
     }

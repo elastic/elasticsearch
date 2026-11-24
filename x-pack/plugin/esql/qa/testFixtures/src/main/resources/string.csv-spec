@@ -437,6 +437,35 @@ emp_no:integer | name:keyword
 10010          | null
 ;
 
+concatOverLimit
+required_capability: fn_concat_null_over_limit
+ROW half = REPEAT("a", 600000)
+| EVAL length = LENGTH(CONCAT(half, half))
+| KEEP length;
+warning:Line 2:24: evaluation of [CONCAT(half, half)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:24: java.lang.IllegalArgumentException: concatenating more than [1048576] bytes is not supported
+
+length:integer
+null
+;
+
+// Only the row with the long value is null
+concatOverLimitOneRow
+required_capability: fn_concat_null_over_limit
+FROM employees
+| WHERE emp_no IN (10001, 10002)
+| EVAL part = REPEAT("a", CASE(emp_no == 10001, 600000, 3))
+| EVAL length = LENGTH(CONCAT(part, part))
+| KEEP emp_no, length
+| SORT emp_no;
+warning:Line 4:24: evaluation of [CONCAT(part, part)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:24: java.lang.IllegalArgumentException: concatenating more than [1048576] bytes is not supported
+
+emp_no:integer | length:integer
+10001          | null
+10002          | 6
+;
+
 
 contains
 required_capability: fn_contains

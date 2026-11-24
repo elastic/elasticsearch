@@ -4,3 +4,8 @@
 
 Concatenates two or more strings.
 
+::::{note}
+The result can be at most 1MB long. For a longer one, `CONCAT` returns `null` and emits a warning.
+::::
+
+

@@ -11,9 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,7 +31,9 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 public class ConcatTests extends AbstractScalarFunctionTestCase {
@@ -161,10 +164,24 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
             mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataType.KEYWORD));
         }
         Expression expression = build(testCase.getSource(), mix);
-        Exception e = expectThrows(EsqlClientException.class, () -> {
-            try (ExpressionEvaluator eval = evaluator(expression).get(driverContext()); Block block = eval.eval(row(fieldValues))) {}
-        });
-        assertThat(e.getMessage(), is("concatenating more than [1048576] bytes is not supported"));
+        // A context of its own, so the warnings can be read here and are not checked against the test case's
+        List<CircuitBreaker> breakers = new ArrayList<>();
+        DriverContext context = driverContext(breakers);
+        try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(row(fieldValues))) {
+            assertThat(block.isNull(0), is(true));
+        }
+        context.finish();
+        String warning = "java.lang.IllegalArgumentException: concatenating more than [1048576] bytes is not supported";
+        if (expression.foldable()) {
+            // Folded while the evaluator is built, which reports warnings as response headers
+            assertWarnings(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + warning
+            );
+        } else {
+            assertThat(context.warnings(), hasItem(endsWith(warning)));
+        }
+        assertThat(breakers.get(0).getUsed(), equalTo(0L));
     }
 
     private int testDataLength() {

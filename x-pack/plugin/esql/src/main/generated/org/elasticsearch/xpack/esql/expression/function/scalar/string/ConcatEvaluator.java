@@ -62,7 +62,7 @@ public final class ConcatEvaluator implements ExpressionEvaluator {
           return eval(page.getPositionCount(), valuesBlocks);
         }
       }
-      return eval(page.getPositionCount(), valuesVectors).asBlock();
+      return eval(page.getPositionCount(), valuesVectors);
     }
   }
 
@@ -102,14 +102,19 @@ public final class ConcatEvaluator implements ExpressionEvaluator {
           int o = valuesBlocks[i].getFirstValueIndex(p);
           valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
+        try {
+          result.appendBytesRef(Concat.process(this.scratch, valuesValues));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector[] valuesVectors) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef[] valuesValues = new BytesRef[values.length];
       BytesRef[] valuesScratch = new BytesRef[values.length];
       for (int i = 0; i < values.length; i++) {
@@ -120,7 +125,12 @@ public final class ConcatEvaluator implements ExpressionEvaluator {
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
         }
-        result.appendBytesRef(Concat.process(this.scratch, valuesValues));
+        try {
+          result.appendBytesRef(Concat.process(this.scratch, valuesValues));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

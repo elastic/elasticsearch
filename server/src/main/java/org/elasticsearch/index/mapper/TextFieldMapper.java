@@ -132,6 +132,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.IntPredicate;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -2114,7 +2115,7 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return fieldType().usesBinaryDocValues()
             && (fieldType().usesColumnarPayload()
                 || fieldType().usesArrayOrderBinaryDocValues()

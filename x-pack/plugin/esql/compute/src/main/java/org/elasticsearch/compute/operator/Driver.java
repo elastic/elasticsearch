@@ -677,14 +677,16 @@ public class Driver implements Releasable, Describable {
     private void recordStatusBeforeClose(Operator op) {
         int statusIndex = statusOfCompletedOperators.size();
         try {
-            statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+            statusOfCompletedOperators.add(operatorStatus(op));
             if (op.finalStatusAfterAsyncActions()) {
                 pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op, planNodeIds.get(op), exchangeIds.get(op)));
             }
         } catch (Exception statusFailure) {
             LOGGER.debug("failed to read the status of an operator that is being closed [{}]", shortDescription, statusFailure);
             if (statusOfCompletedOperators.size() == statusIndex) {
-                statusOfCompletedOperators.add(new OperatorStatus(op.getClass().getSimpleName(), null));
+                statusOfCompletedOperators.add(
+                    new OperatorStatus(op.getClass().getSimpleName(), null, planNodeIds.get(op), exchangeIds.get(op))
+                );
             }
         }
     }

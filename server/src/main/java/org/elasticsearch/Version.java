@@ -291,6 +291,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_9_4_8 = new Version(9_04_08_99);
     public static final Version V_9_4_9 = new Version(9_04_09_99);
     public static final Version V_9_4_10 = new Version(9_04_10_99);
+    public static final Version V_9_4_11 = new Version(9_04_11_99);
     public static final Version V_9_5_0 = new Version(9_05_00_99);
     public static final Version V_9_5_1 = new Version(9_05_01_99);
     public static final Version V_9_5_2 = new Version(9_05_02_99);

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.List;
@@ -32,14 +34,19 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
         AttributeMap<Expression> collectRefs = RuleUtils.foldableReferencesSkipMVGroupings(plan, ctx);
-        if (collectRefs.isEmpty()) {
-            return plan;
-        }
 
         // Apply the replacement inside Filter, Eval, Row and LimitBy (groupings).
         // TODO: also allow aggregates once aggs on constants are supported.
         // C.f. https://github.com/elastic/elasticsearch/issues/100634
-        plan = plan.transformUp(p -> {
+        plan = plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, p -> {
+            // The references hold only in the main query, so the subquery of a join is folded on its own, with its own references.
+            if (p instanceof IndependentSubqueryJoin && p instanceof BinaryPlan join) {
+                LogicalPlan right = apply(join.right(), ctx);
+                return right == join.right() ? p : join.replaceRight(right);
+            }
+            if (collectRefs.isEmpty()) {
+                return p;
+            }
             if (p instanceof Filter || p instanceof Eval || p instanceof Row || p instanceof LimitBy || p instanceof MMR) {
                 p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> collectRefs.resolve(r, r));
             } else if (p instanceof ChangePoint cp) {

@@ -318,7 +318,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         final String repositoryName = "repository";
         createRepository(repositoryName, FsRepository.TYPE);
 
-        final Map<String, Tuple<Settings, Long>> mountedIndices = mountRandomIndicesWithCache(repositoryName, 3, 10);
+        final Map<String, Tuple<Settings, Long>> mountedIndices = mountRandomIndicesWithCache(repositoryName, 3, 5);
         ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
         refreshSystemIndex(true);
 

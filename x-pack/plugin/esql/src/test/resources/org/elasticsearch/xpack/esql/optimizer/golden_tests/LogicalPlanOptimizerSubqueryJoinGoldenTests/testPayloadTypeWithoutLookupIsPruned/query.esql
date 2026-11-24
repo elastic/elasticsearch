@@ -1,0 +1,4 @@
+FROM employees
+| EVAL language_code = languages
+| LEFT OUTER JOIN (ROW language_code = 1, m = TO_AGGREGATE_METRIC_DOUBLE(1)) ON language_code
+| DROP m

@@ -13,6 +13,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -59,7 +62,6 @@ final class PrometheusPlanBuilderUtils {
     static final String METRIC_NAME_FIELD = "metric_name";
 
     private static final String METRICS_PREFIX = "metrics.";
-    private static final String METRICS_PREFIX_REGEX = "metrics\\.(";
 
     /**
      * Query settings applied to every ESQL statement issued by Prometheus REST handlers.
@@ -252,26 +254,27 @@ final class PrometheusPlanBuilderUtils {
         return conditions.isEmpty() ? null : combineAnd(conditions);
     }
 
+    /**
+     * A metric stored as {@code metrics.<name>} is matched on {@code <name>}, the name the matcher is written against, so
+     * that an anchor such as the {@code ^} of {@code ^system.*} holds at the start of the name rather than of the prefix.
+     */
     private static Expression translateMetricNameMatcher(Expression metricNameField, LabelMatcher matcher) {
         Expression rawMetricNameCondition = LabelMatchers.condition(Source.EMPTY, metricNameField, matcher);
-        Expression prefixedMetricNameCondition = LabelMatchers.condition(Source.EMPTY, metricNameField, prefixedMetricNameMatcher(matcher));
+        Expression prefixed = new StartsWith(Source.EMPTY, metricNameField, Literal.keyword(Source.EMPTY, METRICS_PREFIX));
+        Expression unprefixedName = new Substring(
+            Source.EMPTY,
+            metricNameField,
+            Literal.integer(Source.EMPTY, METRICS_PREFIX.length() + 1),
+            null
+        );
+        Expression unprefixedNameCondition = LabelMatchers.condition(Source.EMPTY, unprefixedName, matcher);
         return switch (matcher.matcher()) {
-            case REG -> combineOr(List.of(rawMetricNameCondition, prefixedMetricNameCondition));
-            case NEQ, NREG -> combineAnd(List.of(rawMetricNameCondition, prefixedMetricNameCondition));
+            case REG -> combineOr(List.of(rawMetricNameCondition, combineAnd(List.of(prefixed, unprefixedNameCondition))));
+            case NEQ, NREG -> combineAnd(
+                List.of(rawMetricNameCondition, combineOr(List.of(new Not(Source.EMPTY, prefixed), unprefixedNameCondition)))
+            );
             case EQ -> throw new IllegalArgumentException("exact __name__ matchers are handled before info nodes");
         };
-    }
-
-    private static LabelMatcher prefixedMetricNameMatcher(LabelMatcher matcher) {
-        List<String> values = matcher.values().stream().map(value -> prefixedMetricNameValue(value, matcher.matcher())).toList();
-        return new LabelMatcher(matcher.name(), values, matcher.matcher());
-    }
-
-    private static String prefixedMetricNameValue(String value, LabelMatcher.Matcher matcher) {
-        if (matcher.isRegex()) {
-            return METRICS_PREFIX_REGEX + value + ")";
-        }
-        return METRICS_PREFIX + value;
     }
 
     /**

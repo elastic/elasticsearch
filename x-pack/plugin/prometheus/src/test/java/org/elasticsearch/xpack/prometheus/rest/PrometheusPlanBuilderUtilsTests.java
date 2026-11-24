@@ -11,6 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -111,6 +113,22 @@ public class PrometheusPlanBuilderUtilsTests extends ESTestCase {
         Expression cond = PrometheusPlanBuilderUtils.buildPostInfoSelectorCondition(selector);
         assertThat(containsAttribute(cond, PrometheusPlanBuilderUtils.METRIC_NAME_FIELD), is(true));
         assertThat(containsAttribute(cond, "__name__"), is(false));
+    }
+
+    /**
+     * A metric stored as {@code metrics.<name>} is matched by its name without the prefix, so the {@code ^} of the regex
+     * holds at the start of the name: the regex is matched as it is written, against the substring after the prefix.
+     */
+    public void testBuildPostInfoSelectorConditionMatchesPrefixedNameWithoutThePrefix() {
+        String regex = "^system\\.(cpu|memory)\\..*";
+        InstantSelector selector = parseInstantSelector("{__name__=~\"" + regex.replace("\\", "\\\\") + "\"}");
+        Expression cond = PrometheusPlanBuilderUtils.buildPostInfoSelectorCondition(selector);
+        List<Re2Like> matches = cond.collect(Re2Like.class::isInstance).stream().map(Re2Like.class::cast).toList();
+        assertThat(matches.size(), is(2));
+        for (Re2Like match : matches) {
+            assertThat(match.pattern().pattern(), is(regex));
+        }
+        assertThat(matches.stream().filter(m -> m.field() instanceof Substring).count(), is(1L));
     }
 
     public void testBuildPostInfoSelectorConditionForNameRegexMatcherDoesNotWrapWithIsNotNull() {

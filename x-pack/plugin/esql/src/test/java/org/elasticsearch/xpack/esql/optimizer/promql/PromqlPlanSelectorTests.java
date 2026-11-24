@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -43,7 +47,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -149,6 +155,22 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     public void testLabelSelectorRegex() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+\"}[1h]))");
         assertTrue(anyFilterContains(plan, RegexMatch.class));
+    }
+
+    /**
+     * A node that predates {@link Re2Like} can't read it, so a plan optimized for a cluster that has one carries the
+     * matcher as an {@link RLike} instead: a matcher both syntaxes read alike, that no selector rewrite lowers.
+     */
+    public void testLabelSelectorRegexFallsBackToRLikeForOlderNodes() {
+        var analyzed = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+_total\"}[1h]))", false);
+        TransportVersion beforeRe2Like = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_re2_like"));
+        var optimized = new LogicalPlanOptimizer(logicalOptimizerContext(TEST_CFG, FoldContext.small(), beforeRe2Like)).optimize(analyzed);
+        List<Expression> matches = new ArrayList<>();
+        optimized.forEachExpressionDown(RegexMatch.class, matches::add);
+        assertThat(matches, hasSize(1));
+        var rLike = as(matches.getFirst(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("[a-z]+_total"));
     }
 
     public void testLabelSelectorNotEquals() {

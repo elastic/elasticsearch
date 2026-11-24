@@ -75,7 +75,7 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_requests_total{job="api", code=~"5.."}`.
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `{code=~"\\d{3}"}` and `{path=~"(?i)/api/.*"}`. While the cluster, or a remote cluster the query reads, has nodes on an earlier version, a matcher that still needs a regex after rewriting and that Lucene regexp syntax reads differently, such as `(?i)/api/.*`, is rejected, even when every queried shard is on an upgraded node. Requests coordinated by a node on an earlier version still use Lucene regexp syntax.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `http_requests_total{code=~"\\d{3}"}` and `http_requests_total{path=~"(?i)/api/.*"}`. While the cluster, or a remote cluster the query reads, has nodes on an earlier version, a matcher that still needs a regex after rewriting and that Lucene regexp syntax reads differently, such as `(?i)/api/.*`, is rejected, even when every queried shard is on an upgraded node. Requests coordinated by a node on an earlier version still use Lucene regexp syntax.
 
 **Not supported yet**
 
@@ -86,7 +86,7 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 |---|---|---|---|---|
 | 4 | Selector without a metric name | `{job="api"}` | - | [#146977]({{es-issue}}146977) |
 | 5 | Regex matcher on `__name__` | `{__name__=~"node_.*"}` | Combine the metrics with `or`: `node_cpu or node_mem` | [#146977]({{es-issue}}146977) |
-| 6 | In a regex matcher, a capture group name used twice, a long or lowercase Unicode class name, or a `{` that starts no count followed by a repetition {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"(?P<n>a)(?P<n>b)"}`, `{l=~"\\p{Letter}"}`, `{l=~"x{*"}` | Use distinct group names, short class names such as `\\p{L}`, and `\\{` | - |
+| 6 | In a regex matcher, a capture group name used twice, a long or lowercase Unicode class name, or a `{` that starts no count followed by a repetition {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"(?P<n>a)(?P<n>b)"}`, `up{l=~"\\p{Letter}"}`, `up{l=~"x{*"}` | Use distinct group names, short class names such as `\\p{L}`, and `\\{` | - |
 :::
 
 **Behaves differently**
@@ -97,9 +97,9 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
 | 7 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
-| 8 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `{path=~"a~b"}`, `{v=~"<1-5>"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators | RE2 syntax, where they are literals | - |
-| 9 | Unicode classes in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"\\pL+"}` | The classes of Unicode 6.0 | The classes of Unicode 15.0, which hold characters added since | - |
-| 10 | A backslash before a non-ASCII character in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `{l=~"\\é"}` | Matches `é` | Rejected | - |
+| 8 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `http_requests_total{path=~".*a~b.*"}`, `up{v=~".*<1-5>.*"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators, in a regex that is not rewritten to an exact, prefix or suffix match | RE2 syntax, where they are literals | - |
+| 9 | Unicode classes in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"\\pL+"}` | The classes of Unicode 6.0 | The classes of Unicode 15.0, which hold characters added since | - |
+| 10 | A backslash before a non-ASCII character in a regex matcher {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `up{l=~"\\é"}` | Matches `é` | Rejected | - |
 :::
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]

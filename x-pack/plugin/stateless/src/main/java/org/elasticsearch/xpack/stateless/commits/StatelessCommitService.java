@@ -501,10 +501,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * runs independently, and will call this function for itself.
      * @param sourceShardId the source shard ID. Commits uploaded from this shard will be copied to the target shard.
      * @param targetShardId the target shard ID.
+     * @return a runnable that calls {@link #markSplitEnding}. This is used to handle the case where a shard relocates from and back to its
+     *         original node, and a new split clashes with the original one. This ensures the split ends on the right
+     *         {@link ShardCommitState}. TODO: remove when we transition to a source shard state machine.
      */
-    public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
+    public Runnable markSplitting(ShardId sourceShardId, ShardId targetShardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
         commitState.markSplitting(targetShardId);
+        return () -> commitState.markSplitEnding(targetShardId, true);
     }
 
     /**
@@ -1435,21 +1439,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
                 continue;
             }
-            bccBlobs.add(
-                new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
-            );
+            bccBlobs.add(new BccBlob(primaryTermAndGeneration));
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
             if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
                 continue;
             }
-            bccBlobs.add(
-                new BccBlob(
-                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
-                    staleCompoundCommit.primaryTermAndGeneration()
-                )
-            );
+            bccBlobs.add(new BccBlob(staleCompoundCommit.primaryTermAndGeneration()));
         }
         return bccBlobs;
     }
@@ -1733,7 +1730,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
             for (BccBlob nonRecoveredBlob : otherBlobs) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
+                if (BccBlob.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlob.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());

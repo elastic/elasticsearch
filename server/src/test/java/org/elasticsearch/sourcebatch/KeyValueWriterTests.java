@@ -21,9 +21,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.util.List;
 import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class KeyValueWriterTests extends ESTestCase {
 
@@ -419,6 +424,33 @@ public class KeyValueWriterTests extends ESTestCase {
         assertEquals("", reader.key());
         assertEquals(SourceValueType.NULL, reader.type());
         assertFalse(reader.next());
+    }
+
+    public void testSerializeKeyValueRejectsOversizedNumbers() throws IOException {
+        String big = BigInteger.TWO.pow(63).add(BigInteger.ONE).toString();
+        String top = "{\"n\":" + big + "}";
+        assertThat(serializeKeyValue(top, true), nullValue());
+        KeyValueReader reader = new KeyValueReader(serializeKeyValue(top, false));
+        assertThat(reader.next(), equalTo(true));
+        assertThat(reader.type(), equalTo(SourceValueType.STRING));
+        assertThat(reader.stringValue(), equalTo(big));
+        for (String json : List.of("{\"a\":{\"n\":" + big + "}}", "{\"a\":[1," + big + "]}", "{\"a\":[{\"n\":" + big + "}]}")) {
+            assertThat(json, serializeKeyValue(json, true), nullValue());
+            assertThat(json, serializeKeyValue(json, false), notNullValue());
+        }
+    }
+
+    private static byte[] serializeKeyValue(String json, boolean rejectOversizedNumbers) throws IOException {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                new BytesArray(json),
+                XContentType.JSON
+            )
+        ) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            return SourceBatchEncodeHelper.serializeKeyValue(parser, rejectOversizedNumbers);
+        }
     }
 
     public void testUtf8KeyRoundTrip() {

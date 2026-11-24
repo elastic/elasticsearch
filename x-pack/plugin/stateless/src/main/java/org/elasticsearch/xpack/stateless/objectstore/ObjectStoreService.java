@@ -120,8 +120,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -1011,7 +1011,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -1044,7 +1044,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",
@@ -1330,12 +1330,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
+    public void copyShard(CancellableTask task, ShardId source, ShardId destination, PrimaryTermAndGeneration latestCommitToCopy)
+        throws IOException {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
         var sourceShardContainer = getProjectBlobContainer(source);
-        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, primaryTerm);
+        var blobContainersWithTerms = getContainersToSearch(sourceShardContainer, latestCommitToCopy.primaryTerm());
 
         record BlobCopyTask(BlobContainer src, BlobContainer dst, BlobMetadata blob) {}
         final List<BlobCopyTask> tasks = new ArrayList<>();
@@ -1344,6 +1345,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
             var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
+                if (startsWithBlobPrefix(blob.name())
+                    && new PrimaryTermAndGeneration(blobContainerWithTerm.v1(), parseGenerationFromBlobName(blob.name())).after(
+                        latestCommitToCopy
+                    )) {
+                    logger.debug("CopyShard skipping {} as it was uploaded after {}", blob.name(), latestCommitToCopy);
+                    continue;
+                }
                 tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
             }
         }

@@ -241,7 +241,7 @@ public class HollowShardRecoveryStateTests extends ESTestCase {
 
     private static BatchedCompoundCommit hollowCommit(long generation, Set<String> files) {
         final var termAndGeneration = new PrimaryTermAndGeneration(1, generation);
-        final var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), termAndGeneration);
+        final var blobFile = new BccBlob(BccBlob.blobNameFromGeneration(generation), termAndGeneration);
         final var commit = StatelessCompoundCommit.newHollowStatelessCompoundCommit(
             new ShardId("test", "uuid", 0),
             termAndGeneration,

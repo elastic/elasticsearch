@@ -1244,8 +1244,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         } catch (RuntimeException e) {
             // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
-            String reason = Objects.requireNonNullElse(e.getMessage(), e.toString());
-            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]: {}", query, reason);
+            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]", query);
         }
         EqlRelation.Mode mode = switch (shape.mode()) {
             case EVENT -> EqlRelation.Mode.EVENT;

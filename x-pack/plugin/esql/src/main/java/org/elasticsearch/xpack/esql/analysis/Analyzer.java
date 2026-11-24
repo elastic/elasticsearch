@@ -1273,7 +1273,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : Strings.format("Line %s:%s (in view [%s]): ", source.lineNumber(), source.columnNumber(), source.viewName());
             return Strings.format(
                 "%sMapped field [%s] is shadowed by the EQL command's column of the same name; "
-                    + "use JSON_EXTRACT on METADATA _source to read it",
+                    + "access it with JSON_EXTRACT on METADATA _source if the document stores it",
                 location,
                 field
             );

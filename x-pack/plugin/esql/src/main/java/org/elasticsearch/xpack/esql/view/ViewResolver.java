@@ -572,15 +572,16 @@ public class ViewResolver {
     }
 
     private void rejectViewsInEqlTarget(UnresolvedEqlRelation eql, String projectRouting, ActionListener<LogicalPlan> listener) {
+        boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         String[] patterns = Arrays.stream(eql.indexPattern().indexPattern().split(","))
-            .filter(p -> isLocalWildcard(p) == false)
+            .filter(p -> isLocalWildcard(p) == false && (cpsEnabled || RemoteClusterAware.splitIndexName(p).clusterAlias() == null))
             .toArray(String[]::new);
         Set<String> named = exactNames(Arrays.stream(patterns).filter(p -> patternIsExclusion(p) == false).toArray(String[]::new));
         if (named.isEmpty()) {
             listener.onResponse(eql);
             return;
         }
-        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, crossProjectModeDecider.crossProjectEnabled(), false);
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled, false);
         req.setProjectRouting(projectRouting);
         req.indices(patterns);
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l, response) -> {

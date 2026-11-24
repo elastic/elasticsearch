@@ -62,8 +62,10 @@ itself is `null` only when the query has no `by` fields.
 
 Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. In a `sequence` or `sample` query, a
 mapped field named `_sequence`, `_sequence_stage` or `join_keys` is shadowed by the synthetic column of the
-same name, with a warning. To read the field, query the index with `FROM`, or add `METADATA _source` and extract
-it with [`JSON_EXTRACT`](/reference/query-languages/esql/functions-operators/string-functions/json_extract.md).
+same name, with a warning. To read the field, query the index with `FROM`. If the document stores it, you can also
+add `METADATA _source` and extract it with
+[`JSON_EXTRACT`](/reference/query-languages/esql/functions-operators/string-functions/json_extract.md); field
+aliases, runtime fields and `copy_to` targets are not stored in `_source`.
 
 ### Coordinator-only execution
 

@@ -535,7 +535,8 @@ public class AnalyzerEqlTests extends ESTestCase {
             + location
             + ": Mapped field ["
             + field
-            + "] is shadowed by the EQL command's column of the same name; use JSON_EXTRACT on METADATA _source to read it";
+            + "] is shadowed by the EQL command's column of the same name; "
+            + "access it with JSON_EXTRACT on METADATA _source if the document stores it";
     }
 
     private static IndexResolution indexWith(String name, Map<String, EsField> mapping) {

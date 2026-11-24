@@ -485,19 +485,10 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testEqlEngineParsingFailureIsLocatedInTheEqlQuery() {
-        ParsingException parsingFailure = new ParsingException(
-            new org.elasticsearch.xpack.ql.tree.Source(1, 15, "between(a)"),
-            "error building [{}]: expects three or four arguments",
-            "between"
-        );
         assertLocatedFailure(
             new Source(1, 0, "eqlq"),
-            parsingFailure,
-            "line 1:1: EQL query failed: line "
-                + parsingFailure.getLineNumber()
-                + ":"
-                + parsingFailure.getColumnNumber()
-                + " of the EQL query: error building [between]: expects three or four arguments"
+            new ParsingException("error building [between]: expects three or four arguments", null, 1, 14),
+            "line 1:1: EQL query failed: line 1:15 of the EQL query: error building [between]: expects three or four arguments"
         );
     }
 

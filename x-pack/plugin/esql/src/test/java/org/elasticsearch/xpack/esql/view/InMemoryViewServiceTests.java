@@ -1651,6 +1651,36 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testRemoteEqlTargetIsNotLookedUpOutsideCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        for (String pattern : List.of("remote:view_a", "*:view_a", "remote:view_a,remote:-view_a")) {
+            InMemoryViewResolver resolver = viewService.getViewResolver();
+            assertThat(eqlTarget(replaceViews(query("EQL " + pattern + " \"process where true\""), resolver)), equalTo(pattern));
+            assertThat(pattern, resolver.requestedIndices(), empty());
+        }
+    }
+
+    public void testRemoteNameNextToAViewInEqlTargetIsNotLookedUp() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = viewService.getViewResolver();
+        expectThrows(
+            VerificationException.class,
+            containsString("found view(s) [view_a]; use FROM view_a instead"),
+            () -> replaceViews(query("EQL remote:logs,view_a \"process where true\""), resolver)
+        );
+        assertThat(resolver.requestedIndices(), contains(List.of("view_a")));
+    }
+
+    public void testRemoteEqlTargetIsLookedUpInCrossProjectMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        addView("view_a", "FROM emp");
+        InMemoryViewResolver resolver = cpsViewResolver();
+        assertThat(eqlTarget(replaceViews(query("EQL remote:view_a \"process where true\""), resolver)), equalTo("remote:view_a"));
+        assertThat(resolver.requestedIndices(), contains(List.of("remote:view_a")));
+    }
+
     private static String eqlTarget(LogicalPlan plan) {
         return as(plan, UnresolvedEqlRelation.class).indexPattern().indexPattern();
     }

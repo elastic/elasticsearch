@@ -25,8 +25,7 @@ import java.util.Map;
 public interface StoredStreamWriter {
 
     /** Registers the new stream by its id. */
-    void createStarted(
-        String streamId,
+    String createStarted(
         TaskId taskId,
         @Nullable Instant expiration,
         List<ColumnInfo> columns,

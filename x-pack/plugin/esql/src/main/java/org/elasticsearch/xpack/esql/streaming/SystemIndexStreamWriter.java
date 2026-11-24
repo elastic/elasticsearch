@@ -86,18 +86,19 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
     }
 
     @Override
-    public void createStarted(
-        String streamId,
+    public String createStarted(
         TaskId taskId,
         Instant expiration,
         List<ColumnInfo> columns,
         Map<String, String> headers,
         List<String> warnings
     ) {
+        var streamId = StreamId.newStreamId(taskId).toString();
         addToCurrentBulk(true, false, bulk -> {
             metadata = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings);
             bulk.addMetadata(metadata);
         });
+        return streamId;
     }
 
     @Override

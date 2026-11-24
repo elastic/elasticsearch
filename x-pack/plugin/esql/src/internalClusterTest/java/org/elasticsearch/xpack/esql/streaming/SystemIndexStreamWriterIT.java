@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -57,8 +56,7 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         Map<String, String> headers = Map.of(randomIdentifier(), randomIdentifier());
         List<String> warnings = List.of(randomAlphaOfLengthBetween(5, 30));
 
-        String streamId = UUIDs.randomBase64UUID();
-        writer.createStarted(streamId, taskId, expiration, columns, headers, warnings);
+        String streamId = writer.createStarted(taskId, expiration, columns, headers, warnings);
         var capacity = new CountDownLatch(1);
         writer.onCapacity(capacity::countDown);
         safeAwait(capacity);
@@ -97,8 +95,7 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         Map<String, String> headers = Map.of(randomIdentifier(), randomIdentifier());
         List<String> warnings = List.of(randomAlphaOfLengthBetween(5, 30));
 
-        String streamId = UUIDs.randomBase64UUID();
-        writer.createStarted(streamId, taskId, expiration, columns, headers, warnings);
+        String streamId = writer.createStarted(taskId, expiration, columns, headers, warnings);
         awaitCapacity(writer);
         writer.markComplete(false, 10, 0, 0);
         awaitCapacity(writer);

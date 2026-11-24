@@ -58,6 +58,7 @@ import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -371,6 +372,53 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         }
 
         assertThat(completingThread.get(), containsString(ThreadPool.Names.SEARCH_COORDINATION));
+    }
+
+    /**
+     * If the search is cancelled while the inner searches run, the combine step must be skipped and the cancellation passed back
+     * to the caller as is rather than wrapped as a retriever failure.
+     */
+    public void testCancelledSearchSkipsCombine() {
+        var retriever = new DiversifyRetrieverBuilder(
+            new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(new MatchAllQueryBuilder()), null),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(getRandomFloatQueryVector(256)),
+            null,
+            0.3f
+        );
+
+        var cancellation = new TaskCancelledException("task cancelled");
+        try (var threadPool = createThreadPool()) {
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(TransportMultiSearchAction.TYPE, action);
+                    var response = new MultiSearchResponse(
+                        new MultiSearchResponse.Item[] {
+                            new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS), null) },
+                        1L
+                    );
+                    ActionListener.respondAndRelease((ActionListener<MultiSearchResponse>) listener, response);
+                }
+            };
+
+            var ctx = getQueryRewriteContext(client);
+            ctx.setCancellationCheck(() -> { throw cancellation; });
+            var failure = safeAwaitFailure(
+                TaskCancelledException.class,
+                RetrieverBuilder.class,
+                l -> Rewriteable.rewriteAndFetch(retriever, ctx, l)
+            );
+            assertSame(cancellation, failure);
+        }
     }
 
     public void testMmrResultDiversification() {

@@ -36,6 +36,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -216,9 +217,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
                     if (failures.isEmpty()) {
                         try {
+                            // the search may have been cancelled while the inner searches ran, so skip the combine step
+                            ctx.getCancellationCheck().run();
                             boolean enrichResults = ctx.isExplain() || ctx.isProfile();
                             results.set(combineInnerRetrieverResults(topDocs, enrichResults));
                             listener.onResponse(null);
+                            return;
+                        } catch (TaskCancelledException e) {
+                            listener.onFailure(e);
                             return;
                         } catch (RuntimeException rtEx) {
                             retrieversWithFailures.add(getName());

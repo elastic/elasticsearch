@@ -76,6 +76,8 @@ public final class HasPrivilegesIntoDestinationAuthorizer implements IntoDestina
         }
         HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(user);
+        request.clusterPrivileges(new String[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         request.indexPrivileges(
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destination)

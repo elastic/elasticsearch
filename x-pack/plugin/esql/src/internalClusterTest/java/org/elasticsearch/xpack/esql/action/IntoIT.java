@@ -155,7 +155,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("INTO destination [" + dateMathDest + "] is also read by the query, through [" + resolvedDest + "]")
+            containsString("INTO destination [" + resolvedDest + "] is also read by the query, through [" + resolvedDest + "]")
         );
     }
 

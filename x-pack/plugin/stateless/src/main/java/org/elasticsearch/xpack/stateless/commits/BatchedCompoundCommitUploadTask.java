@@ -20,10 +20,9 @@ import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -48,7 +47,6 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     private final long generation;
     private final long taskStartMillis;
     private final AtomicBoolean cacheWarmedAttempted = new AtomicBoolean();
-    private final List<BccUploadResult.BccUploadAttemptTiming> attemptTimings = new CopyOnWriteArrayList<>();
     private int uploadTryNumber = 0;
     private volatile long attemptStartMillis;
 
@@ -145,11 +143,13 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
         final long generationQueueWaitMs = threadPool.relativeTimeInMillis() - attemptStartMillis;
         final int attempt = uploadTryNumber;
         final long enqueuedAtNanos = threadPool.relativeTimeInNanos();
+        final var attemptTiming = new AtomicReference<BccUploadResult.BccUploadAttemptTiming>();
         try (RefCountingListener refCountingListener = new RefCountingListener(listener.delegateFailureAndWrap((l, unused) -> {
             BatchedCompoundCommit uploadedBcc = virtualBcc.getFrozenBatchedCompoundCommit();
             assert uploadedBcc.lastCompoundCommit() != null;
             final long totalUploadTimeMs = threadPool.relativeTimeInMillis() - taskStartMillis;
-            l.onResponse(new BccUploadResult(uploadedBcc, totalUploadTimeMs, List.copyOf(attemptTimings)));
+            assert attemptTiming.get() != null : shardId + " commit [" + generation + "] uploaded without a timing";
+            l.onResponse(new BccUploadResult(uploadedBcc, totalUploadTimeMs, attemptTiming.get()));
         }))) {
             if (cacheWarmedAttempted.compareAndSet(false, true)) {
                 cacheWarmingService.warmCacheBeforeUpload(virtualBcc, refCountingListener.acquire().delegateResponse((l, e) -> {
@@ -168,17 +168,15 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
                 enqueuedAtNanos,
                 virtualBcc,
                 refCountingListener.acquire().delegateFailure((l, objectStoreTiming) -> {
-                    attemptTimings.add(
-                        new BccUploadResult.BccUploadAttemptTiming(
-                            attempt,
-                            generationQueueWaitMs,
-                            objectStoreTiming.objectStoreQueueWaitMs(),
-                            objectStoreTiming.uploadIoMs(),
-                            virtualBcc.getTotalSizeInBytes()
-                        )
+                    final var timing = new BccUploadResult.BccUploadAttemptTiming(
+                        attempt,
+                        generationQueueWaitMs,
+                        objectStoreTiming.objectStoreQueueWaitMs(),
+                        objectStoreTiming.uploadIoMs(),
+                        virtualBcc.getTotalSizeInBytes()
                     );
+                    attemptTiming.set(timing);
                     if (logger.isDebugEnabled()) {
-                        final var timing = attemptTimings.getLast();
                         logger.debug(() -> {
                             int uploadedFileCount = 0;
                             long uploadedFileBytes = 0;

@@ -71,6 +71,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
     exports org.elasticsearch.xpack.core.esql.action.internal;
+    exports org.elasticsearch.xpack.core.exponentialhistogram;
     exports org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.gpu;

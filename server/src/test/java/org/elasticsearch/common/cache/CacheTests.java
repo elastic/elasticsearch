@@ -32,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -500,6 +501,104 @@ public class CacheTests extends ESTestCase {
         }
         cache.invalidateAll();
         assertEquals(invalidated, notifications);
+    }
+
+    // invalidate the entries matching a random predicate, then check that exactly those entries are gone and notified
+    public void testRemoveIf() {
+        Set<Integer> notifications = new HashSet<>();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            notifications.add(notification.getKey());
+        }).build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        final int modulus = randomIntBetween(1, 10);
+        Set<Integer> invalidated = new HashSet<>();
+        for (int i = 0; i < numberOfEntries; i++) {
+            if (i % modulus == 0) {
+                invalidated.add(i);
+            }
+        }
+        cache.removeIf(key -> key % modulus == 0);
+        assertEquals(invalidated, notifications);
+        assertEquals(numberOfEntries - invalidated.size(), cache.count());
+        assertEquals(numberOfEntries - invalidated.size(), cache.weight());
+        for (int i = 0; i < numberOfEntries; i++) {
+            if (invalidated.contains(i)) {
+                assertNull(cache.get(i));
+            } else {
+                assertNotNull(cache.get(i));
+            }
+        }
+    }
+
+    // a predicate that throws part way through must not leave entries removed from a segment but still linked and counted
+    public void testRemoveIfWithThrowingPredicate() {
+        Set<Integer> notifications = new HashSet<>();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .removalListener(notification -> notifications.add(notification.getKey()))
+            .build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        // the first tested key matches and the second throws; with far more entries than segments both are in the same segment
+        final AtomicInteger calls = new AtomicInteger();
+        expectThrows(IllegalStateException.class, () -> cache.removeIf(key -> {
+            if (calls.incrementAndGet() == 2) {
+                throw new IllegalStateException("poison");
+            }
+            return true;
+        }));
+        assertEquals(numberOfEntries, cache.count());
+        assertThat(notifications, empty());
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertNotNull("key [" + i + "] was removed by a removeIf that threw", cache.get(i));
+        }
+        cache.removeIf(key -> true);
+        assertEquals(0, cache.count());
+        assertEquals(numberOfEntries, notifications.size());
+    }
+
+    // reads promote entries in the LRU list, which must not make removeIf skip any matching entry
+    public void testRemoveIfWithConcurrentReads() throws Exception {
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        final int numberOfReaders = randomIntBetween(2, 8);
+        final CountDownLatch readersStarted = new CountDownLatch(numberOfReaders);
+        final AtomicBoolean done = new AtomicBoolean();
+        final List<Thread> readers = new ArrayList<>();
+        for (int i = 0; i < numberOfReaders; i++) {
+            final Random random = new Random(random().nextLong());
+            final Thread reader = new Thread(() -> {
+                cache.get(random.nextInt(numberOfEntries));
+                readersStarted.countDown();
+                while (done.get() == false) {
+                    cache.get(random.nextInt(numberOfEntries));
+                }
+            });
+            reader.start();
+            readers.add(reader);
+        }
+        safeAwait(readersStarted);
+        try {
+            cache.removeIf(key -> key % 2 == 0);
+        } finally {
+            done.set(true);
+            for (Thread reader : readers) {
+                reader.join();
+            }
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            if (i % 2 == 0) {
+                assertNull("key [" + i + "] survived removeIf", cache.get(i));
+            } else {
+                assertNotNull(cache.get(i));
+            }
+        }
+        assertEquals(numberOfEntries / 2, cache.count());
     }
 
     // randomly replace some entries, increasing the weight by 1 for each replacement, then count that the cache size

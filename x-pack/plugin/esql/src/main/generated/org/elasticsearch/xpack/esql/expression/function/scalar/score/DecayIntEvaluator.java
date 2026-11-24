@@ -31,11 +31,11 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final int origin;
+  private final double origin;
 
-  private final int scale;
+  private final double scale;
 
-  private final int offset;
+  private final double offset;
 
   private final double decay;
 
@@ -45,8 +45,8 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public DecayIntEvaluator(Source source, ExpressionEvaluator value, int origin, int scale,
-      int offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
+  public DecayIntEvaluator(Source source, ExpressionEvaluator value, double origin, double scale,
+      double offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.origin = origin;
@@ -129,18 +129,18 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final int origin;
+    private final double origin;
 
-    private final int scale;
+    private final double scale;
 
-    private final int offset;
+    private final double offset;
 
     private final double decay;
 
     private final Decay.DecayFunction decayFunction;
 
-    public Factory(Source source, ExpressionEvaluator.Factory value, int origin, int scale,
-        int offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value, double origin, double scale,
+        double offset, double decay, Decay.DecayFunction decayFunction) {
       this.source = source;
       this.value = value;
       this.origin = origin;

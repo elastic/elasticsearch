@@ -137,7 +137,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             0,
             new IllegalArgumentException("couldn't merge")
         );
-        Mockito.when(forceMergeResponse.shardFailuresList()).thenReturn(List.of(cause));
+        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(List.of(cause));
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();

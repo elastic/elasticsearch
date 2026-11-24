@@ -609,7 +609,8 @@ public class StringColumnMergeTests extends ESTestCase {
                 (fieldName, type) -> NumericPipeline::defaultPipeline,
                 field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                selector
+                selector,
+                FormatVersion.CURRENT
             )
         );
         final int numDocs = between(200, 2000);

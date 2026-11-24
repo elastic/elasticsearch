@@ -36,7 +36,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -65,6 +64,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -1565,12 +1565,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 };
             }
         };
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            null
-        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         SearchService searchService = new SearchService(
             clusterService,
@@ -1713,12 +1708,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.emptySet(),
             nodeId
         );
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            null
-        );
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
         SearchService searchService = new SearchService(
             clusterService,

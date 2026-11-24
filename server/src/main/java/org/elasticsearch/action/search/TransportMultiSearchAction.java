@@ -337,7 +337,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
         }
 
-        if (response.hasAggregations() && response.getQueryPhaseAggregationBreakerBytes() == 0) {
+        // Aggregations the response already holds a charge for are not counted again.
+        if (response.hasAggregations()
+            && response.getQueryPhaseAggregationBreakerBytes() == 0
+            && response.hasAggregationCharge() == false) {
             long serializedAggregations = response.serializedAggregationsBytes();
             if (serializedAggregations >= 0) {
                 // The size the sender wrote, in its own version's format. At the current version it is what counting would give.
@@ -351,7 +354,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
         }
 
-        bytes += estimateShardFailureBytes(response.shardFailuresList());
+        bytes += estimateShardFailureBytes(response.getShardFailures());
 
         Suggest suggest = response.getSuggest();
         if (suggest != null) {

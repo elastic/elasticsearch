@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
@@ -36,36 +37,19 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class RLikeList extends RegexMatch<RLikePatternList> implements AnyNullIsNull {
+public final class RLikeList extends RegexMatch<RLikePatternList> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "RLikeList",
         RLikeList::new
     );
 
-    Supplier<Automaton> automatonSupplier = new Supplier<>() {
-        Automaton cached;
+    // Thread-safe memoization: the query built from these can be used by every thread that holds the plan.
+    final Supplier<Automaton> automatonSupplier = CachedSupplier.wrap(() -> pattern().createAutomaton(caseInsensitive()));
 
-        @Override
-        public Automaton get() {
-            if (cached == null) {
-                cached = pattern().createAutomaton(caseInsensitive());
-            }
-            return cached;
-        }
-    };
-
-    Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = new Supplier<>() {
-        CharacterRunAutomaton cached;
-
-        @Override
-        public CharacterRunAutomaton get() {
-            if (cached == null) {
-                cached = new CharacterRunAutomaton(automatonSupplier.get());
-            }
-            return cached;
-        }
-    };
+    final Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = CachedSupplier.wrap(
+        () -> new CharacterRunAutomaton(automatonSupplier.get())
+    );
 
     /**
      * The documentation for this function is in RLike, and shown to the users as `RLIKE` in the docs.

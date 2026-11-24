@@ -1254,10 +1254,7 @@ final class ParquetColumnDecoding {
     ) {
         DataType declared = info.esqlType();
         DataType fileElementType = info.fileEsqlType();
-        if (fileElementType != null
-            && declared != fileElementType
-            && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
-            && DeclaredTypeCoercions.supports(fileElementType, declared)) {
+        if (DeclaredTypeCoercions.needsBlockCast(fileElementType, declared, info.dateFormatter() != null)) {
             // The recursion decodes at the file's own element type and owns the drop notice for this read; this
             // frame deliberately keeps no tally of its own, since it never reaches the row loops below.
             Block physical = readListColumn(

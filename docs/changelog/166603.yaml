@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 166603
+summary: "Prevent multi-row datafeed previews from returning invalid JSON"
+type: bug

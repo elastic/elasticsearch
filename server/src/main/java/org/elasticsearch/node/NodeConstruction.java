@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.cluster.repositories.reservedstate.Reserve
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.cluster.stats.SearchTierStatsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
@@ -139,6 +140,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -221,9 +223,9 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.plugins.internal.SettingsExtension;
-import org.elasticsearch.plugins.internal.ShardGenerationListener;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -762,6 +764,7 @@ class NodeConstruction {
         DocumentParsingProvider documentParsingProvider,
         ProjectResolver projectResolver
     ) throws IOException {
+        analysisRegistry.watchSharingSetting(settingsModule.getClusterSettings());
 
         Settings settings = settingsModule.getSettings();
 
@@ -830,9 +833,9 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
-        final ShardGenerationListener shardGenerationListener = pluginsService.loadSingletonServiceProvider(
-            ShardGenerationListener.class,
-            () -> ShardGenerationListener.NOOP
+        final ShardGenerationSizeListener shardGenerationSizeListener = pluginsService.loadSingletonServiceProvider(
+            ShardGenerationSizeListener.class,
+            () -> ShardGenerationSizeListener.NOOP
         );
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
@@ -844,7 +847,7 @@ class NodeConstruction {
             xContentRegistry,
             recoverySettings,
             telemetryProvider,
-            shardGenerationListener
+            shardGenerationSizeListener
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         SnapshotMetrics snapshotMetrics = repositoriesModule.getSnapshotMetrics();
@@ -939,6 +942,7 @@ class NodeConstruction {
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
+        FlushMetrics flushMetrics = new FlushMetrics(telemetryProvider.getMeterRegistry());
 
         final List<SearchOperationListener> searchOperationListeners = List.of(
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
@@ -1004,6 +1008,7 @@ class NodeConstruction {
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
             .mergeMetrics(mergeMetrics)
+            .flushMetrics(flushMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
             .throttlingRecoveryService(throttlingRecoveryService)
@@ -1063,6 +1068,7 @@ class NodeConstruction {
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final EscfBulkService escfBulkService = new EscfBulkService(indexingLimits, threadPool.generic(), bigArrays.bytesRefRecycler());
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
             LinkedProjectConfigService.Provider.class,
@@ -1332,7 +1338,7 @@ class NodeConstruction {
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
             featureService,
-            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP),
+            pluginsService.loadSingletonServiceProvider(RestoreProjectCustomUpdater.class, () -> RestoreProjectCustomUpdater.NOOP),
             restoreMetrics
         );
 
@@ -1520,6 +1526,7 @@ class NodeConstruction {
             b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IpLocationService.class).toInstance(ipLocationService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
+            b.bind(EscfBulkService.class).toInstance(escfBulkService);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
             b.bind(MetaStateService.class).toInstance(metaStateService);

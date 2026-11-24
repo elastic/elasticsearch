@@ -305,6 +305,8 @@ public class IndexVersions {
     public static final IndexVersion UNMAPPED_SINK_ON_STRICT_COLUMNAR = def(9_130_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion DOC_VALUES_NO_OP_IN_COLUMNAR = def(9_131_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS = def(9_132_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion COLUMNAR_PLAIN_SKIP_INDEX = def(9_133_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion ROUTING_DOC_VALUES_NO_OP_IN_COLUMNAR = def(9_134_0_00, Version.LUCENE_10_5_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

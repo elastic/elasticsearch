@@ -160,8 +160,9 @@ final class PageColumnReader implements Releasable {
      * credited against subsequent skip requests rather than being discarded (which would leave the
      * reader silently ahead and misread later survivor rows).
      *
-     * <p>Only {@link #skipRows} spends this credit. The read entry point ({@link #readBatch}) requires
-     * it to be zero and throws {@link IllegalStateException} otherwise: a prejump only ever crosses
+     * <p>Only {@link #skipRows} spends this credit. Every batch decode goes through
+     * {@link #decodeBatchAs}, which requires it to be zero and throws {@link IllegalStateException}
+     * otherwise: a prejump only ever crosses
      * survivor-excluded pages, so the caller always reaches the next survivor through a {@code skipRows}
      * whose gap fully drains the surplus before any decode happens.
      */
@@ -211,26 +212,14 @@ final class PageColumnReader implements Releasable {
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
-        // A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
-        // skipRows may spend that credit. Decoding here would read from the wrong source rows and
-        // silently undercount an aggregate. The check is per-batch, so failing loudly costs nothing.
-        if (pendingPrejumped != 0) {
-            throw new IllegalStateException(
-                "readBatch called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position"
-            );
-        }
-        loadDictionaryIfNeeded();
         // Declared-type coercion beyond the fused pairs: decode the column at the file's own type
         // with the arms below, then coerce the block to the declared type. Per-value failures
         // follow the read's error policy: a live coercionWarnings sink nulls the cell + emits a
         // response Warning, a null sink (fail_fast) fails the read.
         DataType declared = info.esqlType();
         DataType fileType = info.fileEsqlType();
-        if (fileType != null
-            && declared != fileType
-            && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
-            && DeclaredTypeCoercions.supports(fileType, declared)) {
-            Block physical = readBatchAs(fileType, maxRows, blockFactory);
+        if (DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null)) {
+            Block physical = decodeBatchAs(fileType, maxRows, blockFactory);
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -246,7 +235,23 @@ final class PageColumnReader implements Releasable {
                 physical.close();
             }
         }
-        return readBatchAs(declared, maxRows, blockFactory);
+        return decodeBatchAs(declared, maxRows, blockFactory);
+    }
+
+    /**
+     * Decodes a batch at {@code type}. Every batch decode goes through here, each run of a sparse read
+     * included, because the dictionary has to be loaded first -- a dictionary-encoded column whose
+     * first read is a sparse one decodes against null otherwise -- and because the cursor must not be
+     * ahead of the caller's position, which would read the wrong rows and undercount silently.
+     */
+    private Block decodeBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
+        if (pendingPrejumped != 0) {
+            throw new IllegalStateException(
+                "batch decode called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position"
+            );
+        }
+        loadDictionaryIfNeeded();
+        return readBatchAs(type, maxRows, blockFactory);
     }
 
     private Block readBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
@@ -343,7 +348,7 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Reads only the rows at the given positions within a batch of {@code sourceRows} total
-     * rows, interleaving {@link #skipRows} and {@link #readBatch} calls. Produces exactly
+     * rows, interleaving {@link #skipRows} with per-run decodes. Produces exactly
      * {@code survivorCount} output rows. Unlike {@link #readBatchFiltered}, this method is
      * safe when the reader has {@link RowRanges} that cause page skipping in
      * {@link #loadNextPage()}, because every skip/read call advances the reader's cursor
@@ -394,13 +399,22 @@ final class PageColumnReader implements Releasable {
             return result;
         }
 
-        // General path: decompose survivorPositions into (skip, read) runs of contiguous
-        // positions. Each run produces a small Block via readBatch; chunks are combined
-        // at the end.
+        // General path: decompose survivorPositions into (skip, read) runs of contiguous positions,
+        // one small Block per run, combined at the end.
+        //
+        // The coercion is decided here and applied to the joined block, not inside each run, because a
+        // run here is often one row. Runs are read in ascending position order, so joining then
+        // converting gives the same values in the same order as converting each run. Under a strict
+        // policy the same value fails, after the whole batch has decoded rather than at its own run.
+        DataType declared = info.esqlType();
+        DataType fileType = info.fileEsqlType();
+        boolean coerceOnce = DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null);
+
         List<Block> chunks = new ArrayList<>();
         int cursor = 0;
         int runStart = 0;
 
+        Block joined;
         try {
             while (runStart < survivorCount) {
                 int pos = survivorPositions[runStart];
@@ -417,7 +431,7 @@ final class PageColumnReader implements Releasable {
                 }
                 int runLength = runEnd - runStart;
 
-                chunks.add(readBatch(runLength, blockFactory));
+                chunks.add(coerceOnce ? decodeBatchAs(fileType, runLength, blockFactory) : readBatch(runLength, blockFactory));
                 cursor += runLength;
                 runStart = runEnd;
             }
@@ -429,21 +443,44 @@ final class PageColumnReader implements Releasable {
             }
 
             if (chunks.size() == 1) {
-                return chunks.get(0);
+                joined = chunks.get(0);
+            } else {
+                // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
+                // the chunks. This caught a real page-skip miscount and stays local to this path because
+                // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
+                assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
+                // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
+                // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
+                // success; on a throw the catch below releases them.
+                joined = BlockChunks.concat(chunks, blockFactory);
             }
-            // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
-            // the chunks. This caught a real page-skip miscount and stays local to this path because
-            // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
-            assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
-            // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
-            // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
-            // success; on a throw the catch below releases them.
-            return BlockChunks.concat(chunks, blockFactory);
+            // The list owns nothing from here: concat closed what it consumed, the single-chunk arm
+            // handed its block over. The coercion below is outside this try so its throw cannot reach
+            // a catch that would close those blocks again.
+            chunks.clear();
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
                 ParquetReadFailures.closePreservingCause(e, chunk);
             }
             throw e;
+        }
+
+        if (coerceOnce == false) {
+            return joined;
+        }
+        try {
+            return DeclaredTypeCoercions.castBlock(
+                joined,
+                fileType,
+                declared,
+                info.dateFormatter(),
+                blockFactory,
+                String.join(".", descriptor.getPath()),
+                coercionWarnings,
+                failedPositionSink
+            );
+        } finally {
+            joined.close();
         }
     }
 

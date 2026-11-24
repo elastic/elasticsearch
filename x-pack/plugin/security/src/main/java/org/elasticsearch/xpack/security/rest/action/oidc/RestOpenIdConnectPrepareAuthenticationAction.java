@@ -80,4 +80,10 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
     public String getName() {
         return "security_oidc_prepare_authentication_action";
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
 }

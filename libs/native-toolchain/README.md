@@ -133,9 +133,11 @@ Steps 3 and 4 are needed because the sysroot is baked into the image.
 4. Build it with `<LIBRARY>_NATIVE_BUILD=docker`. If a system header is missing, follow
    *Add a system header* above.
 
-Nothing else is needed: applying the plugin registers the project as a native library producer, and
-the project that gathers the binaries picks it up from there. There is no version to declare
-either: every build resolves the library by the hash of its sources.
+Nothing else is needed. Applying the plugin does two things:
+- when a test or benchmark task in a project that depends on this project forks a JVM, the task adds the directory containing the library to the list of directories the JVM uses to load native libraries (`es.nativelibs.path`);
+- every project that applies `elasticsearch.native-library-collection` gets the library: for example, the `:distribution:archives` and `:distribution:packages` projects, which copy it into `lib/platform` in every archive and package they build.
+
+There is no version to declare either: every build resolves the library by the hash of its sources.
 
 ## Bump the sysroot components
 

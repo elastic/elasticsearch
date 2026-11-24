@@ -1,0 +1,162 @@
+---
+"Dotted key into a nested field with subobjects false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_dotted_nested_fix" ]
+      reason: "A dotted key into a nested field under subobjects:false hit an assertion and lost the value"
+
+  - do:
+      indices.create:
+        index: test_flat
+        body:
+          mappings:
+            subobjects: false
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_flat
+        id: "1"
+        refresh: true
+        body: { "n.k": "a" }
+
+  - do:
+      search:
+        index: test_flat
+        body:
+          query:
+            nested:
+              path: n
+              query:
+                term:
+                  n.k: a
+  - match: { hits.total.value: 1 }
+
+  # The source is returned as it was sent
+  - do:
+      get:
+        index: test_flat
+        id: "1"
+  - match: { _source: { "n.k": "a" } }
+
+---
+"Dotted key with an array value into a nested field with subobjects false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_dotted_nested_fix" ]
+      reason: "A dotted key into a nested field under subobjects:false hit an assertion and lost the value"
+
+  - do:
+      indices.create:
+        index: test_flat_array
+        body:
+          mappings:
+            subobjects: false
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_flat_array
+        id: "1"
+        refresh: true
+        body: { "n.k": [ "a", "b" ] }
+
+  - do:
+      search:
+        index: test_flat_array
+        body:
+          query:
+            nested:
+              path: n
+              query:
+                bool:
+                  must:
+                    - term:
+                        n.k: a
+                    - term:
+                        n.k: b
+  - match: { hits.total.value: 1 }
+
+---
+"Dynamic dotted key into a nested field with subobjects false is mapped inside the nested field":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_dotted_nested_fix" ]
+      reason: "A dotted key into a nested field under subobjects:false hit an assertion and lost the value"
+
+  - do:
+      indices.create:
+        index: test_flat_dynamic
+        body:
+          mappings:
+            subobjects: false
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_flat_dynamic
+        id: "1"
+        refresh: true
+        body: { "n.added": "x" }
+
+  - do:
+      indices.get_mapping:
+        index: test_flat_dynamic
+  - exists: test_flat_dynamic.mappings.properties.n.properties.added
+
+  - do:
+      search:
+        index: test_flat_dynamic
+        body:
+          query:
+            nested:
+              path: n
+              query:
+                match:
+                  n.added: x
+  - match: { hits.total.value: 1 }
+
+---
+"Control: the same document with the default subobjects":
+  - do:
+      indices.create:
+        index: test_default
+        body:
+          mappings:
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_default
+        id: "1"
+        refresh: true
+        body: { "n.k": "a" }
+
+  - do:
+      search:
+        index: test_default
+        body:
+          query:
+            nested:
+              path: n
+              query:
+                term:
+                  n.k: a
+  - match: { hits.total.value: 1 }

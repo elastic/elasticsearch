@@ -1128,7 +1128,10 @@ public final class DocumentParser {
             assert this.tsid == null || indexSettings.getMode().isTsdb() : "tsid should only be set for time series indices";
             XContentParserDecorator parserDecorator = source.getMeteringParserDecorator();
             Mapping mapping = mappingLookup.getMapping();
-            if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
+            if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED
+                || mappingLookup.nestedLookup().getNestedMappers().isEmpty() == false) {
+                // With subobjects:false dots are not expanded, except when the mapping has nested fields: a dotted key into a nested field
+                // (e.g. "n.k") must be parsed inside the nested document, which only happens for the structured form {"n": {"k": ...}}.
                 this.parser = parserDecorator.decorate(DotExpandingXContentParser.expandDots(parser, this.path), mapping);
             } else {
                 this.parser = parserDecorator.decorate(parser, mapping);

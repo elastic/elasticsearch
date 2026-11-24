@@ -2380,6 +2380,119 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
     }
 
+    private static List<String> fieldNames(LuceneDocument doc) {
+        return doc.getFields().stream().map(IndexableField::name).sorted().toList();
+    }
+
+    private DocumentMapper nestedUnderNoSubobjectsMapper(String nestedName, boolean includeInRoot) throws IOException {
+        return createDocumentMapper(mappingNoSubobjects(b -> {
+            b.startObject(nestedName).field("type", "nested");
+            if (includeInRoot) {
+                b.field("include_in_root", true);
+            }
+            b.startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.startObject("j").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+    }
+
+    public void testSubobjectsFalseDottedKeyIntoNested() throws Exception {
+        DocumentMapper mapper = nestedUnderNoSubobjectsMapper("n", false);
+        ParsedDocument dotted = mapper.parse(source("{\"n.k\": \"a\"}"));
+        ParsedDocument structured = mapper.parse(source("{\"n\": {\"k\": \"a\"}}"));
+
+        assertEquals(2, dotted.docs().size());
+        assertNotNull(dotted.docs().get(0).getField("n.k"));
+        assertNull(dotted.rootDoc().getField("n.k"));
+        assertEquals(fieldNames(structured.docs().get(0)), fieldNames(dotted.docs().get(0)));
+        assertEquals(fieldNames(structured.rootDoc()), fieldNames(dotted.rootDoc()));
+    }
+
+    public void testSubobjectsFalseDottedKeyIntoNestedArrayAndNull() throws Exception {
+        DocumentMapper mapper = nestedUnderNoSubobjectsMapper("n", false);
+
+        ParsedDocument array = mapper.parse(source("{\"n.k\": [\"a\", \"b\"]}"));
+        ParsedDocument structuredArray = mapper.parse(source("{\"n\": {\"k\": [\"a\", \"b\"]}}"));
+        assertEquals(2, array.docs().size());
+        assertEquals(fieldNames(structuredArray.docs().get(0)), fieldNames(array.docs().get(0)));
+
+        ParsedDocument nullValue = mapper.parse(source("{\"n.k\": null}"));
+        ParsedDocument structuredNull = mapper.parse(source("{\"n\": {\"k\": null}}"));
+        assertEquals(structuredNull.docs().size(), nullValue.docs().size());
+    }
+
+    public void testSubobjectsFalseTwoDottedKeysIntoNestedMakeTwoNestedDocs() throws Exception {
+        DocumentMapper mapper = nestedUnderNoSubobjectsMapper("n", false);
+        ParsedDocument doc = mapper.parse(source("{\"n.k\": \"a\", \"n.j\": \"b\"}"));
+        // Same as dot expansion with the default subobjects: each dotted key is its own object.
+        assertEquals(3, doc.docs().size());
+        assertNotNull(doc.docs().get(0).getField("n.k"));
+        assertNotNull(doc.docs().get(1).getField("n.j"));
+    }
+
+    public void testSubobjectsFalseDottedKeyIntoNestedIncludeInRoot() throws Exception {
+        DocumentMapper mapper = nestedUnderNoSubobjectsMapper("n", true);
+        ParsedDocument doc = mapper.parse(source("{\"n.k\": \"a\"}"));
+        assertEquals(2, doc.docs().size());
+        assertNotNull(doc.docs().get(0).getField("n.k"));
+        assertNotNull(doc.rootDoc().getField("n.k"));
+    }
+
+    public void testSubobjectsFalseDynamicDottedKeyIntoNested() throws Exception {
+        DocumentMapper mapper = nestedUnderNoSubobjectsMapper("n", false);
+        ParsedDocument doc = mapper.parse(source("{\"n.new\": \"x\"}"));
+
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
+        assertNotNull(mappingsUpdate);
+        Mapper nested = mappingsUpdate.getRoot().getMapper("n");
+        assertThat(nested, instanceOf(NestedObjectMapper.class));
+        assertNotNull(((ObjectMapper) nested).getMapper("new"));
+        assertNull(mappingsUpdate.getRoot().getMapper("n.new"));
+        assertEquals(2, doc.docs().size());
+        assertNotNull(doc.docs().get(0).getField("n.new"));
+        assertNull(doc.rootDoc().getField("n.new"));
+    }
+
+    public void testSubobjectsFalseDottedKeyIntoNestedStrictDynamic() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {
+            b.startObject("n").field("type", "nested").field("dynamic", "strict");
+            b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        expectThrows(StrictDynamicMappingException.class, () -> mapper.parse(source("{\"n.unknown\": 1}")));
+    }
+
+    public void testSubobjectsFalseRootNestedWithSubobjectsDottedKeyIntoObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("o").field("type", "object").startObject("properties");
+            b.startObject("x").field("type", "long").endObject();
+            b.endObject().endObject();
+            b.endObject().endObject();
+        }));
+        ParsedDocument structured = mapper.parse(source("{\"n\": {\"o\": {\"x\": 1}}}"));
+        for (String json : List.of("{\"n.o\": {\"x\": 1}}", "{\"n\": {\"o.x\": 1}}", "{\"n.o.x\": 1}")) {
+            ParsedDocument doc = mapper.parse(source(json));
+            assertEquals(json, 2, doc.docs().size());
+            assertNotNull(json, doc.docs().get(0).getField("n.o.x"));
+            assertNull(json, doc.rootDoc().getField("n.o.x"));
+            assertEquals(json, fieldNames(structured.docs().get(0)), fieldNames(doc.docs().get(0)));
+        }
+    }
+
+    public void testSubobjectsFalseDottedKeyIntoDottedNested() throws Exception {
+        DocumentMapper mapper = nestedUnderNoSubobjectsMapper("a.n", false);
+        ParsedDocument structured = mapper.parse(source("{\"a.n\": {\"k\": \"v\"}}"));
+        for (String json : List.of("{\"a.n.k\": \"v\"}", "{\"a\": {\"n.k\": \"v\"}}", "{\"a\": [{\"n.k\": \"v\"}]}")) {
+            ParsedDocument doc = mapper.parse(source(json));
+            assertEquals(json, 2, doc.docs().size());
+            assertNotNull(json, doc.docs().get(0).getField("a.n.k"));
+            assertNull(json, doc.rootDoc().getField("a.n.k"));
+            assertEquals(json, fieldNames(structured.docs().get(0)), fieldNames(doc.docs().get(0)));
+        }
+    }
+
     public void testSubobjectsFalseRootWithInnerDottedObjectDynamicFalse() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));

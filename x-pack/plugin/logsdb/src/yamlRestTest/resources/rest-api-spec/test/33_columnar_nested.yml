@@ -394,3 +394,50 @@ setup:
   - match: { _source.comments.0.votes: 3 }
   - match: { _source.comments.1.author: "bob" }
   - match: { _source.comments.1.votes: 7 }
+
+---
+"columnar: a dotted key into a nested field is indexed inside the nested document":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_dotted_nested_fix" ]
+      reason: "A dotted key into a nested field under subobjects:false hit an assertion and lost the value"
+
+  - do:
+      indices.create:
+        index: test_columnar_nested_dotted
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_columnar_nested_dotted
+        id: "1"
+        refresh: true
+        body:
+          comments.author: "alice"
+
+  - do:
+      search:
+        index: test_columnar_nested_dotted
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                term:
+                  comments.author: alice
+  - match: { hits.total.value: 1 }
+
+  - do:
+      get:
+        index: test_columnar_nested_dotted
+        id: "1"
+  # A single nested object is not an array, so it is reconstructed as an object
+  - match: { _source.comments.author: "alice" }

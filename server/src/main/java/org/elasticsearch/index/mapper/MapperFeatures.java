@@ -159,6 +159,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
     public static final NodeFeature COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE = new NodeFeature("mapper.columnar.accepts_subobjects_false");
+    public static final NodeFeature SUBOBJECTS_FALSE_DOTTED_NESTED_FIX = new NodeFeature("mapper.subobjects_false_dotted_nested_fix");
     public static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
     public static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
@@ -304,6 +305,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             COLUMNAR_ACCEPTS_SUBOBJECTS_FALSE,
+            SUBOBJECTS_FALSE_DOTTED_NESTED_FIX,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
             TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,

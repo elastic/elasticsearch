@@ -565,7 +565,8 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
     }
 
     /**
-     * An object field and array field with the same name are not allowed in both batch and sequential indexing.
+     * An object and an array with the same name in one row can only be written as a duplicate key. The sequential path rejects the
+     * raw JSON, but both ESCF encoders accept the row, so the batch indexing path must refuse it when implemented.
      */
     public void testObjectAndArrayFieldWithTheSameName() throws IOException {
         assertRefusedInAllModes(

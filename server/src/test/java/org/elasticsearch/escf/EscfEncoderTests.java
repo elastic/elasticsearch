@@ -255,25 +255,28 @@ public class EscfEncoderTests extends ESTestCase {
     }
 
     /**
-     * Whether a spelling is stored is decided against a rendering buffer that the encoder reuses from one value to
-     * the next. A run of values whose renderings have every length, spelled canonically or not, must store exactly
-     * the spellings that are not canonical, on both walks.
+     * The longest rendering that {@code Double.toString} produces, 24 characters: a sign, 17 digits and a three-digit
+     * negative exponent. It fills the encoder's buffer exactly.
+     */
+    static final String LONGEST_RENDERING = "-2.2250738585072014E-308";
+
+    /**
+     * The same value with one more digit, 25 characters. No rendering is this long, so it is a spelling to store,
+     * and it must not make the encoder's buffer grow: the buffer holds the rendering of the value, never its token.
+     */
+    static final String LONGEST_RENDERING_PLUS_1 = "-2.22507385850720141E-308";
+
+    /**
+     * Whether a spelling is stored is decided against a buffer that the encoder reuses from one value to the next.
+     * A run of values whose renderings have every length, spelled canonically or not, must store exactly the
+     * spellings that are not canonical, on both walks. Closing the encoder checks that the buffer never grew.
      */
     public void testSpellingIsStoredOnlyWhenNotCanonical() throws IOException {
         int docs = between(50, 200);
-        String[] tokens = new String[docs];
+        String[] tokens = floatingPointTokens(docs);
         List<BytesReference> sources = new ArrayList<>(docs);
-        for (int i = 0; i < docs; i++) {
-            // Half of the values render in a few characters (12.5), half in up to 24 (-1.2345678901234567E8).
-            double value = randomBoolean() ? between(-100_000, 100_000) / 100.0 : randomDoubleBetween(-1e9, 1e9, true);
-            String canonical = Double.toString(value);
-            if (randomBoolean()) {
-                tokens[i] = canonical;
-            } else {
-                // The same value, just add a 0 or replace E with e to make it non canonical.
-                tokens[i] = canonical.indexOf('E') < 0 ? canonical + "0" : canonical.replace('E', 'e');
-            }
-            sources.add(new BytesArray("{\"d\":" + tokens[i] + "}"));
+        for (String token : tokens) {
+            sources.add(new BytesArray("{\"d\":" + token + "}"));
         }
         for (boolean allowSimd : new boolean[] { true, false }) {
             try (EscfBatch batch = encode(sources, allowSimd)) {
@@ -285,6 +288,32 @@ public class EscfEncoderTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Floating-point tokens for {@code count} documents: the longest rendering, the token that is one character
+     * longer, and random ones for the rest.
+     */
+    static String[] floatingPointTokens(int count) {
+        String[] tokens = new String[count];
+        tokens[0] = LONGEST_RENDERING;
+        tokens[1] = LONGEST_RENDERING_PLUS_1;
+        for (int i = 2; i < count; i++) {
+            tokens[i] = randomFloatingPointToken();
+        }
+        return tokens;
+    }
+
+    /** A floating-point token that is spelled as {@code Double.toString} spells its value, or not. */
+    private static String randomFloatingPointToken() {
+        // Half of the values render in a few characters (12.5), half in up to 24 (-1.2345678901234567E8).
+        double value = randomBoolean() ? between(-100_000, 100_000) / 100.0 : randomDoubleBetween(-1e9, 1e9, true);
+        String canonical = Double.toString(value);
+        if (randomBoolean()) {
+            return canonical;
+        }
+        // The same value, just add a 0 or replace E with e to make it non canonical.
+        return canonical.indexOf('E') < 0 ? canonical + "0" : canonical.replace('E', 'e');
     }
 
     private static void assertRoundTrip(String... jsonDocs) throws IOException {

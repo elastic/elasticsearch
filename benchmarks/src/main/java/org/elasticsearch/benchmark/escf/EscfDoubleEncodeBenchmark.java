@@ -65,14 +65,16 @@ import java.util.concurrent.TimeUnit;
  * fields each into one batch. Pages come from a real {@link PageCacheRecycler}, as in the indexing path, so
  * {@code gc.alloc.rate.norm} is the garbage a value leaves behind rather than the pages of the batch.
  *
- * <p>The fork runs with a fixed heap and a fixed young generation. Nothing but the recycler's pages survives
- * an invocation, so every collection is a young one, and with the young generation pinned {@code gc.count}
- * and {@code gc.time} of {@code -prof gc} are comparable between two runs of this benchmark.
+ * <p>The fork runs with a fixed heap and a fixed young generation, so that {@code gc.count} and {@code gc.time}
+ * of {@code -prof gc} are comparable between two runs of this benchmark. Both are totals over the measured
+ * iterations and over every collector, not per value: divide them by the measured time (forks, times
+ * iterations, times seconds) for a rate. Nothing but the recycler's pages survives an invocation, so the
+ * collections are expected to be young ones; a GC log ({@code -Xlog:gc}) tells which they were.
  *
  * <h2>Ready to run</h2>
  *
  * <pre>{@code
- * # Time, allocation and collections per value, both walks
+ * # Time and allocation per value, and the collections of the run, both walks
  * ./gradlew :benchmarks:run --args="EscfDoubleEncodeBenchmark -prof gc"
  *
  * # One walk, one spelling

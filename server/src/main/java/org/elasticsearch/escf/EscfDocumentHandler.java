@@ -44,7 +44,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
      * Where the canonical rendering of a floating-point value is written, to compare it with the value's token.
      * It belongs to the encoder, which hands the same buffer to the handler of every document.
      */
-    private final StringBuilder canonicalRendering;
+    private final StringBuilder doubleBuffer;
 
     // ---- Array accumulation state ----
     private byte[] elemTypes;
@@ -83,13 +83,13 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int[] kvInlineArrayDepthStack;
     private int kvInlineArrayStackDepth;
 
-    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode, StringBuilder canonicalRendering) {
+    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode, StringBuilder doubleBuffer) {
         this.row = row;
         this.backend = backend;
         this.sink = sink;
         this.rawTextMode = rawTextMode;
         this.firePathSink = sink != LeafSink.NO_OP;
-        this.canonicalRendering = canonicalRendering;
+        this.doubleBuffer = doubleBuffer;
     }
 
     // ---- Object field events ----
@@ -285,8 +285,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Nullable
     private XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
         // Check if we need to store the spelling, comparing the rendering against the token bytes in place.
-        canonicalRendering.setLength(0);
-        if (isCanonical(canonicalRendering.append(value), srcBuf, srcOff, srcLen)) {
+        doubleBuffer.setLength(0);
+        if (isCanonical(doubleBuffer.append(value), srcBuf, srcOff, srcLen)) {
             return null;
         }
         return new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);

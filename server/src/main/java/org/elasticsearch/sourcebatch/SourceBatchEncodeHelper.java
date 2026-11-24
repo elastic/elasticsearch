@@ -52,9 +52,9 @@ public final class SourceBatchEncodeHelper {
      * common case, so that nothing is stored for it.
      */
     @Nullable
-    public static XContentString.UTF8Bytes lexicalForm(String text, double value, StringBuilder rendering) {
-        rendering.setLength(0);
-        if (text.contentEquals(rendering.append(value))) {
+    public static XContentString.UTF8Bytes lexicalForm(String text, double value, StringBuilder doubleBuffer) {
+        doubleBuffer.setLength(0);
+        if (text.contentEquals(doubleBuffer.append(value))) {
             return null;
         }
         return new XContentString.UTF8Bytes(text.getBytes(StandardCharsets.UTF_8));

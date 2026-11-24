@@ -5067,13 +5067,6 @@ public class EsqlCapabilities {
          */
         FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
 
-        /**
-         * Counter fields are accepted as grouping keys: {@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}
-         * and {@code DEDUP} group them like their base numeric types. Part of making groupability a property of the
-         * data type, {@code DataType#isGroupable}.
-         */
-        GROUP_BY_COUNTERS,
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -954,7 +954,13 @@ public class VerifierTests extends AnalyzerTestCase {
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]; convert it to a groupable type or drop it")
             );
-        tsdb().query("FROM test | LIMIT 1 BY network.bytes_in");
+        tsdb().error(
+            "FROM test | LIMIT 1 BY network.bytes_in",
+            equalTo(
+                "1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]; "
+                    + "convert it to a groupable type or drop it"
+            )
+        );
     }
 
     public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
@@ -1788,8 +1794,20 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testGroupByCounter() {
-        tsdb().query("FROM test | STATS count(*) BY network.bytes_in");
-        tsdb().query("FROM test | STATS present(name) BY network.bytes_in");
+        tsdb().error(
+            "FROM test | STATS count(*) BY network.bytes_in",
+            equalTo(
+                "1:31: cannot group by on [counter_long] type for grouping [network.bytes_in]; "
+                    + "convert it to a groupable type or drop it"
+            )
+        );
+        tsdb().error(
+            "FROM test | STATS present(name) BY network.bytes_in",
+            equalTo(
+                "1:36: cannot group by on [counter_long] type for grouping [network.bytes_in]; "
+                    + "convert it to a groupable type or drop it"
+            )
+        );
     }
 
     public void testRenameOrDropTimestmapWithRate() {

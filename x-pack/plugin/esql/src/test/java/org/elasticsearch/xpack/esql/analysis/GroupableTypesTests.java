@@ -95,6 +95,28 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     }
 
     /**
+     * A counter field is not groupable; {@link #testStatsByTypeMatchesIsGroupable} and the other matrix tests
+     * reject the direct field. A counter reached indirectly is still accepted: {@code RENAME} and
+     * {@code BY c = <counter>} are not a direct field, and those queries group today. Making counters
+     * groupable is a follow-up of <a href="https://github.com/elastic/elasticsearch/issues/163024">#163024</a>.
+     */
+    public void testIndirectCounterStaysAccepted() {
+        for (DataType type : List.of(DataType.COUNTER_LONG, DataType.COUNTER_INTEGER, DataType.COUNTER_DOUBLE)) {
+            check(type, "FROM t | RENAME f AS c | STATS x = count(*) BY c", true, "");
+            check(type, "FROM t | STATS x = count(*) BY c = f", true, "");
+            // LIMIT BY keys are expressions, not aliases, so RENAME is the indirect form.
+            check(type, "FROM t | RENAME f AS c | LIMIT 1 BY c", true, "");
+            if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
+                check(type, "FROM t | RENAME f AS c | INLINE STATS x = count(*) BY c", true, "");
+                check(type, "FROM t | INLINE STATS x = count(*) BY c = f", true, "");
+            }
+            if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
+                check(type, "FROM t | RENAME f AS c | DEDUP", true, "");
+            }
+        }
+    }
+
+    /**
      * LIMIT BY is GA, so a type that is groupable today must stay groupable: this pins the set as a lower
      * bound. Adding types is fine; removing one rejects queries that work today.
      */
@@ -102,9 +124,6 @@ public class GroupableTypesTests extends AnalyzerTestCase {
         Set<DataType> groupable = Set.of(
             DataType.NULL,
             DataType.BOOLEAN,
-            DataType.COUNTER_LONG,
-            DataType.COUNTER_INTEGER,
-            DataType.COUNTER_DOUBLE,
             DataType.LONG,
             DataType.INTEGER,
             DataType.UNSIGNED_LONG,

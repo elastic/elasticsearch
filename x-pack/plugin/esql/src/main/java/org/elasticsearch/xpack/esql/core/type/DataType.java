@@ -223,33 +223,28 @@ public enum DataType implements Writeable {
      * Although stored internally as numeric fields, they represent cumulative
      * metrics and must not be treated as regular numeric fields. Therefore,
      * we define them differently and separately from their parent numeric field.
-     * These fields can be retrieved from indices, used in rate aggregations,
-     * cast to their parent numeric type, and used as grouping keys
-     * ({@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}, {@code DEDUP}).
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
      */
-    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter().groupable().supportedOnAllNodes()),
+    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter().supportedOnAllNodes()),
     /**
      * 32-bit signed numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
      * metrics and must not be treated as regular numeric fields. Therefore,
      * we define them differently and separately from their parent numeric field.
-     * These fields can be retrieved from indices, used in rate aggregations,
-     * cast to their parent numeric type, and used as grouping keys
-     * ({@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}, {@code DEDUP}).
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
      */
-    COUNTER_INTEGER(
-        builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter().groupable().supportedOnAllNodes()
-    ),
+    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter().supportedOnAllNodes()),
     /**
      * 64-bit floating point numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
      * metrics and must not be treated as regular numeric fields. Therefore,
      * we define them differently and separately from their parent numeric field.
-     * These fields can be retrieved from indices, used in rate aggregations,
-     * cast to their parent numeric type, and used as grouping keys
-     * ({@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}, {@code DEDUP}).
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
      */
-    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter().groupable().supportedOnAllNodes()),
+    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter().supportedOnAllNodes()),
 
     /**
      * 64-bit signed numbers loaded as a java {@code long}.

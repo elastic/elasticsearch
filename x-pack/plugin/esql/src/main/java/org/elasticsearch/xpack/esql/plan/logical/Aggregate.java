@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -250,7 +251,7 @@ public class Aggregate extends UnaryPlan
     }
 
     static void checkUnsupportedGroupingType(Expression e, Failures failures) {
-        if (e.dataType().isGroupable() == false) {
+        if (isUnsupportedGrouping(e)) {
             failures.add(
                 fail(
                     e,
@@ -260,6 +261,22 @@ public class Aggregate extends UnaryPlan
                 )
             );
         }
+    }
+
+    /**
+     * A type {@link org.elasticsearch.xpack.esql.core.type.DataType#isGroupable()} rejects, except a counter
+     * reached indirectly.
+     * <p>
+     * Counters are not groupable. A direct counter field is a {@link FieldAttribute} and stays rejected.
+     * {@code RENAME} and {@code BY c = <counter>} are not a {@link FieldAttribute}, and those queries group
+     * today. Making counters groupable is a follow-up of
+     * <a href="https://github.com/elastic/elasticsearch/issues/163024">#163024</a>.
+     */
+    static boolean isUnsupportedGrouping(Expression e) {
+        if (e.dataType().isGroupable()) {
+            return false;
+        }
+        return e.dataType().isCounter() == false || e instanceof FieldAttribute;
     }
 
     private static void checkUnsupportedStatsGroupingType(Expression e, Failures failures) {

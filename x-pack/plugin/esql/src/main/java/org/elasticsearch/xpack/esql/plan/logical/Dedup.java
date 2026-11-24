@@ -89,7 +89,7 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
     @Override
     public void postAnalysisVerification(Failures failures) {
         for (Attribute attr : child().output()) {
-            if (isDedupKey(attr) && attr.dataType().isGroupable() == false) {
+            if (isDedupKey(attr) && Aggregate.isUnsupportedGrouping(attr)) {
                 failures.add(
                     fail(
                         attr,

@@ -37,6 +37,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -1259,16 +1260,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(result.columnNames(), not(hasItem("org")));
         // the visible columns hold no nulls, so the fill changes nothing, and no denied value ("sales"/"engineering") appears
         assertThat(result.values("value"), equalTo(List.of(10.0, 20.0)));
-        List<Object> partial = result.values("partial");
-        List<String> original = List.of("sales10.0", "engineering20.0");
-        assertThat(partial, hasSize(original.size()));
-        for (int i = 0; i < original.size(); i++) {
-            if (partialMayReadAsNull()) {
-                assertThat(partial.get(i), anyOf(equalTo(original.get(i)), equalTo("redacted")));
-            } else {
-                assertThat(partial.get(i), equalTo(original.get(i)));
-            }
+        // The fill must change only the nulls of `partial`: read it without FILLNULL and fill by hand. A mode that reads the granted
+        // field as null (see partialMayReadAsNull) has nulls there, and a field that holds a value must keep it.
+        EsqlResult unfilled = esqlResult(runESQLCommand("fls_user", "FROM index | SORT value"));
+        List<Object> before = unfilled.values("partial");
+        if (partialMayReadAsNull() == false) {
+            assertThat(before, equalTo(List.of("sales10.0", "engineering20.0")));
         }
+        List<Object> expected = new ArrayList<>();
+        for (Object value : before) {
+            expected.add(value == null ? "redacted" : value);
+        }
+        assertThat(result.values("partial"), equalTo(expected));
     }
 
     /**

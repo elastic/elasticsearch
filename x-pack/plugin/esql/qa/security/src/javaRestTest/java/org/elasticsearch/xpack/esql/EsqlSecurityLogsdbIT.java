@@ -50,7 +50,8 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
 
     /**
      * The granted text field reconstructs to null here (elastic/security#6714), so {@code FILLNULL ON *} fills it, until that is fixed
-     * and it holds its own values again. The test accepts both, and still checks that {@code *} does not reach the denied field.
+     * and it holds its own values again. The test fills only the nulls that the same query reads without {@code FILLNULL}, so it holds
+     * before and after the fix, and still checks that {@code *} does not reach the denied field.
      */
     @Override
     protected boolean partialMayReadAsNull() {

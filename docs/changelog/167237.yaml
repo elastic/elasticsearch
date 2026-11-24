@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 167236
+pr: 167237
+summary: Release evaluators if building them fails part way
+type: bug

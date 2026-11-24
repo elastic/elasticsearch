@@ -5055,6 +5055,16 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
+         * A {@code LOOKUP JOIN} with an {@code ON} expression, after a {@code RENAME} of an unmapped field, under
+         * {@code unmapped_fields} {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer fails with "Found ambiguous
+         * reference", whether or not a key of the join is the unmapped field. The rename makes the join resolve inside the rule that
+         * handles the unmapped fields, while it still has the parser's left fields, which hold both operands of every comparison, so the
+         * operand that the lookup index has was loaded onto the left side as an unmapped field. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/165755">#165755</a>.
+         */
+        LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,
+
+        /**
          * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
          * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
          */
@@ -5066,6 +5076,13 @@ public class EsqlCapabilities {
          * is on by default in builds with the feature flag.
          */
         FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
+
+        /**
+         * A time-series {@code STATS} grouped by the same dimension twice (e.g. {@code BY cluster, c2 = cluster}) reads
+         * the dimension once instead of failing local planning with a duplicate output attribute.
+         * https://github.com/elastic/elasticsearch/issues/166793
+         */
+        FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

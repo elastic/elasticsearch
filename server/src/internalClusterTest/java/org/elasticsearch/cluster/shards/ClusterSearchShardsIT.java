@@ -200,9 +200,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         ClusterSearchShardsResponse sliceS1 = safeExecute(sliceRequest("slice-routing", "s1"));
         ClusterSearchShardsResponse sliceS2 = safeExecute(sliceRequest("slice-routing", "s2"));
         ClusterSearchShardsResponse sliceS1S2 = safeExecute(sliceRequest("slice-routing", "s1,s2"));
-        ClusterSearchShardsResponse sliceAll = safeExecute(
-            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-routing").searchSlice(SliceIndexing.SLICE_ALL)
-        );
+        ClusterSearchShardsResponse sliceAll = safeExecute(new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-routing"));
 
         assertThat(sliceS1.getGroups().length, equalTo(1));
         assertThat(sliceS2.getGroups().length, equalTo(1));

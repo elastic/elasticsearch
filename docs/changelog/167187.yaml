@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 167187
 summary: Fail closed on walk listing errors
-type: enhancement
+type: bug

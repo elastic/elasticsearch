@@ -40,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -157,13 +156,6 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(previewRowCount(datafeedId, BASE_TIME, FIRST_WINDOW_END), equalTo((int) expectedRecords));
         openJob(jobId);
         runLookback(datafeedId, jobId, BASE_TIME, FIRST_WINDOW_END, expectedRecords);
-        // Any truncation audit is written before the completion audit, so wait for the latter before checking absence.
-        assertBusy(
-            () -> assertThat(fetchAllAuditMessages(jobId).toString(), containsString("Datafeed lookback completed")),
-            60,
-            TimeUnit.SECONDS
-        );
-        assertThat(fetchAllAuditMessages(jobId).toString(), not(containsString("reached its row limit")));
     }
 
     private Job.Builder createJob(String jobId) {

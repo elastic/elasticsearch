@@ -1480,7 +1480,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean wrongAllocationId = randomBoolean();
         final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
         Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
-        action.handlePrimaryRequest(
+        final boolean reportAsNotExecuted = randomBoolean();
+        final TestAction testAction = reportAsNotExecuted
+            ? new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
+                @Override
+                protected boolean reportUnavailablePrimaryAsNotExecuted() {
+                    return true;
+                }
+            }
+            : action;
+        testAction.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
                 request,
                 wrongAllocationId ? "_not_a_valid_aid_" : primary.allocationId().getId(),
@@ -1496,14 +1505,22 @@ public class TransportReplicationActionTests extends ESTestCase {
             Throwable throwable = execException.getCause();
             logger.debug("got exception:", throwable);
             assertTrue(throwable.getClass() + " is not a retry exception", TransportReplicationAction.retryPrimaryException(throwable));
+            final Throwable failure;
+            if (reportAsNotExecuted) {
+                assertThat(throwable, instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
+                assertFalse(((ReplicationOperation.RetryOnPrimaryException) throwable).possiblyExecutedOnPrimary());
+                failure = throwable.getCause();
+            } else {
+                failure = throwable;
+            }
             if (wrongAllocationId) {
                 assertThat(
-                    throwable.getMessage(),
+                    failure.getMessage(),
                     containsString("expected allocation id [_not_a_valid_aid_] but found [" + primary.allocationId().getId() + "]")
                 );
             } else {
                 assertThat(
-                    throwable.getMessage(),
+                    failure.getMessage(),
                     containsString(
                         "expected allocation id ["
                             + primary.allocationId().getId()

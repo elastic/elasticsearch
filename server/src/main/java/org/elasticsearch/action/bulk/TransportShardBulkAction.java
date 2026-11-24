@@ -173,6 +173,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
+    protected boolean reportUnavailablePrimaryAsNotExecuted() {
+        // a retry that is not marked keeps the append-only optimization for auto-generated ids
+        return true;
+    }
+
+    @Override
     protected void shardOperationOnPrimary(
         BulkShardRequest request,
         IndexShard primary,

@@ -49,6 +49,26 @@ public class FillNullTests extends ESTestCase {
         return new LocalRelation(Source.EMPTY, output, EmptyLocalSupplier.EMPTY);
     }
 
+    /** A union of one branch, as the child that makes the attributes of {@code output} the ones a union produces. */
+    private static UnionAll unionWith(List<Attribute> output) {
+        return new UnionAll(Source.EMPTY, List.of(childWith(output)), output);
+    }
+
+    /** A union of the given branches, whose output is the reference attributes {@code output} that a union turns its columns into. */
+    private static UnionAll unionOf(List<Attribute> output, LogicalPlan... branches) {
+        return new UnionAll(Source.EMPTY, List.of(branches), output);
+    }
+
+    /** A branch with a column that holds nothing but nulls, as the alignment of a union makes it, or as {@code EVAL x = null} does. */
+    private static Eval withNullColumn(LogicalPlan branch, String name) {
+        return new Eval(Source.EMPTY, branch, List.of(new Alias(Source.EMPTY, name, new Literal(Source.EMPTY, null, DataType.KEYWORD))));
+    }
+
+    /** A branch with a column that the query computes from another one, so it is not known to be null. */
+    private static Eval withComputedColumn(LogicalPlan branch, String name, Attribute from) {
+        return new Eval(Source.EMPTY, branch, List.of(new Alias(Source.EMPTY, name, from)));
+    }
+
     private static FillNull allFields(List<Attribute> childOutput) {
         return new FillNull(Source.EMPTY, childWith(childOutput), null, List.of());
     }
@@ -121,6 +141,106 @@ public class FillNullTests extends ESTestCase {
 
         assertEquals("only the numeric and string columns should be filled", Set.of("i", "s"), filledNames(materialized));
         assertTrue("the fill alias wraps a COALESCE", aliasFor(materialized, "i").child() instanceof Coalesce);
+    }
+
+    /**
+     * A union turns a metadata column into a reference attribute, which is not internal, so for an attribute that a union produces
+     * the branches decide whether a {@code *} leaves it alone: the metadata of a branch, and a column that the branches only hold
+     * as nulls, which is how the outer {@code METADATA _index} reaches the branches of a union, are left alone.
+     */
+    public void testAllColumnsLeaveAReferenceWithAMetadataNameThatABranchHoldsAsMetadataOrNullsAlone() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute metadata = new MetadataAttribute(Source.EMPTY, name, DataType.KEYWORD, false);
+            Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+            Attribute merged = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            List<Attribute> output = List.of(merged, k);
+
+            LogicalPlan live = childWith(List.of(metadata, k));
+            LogicalPlan nulls = withNullColumn(childWith(List.of(k)), name);
+            for (UnionAll union : List.of(unionOf(output, live), unionOf(output, nulls), unionOf(output, live, nulls))) {
+                FillNull defaults = allFields(output).replaceChild(union).withConfiguration(TEST_CFG);
+                assertEquals(Set.of("k"), filledNames(defaults));
+                assertEquals("a column left alone is not reported either", Set.of(), unfillableNames(defaults));
+
+                FillNull value = new FillNull(Source.EMPTY, union, keyword("x"), List.of()).withConfiguration(TEST_CFG);
+                assertEquals(Set.of("k"), filledNames(value));
+            }
+        }
+    }
+
+    /**
+     * A column that the query made with a metadata name, as in {@code EVAL _score = gender | FORK ...}, is an ordinary one also after
+     * a merge: it is not known to be null in a branch, so the branches do not hold it as metadata, whatever else a sibling holds.
+     */
+    public void testAllColumnsFillAReferenceWithAMetadataNameThatABranchComputes() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute metadata = new MetadataAttribute(Source.EMPTY, name, DataType.KEYWORD, false);
+            Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+            Attribute merged = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            List<Attribute> output = List.of(merged, k);
+            LogicalPlan computed = withComputedColumn(childWith(List.of(k)), name, k);
+
+            for (UnionAll union : List.of(
+                unionOf(output, computed),
+                unionOf(output, computed, computed),
+                unionOf(output, computed, withNullColumn(childWith(List.of(k)), name)),
+                unionOf(output, computed, childWith(List.of(metadata, k)))
+            )) {
+                FillNull fill = allFields(output).replaceChild(union).withConfiguration(TEST_CFG);
+                assertEquals(name + " made by the query is filled", Set.of(name, "k"), filledNames(fill));
+            }
+        }
+    }
+
+    /** What a column is does not change with how deep the unions are nested: the metadata or a computed column at the bottom decides. */
+    public void testAllColumnsDecideAMetadataNameThroughDeeplyNestedMerges() {
+        Attribute metadata = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        for (boolean computed : new boolean[] { false, true }) {
+            LogicalPlan plan = computed ? withComputedColumn(childWith(List.of(k)), "_index", k) : childWith(List.of(metadata, k));
+            Attribute merged = null;
+            for (int depth = 0; depth < 40; depth++) {
+                merged = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+                plan = unionOf(List.of(merged, k), plan, withNullColumn(childWith(List.of(k)), "_index"));
+            }
+            FillNull fill = allFields(List.of(merged, k)).replaceChild(plan).withConfiguration(TEST_CFG);
+            assertEquals(computed ? Set.of("_index", "k") : Set.of("k"), filledNames(fill));
+        }
+    }
+
+    /** A column that a nested merge passes on as metadata, next to a branch that holds it as nulls, is still not the query's own. */
+    public void testAllColumnsLeaveAMetadataNameAloneThatANestedMergePassesOn() {
+        Attribute metadata = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
+        Attribute k = getFieldAttribute("k", DataType.KEYWORD);
+        Attribute inner = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute outer = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        UnionAll nested = unionOf(List.of(inner, k), childWith(List.of(metadata, k)), withNullColumn(childWith(List.of(k)), "_index"));
+        UnionAll union = unionOf(List.of(outer, k), nested, withNullColumn(childWith(List.of(k)), "_index"));
+
+        FillNull fill = allFields(List.of(outer, k)).replaceChild(union).withConfiguration(TEST_CFG);
+        assertEquals(Set.of("k"), filledNames(fill));
+    }
+
+    /** A column that the query creates with a metadata name, such as {@code EVAL _score = ROUND(_score, 4)}, is an ordinary one. */
+    public void testAllColumnsFillAReferenceWithAMetadataNameThatNoUnionProduces() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute created = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+            List<Attribute> output = List.of(created, other);
+
+            FillNull materialized = materialize(allFields(output), output, TEST_CFG);
+            assertEquals(Set.of(name, "k"), filledNames(materialized));
+        }
+    }
+
+    public void testNamedReferenceWithAMetadataNameIsFilled() {
+        Attribute metadata = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+        List<Attribute> output = List.of(metadata, other);
+        for (List<NamedExpression> targets : List.of(List.<NamedExpression>of(metadata), List.<NamedExpression>of(other, metadata))) {
+            FillNull fillNull = new FillNull(Source.EMPTY, unionWith(output), keyword("x"), targets).withConfiguration(TEST_CFG);
+            assertTrue("naming _index fills it", filledNames(fillNull).contains("_index"));
+        }
     }
 
     /**

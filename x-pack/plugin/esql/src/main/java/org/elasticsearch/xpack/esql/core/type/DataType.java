@@ -1045,12 +1045,12 @@ public enum DataType implements Writeable {
      * {@code true} if values of this type can be a grouping key: a {@code STATS BY}, {@code INLINE STATS BY}
      * or {@code LIMIT BY} grouping, or a {@code DEDUP} column.
      * <p>
-     * A groupable type supports {@code ==}, and grouping agrees with it: two keys land in the same group
-     * exactly when {@code ==} is true. {@code LIMIT BY} and {@code DEDUP} compare a multivalue value by value,
-     * in order. {@code STATS BY} splits a multivalue into one group per value. Group keys compare encoded
-     * values, so every path that produces a value of a groupable type (block loaders, evaluators, conversions,
-     * deserialization) must encode equal values as identical bits. {@code _source}, {@code _tsid} and spatial
-     * shapes compare by their encoded bytes.
+     * A groupable type supports {@code ==}, and for ordinary values grouping agrees with it: two keys land
+     * in the same group exactly when {@code ==} is true. The exceptions below do not. {@code LIMIT BY} and
+     * {@code DEDUP} compare a multivalue value by value, in order. {@code STATS BY} splits a multivalue into
+     * one group per value. Group keys compare encoded values, so every path that produces a value of a
+     * groupable type (block loaders, evaluators, conversions, deserialization) must encode equal values as
+     * identical bits. {@code _source}, {@code _tsid} and spatial shapes compare by their encoded bytes.
      * <p>
      * Exceptions, rather than the rule:
      * <ul>
@@ -1061,10 +1061,10 @@ public enum DataType implements Writeable {
      *     <li>{@code dense_vector} is groupable, but not in {@code STATS} or {@code INLINE STATS}, because
      *         {@code BlockHash} cannot group it. {@code LIMIT BY} and {@code DEDUP} encode it row by row
      *         and accept it;</li>
-     *     <li>all {@code NaN}s are one group, like nulls, even though {@code NaN == NaN} is false.
-     *         Single-key {@code STATS} already does this. Multi-key {@code STATS}, {@code LIMIT BY} and
-     *         {@code DEDUP} still split {@code NaN}s by bit pattern, and {@code 0.0} and {@code -0.0} can
-     *         land in different groups. Both are known exceptions tracked by
+     *     <li>all {@code NaN}s are one group for single-key {@code STATS}, like nulls, even though
+     *         {@code NaN == NaN} is false. Multi-key {@code STATS}, {@code LIMIT BY} and {@code DEDUP}
+     *         still split {@code NaN}s by bit pattern, and {@code 0.0} and {@code -0.0} can land in
+     *         different groups. Both are known exceptions tracked by
      *         <a href="https://github.com/elastic/elasticsearch/issues/167086">#167086</a>.</li>
      * </ul>
      * <p>

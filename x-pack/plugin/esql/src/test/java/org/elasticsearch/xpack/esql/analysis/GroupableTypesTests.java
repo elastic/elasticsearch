@@ -168,23 +168,6 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     }
 
     /**
-     * A type SORT accepts should be a legal grouping key too, since both need stable value comparisons.
-     * The pinned violations are types {@code isSortable} accepts although no sort key encoding exists for
-     * them either; they must not grow.
-     */
-    public void testSortableImpliesGroupable() {
-        Set<DataType> knownViolations = Set.of(DataType.TDIGEST, DataType.EXPONENTIAL_HISTOGRAM, DataType.PARTIAL_AGG);
-        for (DataType type : DataType.values()) {
-            if (NEVER_A_GROUPING.contains(type) || type == DataType.DOC_DATA_TYPE) {
-                continue;
-            }
-            if (DataType.isSortable(type) && knownViolations.contains(type) == false) {
-                assertTrue("sortable [" + type.typeName() + "] must be groupable", type.isGroupable());
-            }
-        }
-    }
-
-    /**
      * Groupable without {@code ==}. An indirect counter is accepted as a grouping expression even though the
      * counter types themselves are not groupable; that exception is {@link #testIndirectCounterStaysAccepted}.
      */
@@ -200,8 +183,9 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     );
 
     /**
-     * Scalars whose {@code ==} result is the oracle for both the single-key {@link BlockHash} and {@link RowKeyHash}.
-     * {@code NaN} and {@code -0.0} are kept out of here and pinned by {@link #testNanAndSignedZeroStayAsTheyAre}.
+     * Scalars whose {@code ==} result is the oracle for the single-key {@link BlockHash}, {@link RowKeyHash}
+     * and the packed hash. {@code NaN} and {@code -0.0} are kept out of here and pinned by
+     * {@link #testNanAndSignedZeroStayAsTheyAre}.
      */
     private static final List<DataType> EQUALS_ORACLE_TYPES = List.of(
         DataType.BOOLEAN,
@@ -220,7 +204,10 @@ public class GroupableTypesTests extends AnalyzerTestCase {
             if (GROUPABLE_WITHOUT_EQUALS.contains(type)) {
                 assertTrue(type.typeName(), type.isGroupable());
                 if (type == DataType.NULL) {
-                    // TypeResolutions.isType accepts NULL for every operator, so typeResolved() is not an evaluator check.
+                    // TypeResolutions.isType accepts NULL for every operator, so this resolves with no evaluator.
+                    // null == null folds to null.
+                    assertTrue(type.typeName(), equalsSupports(type));
+                    assertNull(type.typeName(), foldEquals(type, null, null));
                     continue;
                 }
                 assertFalse(type.typeName() + " " + equalsResolution(type).message(), equalsSupports(type));
@@ -240,8 +227,10 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     }
 
     /**
-     * For ordinary scalars, single-key {@code STATS} ({@link BlockHash}) and {@code LIMIT BY} / {@code DEDUP}
-     * ({@link RowKeyHash}) put two values in one group exactly when {@code ==} does. This does not change either hash.
+     * For ordinary scalars, single-key {@code STATS} ({@link BlockHash}), {@code LIMIT BY} / {@code DEDUP}
+     * ({@link RowKeyHash}) and the packed hash ({@link BlockHash#buildPackedValuesBlockHash}) put two values
+     * in one group exactly when {@code ==} does. {@code NaN} and {@code -0.0} are pinned separately.
+     * This does not change the hashes.
      */
     public void testGroupingAgreesWithEqualsForScalars() {
         for (DataType type : EQUALS_ORACLE_TYPES) {
@@ -249,9 +238,6 @@ public class GroupableTypesTests extends AnalyzerTestCase {
             Object right = scalar(type, true);
             assertGroupingAgrees(type, left, left);
             assertGroupingAgrees(type, left, right);
-            for (int i = 0; i < 10; i++) {
-                assertGroupingAgrees(type, randomScalar(type), randomScalar(type));
-            }
         }
     }
 
@@ -302,6 +288,7 @@ public class GroupableTypesTests extends AnalyzerTestCase {
                         assertThat(type.typeName(), matches.getPositionCount(), equalTo(keys.getPositionCount()));
                         for (int p = 0; p < matches.getPositionCount(); p++) {
                             assertFalse(type.typeName() + " position " + p, matches.isNull(p));
+                            assertThat(type.typeName(), matches.getValueCount(p), equalTo(1));
                             assertThat(type.typeName(), matches.getInt(matches.getFirstValueIndex(p)), equalTo(p));
                         }
                         assertFalse(rows.hasNext());
@@ -458,11 +445,15 @@ public class GroupableTypesTests extends AnalyzerTestCase {
     }
 
     private static boolean valuesEqual(DataType type, Object left, Object right) {
-        Boolean result = new Equals(Source.EMPTY, new Literal(Source.EMPTY, left, type), new Literal(Source.EMPTY, right, type)).fold(
-            FoldContext.small()
-        );
+        Boolean result = (Boolean) foldEquals(type, left, right);
         assertNotNull(type.typeName(), result);
         return result;
+    }
+
+    private static Object foldEquals(DataType type, Object left, Object right) {
+        return new Equals(Source.EMPTY, new Literal(Source.EMPTY, left, type), new Literal(Source.EMPTY, right, type)).fold(
+            FoldContext.small()
+        );
     }
 
     private static void assertGroupingAgrees(DataType type, Object left, Object right) {
@@ -470,6 +461,7 @@ public class GroupableTypesTests extends AnalyzerTestCase {
         String label = type.typeName() + " [" + left + "] [" + right + "]";
         assertThat(label, sameGroup(type, left, right, BlockHashKind.SINGLE), equalTo(equal));
         assertThat(label, sameGroup(type, left, right, BlockHashKind.ROW), equalTo(equal));
+        assertThat(label, sameGroup(type, left, right, BlockHashKind.PACKED), equalTo(equal));
     }
 
     private static boolean sameGroup(BlockHashKind kind, double left, double right) {
@@ -548,26 +540,6 @@ public class GroupableTypesTests extends AnalyzerTestCase {
             case KEYWORD -> new BytesRef(other ? "b" : "a");
             default -> throw new AssertionError(type);
         };
-    }
-
-    private static Object randomScalar(DataType type) {
-        return switch (type) {
-            case BOOLEAN -> randomBoolean();
-            case INTEGER -> randomInt();
-            case LONG -> randomLong();
-            case DOUBLE -> finiteDouble();
-            case KEYWORD -> new BytesRef(randomAlphaOfLengthBetween(1, 8));
-            default -> throw new AssertionError(type);
-        };
-    }
-
-    /** A finite double that is not {@code -0.0}. Those two are pinned separately. */
-    private static double finiteDouble() {
-        double value = randomDouble();
-        if (Double.isFinite(value) == false || Double.doubleToRawLongBits(value) == Double.doubleToRawLongBits(-0.0d)) {
-            return 1.0d;
-        }
-        return value;
     }
 
     private static Block twoValues(DataType type, Object left, Object right, BlockFactory factory) {

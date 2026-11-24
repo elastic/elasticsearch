@@ -186,7 +186,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
 
     public void testStatusesThatAreNotKnownAreRetryableNotInvalid() {
         // A wrong url or a redirect lasts: dropping records because of it would be underbilling by mistake.
-        for (int status : new int[] { 301, 404, 405, 413, 415 }) {
+        for (int status : new int[] { 301, 404, 405, 413, 415, 422 }) {
             requests.clear();
             statusFor = ids -> status;
             PublishResult result = publisher.publish(records(3));
@@ -244,19 +244,10 @@ public class HttpUsagePublisherTests extends ESTestCase {
         assertIdsNeverChanged(batch);
     }
 
-    public void testUnprocessableStatusIsIsolatedLikeBadRequest() {
-        List<UsageRecord> batch = records(4);
-        statusFor = ids -> ids.contains("id-2") ? 422 : 201;
-        PublishResult result = publisher.publish(batch);
-        assertThat(result.acceptedIds(), equalTo(Set.of("id-0", "id-1", "id-3")));
-        assertThat(result.failures().get(0).recordIds(), equalTo(Set.of("id-2")));
-    }
-
     public void testEveryRecordRejectedIsASystematicProblemAndNothingIsDropped() {
         int count = randomIntBetween(2, 100);
         List<UsageRecord> batch = records(count);
-        int status = randomFrom(400, 422);
-        statusFor = ids -> status;
+        statusFor = ids -> 400;
 
         PublishResult result = publisher.publish(batch);
 
@@ -401,7 +392,7 @@ public class HttpUsagePublisherTests extends ESTestCase {
     public void testClassifyTable() {
         assertThat(HttpUsagePublisher.classify(201, "").failureClass(), nullValue());
         assertThat(HttpUsagePublisher.classify(400, "x").failureClass(), equalTo(PublishResult.FailureClass.INVALID));
-        assertThat(HttpUsagePublisher.classify(422, null).failureClass(), equalTo(PublishResult.FailureClass.INVALID));
+        assertThat(HttpUsagePublisher.classify(422, null).failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
         assertThat(HttpUsagePublisher.classify(401, "").failureClass(), equalTo(PublishResult.FailureClass.AUTH));
         assertThat(HttpUsagePublisher.classify(403, "").failureClass(), equalTo(PublishResult.FailureClass.AUTH));
         assertThat(HttpUsagePublisher.classify(429, "").failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));

@@ -184,7 +184,8 @@ public final class HttpUsagePublisher implements UsagePublisher {
     /**
      * The one place where an HTTP status becomes a failure class. Anything not listed is retryable, never invalid: a wrong url
      * (404, 405) or a redirect lasts, and dropping every record because of it would be underbilling by mistake, while keeping
-     * them pending is bounded by the store.
+     * them pending is bounded by the store. The pipeline documents 201, 400 (malformed or invalid payload), 401 and 403 (identity),
+     * and 500 and 503 (transient); it does not return 422, so a 422 comes from something else on the way and is retried.
      */
     static Attempt classify(int status, String body) {
         if (status >= 200 && status < 300) {
@@ -192,7 +193,7 @@ public final class HttpUsagePublisher implements UsagePublisher {
         }
         String message = "the Usage API answered with status [" + status + "]" + bodySuffix(body);
         return switch (status) {
-            case 400, 422 -> new Attempt(PublishResult.FailureClass.INVALID, message);
+            case 400 -> new Attempt(PublishResult.FailureClass.INVALID, message);
             case 401, 403 -> new Attempt(PublishResult.FailureClass.AUTH, message);
             default -> new Attempt(PublishResult.FailureClass.RETRYABLE, message);
         };

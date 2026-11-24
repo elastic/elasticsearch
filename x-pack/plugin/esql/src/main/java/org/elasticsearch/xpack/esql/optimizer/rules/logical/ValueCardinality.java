@@ -63,29 +63,28 @@ enum ValueCardinality {
     MAYBE_MULTI;
 
     /**
-     * Whether {@code expression} is single-valued in the output of {@code plan}: the columns that it reads are columns that
-     * {@code plan} outputs.
+     * Whether {@code expression} is single-valued in the output of {@code plan}. The columns that {@code expression} reads must be
+     * outputs of {@code plan}.
      * <p>
-     * Choosing {@code plan} needs care, because the same column can be single-valued at one point of a pipeline and multi-valued at
-     * another. For example, consider {@code k} in the query {@code ... | EVAL k = ? | STATS COUNT(*) BY k}. There are two questions
-     * we could ask:
-     * <ol>
-     *   <li>Is {@code k}, as the {@code STATS} reads it, single-valued? This depends on what the {@code EVAL} before the
-     *       {@code STATS} outputs, so pass the child of the {@code STATS}. A rewrite that recomputes values from the key needs this
-     *       answer.</li>
-     *   <li>Is {@code k}, as the {@code STATS} outputs it, single-valued? Yes, a group key always has one value per group. Pass the
-     *       {@code STATS} itself.</li>
-     * </ol>
-     * The columns that a node reads are usually the output of its child; this is not the case for {@code EVAL} and {@code ROW}. In
-     * these nodes a field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}. To ask about an
-     * expression of one of these nodes, pass the node itself.
-     * <p>
-     * On a plan that is not optimized, the aggregates of a {@code STATS} can also read a grouping of the same {@code STATS}, as in
-     * {@code STATS COUNT(k) BY k = x}. No node outputs {@code k} there, so ask on an optimized plan, where the optimizer has moved
-     * {@code k = x} into an {@code EVAL} below the {@code STATS}.
+     * The same column can have a different answer at different points of a pipeline. For {@code k} in
+     * {@code ... | EVAL k = ? | STATS COUNT(*) BY k}:
+     * <ul>
+     *   <li>as the {@code STATS} reads it, the answer depends on the {@code EVAL}. Pass the child of the {@code STATS}. A rewrite that
+     *       recomputes values from the key needs this answer.</li>
+     *   <li>as the {@code STATS} outputs it, the answer is {@link #SINGLE}, since a group key has one value per group. Pass the
+     *       {@code STATS}.</li>
+     * </ul>
+     * Some expressions read columns that the child of their node does not output:
+     * <ul>
+     *   <li>an {@code EVAL} or {@code ROW} field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}.
+     *       Pass the node itself.</li>
+     *   <li>on a plan that is not optimized, an aggregate can read a grouping of the same {@code STATS}, as in
+     *       {@code STATS COUNT(k) BY k = x}. Pass an optimized plan, where {@code k = x} is in an {@code EVAL} below the
+     *       {@code STATS}.</li>
+     * </ul>
      */
     static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
-        // A loop, not recursion: each step has at most one next step, so the walk needs no stack and no depth limit. It ends,
+        // Each step has at most one next step, so the walk needs no stack and no depth limit. It ends,
         // because each step either moves to the child of plan, or to an earlier field of the same EVAL or ROW.
         // An EVAL or ROW field can only read earlier fields of the same node. After the walk takes the field at index i of
         // fieldsOwner, it only needs to search the fields before i. This keeps a long chain of aliases linear, not quadratic.

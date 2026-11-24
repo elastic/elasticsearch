@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -39,7 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 
@@ -51,22 +49,16 @@ public class EsqlDatafeedQueryValidator {
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
     private final EsqlQueryRunner queryRunner;
-    /** Whether the ES|QL parser accepts DESCRIBE, which ES|QL enables only in snapshot builds for now. */
-    private final BooleanSupplier describeAvailable;
 
     public EsqlDatafeedQueryValidator() {
-        this(EsqlQueryRunner.DEFAULT, () -> Build.current().isSnapshot());
+        this(EsqlQueryRunner.DEFAULT);
     }
 
-    EsqlDatafeedQueryValidator(EsqlQueryRunner queryRunner, BooleanSupplier describeAvailable) {
+    EsqlDatafeedQueryValidator(EsqlQueryRunner queryRunner) {
         this.queryRunner = queryRunner;
-        this.describeAvailable = describeAvailable;
     }
 
     private static final String LIMIT_ZERO = " | LIMIT 0";
-    // MUST FIX before production: DESCRIBE is in the ES|QL dev grammar (snapshot builds only) until
-    // https://github.com/elastic/elasticsearch/pull/166439 releases it. Until then validateQuery rejects ES|QL datafeeds in release
-    // builds with a clear error; remove that guard once DESCRIBE is released.
     private static final String DESCRIBE = "\n| DESCRIBE";
     /**
      * Filters and limits the {@code DESCRIBE} so the default result row cap cannot hide a required column. A datafeed query has no
@@ -177,14 +169,6 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<List<String>> listener,
         @Nullable String datafeedId
     ) {
-        if (describeAvailable.getAsBoolean() == false) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_ESQL_DESCRIBE_UNAVAILABLE, esqlDatafeedSubject(datafeedId))
-                )
-            );
-            return;
-        }
         if (phase == Phase.PUT) {
             warnOnOuterLimit(esqlQuery, datafeedId);
         }

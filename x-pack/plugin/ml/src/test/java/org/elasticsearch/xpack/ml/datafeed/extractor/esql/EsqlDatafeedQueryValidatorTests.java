@@ -121,28 +121,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("has type [double]"));
     }
 
-    public void testReleaseBuildWithoutDescribeShouldFailWithoutProbing() {
-        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
-            (client, query, filter, headers, projectRouting, params, metadata, listener) -> fail("no probe without DESCRIBE"),
-            () -> false
-        );
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        validator.validateQuery(
-            null,
-            Map.of(),
-            ESQL_QUERY,
-            null,
-            TIME_FIELD,
-            null,
-            ActionListener.wrap(ok -> fail("expected validation failure"), failure::set),
-            "feed-1"
-        );
-
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.get().getMessage(), containsString("only available in snapshot builds"));
-    }
-
     public void testOuterLimitShouldWarn() {
         assertValidationSucceeds(harness(row("@timestamp", "date")), validation().query("FROM logs | LIMIT 10"));
 
@@ -258,25 +236,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             validateAtStartFailure(new ValidatorHarness(new IllegalStateException("boom"))),
             instanceOf(IllegalStateException.class)
         );
-    }
-
-    public void testValidateAtStartGivenReleaseBuildWithoutDescribeShouldFailWithoutProbing() {
-        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
-            (client, query, filter, headers, projectRouting, params, metadata, listener) -> fail("no probe without DESCRIBE"),
-            () -> false
-        );
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        validator.validateAtStart(
-            null,
-            Map.of(),
-            ESQL_QUERY,
-            null,
-            TIME_FIELD,
-            null,
-            ActionListener.wrap(remote -> fail("expected failure"), failure::set),
-            "feed-1"
-        );
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
     }
 
     private List<String> validateAtStart(ValidatorHarness harness) {
@@ -965,7 +924,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                     ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
                     ActionListener.respondAndRelease(refCountedListener, response);
                 }
-            }, () -> true);
+            });
         }
     }
 

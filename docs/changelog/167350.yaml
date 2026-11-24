@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167350
+summary: Do not MATCH float stats that hide NaN
+type: enhancement

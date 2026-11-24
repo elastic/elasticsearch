@@ -121,8 +121,7 @@ public final class IntoMergeStatsOperator implements Operator {
         if (failures.isEmpty()) {
             return new ElasticsearchException("[{}] shards failed to refresh", response.getFailedShards());
         }
-        // Broadcast replication wraps the failure of a shard in an exception that has no message of its own
-        Throwable cause = ExceptionsHelper.unwrapCause(failures.getFirst().getCause());
+        Throwable cause = failures.getFirst().getCause();
         return cause instanceof Exception e ? e : new ElasticsearchException(failures.getFirst().reason(), cause);
     }
 
@@ -190,7 +189,10 @@ public final class IntoMergeStatsOperator implements Operator {
     }
 
     private void recordRefreshFailure(Exception cause) {
-        RestStatus status = ExceptionsHelper.status(cause);
+        // Broadcast replication wraps the failure of a shard in an exception that has no message of its own, but does say which shard
+        // it was. That wrapper stays as the cause, and the message and status are those of what it wraps.
+        Throwable underlying = ExceptionsHelper.unwrapCause(cause);
+        RestStatus status = ExceptionsHelper.status(underlying);
         String hint = status == RestStatus.FORBIDDEN
             ? " (refreshing requires the [maintenance] privilege on the destination; use \"refresh\": false to skip it)"
             : "";
@@ -200,7 +202,7 @@ public final class IntoMergeStatsOperator implements Operator {
             cause,
             refresher.destination(),
             createdSum,
-            cause.getMessage(),
+            underlying.getMessage(),
             hint
         );
     }

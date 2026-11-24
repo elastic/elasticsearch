@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -174,7 +175,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertFalse(driverContext.hasPendingAsyncActions());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getMessage(), containsString("wrote [1] documents but the refresh failed"));
-        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(ExceptionsHelper.unwrapCause(e.getCause()), instanceOf(IllegalStateException.class));
     }
 
     public void testClosedMemberOfAnAliasIsSkippedOnARetry() {
@@ -207,7 +208,7 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(client.refreshes, empty());
         assertFalse(driverContext.hasPendingAsyncActions());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
-        assertThat(e.getCause(), instanceOf(IndexClosedException.class));
+        assertThat(ExceptionsHelper.unwrapCause(e.getCause()), instanceOf(IndexClosedException.class));
     }
 
     public void testShardFailureIsReportedWithItsUnderlyingCause() {
@@ -219,7 +220,10 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(closed))));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
         assertThat(e.getMessage(), equalTo("INTO [" + DEST + "] wrote [1] documents but the refresh failed: closed"));
-        assertThat(e.getCause(), sameInstance(closed));
+        // The wrapper stays as the cause, since it is what says which shard failed to refresh
+        BroadcastShardOperationFailedException wrapper = asInstanceOf(BroadcastShardOperationFailedException.class, e.getCause());
+        assertThat(wrapper.getShardId(), equalTo(new ShardId(DEST, "uuid", 0)));
+        assertThat(wrapper.getCause(), sameInstance(closed));
     }
 
     public void testRefreshIsOnlyRetriedForAClosedMember() {

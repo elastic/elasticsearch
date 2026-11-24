@@ -88,7 +88,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -1791,7 +1791,7 @@ public class EsqlSessionTests extends ESTestCase {
      * planner cannot see which fields those are, so the limit is capped at the default. A lower known limit still applies.
      */
     public void testMaxIndexedValuesIsCappedAtTheDefaultWhenExpensiveQueriesAreNotAllowed() {
-        int defaultLimit = AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
+        int defaultLimit = AbstractInSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
         ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 50));
         EsRelation wide = relationOver(Map.of("", List.of("wide")));
         EsRelation narrow = relationOver(Map.of("", List.of("narrow")));

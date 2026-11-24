@@ -19,11 +19,11 @@ import java.util.List;
 /**
  * A semi join implements {@code WHERE field IN (subquery)}.
  * <p>
- * It uses the default {@link AbstractSubqueryJoin} hooks unchanged: the {@code inlineData} pipeline produces {@code Filter(In(...))}
+ * It uses the default {@link AbstractInSubqueryJoin} hooks unchanged: the {@code inlineData} pipeline produces {@code Filter(In(...))}
  * (filter path) or a sentinel LEFT-join + Project (hash-join path), keeping the left rows that match at least one subquery value. The dual
  * {@code NOT IN} form lives in {@link AntiJoin}; the OR-embedded form that preserves every row lives in {@link MarkJoin}.
  */
-public class SemiJoin extends AbstractSubqueryJoin {
+public class SemiJoin extends AbstractInSubqueryJoin {
 
     public SemiJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config);

@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 
 import java.util.Arrays;
 import java.util.List;
@@ -1082,7 +1082,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private static void assertInSubqueryRightHasNoUnmappedFields(LogicalPlan plan) {
-        AbstractSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractSubqueryJoin.class));
+        AbstractInSubqueryJoin join = EsqlTestUtils.singleValue(plan.collect(AbstractInSubqueryJoin.class));
         assertThat(
             CollectionUtils.collect(
                 EsqlTestUtils.singleValue(join.right().collect(EsRelation.class)).output(),

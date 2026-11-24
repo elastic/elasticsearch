@@ -94,11 +94,15 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamDeleteAction;
+import org.elasticsearch.xpack.esql.action.EsqlStreamGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlGetStreamResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
@@ -555,7 +559,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
             services.threadPool().executor(externalBlobStorePool()),
-            listingService
+            listingService,
+            // The live flag, not the yml value: setEnabled doubles as the cache's clear operation.
+            cacheService::isEnabled
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -769,6 +775,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_FETCH_PHASE,
                 EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
                 EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
@@ -818,6 +825,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
+            new ActionHandler(EsqlStreamGetResultAction.INSTANCE, TransportEsqlStreamGetResultsAction.class),
+            new ActionHandler(EsqlStreamDeleteAction.INSTANCE, TransportEsqlStreamDeleteAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
@@ -901,6 +910,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
             handlers.add(new RestEsqlStreamQueryAction(capabilities));
+            // A stream can be read or deleted only where it can be created, and only when its results are stored.
+            if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
+                handlers.add(new RestEsqlGetStreamResultAction());
+                handlers.add(new RestEsqlDeleteStreamResultAction());
+            }
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the

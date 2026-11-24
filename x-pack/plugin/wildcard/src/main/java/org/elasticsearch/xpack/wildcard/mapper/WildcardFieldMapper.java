@@ -1287,7 +1287,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return fieldType().usesArrayOrderBinaryDocValues() && (storeIgnored == false || storeIgnoredFieldsInBinaryDocValues);
     }
 

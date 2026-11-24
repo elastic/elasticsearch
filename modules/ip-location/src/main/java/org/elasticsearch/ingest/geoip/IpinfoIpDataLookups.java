@@ -378,11 +378,13 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected void transform(final Result<AsnResult> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
+            String network = result.network();
             AsnResult response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case ASN -> {
                         if (response.asn != null) collector.asn(response.asn);
                     }
@@ -390,7 +392,7 @@ final class IpinfoIpDataLookups {
                         if (response.name != null) collector.organizationName(response.name);
                     }
                     case NETWORK -> {
-                        if (result.network() != null) collector.network(result.network());
+                        if (network != null) collector.network(network);
                     }
                     case COUNTRY_ISO_CODE -> {
                         if (response.country != null) collector.countryIsoCode(response.country);
@@ -413,11 +415,12 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected void transform(final Result<CountryResult> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
             CountryResult response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case COUNTRY_ISO_CODE -> {
                         if (response.country != null) collector.countryIsoCode(response.country);
                     }
@@ -442,11 +445,12 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected void transform(final Result<GeolocationResult> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
             GeolocationResult response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case COUNTRY_ISO_CODE -> {
                         if (response.country != null) collector.countryIsoCode(response.country);
                     }
@@ -479,11 +483,12 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected void transform(final Result<PrivacyDetectionResult> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
             PrivacyDetectionResult response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case HOSTING -> {
                         if (response.hosting != null) collector.hosting(response.hosting);
                     }
@@ -514,13 +519,15 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected void transform(final Result<PlusResult> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
+            String network = result.network();
             PlusResult response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case NETWORK -> {
-                        if (result.network() != null) collector.network(result.network());
+                        if (network != null) collector.network(network);
                     }
                     case CITY_NAME -> {
                         if (Strings.hasText(response.city)) collector.cityName(response.city);

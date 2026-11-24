@@ -11,3 +11,8 @@ When enabled, a wildcard in `FROM` also matches registered datasets. Defaults to
 
 **Type**: `boolean`
 
+**Can also be set in**:
+- the request body, as `settings.wildcards_match_datasets` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+- a cluster setting, `esql.query.settings.wildcards_match_datasets` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: unavailable`
+- a view definition {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+

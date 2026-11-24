@@ -2073,7 +2073,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * multi-fields — falls back to the row path.
      */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // hasTerms()/hasRootDocValues assert the index=false, root-doc-values-free shape that strict columnar defaults to; the terms
         // and root channels have no columnar writer. mappedSubFields must be empty because those keys are indexed by their own
         // mappers, which the driver resolves as ordinary leaves rather than as part of this group.

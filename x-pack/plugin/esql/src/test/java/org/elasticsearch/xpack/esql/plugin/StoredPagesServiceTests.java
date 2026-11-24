@@ -149,6 +149,8 @@ public class StoredPagesServiceTests extends ESTestCase {
         Answers answers = read(SHARD, TimeValue.ZERO);
         assertThat(refreshed, equalTo(List.of(SHARD)));
         assertThat(answers.count, equalTo(0));
+        // it holds a slot until it answers
+        assertThat(service.waitingReads(), equalTo(1));
 
         visible = pages(1);
         completeRefreshes();
@@ -210,7 +212,7 @@ public class StoredPagesServiceTests extends ESTestCase {
         for (int i = 0; i < StoredPagesService.MAX_WAITING_READS; i++) {
             read(SHARD, TIMEOUT);
         }
-        Answers rejected = read(SHARD, TIMEOUT);
+        Answers rejected = read(SHARD, randomBoolean() ? TIMEOUT : TimeValue.ZERO);
         assertThat(rejected.failure, instanceOf(EsRejectedExecutionException.class));
         assertThat(service.waitingReads(), equalTo(StoredPagesService.MAX_WAITING_READS));
     }

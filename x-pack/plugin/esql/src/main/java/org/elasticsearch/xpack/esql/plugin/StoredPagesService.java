@@ -78,8 +78,8 @@ public final class StoredPagesService implements IndexingOperationListener, Inde
      * Answers with {@code read} if it finds pages or the end of the result. Otherwise refreshes the shard and, without a
      * {@code timeout}, answers with a new read. With one, waits up to {@code timeout} from now for a document of the result to be
      * indexed on this node, then refreshes the shard and answers with a new read. A read that times out answers with what is
-     * visible. The wait fails if its shard closes, or at once if too many reads wait on this node. A read holds its slot until it
-     * answers, as a wait cannot be cancelled.
+     * visible. The wait fails if its shard closes. A read that does not answer at once fails if too many reads wait on this node,
+     * and holds its slot until it answers, as a wait cannot be cancelled.
      */
     void read(
         ShardId shardId,
@@ -94,17 +94,18 @@ public final class StoredPagesService implements IndexingOperationListener, Inde
             return;
         }
         visible.decRef();
-        if (timeout.millis() <= 0) {
-            // the index is not refreshed on a schedule
-            refresh(shardId, listener.delegateFailureAndWrap((l, v) -> executor.execute(ActionRunnable.supplyAndDecRef(l, read))));
-            return;
-        }
         if (waitingReads.incrementAndGet() > MAX_WAITING_READS) {
             waitingReads.decrementAndGet();
             listener.onFailure(new EsRejectedExecutionException("too many reads wait for stored result pages on this node", false));
             return;
         }
-        Waiter waiter = new Waiter(shardId, streamId, read, ActionListener.runAfter(listener, waitingReads::decrementAndGet));
+        ActionListener<Response> holdsSlot = ActionListener.runAfter(listener, waitingReads::decrementAndGet);
+        if (timeout.millis() <= 0) {
+            // the index is not refreshed on a schedule
+            refresh(shardId, holdsSlot.delegateFailureAndWrap((l, v) -> executor.execute(ActionRunnable.supplyAndDecRef(l, read))));
+            return;
+        }
+        Waiter waiter = new Waiter(shardId, streamId, read, holdsSlot);
         // registered before the refresh: a page indexed after it wakes the read, one indexed before it is visible
         waiters.compute(streamId, (id, list) -> {
             List<Waiter> next = list == null ? new ArrayList<>(1) : new ArrayList<>(list);

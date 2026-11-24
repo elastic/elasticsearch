@@ -635,11 +635,11 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * If some (but not all) rows are dropped before routing, {@code completeDeferredRouting} must
-     * fail rather than silently produce a misaligned batch. Discard-bucket support will be added in
-     * a follow-up.
+     * When some (but not all) rows are dropped before routing, the dropped rows flow to the discard
+     * partition at scatter time. The remaining non-dropped rows are routed normally and must align
+     * with the items that were actually routed.
      */
-    public void testThrowsWhenSomeRowsDropped() throws IOException {
+    public void testSomeRowsDroppedGoesToDiscardPartition() throws IOException {
         int numDocs = randomIntBetween(3, 20);
         int numShards = randomIntBetween(1, 4);
         EscfBatch batch = buildBatch(numDocs);
@@ -653,8 +653,11 @@ public class BatchModeRouterTests extends ESTestCase {
             dropped.add(randomIntBetween(0, numDocs - 1));
         }
         BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
-        var e = expectThrows(IllegalStateException.class, () -> routeAll(router, bulkRequest, project, dropped));
-        assertThat(e.getMessage(), containsString("not yet supported"));
+        // No exception — dropped rows go to the discard partition.
+        var requestsByShard = routeAll(router, bulkRequest, project, dropped);
+        assertFalse("at least one non-dropped row must land on a shard", requestsByShard.isEmpty());
+        var shardBatches = takeShardBatches(router);
+        assertShardsAligned(requestsByShard, shardBatches);
         router.close();
     }
 
@@ -859,6 +862,45 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
+     * A row without an item is skipped when the rows of one batch go to several backing indices too: the items that
+     * remain are routed to the backing index of their timestamp, and their rows are the ones in the shard batches.
+     */
+    public void testDroppedRowWhenRowsSpanTwoBackingIndices() throws IOException {
+        IndexMetadata gen1 = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        IndexMetadata gen2 = tsdbBackingIndex(2, 1, GEN_1_END, "2025-01-01T00:00:00Z");
+        ProjectMetadata project = projectWithDataStream(gen1, gen2);
+
+        Docs docs = buildDocs(4);
+        Instant inGen2 = Instant.parse("2024-09-01T00:00:00Z");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, docs.batch(), 0, IN_GEN_1)); // gen 1
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, docs.batch(), 1, inGen2)); // gen 2, dropped
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, docs.batch(), 2, IN_GEN_1)); // gen 1
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, docs.batch(), 3, inGen2)); // gen 2
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, docs.batch()));
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        var requestsByShard = routeAll(router, bulkRequest, project, Set.of(1));
+        Map<ShardId, SourceBatch> shardBatches = takeShardBatches(router);
+
+        assertThat(shardBatches.get(new ShardId(gen1.getIndex(), 0)).docCount(), equalTo(2));
+        assertThat(shardBatches.get(new ShardId(gen2.getIndex(), 0)).docCount(), equalTo(1));
+        assertShardsAligned(requestsByShard, shardBatches);
+        // The rows that remain are the documents of the items that were routed, in the order they were routed.
+        List<BulkItemRequest> routed = new ArrayList<>();
+        requestsByShard.values().forEach(routed::addAll);
+        routed.sort(java.util.Comparator.comparingInt(BulkItemRequest::id));
+        assertThat(routed.stream().map(BulkItemRequest::id).toList(), equalTo(List.of(0, 2, 3)));
+        int[] expectedRows = { 0, 2, 3 };
+        for (int i = 0; i < routed.size(); i++) {
+            IndexRequest request = (IndexRequest) routed.get(i).request();
+            request.indexSource().ensureInlineSource();
+            assertThat(asMap(request.indexSource().bytes()), equalTo(asMap(docs.sources().get(expectedRows[i]))));
+        }
+        router.close();
+    }
+
+    /**
      * Two backing indices with different shard counts: gen 1 has 2 shards, gen 2 has 3 shards,
      * giving 5 total partitions. Each shard that receives rows must be aligned with its items.
      */
@@ -994,23 +1036,23 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * Even a single-shard index throws when a row is dropped, because a pre-built batch must route
-     * every row. The exception comes from {@code completeDeferredRouting},
-     * which is called by {@code routeAll} after the scan.
+     * A single-shard index with one dropped row is scattered like any other. The dropped row goes to the discard
+     * partition; the remaining rows land on the single shard and must be aligned with the routed items.
      */
-    public void testSingleShardWithDroppedRowThrows() throws IOException {
+    public void testSingleShardWithDroppedRowUsesDiscardPartition() throws IOException {
         int numDocs = randomIntBetween(2, 20);
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         IndexMetadata md = plainMetadata("myindex", 1);
         ProjectMetadata project = project(md);
 
+        Set<Integer> dropped = Set.of(randomIntBetween(0, numDocs - 1));
         BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
-        var e = expectThrows(
-            IllegalStateException.class,
-            () -> routeAll(router, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)))
-        );
-        assertThat(e.getMessage(), containsString("not yet supported"));
+        var requestsByShard = routeAll(router, bulkRequest, project, dropped);
+        assertFalse("at least one non-dropped row must land on the shard", requestsByShard.isEmpty());
+        var shardBatches = takeShardBatches(router);
+        assertThat(shardBatches.size(), equalTo(1));
+        assertShardsAligned(requestsByShard, shardBatches);
         router.close();
     }
 

@@ -65,6 +65,11 @@ final class BatchModeRouter implements Releasable {
     final String indexAbstractionName;
     @Nullable
     private final EscfBatch source;
+    /**
+     * Global partition id for each row. Initialized to {@code -1} (unclaimed / discard).
+     * {@link #buildGrouping} overwrites entries for successfully routed rows with their real partition
+     * ids; any remaining {@code -1} entries identify rows without an item, which go to the discard partition.
+     */
     @Nullable
     private final int[] partitionIds;
     @Nullable
@@ -102,6 +107,7 @@ final class BatchModeRouter implements Releasable {
         this.indexAbstractionName = indexAbstractionName;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
+        Arrays.fill(this.partitionIds, -1);
         this.items = new BulkItemRequest[source.docCount()];
         this.recycler = recycler;
         this.encoders = null;
@@ -463,6 +469,10 @@ final class BatchModeRouter implements Releasable {
      * items were already routed in {@link #route}, so this is a no-op that returns the map as-is.
      * Must be called exactly once per bulk; {@link #shardBatches()} scatters the source data to
      * match the grouping produced here.
+     *
+     * <p>Rows with no corresponding item, because the item was dropped before it was routed (a closed
+     * index, a validation failure), are left with {@code partitionIds == -1}; the scatter step remaps
+     * them to a discard partition that is released and never mapped to a shard.
      */
     Map<ShardId, List<BulkItemRequest>> buildGrouping(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
@@ -475,19 +485,6 @@ final class BatchModeRouter implements Releasable {
         }
         if (routedCount == 0) {
             return requestsByShard;
-        }
-        // Count mismatch is a caller precondition violation (wrong batch attached), not a per-item
-        // routing failure, so we throw rather than routing through onItemFailure.
-        if (routedCount != source.docCount()) {
-            throw new IllegalStateException(
-                "pre-built batch ["
-                    + indexAbstractionName
-                    + "] had "
-                    + source.docCount()
-                    + " rows but only "
-                    + routedCount
-                    + " were routed; dropped rows in pre-built batches are not yet supported and will be added in a follow-up"
-            );
         }
         try {
             if (targetCount == 1) {
@@ -509,18 +506,33 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Fast path for a single concrete index — identical semantics to the original single-index logic.
+     * Fast path for a single concrete index. Collects claimed rows (skipping any orphans), routes
+     * them, and fills partitionIds for claimed rows only; orphan rows retain their {@code -1}.
      */
     private void routeSingleTarget(Map<ShardId, List<BulkItemRequest>> requestsByShard) {
         IndexTarget target = targets[0];
-        IndexRequest[] requests = buildRequestArray();
+        int n = source.docCount();
+
+        // Collect the claimed rows: those of items that were dropped before route() have no item.
+        int[] claimedRows = new int[routedCount];
+        IndexRequest[] requests = new IndexRequest[routedCount];
+        int k = 0;
+        for (int row = 0; row < n; row++) {
+            if (items[row] != null) {
+                claimedRows[k] = row;
+                requests[k] = (IndexRequest) items[row].request();
+                k++;
+            }
+        }
+
         target.routing().preProcess(requests);
-        int[] shards = target.routing().indexShard(requests, source, null);
+        int[] shards = target.routing().indexShard(requests, source, claimedRows);
         target.routing().postProcess(requests);
-        for (int i = 0; i < requests.length; i++) {
+        for (int i = 0; i < k; i++) {
+            int row = claimedRows[i];
             int shardId = shards[i];
-            partitionIds[i] = shardId; // partitionBase is 0 for target 0
-            requestsByShard.computeIfAbsent(new ShardId(target.index(), shardId), k -> new ArrayList<>()).add(items[i]);
+            partitionIds[row] = shardId; // partitionBase is 0 for target 0
+            requestsByShard.computeIfAbsent(new ShardId(target.index(), shardId), ignored -> new ArrayList<>()).add(items[row]);
         }
     }
 
@@ -530,13 +542,16 @@ final class BatchModeRouter implements Releasable {
      * {@link #partitionIds} and {@code requestsByShard} atomically.
      *
      * <p>All target routing completes before {@code requestsByShard} is modified, so a failure on any
-     * target leaves {@code requestsByShard} untouched.
+     * target leaves {@code requestsByShard} untouched. Orphan rows (null items) are skipped.
      */
     private void routeMultipleTargets(Map<ShardId, List<BulkItemRequest>> requestsByShard) {
+        int n = source.docCount();
         // Count rows per target to size the per-target arrays.
         int[] targetRowCounts = new int[targetCount];
-        for (int row = 0; row < routedCount; row++) {
-            targetRowCounts[rowTargets[row]]++;
+        for (int row = 0; row < n; row++) {
+            if (items[row] != null) {
+                targetRowCounts[rowTargets[row]]++;
+            }
         }
 
         // Build per-target row-index arrays (in ascending order) and IndexRequest arrays.
@@ -547,11 +562,13 @@ final class BatchModeRouter implements Releasable {
             requestsByTarget[t] = new IndexRequest[targetRowCounts[t]];
         }
         int[] fill = new int[targetCount];
-        for (int row = 0; row < routedCount; row++) {
-            int t = rowTargets[row];
-            int slot = fill[t]++;
-            rowsByTarget[t][slot] = row;
-            requestsByTarget[t][slot] = (IndexRequest) items[row].request();
+        for (int row = 0; row < n; row++) {
+            if (items[row] != null) {
+                int t = rowTargets[row];
+                int slot = fill[t]++;
+                rowsByTarget[t][slot] = row;
+                requestsByTarget[t][slot] = (IndexRequest) items[row].request();
+            }
         }
 
         // Route each target. Collect shard ids before touching requestsByShard so a failure on a
@@ -583,14 +600,6 @@ final class BatchModeRouter implements Releasable {
         }
     }
 
-    private IndexRequest[] buildRequestArray() {
-        IndexRequest[] requests = new IndexRequest[routedCount];
-        for (int i = 0; i < routedCount; i++) {
-            requests[i] = (IndexRequest) items[i].request();
-        }
-        return requests;
-    }
-
     /**
      * Returns the per-shard batches. The caller owns every returned batch. Building them hands the
      * underlying buffers to the returned batches, so this may be called at most once per bulk. The failure-store redirect pass must not
@@ -619,18 +628,43 @@ final class BatchModeRouter implements Releasable {
     }
 
     private Map<ShardId, SourceBatch> scatter() {
+        int n = source.docCount();
+        boolean hasOrphans = routedCount != n;
+        int discardPartition = totalPartitions; // only meaningful when hasOrphans
+        int totalPartitionsForScatter = hasOrphans ? totalPartitions + 1 : totalPartitions;
+
+        // Remap unclaimed rows (partitionIds == -1) to the discard partition.
+        if (hasOrphans) {
+            for (int row = 0; row < n; row++) {
+                if (partitionIds[row] < 0) {
+                    partitionIds[row] = discardPartition;
+                }
+            }
+        }
+
         EscfBatch[] parts;
         try (EscfBatchScatterer scatterer = new EscfBatchScatterer(recycler)) {
-            parts = scatterer.scatter(source, partitionIds, totalPartitions);
+            parts = scatterer.scatter(source, partitionIds, totalPartitionsForScatter);
         }
         boolean success = false;
         try {
+            // Immediately release the discard partition — it is the only copy of orphan rows and must
+            // not be mapped to any shard.
+            if (hasOrphans && parts[discardPartition] != null) {
+                parts[discardPartition].close();
+                parts[discardPartition] = null;
+            }
+
             Map<ShardId, SourceBatch> result = new HashMap<>();
             int[] nextRow = new int[totalPartitions];
-            for (int row = 0; row < routedCount; row++) {
+            for (int row = 0; row < n; row++) {
                 int globalPartition = partitionIds[row];
                 EscfBatch part = parts[globalPartition];
-                assert part != null : "null partition " + globalPartition + " for row " + row;
+                if (part == null) {
+                    // Only the discard partition, released above, has no batch: it holds the rows without an item.
+                    assert globalPartition == discardPartition : "null partition " + globalPartition + " for row " + row;
+                    continue;
+                }
 
                 // Recover the ShardId from the global partition: find which target owns this partition.
                 IndexTarget target = targetForPartition(globalPartition);

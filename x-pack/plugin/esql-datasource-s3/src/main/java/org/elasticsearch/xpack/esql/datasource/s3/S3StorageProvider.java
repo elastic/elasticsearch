@@ -1207,6 +1207,7 @@ public class S3StorageProvider implements StorageProvider {
                 ExternalPlanningIo.addMetadataGet(0);
             } catch (Exception e) {
                 if (healed == false && provider.healWrongRegion(bucket, e)) {
+                    ExternalPlanningIo.addMetadataGet(0);
                     healed = true;
                     try {
                         s3Client = provider.clientsFor(bucket).sync();

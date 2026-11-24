@@ -272,7 +272,15 @@ final class BucketRegionResolver {
         }
         S3Exception s3 = s3Exception(cause);
         if (s3 != null && isNoSuchBucket(s3)) {
-            throw new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "", cause instanceof Exception e ? e : null);
+            // A missing bucket is a config error, not a gone object: OBJECT_NOT_FOUND would start
+            // stale-listing recovery that cannot create the bucket.
+            throw new ExternalClientException(
+                Condition.METADATA_UNAVAILABLE,
+                path,
+                "NoSuchBucket",
+                "Check that the bucket exists",
+                cause instanceof Exception e ? e : null
+            );
         }
         if (cause instanceof IllegalStateException closed && closed.getMessage() != null && closed.getMessage().contains("closed")) {
             throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "S3 client is closed", "", false, 0L, closed);

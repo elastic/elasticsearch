@@ -9,29 +9,42 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.InputStream;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class S3BucketRegionTests extends ESTestCase {
 
@@ -177,6 +190,22 @@ public class S3BucketRegionTests extends ESTestCase {
         }
     }
 
+    public void testAsyncStaleRegionSelfHealsEachRead() throws Exception {
+        try (RegionalS3Fake fake = new RegionalS3Fake()) {
+            fake.putBucket(BUCKET, "eu-west-1");
+            fake.putObject(BUCKET, KEY, BODY);
+            try (S3StorageProvider provider = provider(fake)) {
+                StoragePath path = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+                StorageObject object = provider.newObject(path, BODY.length);
+                assertAsyncBody(object);
+                fake.setHome(BUCKET, "ap-southeast-2");
+                assertAsyncBody(object);
+                fake.setHome(BUCKET, "ca-central-1");
+                assertAsyncBody(object);
+            }
+        }
+    }
+
     public void testNoBucketRegionHeaderFallsBackToSeedRegion() throws Exception {
         try (RegionalS3Fake fake = new RegionalS3Fake()) {
             fake.putBucket(BUCKET, "us-east-1");
@@ -225,33 +254,87 @@ public class S3BucketRegionTests extends ESTestCase {
                 try (InputStream in = provider.newObject(path, BODY.length).newStream(2, 3)) {
                     assertArrayEquals(new byte[] { 3, 4, 5 }, in.readAllBytes());
                 }
-                CountDownLatch done = new CountDownLatch(1);
-                AtomicReference<DirectReadBuffer> buffer = new AtomicReference<>();
-                AtomicReference<Exception> failure = new AtomicReference<>();
-                provider.newObject(path, BODY.length).readBytesAsync(0, BODY.length, FACTORY, Runnable::run, new ActionListener<>() {
-                    @Override
-                    public void onResponse(DirectReadBuffer result) {
-                        buffer.set(result);
-                        done.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        failure.set(e);
-                        done.countDown();
-                    }
-                });
-                assertTrue(done.await(10, TimeUnit.SECONDS));
-                if (failure.get() != null) {
-                    throw failure.get();
-                }
-                try (DirectReadBuffer result = buffer.get()) {
-                    byte[] copied = new byte[result.buffer().remaining()];
-                    result.buffer().get(copied);
-                    assertArrayEquals(BODY, copied);
-                }
+                assertAsyncBody(provider.newObject(path, BODY.length));
                 assertEquals(0, fake.wrongRegionGets(BUCKET));
             }
+        }
+    }
+
+    public void testColdAsyncReadUsesResolvedRegion() throws Exception {
+        try (RegionalS3Fake fake = new RegionalS3Fake()) {
+            fake.putBucket(BUCKET, "ca-central-1");
+            fake.putObject(BUCKET, KEY, BODY);
+            try (S3StorageProvider provider = provider(fake)) {
+                StoragePath path = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+                assertAsyncBody(provider.newObject(path, BODY.length));
+                assertEquals(1, fake.headBucketCount(BUCKET));
+                assertEquals(0, fake.wrongRegionGets(BUCKET));
+            }
+        }
+    }
+
+    public void testColdAsyncCancelCompletesWithoutAbortingProbe() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try (RegionalS3Fake fake = new RegionalS3Fake()) {
+            fake.putBucket(BUCKET, "ca-central-1");
+            fake.putObject(BUCKET, KEY, BODY);
+            fake.holdHeadBucket(entered, release);
+            try (S3StorageProvider provider = provider(fake)) {
+                StoragePath path = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+                CountDownLatch done = new CountDownLatch(1);
+                AtomicReference<Exception> failure = new AtomicReference<>();
+                Releasable cancel = provider.newObject(path, BODY.length)
+                    .startReadBytesAsync(0, BODY.length, FACTORY, pool, new ActionListener<>() {
+                        @Override
+                        public void onResponse(DirectReadBuffer result) {
+                            result.close();
+                            done.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            failure.set(e);
+                            done.countDown();
+                        }
+                    });
+                assertTrue(entered.await(10, TimeUnit.SECONDS));
+                cancel.close();
+                assertTrue("cancelled read must complete while HeadBucket is still blocked", done.await(2, TimeUnit.SECONDS));
+                assertThat(failure.get(), instanceOf(TaskCancelledException.class));
+                release.countDown();
+                try (InputStream in = provider.newObject(path).newStream()) {
+                    assertArrayEquals(BODY, in.readAllBytes());
+                }
+                assertEquals(1, fake.headBucketCount(BUCKET));
+            }
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    public void testProbeNoSuchBucketIsNotObjectNotFound() {
+        S3Client probeSync = mock(S3Client.class);
+        when(probeSync.headBucket(any(HeadBucketRequest.class))).thenThrow(
+            NoSuchBucketException.builder().message("The specified bucket does not exist").statusCode(404).build()
+        );
+        BucketRegionResolver resolver = new BucketRegionResolver(
+            "us-east-1",
+            null,
+            probeSync,
+            mock(S3AsyncClient.class),
+            TimeUnit.SECONDS.toNanos(5),
+            region -> new BucketRegionResolver.ClientPair(mock(S3Client.class), mock(S3AsyncClient.class))
+        );
+        try {
+            ExternalClientException thrown = expectThrows(ExternalClientException.class, () -> resolver.clientsFor("missing"));
+            assertEquals(ExternalException.Condition.METADATA_UNAVAILABLE, thrown.condition());
+            assertFalse(ExternalException.isStaleCachedObject(thrown));
+            assertThat(thrown.getMessage(), containsString("NoSuchBucket"));
+        } finally {
+            resolver.close();
         }
     }
 
@@ -328,6 +411,70 @@ public class S3BucketRegionTests extends ESTestCase {
                 var second = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/data"), 16);
                 assertNotNull(second);
             }
+        }
+    }
+
+    public void testExistsSelfHealsStaleRegion() throws Exception {
+        try (RegionalS3Fake fake = new RegionalS3Fake()) {
+            fake.putBucket(BUCKET, "eu-west-1");
+            fake.putObject(BUCKET, KEY, BODY);
+            try (S3StorageProvider provider = provider(fake)) {
+                StoragePath path = StoragePath.of("s3://" + BUCKET + "/" + KEY);
+                assertTrue(provider.exists(path));
+                fake.setHome(BUCKET, "ap-southeast-2");
+                assertTrue(provider.exists(path));
+            }
+        }
+    }
+
+    public void testListObjectsSelfHealsStaleRegion() throws Exception {
+        try (RegionalS3Fake fake = new RegionalS3Fake()) {
+            fake.putBucket(BUCKET, "eu-west-1");
+            fake.putObject(BUCKET, KEY, BODY);
+            try (S3StorageProvider provider = provider(fake)) {
+                StoragePath prefix = StoragePath.of("s3://" + BUCKET + "/data");
+                try (StorageIterator first = provider.listObjects(prefix, true)) {
+                    drain(first);
+                }
+                fake.setHome(BUCKET, "ap-southeast-2");
+                try (StorageIterator second = provider.listObjects(prefix, true)) {
+                    drain(second);
+                }
+            }
+        }
+    }
+
+    private static void assertAsyncBody(StorageObject object) throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> buffer = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        object.readBytesAsync(0, BODY.length, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer result) {
+                buffer.set(result);
+                done.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+                done.countDown();
+            }
+        });
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+        try (DirectReadBuffer result = buffer.get()) {
+            byte[] copied = new byte[result.buffer().remaining()];
+            result.buffer().get(copied);
+            assertArrayEquals(BODY, copied);
+        }
+    }
+
+    private static void drain(StorageIterator iterator) {
+        while (iterator.hasNext()) {
+            iterator.next();
         }
     }
 

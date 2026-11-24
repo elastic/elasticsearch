@@ -19,6 +19,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -37,6 +39,8 @@ final class RegionalS3Fake implements AutoCloseable {
     private final AtomicInteger headFailuresRemaining = new AtomicInteger();
     private volatile boolean sendRegionHeader = true;
     private volatile boolean rejectWrongScope = true;
+    private volatile CountDownLatch headBucketEntered;
+    private volatile CountDownLatch headBucketRelease;
 
     RegionalS3Fake() throws IOException {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -71,6 +75,12 @@ final class RegionalS3Fake implements AutoCloseable {
 
     void failNextHeadBuckets(int count) {
         headFailuresRemaining.set(count);
+    }
+
+    /** Park the next HeadBucket until {@code release} counts down; count {@code entered} when the probe arrives. */
+    void holdHeadBucket(CountDownLatch entered, CountDownLatch release) {
+        headBucketEntered = entered;
+        headBucketRelease = release;
     }
 
     int headBucketCount(String bucket) {
@@ -156,6 +166,18 @@ final class RegionalS3Fake implements AutoCloseable {
 
     private void handleHeadBucket(HttpExchange exchange, String bucket, String home) throws IOException {
         headBucketCounts.computeIfAbsent(bucket, b -> new AtomicInteger()).incrementAndGet();
+        CountDownLatch entered = headBucketEntered;
+        CountDownLatch release = headBucketRelease;
+        if (entered != null) {
+            entered.countDown();
+        }
+        if (release != null) {
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         if (headFailuresRemaining.getAndUpdate(v -> v > 0 ? v - 1 : 0) > 0) {
             exchange.sendResponseHeaders(503, -1);
             exchange.close();

@@ -1283,12 +1283,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         if (owner != null && owner.discoversRegion() && owner.hasResolvedRegion(bucket) == false) {
             AsyncReadHandle handle = new AsyncReadHandle();
+            // Complete this read on cancel without aborting the shared HeadBucket probe.
+            handle.completeOnCancel(() -> listener.onFailure(new TaskCancelledException("read cancelled")));
             try {
                 executor.execute(() -> {
                     if (handle.isCancelled()) {
-                        if (handle.tryCompleteListener()) {
-                            listener.onFailure(new TaskCancelledException("read cancelled"));
-                        }
                         return;
                     }
                     try {
@@ -1299,6 +1298,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                         }
                         return;
                     }
+                    if (handle.isCancelled()) {
+                        return;
+                    }
+                    handle.leaveBackoff();
                     startReadBytesAsyncWithClients(position, length, factory, executor, listener, handle);
                 });
             } catch (RejectedExecutionException rejected) {
@@ -1391,8 +1394,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
          */
         void enterBackoff(CompletableFuture<?> delayFuture, Runnable onCancelled) {
             inFlight.set(delayFuture);
+            completeOnCancel(onCancelled);
+        }
+
+        /**
+         * Completes the listener on {@link #cancel} without aborting a future. Used while waiting
+         * for the shared HeadBucket probe: other reads may need that probe, so cancel must not
+         * interrupt it.
+         */
+        void completeOnCancel(Runnable onCancelled) {
             cancelCallback = onCancelled;
-            // cancel() may have been called between the attempt failing and enterBackoff.
             if (cancelled) {
                 fireCancelCallback();
             }

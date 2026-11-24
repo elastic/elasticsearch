@@ -146,7 +146,7 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
     /**
      * {@code field_extract(...) != "v"} must push a candidate negated {@code TermQuery} against the
      * keyed sub-field, with the {@code FilterOperator} retained for the recheck. Lucene renders the
-     * pure-negative bool as {@code #*:* -<inner>} (match-all filter + must-not).
+     * pure-negative bool as {@code -<inner> #*:*} (must-not + match-all filter).
      */
     public void testInequalityPushed() throws IOException {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
@@ -193,12 +193,12 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
     /**
      * {@code NotEquals} produces a bare {@code NotQuery} wrapping the keyed {@code TermQuery} (see
      * {@code NotEquals#asQuery}). A pure-negative boolean needs a positive clause to match against,
-     * so Lucene prepends a {@code MatchAllDocsQuery} filter and renders it as {@code #*:* -<term>}.
+     * so a {@code MatchAllDocsQuery} filter is added after it and it renders as {@code -<term> #*:*}.
      * There is no {@code single_value_match} clause under RECHECK, so the shape is identical across
      * index modes.
      */
     private String expectedInequalityQuery(String value) {
-        return "#*:* -" + KEYED_INTERNAL_FIELD + ":" + SUBKEY + KEYED_TERM_SEPARATOR + value;
+        return "-" + KEYED_INTERNAL_FIELD + ":" + SUBKEY + KEYED_TERM_SEPARATOR + value + " #*:*";
     }
 
     /**

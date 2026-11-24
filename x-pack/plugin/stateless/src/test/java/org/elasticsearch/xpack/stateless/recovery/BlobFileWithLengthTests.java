@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.blobNameFromGeneration;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 
 public class BlobFileWithLengthTests extends AbstractWireSerializingTestCase<BlobFileWithLength> {

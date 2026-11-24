@@ -56,11 +56,23 @@ public final class EscfBulkWriter implements Releasable {
      * @param maxBulksInFlight how many bulks may wait for an acknowledgement; with {@code 1} and one producer, rows are indexed
      *                         in order
      * @param targetBulkBytes  the size at which a batch takes no more rows, at most {@link #MAX_TARGET_BULK_BYTES}
+     * @param maxNodeBytes     the node's indexing pressure usage from which the writer takes no rows while one of its bulks is in
+     *                         flight, so that it leaves the rest of the node's budget to other bulks
      */
-    public record Policy(int maxBulksInFlight, long targetBulkBytes) {
+    public record Policy(int maxBulksInFlight, long targetBulkBytes, long maxNodeBytes) {
         public static final long MAX_TARGET_BULK_BYTES = ByteSizeValue.ofMb(64).getBytes();
+        /** Caps the bulks in flight of a {@link #fromIndexingPressure default} writer until rejected bulks are retried. */
+        public static final int MAX_DEFAULT_BULKS_IN_FLIGHT = 8;
+
+        /** A policy that does not look at the node's indexing pressure usage. */
+        public Policy(int maxBulksInFlight, long targetBulkBytes) {
+            this(maxBulksInFlight, targetBulkBytes, Long.MAX_VALUE);
+        }
 
         public Policy {
+            if (maxNodeBytes < 1) {
+                throw new IllegalArgumentException("maxNodeBytes must be at least 1 but was [" + maxNodeBytes + "]");
+            }
             if (maxBulksInFlight < 1) {
                 throw new IllegalArgumentException("maxBulksInFlight must be at least 1 but was [" + maxBulksInFlight + "]");
             }
@@ -69,6 +81,22 @@ public final class EscfBulkWriter implements Releasable {
                     "targetBulkBytes must be between 1 and [" + MAX_TARGET_BULK_BYTES + "] but was [" + targetBulkBytes + "]"
                 );
             }
+        }
+
+        /**
+         * A policy for writers that do not need their rows in order. A writer slows down to one bulk once the node's usage reaches
+         * the low watermark, or half the coordinating limit if lower, so that other bulks keep the rest. Batches take the size of a
+         * streaming bulk chunk above the low watermark, or of that budget if smaller.
+         */
+        public static Policy fromIndexingPressure(IndexingPressure indexingPressure) {
+            long maxNodeBytes = Math.max(1, Math.min(indexingPressure.splitBulkLowWatermark(), indexingPressure.coordinatingLimit() / 2));
+            long targetBulkBytes = Math.clamp(
+                Math.min(indexingPressure.splitBulkLowWatermarkSize(), maxNodeBytes),
+                1,
+                MAX_TARGET_BULK_BYTES
+            );
+            int maxBulksInFlight = Math.clamp(maxNodeBytes / targetBulkBytes, 1, MAX_DEFAULT_BULKS_IN_FLIGHT);
+            return new Policy(maxBulksInFlight, targetBulkBytes, maxNodeBytes);
         }
     }
 
@@ -176,6 +204,9 @@ public final class EscfBulkWriter implements Releasable {
             }
             if (tripped) {
                 takeBack();
+            } else if (nodeBelowLimit() == false) {
+                // the others give theirs on their next rows, or when the writer is idle
+                giveBack();
             } else {
                 giveBackIfIdle();
             }
@@ -232,7 +263,8 @@ public final class EscfBulkWriter implements Releasable {
 
         /**
          * Whether this producer may add rows. If not, {@code onCapacity} is called when that may have changed. It may not while
-         * a full batch waits for a free slot, or while rows that tripped the breaker or indexing pressure are not acknowledged.
+         * a full batch waits for a free slot, while rows that tripped the breaker or indexing pressure are not acknowledged, or
+         * while a bulk is in flight and the node's usage is at the policy's {@link Policy#maxNodeBytes()}.
          * Once the writer failed it always may, since the rows are dropped. It only takes short locks.
          */
         public boolean hasCapacity() {
@@ -369,12 +401,15 @@ public final class EscfBulkWriter implements Releasable {
             return true;
         }
         // otherwise a bulk of this writer settles first
-        return tripped == 0 && (chunks.isEmpty() || bulksInFlight < policy.maxBulksInFlight());
+        return tripped == 0 && (chunks.isEmpty() || bulksInFlight < policy.maxBulksInFlight()) && (bulksInFlight == 0 || nodeBelowLimit());
     }
 
-    // visible for testing
+    private boolean nodeBelowLimit() {
+        return service.indexingPressure().currentUsageInBytes() < policy.maxNodeBytes();
+    }
+
     @Nullable
-    Exception failure() {
+    public Exception failure() {
         return failure;
     }
 
@@ -487,7 +522,8 @@ public final class EscfBulkWriter implements Releasable {
         while (true) {
             Chunk chunk;
             synchronized (this) {
-                if (chunks.isEmpty() || failure != null || bulksInFlight >= policy.maxBulksInFlight()) {
+                int slots = nodeBelowLimit() ? policy.maxBulksInFlight() : 1;
+                if (chunks.isEmpty() || failure != null || bulksInFlight >= slots) {
                     return;
                 }
                 chunk = chunks.poll();

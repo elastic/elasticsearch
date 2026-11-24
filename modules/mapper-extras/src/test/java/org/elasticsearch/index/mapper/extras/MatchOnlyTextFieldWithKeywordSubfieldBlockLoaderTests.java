@@ -22,8 +22,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,8 +73,7 @@ public class MatchOnlyTextFieldWithKeywordSubfieldBlockLoaderTests extends Mappe
         // Either the field keeps its own multi-valued doc values (read via the offsets sidecar) or it delegates to a plain keyword copy
         // with no normalizer/ignore_above/null_value transforming the values - both yield the non-null values in source order.
         Object expected = valuesInSourceOrder(fieldValue);
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        runner.mapperService(createMapperService(BlockLoaderTestCase.getSettingsForParams(params).build(), mappingXContent));
+        runner.mapperService(createMapperServiceWithParams(BlockLoaderTestCase.getSettingsForParams(params).build(), mapping));
         runner.fieldName("parent");
         runner.run(expected);
     }

@@ -14,9 +14,9 @@ package org.elasticsearch.indices.recovery;
 /// [#ABORT], which is dropped before reaching it). Note that `handleRecoveryFailure` may override the requested
 /// strategy when necessary (e.g. convert [#RETRY] into [#FAIL_SEND]).
 public enum FailureStrategy {
-    RETRY(false),
-    ABORT(false),
-    FAIL_SILENT(false),
+    RETRY,
+    ABORT,
+    FAIL_SILENT,
 
     /**
      * Like {@link #FAIL_SILENT}, the master is not notified straight away, but the allocation is also remembered so that later
@@ -24,16 +24,6 @@ public enum FailureStrategy {
      * cluster state still assigns the allocation, the master has not acted on the failure, so it is sent then, as {@link #FAIL_SEND}
      * would have done.
      */
-    FAIL_SILENT_AND_BLOCK(false),
-    FAIL_SEND(true);
-
-    private final boolean notifyMaster;
-
-    FailureStrategy(boolean notifyMaster) {
-        this.notifyMaster = notifyMaster;
-    }
-
-    public boolean notifyMaster() {
-        return notifyMaster;
-    }
+    FAIL_SILENT_AND_BLOCK,
+    FAIL_SEND
 }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166899
+summary: Splice only exact TEMPLATE folder names (off until the template-walk PR)
+type: enhancement

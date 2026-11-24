@@ -145,8 +145,13 @@ public class EsqlIndexSortParserTests extends ESTestCase {
             "index sort key [NOW()] uses [NOW()], which isn't guaranteed to compute the same values on every node and version"
         );
         assertParseFails(
-            "DATE_DIFF(\"hour\", @timestamp, NOW())",
+            "GREATEST(@timestamp, NOW())",
             "uses [NOW()], which isn't guaranteed to compute the same values on every node and version"
+        );
+        // A difference in nanoseconds can overflow
+        assertParseFails(
+            "DATE_DIFF(\"hour\", @timestamp, @timestamp)",
+            "uses [DATE_DIFF(\"hour\", @timestamp, @timestamp)], which isn't guaranteed"
         );
         // Floating point math, Unicode data and time zone rules may change from one JVM to another
         assertParseFails("TO_DATETIME(host.name)", "uses [TO_DATETIME(host.name)], which isn't guaranteed");

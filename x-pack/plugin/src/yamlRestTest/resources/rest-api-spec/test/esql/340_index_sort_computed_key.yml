@@ -92,7 +92,7 @@ setup:
         index: computed_sort
         body:
           settings:
-            index.sort: "DATE_DIFF(\"hour\", @timestamp, NOW())"
+            index.sort: "GREATEST(@timestamp, NOW())"
           mappings:
             properties:
               "@timestamp":

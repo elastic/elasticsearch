@@ -8,11 +8,16 @@
 package org.elasticsearch.xpack.esql.index;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.read.DelegatingBlockLoaderFactory;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -36,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -92,13 +98,99 @@ public final class EsqlSortKey {
         .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
         .build();
 
-    /** Builds the blocks that the fields' {@link BlockLoader}s read. */
+    /** Builds the blocks that the fields' {@link BlockLoader}s read, resolving ordinals one value at a time. */
     static final BlockLoader.BlockFactory LOADER_FACTORY = new DelegatingBlockLoaderFactory(BLOCK_FACTORY) {
         @Override
         public BlockLoader.Block constantNulls(int count) {
             return factory.newConstantNullBlock(count);
         }
+
+        @Override
+        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
+            return new OrdinalBytes(factory.newBytesRefBlockBuilder(count), ordinals::lookupOrd);
+        }
+
+        @Override
+        public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
+            BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(count);
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return new OrdinalBytes(builder, ordinals::lookupOrd);
+        }
     };
+
+    /** Appends the bytes of each ordinal, looked up when it is appended. */
+    private static final class OrdinalBytes implements BlockLoader.SingletonOrdinalsBuilder, BlockLoader.SortedSetOrdinalsBuilder {
+        private final BytesRefBlock.Builder builder;
+        private final OrdinalLookup lookup;
+
+        OrdinalBytes(BytesRefBlock.Builder builder, OrdinalLookup lookup) {
+            this.builder = builder;
+            this.lookup = lookup;
+        }
+
+        private BytesRef bytes(int ord) {
+            try {
+                return lookup.lookupOrd(ord);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public OrdinalBytes appendOrd(int value) {
+            builder.appendBytesRef(bytes(value));
+            return this;
+        }
+
+        @Override
+        public OrdinalBytes appendOrds(int ord, int length) {
+            BytesRef value = bytes(ord);
+            for (int i = 0; i < length; i++) {
+                builder.appendBytesRef(value);
+            }
+            return this;
+        }
+
+        @Override
+        public OrdinalBytes appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+            for (int i = from; i < from + length; i++) {
+                builder.appendBytesRef(bytes(values[i]));
+            }
+            return this;
+        }
+
+        @Override
+        public OrdinalBytes appendNull() {
+            builder.appendNull();
+            return this;
+        }
+
+        @Override
+        public OrdinalBytes beginPositionEntry() {
+            builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public OrdinalBytes endPositionEntry() {
+            builder.endPositionEntry();
+            return this;
+        }
+
+        @Override
+        public BytesRefBlock build() {
+            return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
+    }
+
+    private interface OrdinalLookup {
+        BytesRef lookupOrd(int ord) throws IOException;
+    }
 
     private final String expression;
     private final List<BlockLoader> loaders;

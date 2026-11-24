@@ -210,13 +210,7 @@ public class OffsetSourceFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<CharsetFormat> charset = Parameter.enumParam(
-            "charset",
-            false,
-            i -> CharsetFormat.UTF_16,
-            CharsetFormat.UTF_16,
-            CharsetFormat.class
-        );
+        private final Parameter<CharsetFormat> charset = Parameter.enumParam("charset", false, CharsetFormat.UTF_16, CharsetFormat.class);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -370,8 +364,4 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
 }

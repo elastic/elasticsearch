@@ -65,6 +65,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_SERIES_METADATA_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -99,6 +100,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         TIME_DURATION,
         DOC_DATA_TYPE,
         TSID_DATA_TYPE,
+        TIME_SERIES_METADATA_DATA_TYPE,
         AGGREGATE_METRIC_DOUBLE,
         EXPONENTIAL_HISTOGRAM,
         TDIGEST,
@@ -109,7 +111,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         PARTIAL_AGG };
 
     private final JoinConfig config;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
     // Where this join executes — relevant only on the coordinating node, thus transient.
     private final transient ExecuteLocation mode;
 
@@ -373,7 +375,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             // The right side is an independent subquery; do not traverse into it.
             checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
         } else {

@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -40,6 +42,7 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -220,9 +223,9 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                NumericDocValues ndv = sortedNumericSingleton(context.reader(), fieldData.getFieldName());
                 if (ndv != null && ndv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                    ndv = sortedNumericSingleton(context.reader(), fieldData.getFieldName());
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
@@ -246,7 +249,9 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                SortedDocValues sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                SortedDocValues sdv = readsFieldDocValues()
+                    ? DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()))
+                    : null;
                 if (sdv != null && sdv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sdv);
@@ -313,7 +318,7 @@ public final class SingleValueMatchQuery extends Query {
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                NumericDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldData.getFieldName()));
+                NumericDocValues singleton = sortedNumericSingleton(reader, fieldData.getFieldName());
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {
@@ -327,6 +332,9 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
+                if (readsFieldDocValues() == false) {
+                    return super.rewrite(indexSearcher);
+                }
                 SortedDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedSet(reader, fieldData.getFieldName()));
                 if (singleton != null) {
                     singleton.nextDoc();
@@ -350,6 +358,14 @@ public final class SingleValueMatchQuery extends Query {
             }
         }
         return Queries.ALL_DOCS_INSTANCE;
+    }
+
+    /**
+     * Whether the values of {@link #fieldData} are the doc values and terms of the field it names. Those of the key of a
+     * {@code flattened} field are the values of that key alone, in the field that holds every key.
+     */
+    private boolean readsFieldDocValues() {
+        return fieldData instanceof FlattenedFieldMapper.KeyedFlattenedFieldData == false;
     }
 
     @Override
@@ -401,6 +417,20 @@ public final class SingleValueMatchQuery extends Query {
 
     private void registerMultiValueException() {
         warningsTarget.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
+    }
+
+    /**
+     * A numeric field's doc values as a singleton, or {@code null} when they hold more than one value for some document or
+     * are binary, as for a numeric field the ColumNAR codec stores. Those are checked a document at a time through their
+     * field data instead.
+     */
+    @Nullable
+    private static NumericDocValues sortedNumericSingleton(LeafReader reader, String fieldName) throws IOException {
+        final FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(fieldName);
+        if (fieldInfo != null && fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+            return null;
+        }
+        return DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldName));
     }
 
     static DocIdSetIterator getApproximationIterator(LeafReader reader, String fieldName, int maxDoc) throws IOException {

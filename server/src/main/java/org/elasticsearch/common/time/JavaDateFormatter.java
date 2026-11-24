@@ -253,6 +253,21 @@ class JavaDateFormatter implements DateFormatter {
         return null;
     }
 
+    @Override
+    public long tryParseMillis(byte[] bytes, int offset, int length) {
+        return tryParseEpoch(bytes, offset, length, false);
+    }
+
+    @Override
+    public long tryParseNanos(byte[] bytes, int offset, int length) {
+        return tryParseEpoch(bytes, offset, length, true);
+    }
+
+    private long tryParseEpoch(byte[] bytes, int offset, int length, boolean nanosResolution) {
+        // Try only the first parser. A later parser applies only when the earlier ones fail, and a decline is not a failure.
+        return parsers[0] instanceof FastDateTimeParser fast ? fast.tryParseEpoch(bytes, offset, length, nanosResolution) : DECLINED;
+    }
+
     /**
      * Attempt parsing the input without throwing exception. If multiple parsers are provided,
      * it will continue iterating until it finds one that works.

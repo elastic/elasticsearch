@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -38,8 +39,16 @@ public class SliceSelectionCpsIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(ViewOverDatasetCpsIT.CpsSettingPlugin.class);
+        plugins.add(CpsSettingPlugin.class);
         return plugins;
+    }
+
+    /** Registers the CPS enable flag, which only the serverless distribution registers in production. */
+    public static class CpsSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(Setting.boolSetting("serverless.cross_project.enabled", false, Setting.Property.NodeScope));
+        }
     }
 
     @Override

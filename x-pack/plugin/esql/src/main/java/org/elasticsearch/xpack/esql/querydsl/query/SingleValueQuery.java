@@ -177,6 +177,14 @@ public class SingleValueQuery extends Query {
 
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
+        /**
+         * The same check of the same field, around another query. Used when the wrapped query is replaced by an equivalent
+         * one, which must go on matching only the documents with a single value.
+         */
+        public final AbstractBuilder withNext(QueryBuilder next) {
+            return rewrite(next);
+        }
+
         @Override
         protected final QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
             QueryBuilder rewritten = next.rewrite(queryRewriteContext);
@@ -341,8 +349,7 @@ public class SingleValueQuery extends Query {
             if (singleValueQuery instanceof MatchAllDocsQuery == false) {
                 builder.add(singleValueQuery, BooleanClause.Occur.FILTER);
             }
-
-            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            org.apache.lucene.search.Query ignored = context.getFieldType(IgnoredFieldMapper.NAME).termQuery(ft.name(), context);
             ignored = ignored.rewrite(context.searcher());
             if (ignored instanceof MatchNoDocsQuery == false) {
                 builder.add(ignored, BooleanClause.Occur.MUST_NOT);
@@ -425,7 +432,7 @@ public class SingleValueQuery extends Query {
             ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
             org.apache.lucene.search.Query svNext = simple(ft, context);
 
-            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            org.apache.lucene.search.Query ignored = context.getFieldType(IgnoredFieldMapper.NAME).termQuery(ft.name(), context);
             ignored = ignored.rewrite(context.searcher());
             if (ignored instanceof MatchNoDocsQuery) {
                 return svNext;

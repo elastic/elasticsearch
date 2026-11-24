@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -74,6 +75,8 @@ public final class MappingLookup {
     private final Mapping mapping;
     private final int totalFieldsCount;
     private final IndexMode indexMode;
+    @Nullable
+    private final CompressedXContent mappingSource;
 
     // cached booleans from the _source field mapper
     private final boolean isSourceEnabled;
@@ -90,6 +93,19 @@ public final class MappingLookup {
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode) {
+        return fromMapping(mapping, indexMode, null);
+    }
+
+    /**
+     * Creates a new {@link MappingLookup} that also holds the source that the mapping was created from, which is what a dynamic
+     * update of an existing field is built from.
+     *
+     * @param mapping the mapping
+     * @param indexMode the mode of the index
+     * @param mappingSource the source of the mapping, if there is one
+     * @return the newly created lookup instance
+     */
+    public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode, @Nullable CompressedXContent mappingSource) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -102,7 +118,15 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughSources);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughSources, indexMode);
+        return new MappingLookup(
+            mapping,
+            newFieldMappers,
+            newObjectMappers,
+            newFieldAliasMappers,
+            newPassThroughSources,
+            indexMode,
+            mappingSource
+        );
     }
 
     private static void collect(
@@ -157,7 +181,7 @@ public final class MappingLookup {
         Collection<PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode, null);
     }
 
     public static MappingLookup fromMappers(
@@ -166,7 +190,7 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexMode);
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexMode, null);
     }
 
     private MappingLookup(
@@ -175,8 +199,10 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
         Collection<PassThroughFieldSource> passThroughSources,
-        IndexMode indexMode
+        IndexMode indexMode,
+        @Nullable CompressedXContent mappingSource
     ) {
+        this.mappingSource = mappingSource;
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
         Map<String, Mapper> fieldMappers = new HashMap<>();
@@ -415,6 +441,10 @@ public final class MappingLookup {
     }
 
     void checkLimits(IndexSettings settings) {
+        long nestedFieldsLimit = settings.getMappingNestedFieldsLimit();
+        if (nestedLookup.getNestedMappers().size() > nestedFieldsLimit) {
+            throw new MapperParsingException("Limit of nested fields [" + nestedFieldsLimit + "] has been exceeded");
+        }
         checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
@@ -706,6 +736,35 @@ public final class MappingLookup {
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }
 
+    /**
+     * Loads a hidden child document of a nested field from the parent's {@code _source}. Search's
+     * {@link #newSourceLoader} is unchanged: a child document stores no {@code _source} of its own, and a filter on the
+     * parent source could drop objects and shift the others, so only nested-child readers use this.
+     *
+     * <p>A child's object is found by the child's offset among its parent's children, so the parent's stored {@code _source}
+     * must still hold every object of the nested field. A mapping-level {@code _source} {@code includes} or {@code excludes}
+     * filters the stored source when it is indexed, and for example an {@code excludes} that leaves an object empty removes
+     * that object. The later objects then shift: a child would be given another object's slice, or reading it would fail. So this
+     * throws {@link IllegalStateException} for an index with a nested field and such a filter. Synthetic source cannot be filtered.
+     */
+    public SourceLoader newNestedChildSourceLoader(NestedDocuments nestedDocuments) {
+        if (nestedLookup == NestedLookup.EMPTY) {
+            return newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+        }
+        if (storesFilteredSource()) {
+            throw new IllegalStateException("cannot read nested child documents from the filtered _source of this index");
+        }
+        return new NestedChildSourceLoader(newSourceLoader(null, SourceFieldMetrics.NOOP, null), nestedDocuments, nestedLookup);
+    }
+
+    /**
+     * Whether the stored {@code _source} was filtered by the mapping's {@code includes} or {@code excludes} as it was indexed.
+     */
+    public boolean storesFilteredSource() {
+        SourceFieldMapper source = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return isSourceEnabled && isSourceSynthetic == false && source != null && source.isComplete() == false;
+    }
+
     private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {
         if (filter == null || filter.getExcludes().length == 0) {
             return filter;
@@ -760,6 +819,14 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
+    }
+
+    /**
+     * @return the source that the mapping was created from, or {@code null} if this lookup was not created with one
+     */
+    @Nullable
+    public CompressedXContent mappingSource() {
+        return mappingSource;
     }
 
     /**

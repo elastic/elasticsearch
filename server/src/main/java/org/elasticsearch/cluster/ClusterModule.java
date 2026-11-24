@@ -100,6 +100,7 @@ import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
+import org.elasticsearch.snapshots.SnapshotsInProgressEncryptedData;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
@@ -282,6 +283,12 @@ public class ClusterModule extends AbstractModule {
         List<Entry> entries = new ArrayList<>();
         // Cluster State
         registerClusterCustom(entries, SnapshotsInProgress.TYPE, SnapshotsInProgress::new, SnapshotsInProgress::readDiffFrom);
+        registerClusterCustom(
+            entries,
+            SnapshotsInProgressEncryptedData.TYPE,
+            SnapshotsInProgressEncryptedData::new,
+            SnapshotsInProgressEncryptedData::readDiffFrom
+        );
         registerClusterCustom(entries, RestoreInProgress.TYPE, RestoreInProgress::new, RestoreInProgress::readDiffFrom);
         registerClusterCustom(
             entries,

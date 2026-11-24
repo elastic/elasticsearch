@@ -56,7 +56,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -113,7 +112,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
     @Nullable
-    private final BatchModeRouter router;
+    private final BatchRouterSet router;
 
     BulkOperation(
         Task task,
@@ -198,7 +197,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        this.router = BatchModeRouter.create(
+        this.router = BatchRouterSet.create(
             bulkRequest,
             ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
             recycler
@@ -339,7 +338,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterState clusterState,
         Iterator<BulkItemRequest> it,
         BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator,
-        @Nullable BatchModeRouter batchRouter
+        @Nullable BatchRouterSet batchRouter
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
@@ -378,7 +377,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 TransportBulkAction.requireSliceRoutingWhenEnabled(docWriteRequest, ia, project::index);
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
-                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);
+                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index, clusterService.getSettings());
                 docWriteRequest.routing(project.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, project);
@@ -470,34 +469,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                     final ShardId shardId = entry.getKey();
                     final List<BulkItemRequest> requests = entry.getValue();
-
-                    // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
                     var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                    SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-
-                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                        shardId,
-                        splitShardCountSummary,
-                        bulkRequest.getRefreshPolicy(),
-                        requests.toArray(new BulkItemRequest[0]),
-                        bulkRequest.isSimulated()
-                    );
+                    BulkShardRequest bulkShardRequest = createBulkShardRequest(shardId, requests, indexMetadata, clusterState, nodeId);
 
                     SourceBatch shardBatch = shardBatches.get(shardId);
                     if (shardBatch != null) {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     }
 
-                    if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                        bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                    }
-                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                    bulkShardRequest.timeout(bulkRequest.timeout());
-                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                    if (task != null) {
-                        bulkShardRequest.setParentTask(nodeId, task.getId());
-                    }
-                    boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                    boolean redactSeqNo = indexMetadata.sequenceNumbersDisabled(clusterService.getSettings());
                     // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();
@@ -514,6 +494,39 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         } finally {
             Releasables.close(undispatchedBatches.values());
         }
+    }
+
+    /**
+     * Builds the request for one shard, carrying over the settings of the enclosing bulk request. The shard's batch, if any, is
+     * attached by the caller.
+     */
+    private BulkShardRequest createBulkShardRequest(
+        ShardId shardId,
+        List<BulkItemRequest> requests,
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        String nodeId
+    ) {
+        // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+        SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shardId,
+            splitShardCountSummary,
+            bulkRequest.getRefreshPolicy(),
+            requests.toArray(new BulkItemRequest[0]),
+            bulkRequest.isSimulated()
+        );
+        if (indexMetadata.getInferenceFields().isEmpty() == false) {
+            bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+        }
+        bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+        bulkShardRequest.timeout(bulkRequest.timeout());
+        bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+        if (task != null) {
+            bulkShardRequest.setParentTask(nodeId, task.getId());
+        }
+        return bulkShardRequest;
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {
@@ -930,12 +943,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
-     * Per-item failure handler passed to {@link BatchModeRouter#buildGrouping} for the columnar routing
+     * Per-item failure handler passed to {@link BatchRouterSet#buildGrouping} for the columnar routing
      * path. Mirrors the {@code catch (IllegalArgumentException | ...)} block in
      * {@link #groupRequestsByShards}: marks the item failed and discards it from the working request
-     * list. All items in the deferred batch receive the same exception because the columnar routing
-     * trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not expose which
-     * row caused the failure.
+     * list. All items of a batch whose rows could not be routed receive the same exception because the
+     * columnar routing trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not
+     * expose which row caused the failure; the items of the other batches of the bulk are not affected.
      */
     private void onBatchRoutingFailure(BulkItemRequest item, Exception e) {
         DocWriteRequest<?> request = item.request();

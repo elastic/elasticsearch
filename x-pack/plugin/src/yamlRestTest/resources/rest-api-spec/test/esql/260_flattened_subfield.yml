@@ -8,6 +8,13 @@ setup:
           parameters: []
           capabilities: [ optional_fields_v5, flattened_datatype ]
       reason: "Loading a subfield a flattened field must fail when unmapped_fields=load"
+  - skip:
+      reason: "A name under a flattened field is a field: see 266_flattened_keys"
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_keys ]
   - do:
       indices.create:
         index: index1

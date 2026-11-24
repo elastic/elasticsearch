@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
@@ -24,7 +25,12 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.eql.EqlClientException;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -42,9 +48,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -62,9 +70,11 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -75,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -83,6 +94,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -94,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
@@ -105,7 +118,11 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -153,14 +170,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
+    /**
+     * Words lexed as keywords in {@code FROM} mode (see {@code lexer/From.g4}). A named subquery with one of these names
+     * could be declared but never referenced, because {@code FROM <name>} would not parse.
+     */
+    private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
+
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
+        this.planSize = PlanSize.unlimited();
     }
 
     private int queryDepth = 0;
+    private boolean forkSeenInScope = false;
+    private final PlanSize planSize;
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
@@ -199,7 +225,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
             LetBinding binding = visitLetCommand(letCommandContext);
             if (seenNames.add(binding.name()) == false) {
-                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+                throw new ParsingException(source(letCommandContext), "duplicate LET subquery name [{}]", binding.name());
             }
             letBindings.add(binding);
         }
@@ -218,7 +244,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
         if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
-            throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+            throw new ParsingException(source, "LET subquery name [{}] must be lowercase", name);
+        }
+        // Named subqueries are referenced through FROM, so the name must also be usable there as an index name
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (n, reason) -> new ParsingException(source, "LET subquery name [{}] {}", n, reason)
+        );
+        if (FROM_MODE_KEYWORDS.contains(name)) {
+            throw new ParsingException(source, "LET subquery name [{}] is a reserved keyword in FROM", name);
         }
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);
@@ -384,6 +418,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Source src = source(ctx);
+        return child -> new NestedExpand(src, child, field);
+    }
+
+    @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
@@ -423,18 +464,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         IndexPattern table = new IndexPattern(source, visitIndexPattern(indexPatternsCtx));
         List<Subquery> subqueries = visitSubqueriesInFromCommand(subqueriesCtx);
-        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
-        if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
-                String id = c.getText();
-                Source src = source(c);
-                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
-                if (a != null) {
-                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
-                }
-            }
-        }
-        List<NamedExpression> metadataFields = List.of(metadataMap.values().toArray(NamedExpression[]::new));
+        List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(source, table, false, metadataFields, null, command);
         if (subqueries.isEmpty()) {
             if (metadataFields.isEmpty()) {
@@ -496,11 +526,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 context.maxCommandCount()
             );
         }
+        boolean forkSeenInEnclosingScope = forkSeenInScope;
+        forkSeenInScope = false;
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
+        forkSeenInScope = forkSeenInEnclosingScope;
+        plan.forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO must be the last command of the query"); });
         return plan;
     }
 
@@ -510,8 +544,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return visitFromCommand(ctx.fromCommand());
         } else if (ctx.timeSeriesCommand() != null) {
             return visitTimeSeriesCommand(ctx.timeSeriesCommand());
-        } else {
+        } else if (ctx.eqlCommand() != null) {
+            // EQL is a first-class source command: legal wherever FROM is, including subquery source
+            // position (FROM (EQL ...)). The same subquery rule also feeds visitLogicalInSubquery, so with
+            // the IN_SUBQUERY_EQL_LP lexer rule this enables WHERE x IN (EQL ...) too. Delegated execution
+            // rides the coordinator (see UnresolvedEqlRelation).
+            return visitEqlCommand(ctx.eqlCommand());
+        } else if (ctx.rowCommand() != null) {
             return visitRowCommand(ctx.rowCommand());
+        } else {
+            throw new IllegalStateException("Unexpected subquery source command: " + ctx.getText());
         }
     }
 
@@ -543,6 +585,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
+        Source source = source(ctx);
+        Source destinationSource = source(ctx.indexPattern());
+        String destination = visitIndexPattern(List.of(ctx.indexPattern()));
+        if (destination.contains(WILDCARD)) {
+            throw new ParsingException(destinationSource, "invalid index pattern [{}], * is not allowed in INTO", destination);
+        }
+        if (RemoteClusterAware.splitIndexName(destination).clusterAlias() != null) {
+            throw new ParsingException(
+                destinationSource,
+                "invalid index pattern [{}], remote clusters are not supported with INTO",
+                destination
+            );
+        }
+        if (destination.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                destinationSource,
+                "invalid index pattern [{}], index pattern selectors are not supported in INTO",
+                destination
+            );
+        }
+        return input -> new Into(source, input, destination);
     }
 
     @Override
@@ -822,12 +889,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final ParserUtils.Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
-        // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
+        // After METRICS_INFO, TS_INFO or DESCRIBE, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
-            boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
-            boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
+            boolean hasAggregate = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof Aggregate);
+            boolean hasPromqlCommand = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = hasOuterTimeSeries(input);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
+            boolean hasInfoCommand = IndependentSubqueryJoin.anyMatchInMainScope(
+                input,
+                p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe
+            );
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -836,7 +906,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     stats.aggregates(),
                     null,
                     new UnresolvedTimestamp(source(ctx)),
-                    TimeSeriesAggregate.Origin.TS_COMMAND
+                    TimeSeriesAggregate.Origin.TS_COMMAND,
+                    false
                 );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());
@@ -846,7 +917,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery}/{@link UnionAll} descendants) holds an
-     * {@link UnresolvedRelation} with a time-series {@link IndexMode}.
+     * {@link UnresolvedRelation} with a time-series {@link IndexMode}. The right side of an {@link IndependentSubqueryJoin}
+     * is not searched either.
      * <p>
      * Traversal stops at {@link Subquery} and {@link UnionAll} boundaries so that a {@code TS} command nested inside a
      * {@code FROM} subquery (e.g. {@code FROM (TS k8s), (FROM employees)}) does not cause the outer
@@ -861,7 +933,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (plan instanceof UnresolvedRelation ur && ur.indexMode().isTsdb()) {
             return true;
         }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             if (hasOuterTimeSeries(child)) {
                 return true;
             }
@@ -1016,16 +1088,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            // A JOIN subquery runs on its own, so its LOOKUP JOINs are left alone.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(
-                    LookupJoin.class,
-                    lj -> new LookupJoin(
-                        lj.source(),
-                        lj.left(),
-                        lj.right(),
-                        lj.config(),
-                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
-                    )
+                child = child.transformUpSkipBranch(
+                    IndependentSubqueryJoin::isSubqueryBranch,
+                    p -> p instanceof LookupJoin lj
+                        ? new LookupJoin(
+                            lj.source(),
+                            lj.left(),
+                            lj.right(),
+                            lj.config(),
+                            lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                        )
+                        : p
                 );
             }
 
@@ -1120,7 +1195,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals("EXTERNAL", options.keyFoldedMap()) : Map.of();
 
         // TEMPORARY SHIM: delete when the inline EXTERNAL command is retired in favour of
         // FROM <dataset>. External metadata is otherwise request-driven: a column appears only
@@ -1149,13 +1224,89 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new UnresolvedExternalRelation(source, tablePath, ConfigKeyValidator.withoutFrameworkKeys(config), metadataFields);
     }
 
+    @Override
+    public LogicalPlan visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) {
+        Source source = source(ctx);
+        // Indices are a first-class leading argument (like FROM), not a WITH option; resolution rides the
+        // shared field-caps path in ResolveEqlRelation.
+        IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
+        String query = eqlQuery(ctx.stringOrParameter());
+        EqlQueryIntrospection.Shape shape;
+        try {
+            shape = EqlQueryIntrospection.inspect(query);
+        } catch (RuntimeException e) {
+            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
+            String reason = e instanceof EqlClientException ? ": " + e.getMessage() : "";
+            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]{}", query, reason);
+        }
+        EqlRelation.Mode mode = switch (shape.mode()) {
+            case EVENT -> EqlRelation.Mode.EVENT;
+            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
+            case SAMPLE -> EqlRelation.Mode.SAMPLE;
+        };
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+        Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
+        if (config.containsKey("indices")) {
+            throw new ParsingException(source, "[indices] is a leading argument of the EQL command, not a WITH option");
+        }
+        EqlRequests.validateOptions(source, config);
+        // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
+        // ones the EQL delegate can populate and appends them to the output.
+        List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, mode, shape.hasExplicitLimit(), metadataFields);
+    }
+
+    private String eqlQuery(EsqlBaseParser.StringOrParameterContext ctx) {
+        Expression query = expression(ctx);
+        if (query == MISSING_PARAMETER) {
+            // The "Unknown query parameter" error is already recorded; surface it instead of a misleading type error.
+            throw ParsingException.combineParsingExceptions(context.params().parsingErrors());
+        }
+        if (query instanceof Literal literal && literal.value() instanceof BytesRef bytesRef && DataType.isString(literal.dataType())) {
+            return BytesRefs.toString(bytesRef);
+        }
+        String found = switch (query) {
+            case Literal literal when literal.value() == null -> "null";
+            case Literal literal when literal.value() instanceof List<?> -> "multi-valued " + literal.dataType().typeName();
+            case Literal literal -> literal.dataType().typeName();
+            case UnresolvedNamePattern pattern -> "pattern";
+            case UnresolvedAttribute identifier -> "identifier";
+            default -> throw new IllegalStateException("unexpected EQL query expression [" + query + "]");
+        };
+        throw new ParsingException(
+            source(ctx),
+            "Query parameter [{}] must be a string to be used as an EQL query, found [{}]",
+            ctx.getText(),
+            found
+        );
+    }
+
+    /**
+     * Parses a {@code METADATA} clause into its declared fields, rejecting a duplicate declaration at the offending
+     * field's source. Shared by {@code FROM} and the {@code EQL} source command, which declare metadata identically.
+     */
+    private List<NamedExpression> visitMetadataFields(EsqlBaseParser.MetadataContext metadataCtx) {
+        Map<String, NamedExpression> metadataMap = new LinkedHashMap<>();
+        if (metadataCtx != null) {
+            for (var c : metadataCtx.UNQUOTED_SOURCE()) {
+                String id = c.getText();
+                Source src = source(c);
+                NamedExpression a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                if (a != null) {
+                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
+                }
+            }
+        }
+        return List.of(metadataMap.values().toArray(NamedExpression[]::new));
+    }
+
     /**
      * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
      * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
      * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
      * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
      */
-    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+    private static Map<String, Object> foldOptionLiterals(String commandName, Map<String, Expression> entries) {
         if (entries.isEmpty()) {
             return Map.of();
         }
@@ -1167,19 +1318,26 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 if (literalValue == null) {
                     throw new ParsingException(
                         value.source(),
-                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        "{} option [{}] has null value; null is not a valid option value",
+                        commandName,
                         entry.getKey()
                     );
                 }
                 if (literalValue instanceof BytesRef bytesRef) {
                     folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
+                } else if (literal.dataType() == DataType.UNSIGNED_LONG && literalValue instanceof Long biased) {
+                    // An unsigned_long literal is stored biased (value - 2^63), so it would otherwise reach option
+                    // validation as a small wrapped Long (2^63 -> 0). Restore the true magnitude so range validation
+                    // sees the real, out-of-int-range value.
+                    folded.put(entry.getKey(), NumericUtils.unsignedLongAsBigInteger(biased));
                 } else {
                     folded.put(entry.getKey(), literalValue);
                 }
             } else {
                 throw new ParsingException(
                     value.source(),
-                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    "{} options must be literal values; option [{}] has expression [{}]",
+                    commandName,
                     entry.getKey(),
                     value.sourceText()
                 );
@@ -1220,12 +1378,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
         }
 
-        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
-            String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
-            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
+        if (ctx.type.getType() == EsqlBaseParser.DEV_JOIN_LEFT && ctx.subqueryJoinTarget() != null) {
+            return leftOuterSubqueryJoin(source, ctx.subqueryJoinTarget(), ctx.joinCondition());
         }
 
-        var target = ctx.joinTarget();
+        if (ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
+            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", ctx.type.getText());
+        }
+
+        var target = ctx.lookupJoinTarget();
         var rightPattern = visitIndexPattern(List.of(target.index));
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
@@ -1267,6 +1428,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
             mode
         );
+    }
+
+    /**
+     * Builds {@code LEFT OUTER JOIN (subquery) ON field1, field2}. Each field names a column on both sides.
+     */
+    private PlanFactory leftOuterSubqueryJoin(
+        Source source,
+        EsqlBaseParser.SubqueryJoinTargetContext target,
+        EsqlBaseParser.JoinConditionContext condition
+    ) {
+        if (target.subquery() == null) {
+            throw new ParsingException(
+                source(target),
+                "LEFT OUTER JOIN requires a subquery, found [{}]; use [(FROM {})] instead",
+                target.getText(),
+                target.getText()
+            );
+        }
+        var expressions = visitList(this, condition.booleanExpression(), Expression.class);
+        for (Expression expression : expressions) {
+            if (expression instanceof UnresolvedAttribute == false) {
+                throw new ParsingException(
+                    expression.source(),
+                    "JOIN on a subquery only supports a comma separated list of fields in ON, found [{}]",
+                    expression.sourceText()
+                );
+            }
+        }
+        List<Attribute> joinFields = processFieldBasedJoin(expressions).joinFields();
+        LogicalPlan subquery = visitSubquery(target.subquery());
+        return p -> new SubqueryJoin(source, p, subquery, new JoinConfig(JoinTypes.LEFT, joinFields, joinFields, null));
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
@@ -1405,6 +1597,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
+        boolean duplicate = forkSeenInScope;
+        forkSeenInScope = true;
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
         // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
         int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
@@ -1414,7 +1608,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans, List.of());
+            Fork fork = new Fork(source(ctx), subPlans, List.of());
+            if (duplicate) {
+                throw new VerificationException(List.of(Failure.fail(fork, Fork.MULTIPLE_FORKS_ERROR)));
+            }
+            planSize.checkPlanWidth(fork, QueryPragmas.MAX_PARSED_BRANCH_COUNT);
+            return fork;
         };
     }
 
@@ -2011,20 +2210,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan;
-        try {
-            // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(
-                promqlQuery,
-                params.startLiteral(),
-                params.endLiteral(),
-                promqlStartLine,
-                promqlStartColumn,
-                context.params()
-            );
-        } catch (ParsingException pe) {
-            throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
-        }
+        // The existing PromqlParser is used to parse the inner query
+        LogicalPlan promqlPlan = promqlParser.createStatement(
+            promqlQuery,
+            params.startLiteral(),
+            params.endLiteral(),
+            promqlStartLine,
+            promqlStartColumn,
+            context.params(),
+            context.viewName()
+        );
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
 
@@ -2049,6 +2244,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
+    }
+
+    @Override
+    public PlanFactory visitDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx) {
+        return input -> new Describe(source(ctx), input);
     }
 
     @Override

@@ -76,6 +76,14 @@ public class LongLongSwissHashTests extends ESTestCase {
         this.expectedIdPageCount = expectedIdPageCount;
     }
 
+    public void testPackedIdAndHashOffsets() {
+        assertEquals(2_147_483_640L, LongLongSwissHash.BigCore.idOffset(268_435_455));
+        assertEquals(2_147_483_648L, LongLongSwissHash.BigCore.idOffset(268_435_456));
+        assertEquals(4_294_967_288L, LongLongSwissHash.BigCore.idOffset(536_870_911));
+        assertEquals(4_294_967_296L, LongLongSwissHash.BigCore.idOffset(536_870_912));
+        assertEquals(8_589_934_584L, LongLongSwissHash.BigCore.idOffset(1_073_741_823));
+    }
+
     public void testValues() {
         Set<Long> values1 = randomValues(count);
         Set<Long> values2 = randomValues(count);
@@ -329,6 +337,14 @@ public class LongLongSwissHashTests extends ESTestCase {
                 var id2s = addKeys.apply(hash2, keys1, keys2);
                 assertArrayEquals(id1s, id2s);
             }
+        }
+    }
+
+    public void testExceedsMaxSize() {
+        try (var hash = new LongLongSwissHash(new TestRecycler(), NoopCircuitBreaker.INSTANCE)) {
+            int requested = randomIntBetween(LongLongSwissHash.MAX_SIZE + 1, Integer.MAX_VALUE);
+            var error = expectThrows(IllegalArgumentException.class, () -> hash.ensureCapacity(requested));
+            assertThat(error.getMessage(), equalTo("maximum hash size [939524096] exceeded: requested [" + requested + "]"));
         }
     }
 

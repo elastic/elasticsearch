@@ -120,6 +120,11 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
+    public void enablePooling() {
+        vector.enablePooling();
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }

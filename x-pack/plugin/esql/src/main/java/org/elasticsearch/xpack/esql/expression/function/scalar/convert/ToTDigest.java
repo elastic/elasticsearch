@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +36,7 @@ import java.util.Map;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
-public class ToTDigest extends AbstractConvertFunction {
+public class ToTDigest extends AbstractConvertFunction implements UnitAware.PreservesUnit {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

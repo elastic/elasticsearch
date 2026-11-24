@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
@@ -69,6 +70,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private boolean allowPartialResultsDefaulted;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -129,6 +131,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.allowPartialResultsDefaulted = source.allowPartialResultsDefaulted;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -195,9 +198,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         EsqlParser parser,
         SettingsValidationContext settingsValidationCtx,
         InferenceSettings inferenceSettings,
-        int maxCommandCount
+        EsqlFlags flags
     ) {
-        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, maxCommandCount);
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings, pragmas(), flags);
         QuerySettings.validate(statement, settingsValidationCtx);
         return statement;
     }
@@ -356,7 +359,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = false;
         return this;
+    }
+
+    /** Applies the cluster default, for a request that did not set {@code allow_partial_results}. */
+    public EsqlQueryRequest defaultAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = true;
+        return this;
+    }
+
+    /** Whether the request itself asked for partial results, as opposed to getting them from the cluster default. */
+    public boolean allowPartialResultsRequested() {
+        return Boolean.TRUE.equals(allowPartialResults) && allowPartialResultsDefaulted == false;
     }
 
     @Override

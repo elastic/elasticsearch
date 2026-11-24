@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
@@ -129,10 +130,27 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         }
     }
 
-    public void testTextDocValuesDisabledOnColumnarIndex() throws IOException {
+    /**
+     * {@code doc_values: false} is ignored (with a deprecation warning) on columnar indices, which always store doc values. The text
+     * field therefore has doc values, so the request is not rejected for lacking them as it would be on a standard index.
+     */
+    public void testTextDocValuesDisabledIsIgnoredOnColumnarIndex() throws IOException {
         String mode = randomFrom(COLUMNAR_MODES);
         for (String type : List.of("text", "match_only_text")) {
-            assertRejectedWithoutDocValues(mode + "-" + type, columnarSettings(mode), type, SAMPLE_VALUES.get(type));
+            String index = mode + "-" + type;
+            createMetricIndex(
+                index,
+                columnarSettings(mode),
+                mappingWithDocValuesDisabled(type),
+                expectWarnings(
+                    "The [doc_values] parameter of field [metric] is ignored in columnar index modes, because doc values are always "
+                        + "enabled. Remove the parameter."
+                )
+            );
+            indexDocuments(index, List.of(new Document(1, SAMPLE_VALUES.get(type))));
+            ResponseException e = expectThrows(ResponseException.class, () -> search(index, true));
+            assertEquals(e.getMessage(), 400, e.getResponse().getStatusLine().getStatusCode());
+            assertThat(e.getMessage(), not(containsString(rejectionMessage(type))));
         }
     }
 
@@ -350,13 +368,18 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     private void createMetricIndex(String index, Settings indexSettings, String metricMapping) throws IOException {
+        createMetricIndex(index, indexSettings, metricMapping, RequestOptions.DEFAULT);
+    }
+
+    private void createMetricIndex(String index, Settings indexSettings, String metricMapping, RequestOptions requestOptions)
+        throws IOException {
         createIndex(index, indexSettings, Strings.format("""
             "properties": {
               "@timestamp": { "type": "date" },
               "sort_key": { "type": "long" },
               "metric": %s
             }
-            """, metricMapping));
+            """, metricMapping), null, requestOptions);
     }
 
     private void assertRejected(String index, Settings indexSettings, String metricMapping, String type) throws IOException {
@@ -367,7 +390,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     private void assertRejectedWithoutDocValues(String index, Settings indexSettings, String type, Object sample) throws IOException {
-        createMetricIndex(index, indexSettings, mappingWithoutDocValues(type));
+        createMetricIndex(index, indexSettings, mappingWithDocValuesDisabled(type));
         indexDocuments(index, List.of(new Document(1, sample)));
         ResponseException e = expectThrows(ResponseException.class, () -> search(index, true));
         assertEquals(e.getMessage(), 400, e.getResponse().getStatusLine().getStatusCode());
@@ -389,7 +412,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         return Strings.format("{\"type\":\"%s\",\"doc_values\":true}", type);
     }
 
-    private static String mappingWithoutDocValues(String type) {
+    private static String mappingWithDocValuesDisabled(String type) {
         String scaling = type.equals("scaled_float") ? ",\"scaling_factor\":4" : "";
         return Strings.format("{\"type\":\"%s\",\"doc_values\":false%s}", type, scaling);
     }

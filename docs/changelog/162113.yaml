@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 162113
-summary: "Support GROK, DISSECT, MV_EXPAND and SAMPLE under unmapped_fields=\"LOAD_ALL\""
+summary: 'Support `GROK`, `DISSECT`, `MV_EXPAND` and `SAMPLE` under `unmapped_fields`="LOAD_ALL"'
 type: enhancement

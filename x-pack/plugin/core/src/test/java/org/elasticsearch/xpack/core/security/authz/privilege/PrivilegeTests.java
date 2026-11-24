@@ -72,6 +72,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -79,6 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class PrivilegeTests extends ESTestCase {
@@ -232,7 +234,19 @@ public class PrivilegeTests extends ESTestCase {
         IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[0]);
         IndexPrivilege first = values[randomIntBetween(0, values.length - 1)];
         IndexPrivilege second = values[randomIntBetween(0, values.length - 1)];
+        assertIndexCollapse(first, second);
+    }
 
+    /**
+     * {@code manage} and {@code manage_failure_store} resolve to separate privileges because they grant access to different selectors,
+     * yet both reuse the same automaton instance. The random pair in {@link #testIndexCollapse} rarely covers this case.
+     */
+    public void testIndexCollapseOfPrivilegesSharingAutomaton() {
+        assertThat(IndexPrivilege.MANAGE_FAILURE_STORE.getAutomaton(), sameInstance(IndexPrivilege.MANAGE.getAutomaton()));
+        assertIndexCollapse(IndexPrivilege.MANAGE, IndexPrivilege.MANAGE_FAILURE_STORE);
+    }
+
+    private static void assertIndexCollapse(IndexPrivilege first, IndexPrivilege second) {
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
         Set<IndexPrivilege> indices = IndexPrivilege.resolveBySelectorAccess(name);
 
@@ -244,7 +258,8 @@ public class PrivilegeTests extends ESTestCase {
             Iterator<IndexPrivilege> it = indices.iterator();
             IndexPrivilege index1 = it.next();
             IndexPrivilege index2 = it.next();
-            automaton = Automatons.unionAndMinimize(Set.of(index1.getAutomaton(), index2.getAutomaton()));
+            // a list rather than a set because privileges that differ only in selector access share the same automaton instance
+            automaton = Automatons.unionAndMinimize(List.of(index1.getAutomaton(), index2.getAutomaton()));
         } else {
             fail("indices.size() must be 1 or 2");
             assert false;
@@ -597,6 +612,82 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/rethrottle");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testReadBoostProfilesPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/boost/profile/get");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/boost/rule/get");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/boost/explain");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:admin/boost/profile/put");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:admin/boost/profile/delete");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_PROFILES, "cluster:monitor/something/else");
+    }
+
+    public void testReadBoostRulesPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/rule/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/explain");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/profile/get");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/profile/put");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/create");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/update");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/delete");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/something/else");
+    }
+
+    public void testMonitorCoversBoostReadActions() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MONITOR,
+            "cluster:monitor/boost/profile/get",
+            "cluster:monitor/boost/rule/get",
+            "cluster:monitor/boost/explain"
+        );
+    }
+
+    public void testManageBoostProfilesPrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_BOOST_PROFILES,
+            "cluster:monitor/boost/profile/get",
+            "cluster:admin/boost/profile/put",
+            "cluster:admin/boost/profile/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_BOOST_PROFILES,
+            "cluster:monitor/boost/rule/get",
+            "cluster:monitor/boost/explain",
+            "cluster:admin/boost/rule/create",
+            "cluster:admin/boost/rule/update",
+            "cluster:admin/boost/rule/delete",
+            "cluster:admin/something/else"
+        );
+    }
+
+    public void testManageBoostRulesPrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_BOOST_RULES,
+            "cluster:monitor/boost/rule/get",
+            "cluster:monitor/boost/explain",
+            "cluster:admin/boost/rule/create",
+            "cluster:admin/boost/rule/update",
+            "cluster:admin/boost/rule/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_BOOST_RULES,
+            "cluster:monitor/boost/profile/get",
+            "cluster:admin/boost/profile/put",
+            "cluster:admin/boost/profile/delete",
+            "cluster:admin/something/else"
+        );
+    }
+
+    public void testManageCoversBoostWriteActions() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE,
+            "cluster:admin/boost/profile/put",
+            "cluster:admin/boost/profile/delete",
+            "cluster:admin/boost/rule/create",
+            "cluster:admin/boost/rule/update",
+            "cluster:admin/boost/rule/delete"
+        );
     }
 
     public void testRamBytesUsed() {

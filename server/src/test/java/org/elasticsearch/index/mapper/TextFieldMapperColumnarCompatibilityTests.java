@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -386,7 +387,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testIndexPrefixesFallsBack() throws IOException {
@@ -397,7 +398,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         }));
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testMultiFieldWithNonColumnarMultiFieldFallsBack() throws IOException {
@@ -410,7 +411,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         }));
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testCopyToFallsBack() {
@@ -422,12 +423,13 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
 
     public void testDocValuesDisabledFallsBack() throws IOException {
         MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
             columnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "text").field("doc_values", false).endObject())
         );
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testMultiValueFalseBailsOutOnMultipleValues() throws IOException {
@@ -437,6 +439,29 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             b.endObject();
         }));
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":[\"a\",\"b\"]}"));
+    }
+
+    /**
+     * A nullability=false field whose array holds no non-null value goes in _ignored under on_failure=ignore, as on the row path. One
+     * batch packs as an ARRAY column and the other as a UNION column, the two kinds that hold arrays, so neither may skip the check.
+     * The last two batches have a document without the field, in a STRING column and in a UNION one, which go in _ignored too, as does
+     * a null document.
+     */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String values = "[\"" + randomAlphanumericOfLength(5) + "\",\"" + randomAlphanumericOfLength(5) + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "text").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("ARRAY column", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{\"f\":[]}")),
+            batch(
+                "UNION column",
+                1L,
+                doc("d1", 1L, "{\"f\":" + values + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("STRING column", 1L, doc("d1", 1L, "{\"f\":\"" + randomAlphanumericOfLength(5) + "\"}"), doc("d2", 2L, "{}")),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
+        );
     }
 
 }

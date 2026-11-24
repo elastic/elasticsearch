@@ -14,7 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.FilterInputStream;
@@ -27,8 +27,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL_SETTING;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -75,7 +75,7 @@ public class StatelessPreWarmingIT extends AbstractStatelessPluginIntegTestCase 
         Set<String> recoveringBCCs = new HashSet<>();
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(resolveIndex(indexName), 0);
-            var latestBCCName = BatchedCompoundCommit.blobNameFromGeneration(indexShard.commitStats().getGeneration());
+            var latestBCCName = BccBlob.blobNameFromGeneration(indexShard.commitStats().getGeneration());
             recoveringBCCs.add(latestBCCName);
         }
 

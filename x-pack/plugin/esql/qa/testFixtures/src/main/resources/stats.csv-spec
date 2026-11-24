@@ -902,6 +902,20 @@ from employees
 c:l | d:datetime
 ;
 
+countStarAndKeyCountGroupedTrunc
+from employees
+| eval d = date_trunc(1 year, birth_date)
+| stats c = count(*), k = count(d) by d
+| sort d desc
+| limit 3
+;
+
+c:l | k:l | d:datetime
+10  | 0   | null
+1   | 1   | 1965-01-01T00:00:00.000Z
+4   | 4   | 1964-01-01T00:00:00.000Z
+;
+
 countAllAndOtherStatGrouped
 from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
 
@@ -5011,4 +5025,30 @@ FROM employees
 n:long | cs:long  | languages.long:long
 2      | [6, 9]   | 1
 2      | [8, 11]  | 2
+;
+
+chainedStatsSameAggOverIdenticallyDefinedColumns
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+FROM employees
+| STATS c = COUNT(*) BY languages
+| STATS d = COUNT(*) BY c
+| STATS mc = MIN(c), md = MIN(d)
+;
+
+mc:long | md:long
+10      | 1
+;
+
+multiValuedGroupingKeysSameAggAfterFilter
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+ROW x = [1, 2], y = [1, 2]
+| STATS BY x, y
+| WHERE x < y
+| STATS mx = MAX(x), my = MAX(y)
+;
+
+mx:integer | my:integer
+1          | 2
 ;

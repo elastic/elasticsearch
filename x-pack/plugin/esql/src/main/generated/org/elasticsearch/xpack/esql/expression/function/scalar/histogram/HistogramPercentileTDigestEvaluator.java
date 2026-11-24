@@ -69,7 +69,7 @@ public final class HistogramPercentileTDigestEvaluator implements ExpressionEval
   }
 
   public DoubleBlock eval(int positionCount, TDigestBlock valueBlock, DoubleBlock percentileBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       TDigestHolder valueScratch = new TDigestHolder();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {

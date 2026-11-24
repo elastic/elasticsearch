@@ -6,7 +6,13 @@
 :::{include} column_metadata.md
 :::
 
+:::{include} exemplars.md
+:::
+
 :::{include} project_routing.md
+:::
+
+:::{include} time_series_reduce_per_index.md
 :::
 
 :::{include} time_zone.md

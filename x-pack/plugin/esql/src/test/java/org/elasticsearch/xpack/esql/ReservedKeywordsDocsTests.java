@@ -108,6 +108,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         KEYWORDS_BY_VERSION.put("9.4+", Set.of("METRICS_INFO", "MMR", "PROMQL", "REGISTERED_DOMAIN", "TS_INFO", "URI_PARTS", "USER_AGENT"));
         KEYWORDS_BY_VERSION.put("9.5+", Set.of("IP_LOCATION", "TS_COLLAPSE"));
         KEYWORDS_BY_VERSION.put("9.6+", Set.of("DEDUP", "DENSE_VECTOR", "HIGHLIGHT"));
+        KEYWORDS_BY_VERSION.put("9.7+", Set.of("DESCRIBE", "LET"));
     }
 
     /**
@@ -142,7 +143,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         Vocabulary vocabulary = EsqlBaseLexer.VOCABULARY;
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic == null || DEV_TOKEN.matcher(symbolic).matches() == false) {
+            if (symbolic == null || DEV_TOKEN.matcher(symbolic).find() == false) {
                 continue;
             }
             String literal = vocabulary.getLiteralName(tokenType);
@@ -215,7 +216,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         Set<String> keywords = new TreeSet<>();
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic != null && DEV_TOKEN.matcher(symbolic).matches()) {
+            if (symbolic != null && DEV_TOKEN.matcher(symbolic).find()) {
                 continue;
             }
             String word = keywordText(vocabulary, tokenType, symbolic);

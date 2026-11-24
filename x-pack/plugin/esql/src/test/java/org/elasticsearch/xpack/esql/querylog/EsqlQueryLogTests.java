@@ -15,6 +15,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.common.logging.activity.ActivityLogWriter;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -310,4 +312,15 @@ public class EsqlQueryLogTests extends ESTestCase {
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
 
+    public void testSinkDescriptionNamesTheProducer() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var queryLogger = new QueryLogger<>(
+            clusterSettings,
+            new EsqlLogProducer(),
+            name -> ActivityLogWriter.NOOP,
+            context -> new ActionLoggingFields(context) {}
+        );
+
+        assertThat(queryLogger.toString(), equalTo("query_log/EsqlLogProducer"));
+    }
 }

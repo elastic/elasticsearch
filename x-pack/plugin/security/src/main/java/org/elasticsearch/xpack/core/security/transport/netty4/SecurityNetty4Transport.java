@@ -168,7 +168,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 getStatsTracker(),
                 threadPool.relativeTimeInMillisSupplier(),
                 new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), SERVER),
-                new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+                new InboundAggregator(
+                    getInflightBreaker(),
+                    getRequestHandlers()::getHandler,
+                    getResponseHandlers()::getHandler,
+                    ignoreDeserializationErrors()
+                ),
                 this::inboundMessage
             ) {
                 @Override

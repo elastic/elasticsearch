@@ -187,17 +187,10 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                  * The held gauge, however, still carries the +preallocated admit recorded under
                  * category="preallocate[<label>]" at construction; left alone it would accumulate a permanent
                  * positive per preallocation. Cancel just that gauge entry by re-bucketing the reservation into
-                 * the uncategorized category. We use recordHeldDelta rather than addWithoutBreaking to avoid
-                 * transiently inflating the real used counter between the two corrections, which could otherwise
-                 * cause a concurrent checkParentLimit call to see a spuriously high value and trip the parent.
+                 * the uncategorized category. moveHeld only moves the gauge on a node breaker, so the used bytes
+                 * never change in between and a concurrent checkParentLimit call cannot see a spuriously high value.
                  */
-                if (next instanceof ChildMemoryCircuitBreaker cb) {
-                    cb.recordHeldDelta(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
-                    cb.recordHeldDelta(-preallocated, preallocateLabel);
-                } else {
-                    next.addWithoutBreaking(-preallocated, preallocateLabel);
-                    next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
-                }
+                next.moveHeld(preallocated, preallocateLabel, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED);
             }
             closed = true;
         }

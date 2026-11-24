@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -274,6 +276,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
         module.setReaderWrapper(s -> new Wrapper());
@@ -306,6 +309,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -336,6 +340,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -719,6 +724,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -749,6 +755,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -784,7 +791,7 @@ public class IndexModuleTests extends ESTestCase {
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
                 ShardRouting.Role.DEFAULT,
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
@@ -795,7 +802,8 @@ public class IndexModuleTests extends ESTestCase {
                 DiscoveryNodeUtils.create("_node_id", "_node_id"),
                 null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY
+                RetentionLeaseSyncer.EMPTY,
+                0
             );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test");
@@ -832,6 +840,34 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
+    public void testCreateShardThreadsLocalRecoveryRetriesIntoRecoveryState() throws IOException {
+        final IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
+        final IndexService indexService = newIndexService(module);
+        try {
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(
+                new ShardId("index", UUIDs.randomBase64UUID(random()), 0),
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT,
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            ).initialize("_node_id", null, -1);
+
+            final IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                7
+            );
+
+            assertThat(indexShard.recoveryState().getLocalRetries(), equalTo(7));
+        } finally {
+            closeIndexService(indexService);
+        }
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -839,7 +875,7 @@ public class IndexModuleTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shard = shard.initialize("node1", null, -1);
         return shard;
@@ -864,6 +900,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
     }

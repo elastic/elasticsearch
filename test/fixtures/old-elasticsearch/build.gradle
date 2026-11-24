@@ -10,7 +10,7 @@
 import org.elasticsearch.gradle.Architecture
 
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.docker-image-cache'
 apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 description = 'Testcontainers fixture for old Elasticsearch versions'
@@ -104,4 +104,6 @@ dependencies {
 
   runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   runtimeOnly("org.hamcrest:hamcrest:${versions.hamcrest}")
+
+  testImplementation project(":test:vintage-randomized-runner")
 }

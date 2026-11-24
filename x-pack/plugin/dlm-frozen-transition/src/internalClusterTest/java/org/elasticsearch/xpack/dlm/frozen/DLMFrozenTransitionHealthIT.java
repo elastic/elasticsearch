@@ -136,6 +136,20 @@ public class DLMFrozenTransitionHealthIT extends ESIntegTestCase {
             return;
         }
         try {
+            // The test ends once the indicator is GREEN, which can be while the transition is still mounting the
+            // searchable snapshot. Stop new transitions and wait for in-flight ones to finish, otherwise the mount
+            // can write to (and resurrect) the .snapshot-blob-cache system index after the test wipes indices,
+            // leaving its shard locked when InternalTestCluster asserts after the test.
+            updateClusterSettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false));
+            assertBusy(() -> {
+                for (DLMFrozenTransitionService service : internalCluster().getInstances(DLMFrozenTransitionService.class)) {
+                    assertFalse(service.getTransitionExecutor().hasSubmittedTransitions());
+                }
+            }, 60, TimeUnit.SECONDS);
+        } catch (Throwable t) {
+            logger.warn("Failed to wait for frozen transitions during cleanup", t);
+        }
+        try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
         } catch (Exception e) {
             logger.warn("Failed to clear default repository setting during cleanup", e);

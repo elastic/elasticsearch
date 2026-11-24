@@ -1,0 +1,5 @@
+pr: 165759
+summary: Skip sync dictionary reads in Parquet row-group filtering
+area: ES|QL
+type: bug
+issues: []

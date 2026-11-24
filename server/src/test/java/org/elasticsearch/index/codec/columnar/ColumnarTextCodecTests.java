@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -147,7 +148,7 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
     /** The doc-values format the field's values were actually written with. */
     private String docValuesFormat() throws IOException {
         final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(INDEX)).getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             String format = null;
             boolean found = false;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {

@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 
 import java.util.List;
@@ -38,8 +40,8 @@ import java.util.stream.Collectors;
  * This class then implements the {@link #apply(Task, String, ActionRequest, ActionListener, ActionFilterChain)}
  * method which checks for indices in the request that begin with a dot, emitting a deprecation
  * warning if they do and we are _not_ in stateless mode, or throwing an IllegalArgumentException if they do and we _are_ in stateless mode.
- * If the request is performed by a non-external user (operator, internal product, etc.) as defined by {@link #isInternalRequest()} then the
- * deprecation is emitted in non-stateless mode and an IllegalArgumentException is thrown in stateless mode. Otherwise, it is skipped.
+ * The check is skipped for internal requests as defined by {@link #isInternalRequest()}, and in non-stateless mode also for
+ * requests carrying the {@link Task#X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER} header.
  *
  * The indices for consideration are returned by the abstract {@link #getIndicesFromRequest(Object)}
  * method, which subclasses must implement.
@@ -114,6 +116,8 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         Setting.Property.Dynamic
     );
 
+    private static final Logger logger = LogManager.getLogger(DotPrefixValidator.class);
+
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);
 
     private final ThreadContext threadContext;
@@ -157,32 +161,51 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     }
 
     void validateIndices(@Nullable Set<String> indices) {
-        if (indices != null && isInternalRequest() == false) {
-            for (String index : indices) {
-                if (Strings.hasLength(index)) {
-                    char c = getFirstChar(index);
-                    if (c == '.') {
-                        final String strippedName = stripDateMath(index);
-                        if (IGNORED_INDEX_NAMES.contains(strippedName)) {
-                            continue;
-                        }
-                        if (systemIndices.isSystemName(strippedName)) {
-                            continue;
-                        }
-                        if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
-                            continue;
-                        }
-                        if (isStateless) {
-                            throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");
-                        } else {
-                            deprecationLogger.warn(
-                                DeprecationCategory.INDICES,
-                                "dot-prefix",
-                                "Index [{}] name begins with a dot (.), which is deprecated, "
-                                    + "and will not be allowed in a future Elasticsearch version.",
-                                index
+        if (indices == null || isInternalRequest()) {
+            return;
+        }
+        final String productOrigin = getProductOrigin();
+        if (isStateless == false && productOrigin != null) {
+            // The header only suppresses deprecation warnings for Elastic products in stateful mode.
+            return;
+        }
+        for (String index : indices) {
+            if (Strings.hasLength(index)) {
+                char c = getFirstChar(index);
+                if (c == '.') {
+                    final String strippedName = stripDateMath(index);
+                    if (IGNORED_INDEX_NAMES.contains(strippedName)) {
+                        continue;
+                    }
+                    if (systemIndices.isSystemName(strippedName)) {
+                        continue;
+                    }
+                    if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
+                        continue;
+                    }
+                    if (isStateless) {
+                        if (productOrigin != null) {
+                            // The product origin header is user-controlled and must not bypass this check. Until we are certain
+                            // that no Elastic product relies on it, log a warning instead of rejecting the request.
+                            // TODO: throw an IllegalArgumentException here as well
+                            logger.warn(
+                                "Index [{}] name beginning with a dot (.) is allowed only because of the [{}] header [{}]; "
+                                    + "this will be rejected in the future",
+                                index,
+                                Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
+                                productOrigin
                             );
+                            continue;
                         }
+                        throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");
+                    } else {
+                        deprecationLogger.warn(
+                            DeprecationCategory.INDICES,
+                            "dot-prefix",
+                            "Index [{}] name begins with a dot (.), which is deprecated, "
+                                + "and will not be allowed in a future Elasticsearch version.",
+                            index
+                        );
                     }
                 }
             }
@@ -218,11 +241,14 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         final String actionOrigin = threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME);
         final boolean isSystemContext = threadContext.isSystemContext();
         final boolean isInternalOrigin = Optional.ofNullable(actionOrigin).map(Strings::hasText).orElse(false);
-        final boolean hasElasticOriginHeader = Optional.ofNullable(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER))
-            .map(Strings::hasText)
-            .orElse(false);
         final boolean isOperator = "operator".equals(threadContext.getHeader("_security_privilege_category"));
-        return isSystemContext || isInternalOrigin || hasElasticOriginHeader || isOperator;
+        return isSystemContext || isInternalOrigin || isOperator;
+    }
+
+    @Nullable
+    String getProductOrigin() {
+        final String productOrigin = threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        return Strings.hasText(productOrigin) ? productOrigin : null;
     }
 
 }

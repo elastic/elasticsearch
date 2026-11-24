@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 161874
-summary: "[Inference API] Preserve status code for Amazon Bedrock service failures"
+summary: Preserve status code for Amazon Bedrock service failures
 type: bug

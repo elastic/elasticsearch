@@ -69,7 +69,7 @@ abstract class DatePartFunction extends EsqlConfigurationFunction implements Onl
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         return surrogate().fold(ctx);
     }
 

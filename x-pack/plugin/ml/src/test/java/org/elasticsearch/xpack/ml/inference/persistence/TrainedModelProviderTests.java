@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -596,7 +595,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                             var items = new MultiSearchResponse.Item[] {
                                 new MultiSearchResponse.Item(
                                     null,
-                                    new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
+                                    new SearchPhaseExecutionException("query", "all shards failed", List.of())
                                 ) };
                             var msResponse = new MultiSearchResponse(items, 0L);
                             try {

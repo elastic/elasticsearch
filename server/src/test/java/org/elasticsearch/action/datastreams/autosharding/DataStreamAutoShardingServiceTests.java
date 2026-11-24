@@ -1066,6 +1066,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 0,
                 0,
                 0,
+                0,
                 false,
                 0,
                 totalIndexingTimeSinceShardStartedInNanos,

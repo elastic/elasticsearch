@@ -67,6 +67,14 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         return ignoredSourceFormat;
     }
 
+    /**
+     * Converts the field's synthetic source values to block values, for a caller that finds those values somewhere other than
+     * the document's own {@code _ignored_source}.
+     */
+    public Reader<?> reader() {
+        return reader;
+    }
+
     @Override
     public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;

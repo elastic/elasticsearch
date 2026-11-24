@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import java.util.AbstractList;
+import java.util.Collection;
+
 /**
  * {@code @allocates} estimator for the {@code new Version(String)} constructor in this module's allowlist. The
  * {@code public static long} method matches the constructor's parameters and returns the heap cost of the object it
@@ -115,5 +118,43 @@ public final class VersionAllocationEstimators {
     public static long versionObjectBytes(VersionStringDocValuesField receiver, int index, Version defaultValue) {
         long decoded = decodedVersionBytes(receiver, index);
         return decoded == 0 ? 0 : addSat(decoded, VERSION_OBJECT_BYTES);
+    }
+
+    /** An iterator over a list: header, two ints and three references. */
+    private static final long ITERATOR_BYTES = pad8(OBJECT_HEADER + 2L * Integer.BYTES + 3L * REFERENCE_SIZE);
+
+    /**
+     * {@code iterator()} on the doc values. The method is inherited, so the lookup hands the receiver over as the list it is
+     * declared on.
+     */
+    public static long versionIteratorBytes(AbstractList<?> receiver) {
+        return receiver instanceof VersionScriptDocValues values ? versionIteratorBytes(values) : ITERATOR_BYTES;
+    }
+
+    /** {@code stream()} on the doc values, inherited the same way. */
+    public static long versionIteratorBytes(Collection<?> receiver) {
+        return receiver instanceof VersionScriptDocValues values ? versionIteratorBytes(values) : ITERATOR_BYTES;
+    }
+
+    /** The iterator plus every decoded String, charged up front. */
+    public static long versionIteratorBytes(VersionScriptDocValues receiver) {
+        long bytes = ITERATOR_BYTES;
+        if (receiver != null) {
+            for (int index = 0; index < receiver.size(); index++) {
+                bytes = addSat(bytes, decodedVersionBytes(receiver.field(), index));
+            }
+        }
+        return bytes;
+    }
+
+    /** {@code iterator()} on the field: the iterator plus every decoded {@link Version}, charged up front. */
+    public static long versionIteratorBytes(VersionStringDocValuesField receiver) {
+        long bytes = ITERATOR_BYTES;
+        if (receiver != null) {
+            for (int index = 0; index < receiver.size(); index++) {
+                bytes = addSat(bytes, versionObjectBytes(receiver, index, null));
+            }
+        }
+        return bytes;
     }
 }

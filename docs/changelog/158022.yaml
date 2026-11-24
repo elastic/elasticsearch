@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 158022
-summary: "[Inference API] Implement non-streaming chat completion support"
+summary: Implement non-streaming chat completion support
 type: enhancement

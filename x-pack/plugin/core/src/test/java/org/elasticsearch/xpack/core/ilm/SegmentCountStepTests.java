@@ -192,10 +192,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), null));
         Mockito.when(indicesSegmentResponse.getShardFailures())
-            .thenReturn(
-                new DefaultShardOperationFailedException[] {
-                    new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("fake")) }
-            );
+            .thenReturn(List.of(new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("fake"))));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 

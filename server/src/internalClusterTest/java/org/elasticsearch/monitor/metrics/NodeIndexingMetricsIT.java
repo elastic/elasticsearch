@@ -174,6 +174,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             "es.indexing.indexing.failed.version_conflict.total"
         );
         assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(0L));
+        var indexingFailedDueToTooManyDocsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.too_many_docs.total"
+        );
+        assertThat(indexingFailedDueToTooManyDocsTotal.getLong(), equalTo(0L));
     }
 
     public void testMetricsForIndexingVersionConflicts() {
@@ -260,6 +265,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             "es.indexing.indexing.failed.version_conflict.total"
         );
         assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(3L));
+        var indexingFailedDueToTooManyDocsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.too_many_docs.total"
+        );
+        assertThat(indexingFailedDueToTooManyDocsTotal.getLong(), equalTo(0L));
     }
 
     public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
@@ -323,6 +333,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             "es.indexing.indexing.failed.version_conflict.total"
         );
         assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(0L));
+        var indexingFailedDueToTooManyDocsTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.too_many_docs.total"
+        );
+        assertThat(indexingFailedDueToTooManyDocsTotal.getLong(), equalTo(0L));
 
         var deletionTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
         assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));
@@ -943,32 +958,5 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
-    }
-
-    public void testTokenCountMetricsAreRecorded() {
-        final String dataNode = internalCluster().startNode();
-        ensureStableCluster(1);
-
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-
-        assertAcked(prepareCreate("test").setMapping("message", "type=text").get());
-
-        // index a document with a text field that will be analyzed
-        var indexResponse = client(dataNode).index(new IndexRequest("test").id("doc_1").source(Map.of("message", "hello world test")))
-            .actionGet();
-        assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
-
-        // verify token count histogram has recordings
-        var measurements = plugin.getLongHistogramMeasurement("es.indexing.field.token_count.histogram");
-        assertFalse("Expected token count metrics to be recorded after indexing a text field", measurements.isEmpty());
-        // "hello world test" produces 3 tokens with the standard analyzer
-        assertTrue(
-            "Expected at least one measurement with value 3 for the 'message' field",
-            measurements.stream().anyMatch(m -> m.getLong() == 3)
-        );
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -259,7 +260,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         enrichPolicyMaintenanceService.initialize();
         return List.of(
             enrichPolicyLocks,
-            new EnrichCoordinatorProxyAction.Coordinator(services.client(), settings),
+            new EnrichCoordinatorProxyAction.Coordinator(
+                services.client(),
+                settings,
+                services.indicesService().getCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            ),
             enrichPolicyMaintenanceService,
             enrichPolicyExecutor,
             enrichCache

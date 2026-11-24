@@ -431,7 +431,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         }
     }
 
-    public void testTimestampFieldValueRangeXContentIsTheEncodingOfTheHeader() throws IOException {
+    public void testTimestampFieldValueRangeXContent() throws IOException {
         final var range = randomTimestampFieldValueRange();
 
         // what the header of a compound commit has always written for the range, which is persisted

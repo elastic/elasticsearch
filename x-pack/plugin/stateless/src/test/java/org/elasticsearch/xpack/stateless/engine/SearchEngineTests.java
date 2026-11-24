@@ -29,6 +29,7 @@ import org.elasticsearch.index.engine.Engine.SearcherSupplier;
 import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
@@ -791,7 +792,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
     public void testLastAcquiredSearcherTimestampIsRecorded() throws IOException {
         final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
         final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
-        final var searchTaskQueue = new DeterministicTaskQueue();
+        final var searchTaskQueue = new WallClockTaskQueue();
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
@@ -803,6 +804,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             try (var ignored = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertThat(searchEngine.getLastSearcherAcquiredTime(), is(0L));
+                assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), is(Long.MAX_VALUE));
             }
 
             try (
@@ -811,7 +813,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                     SplitShardCountSummary.IRRELEVANT
                 )
             ) {
-                assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
+                assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentWallClockMillis()));
+                assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), is(0L));
             }
         }
         assertWarnings(
@@ -823,7 +826,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
     public void testSetLastSearcherIsOnlyUpdatedWhenNewer() throws IOException {
         final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
         final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
-        final var searchTaskQueue = new DeterministicTaskQueue();
+        final var searchTaskQueue = new WallClockTaskQueue();
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
@@ -831,17 +834,54 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         ) {
             assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(0L));
 
-            searchEngine.setLastSearcherAcquiredTime(10L);
-            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(10L));
+            // values <= 0 mean that no search has happened
+            searchEngine.setLastSearcherAcquiredTime(randomLongBetween(Long.MIN_VALUE, 0L));
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(0L));
 
-            searchEngine.setLastSearcherAcquiredTime(5L);
-            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(10L));
+            final long now = searchTaskQueue.getCurrentWallClockMillis();
+            searchEngine.setLastSearcherAcquiredTime(now - 10L);
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(now - 10L));
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(10L));
+
+            searchEngine.setLastSearcherAcquiredTime(now - 20L);
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(now - 10L));
+
+            searchEngine.setLastSearcherAcquiredTime(randomLongBetween(Long.MIN_VALUE, 0L));
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(now - 10L));
+
+            // a timestamp in the future, e.g. from a node whose clock is ahead, counts as a search that happened right now
+            searchEngine.setLastSearcherAcquiredTime(randomLongBetween(now + 1, Long.MAX_VALUE));
+            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(now));
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(0L));
         }
 
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."
         );
+    }
+
+    /**
+     * A {@link DeterministicTaskQueue} whose thread pool has a wall clock with a realistic epoch offset from the relative clock. The
+     * default thread pool reports the same value for both clocks, so it cannot tell them apart.
+     */
+    private static class WallClockTaskQueue extends DeterministicTaskQueue {
+
+        private final long wallClockOffsetMillis = randomLongBetween(1_600_000_000_000L, 2_000_000_000_000L);
+
+        long getCurrentWallClockMillis() {
+            return getCurrentTimeMillis() + wallClockOffsetMillis;
+        }
+
+        @Override
+        public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
+            return new DeterministicThreadPool(runnableWrapper) {
+                @Override
+                public long absoluteTimeInMillis() {
+                    return getCurrentWallClockMillis();
+                }
+            };
+        }
     }
 
     /**

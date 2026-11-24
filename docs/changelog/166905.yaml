@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166905
+summary: Use wall-clock time when sharing the time of the last search across nodes
+type: bug

@@ -113,6 +113,8 @@ import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBl
  */
 public class SearchEngine extends Engine {
 
+    private static final long NO_SEARCHER_ACQUIRED = Long.MIN_VALUE;
+
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
         .newConcurrentMap();
@@ -136,7 +138,7 @@ public class SearchEngine extends Engine {
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-    private volatile long lastSearcherAcquiredTime;
+    private volatile long lastSearcherAcquiredTime = NO_SEARCHER_ACQUIRED;
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
@@ -638,9 +640,7 @@ public class SearchEngine extends Engine {
             listener.onResponse(null);
             return;
         }
-        long timeSinceLastSearcherWasAcquiredInMillis = lastSearcherAcquiredTime == 0L
-            ? Long.MAX_VALUE // never acquired a searcher
-            : engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime;
+        long timeSinceLastSearcherWasAcquiredInMillis = getMillisSinceLastSearcherAcquired();
         commitPrefetcher.maybePrefetchLatestCommit(
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
@@ -1180,20 +1180,36 @@ public class SearchEngine extends Engine {
         );
     }
 
-    public long getLastSearcherAcquiredTime() {
-        return lastSearcherAcquiredTime;
+    // visible for testing
+    long getMillisSinceLastSearcherAcquired() {
+        final long acquired = lastSearcherAcquiredTime;
+        return acquired == NO_SEARCHER_ACQUIRED
+            ? Long.MAX_VALUE // never acquired a searcher
+            : engineConfig.getThreadPool().relativeTimeInMillis() - acquired;
     }
 
-    public void setLastSearcherAcquiredTime(long lastSearcherAcquiredTime) {
-        long currentLastSearcherAcquiredTime = this.lastSearcherAcquiredTime;
-        if (lastSearcherAcquiredTime > currentLastSearcherAcquiredTime) {
-            logger.trace(
-                "update engine last searcher acquired time for [{}] from [{}] to [{}]",
-                shardId,
-                currentLastSearcherAcquiredTime,
-                lastSearcherAcquiredTime
-            );
-            this.lastSearcherAcquiredTime = lastSearcherAcquiredTime;
+    public long getLastSearcherAcquiredTime() {
+        final long acquired = lastSearcherAcquiredTime;
+        if (acquired == NO_SEARCHER_ACQUIRED) {
+            return 0L;
+        }
+        final ThreadPool threadPool = engineConfig.getThreadPool();
+        final long ageMillis = Math.max(0L, threadPool.relativeTimeInMillis() - acquired);
+        // never negative, because negative values are reserved for the markers in TransportFetchSearchShardInformationAction.Response
+        return Math.max(0L, threadPool.absoluteTimeInMillis() - ageMillis);
+    }
+
+    public void setLastSearcherAcquiredTime(long epochMillis) {
+        if (epochMillis <= 0) {
+            return;
+        }
+        final ThreadPool threadPool = engineConfig.getThreadPool();
+        // a timestamp in the future, due to clock skew between nodes, counts as a search that happened right now
+        final long ageMillis = Math.max(0L, threadPool.absoluteTimeInMillis() - epochMillis);
+        final long acquired = threadPool.relativeTimeInMillis() - ageMillis;
+        if (acquired > lastSearcherAcquiredTime) {
+            logger.trace("update engine last searcher acquired time for [{}] to [{}ms] ago", shardId, ageMillis);
+            lastSearcherAcquiredTime = acquired;
         }
     }
 

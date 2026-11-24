@@ -22,8 +22,8 @@ import java.io.IOException;
 public record NodeSearchCapacity(double nodeCompute, double threadBudget) implements Writeable {
 
     public NodeSearchCapacity {
-        assert Double.isFinite(nodeCompute) && nodeCompute >= 0d : "nodeCompute must be finite and non-negative: " + nodeCompute;
-        assert Double.isFinite(threadBudget) && threadBudget >= 0d : "threadBudget must be finite and non-negative: " + threadBudget;
+        assert Double.isFinite(nodeCompute) && nodeCompute > 0d : "nodeCompute must be finite and positive: " + nodeCompute;
+        assert Double.isFinite(threadBudget) && threadBudget > 0d : "threadBudget must be finite and positive: " + threadBudget;
     }
 
     public NodeSearchCapacity(StreamInput in) throws IOException {

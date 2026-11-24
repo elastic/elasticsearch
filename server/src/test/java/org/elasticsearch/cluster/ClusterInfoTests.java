@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
@@ -100,6 +101,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preSearchLoadMetricsCopy.getNodeSearchCapacities(), equalTo(Map.of()));
     }
 
+    public void testNodeSearchCapacityRejectsZero() {
+        final double positive = randomDoubleBetween(Math.nextUp(0.0d), 1.0d, true);
+        final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(0.0d, positive));
+        assertThat(nodeComputeError.getMessage(), containsString("nodeCompute must be finite and positive"));
+
+        final AssertionError threadBudgetError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(positive, 0.0d));
+        assertThat(threadBudgetError.getMessage(), containsString("threadBudget must be finite and positive"));
+    }
+
     public void testSearchLoadsAreTransportVersionGated() throws Exception {
         final var clusterInfo = ClusterInfo.builder().shardSearchLoads(randomPerShardDoubles()).build();
 
@@ -167,7 +177,13 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         final int numEntries = randomIntBetween(0, 128);
         final Map<String, NodeSearchCapacity> capacities = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            capacities.put(randomIdentifier(), new NodeSearchCapacity(randomDouble(), randomDouble()));
+            capacities.put(
+                randomIdentifier(),
+                new NodeSearchCapacity(
+                    randomDoubleBetween(Math.nextUp(0.0d), 1.0d, true),
+                    randomDoubleBetween(Math.nextUp(0.0d), 1.0d, true)
+                )
+            );
         }
         return capacities;
     }

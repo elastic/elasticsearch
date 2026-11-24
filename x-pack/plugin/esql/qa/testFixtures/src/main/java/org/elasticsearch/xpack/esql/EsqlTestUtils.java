@@ -1841,6 +1841,33 @@ public final class EsqlTestUtils {
     private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
 
     /**
+     * The first command of the query, with the {@code SET} statements before it, and without its subqueries.
+     */
+    private static String firstCommandWithSetStatements(String query) {
+        return query.split("\\|")[0].split(",\\s+\\(")[0].trim();
+    }
+
+    /**
+     * The length of the {@code SET} statements at the start of {@code first}, or 0 if there are none.
+     */
+    private static int setStatementsLength(String first) {
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        return setMatcher.find() ? setMatcher.end() : 0;
+    }
+
+    /**
+     * The source command ({@code FROM}, {@code TS} or {@code PROMQL}) the query starts with, after its {@code SET} statements
+     * and without its subqueries, or {@code null} if the query starts with another command.
+     */
+    public static String sourceCommand(String query) {
+        String first = firstCommandWithSetStatements(query);
+        String afterSetStatements = first.substring(setStatementsLength(first));
+        String command = afterSetStatements.trim().split("\\s+", 2)[0].trim();
+        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
+        return SourceCommand.isSourceCommand(command) ? afterSetStatements : null;
+    }
+
+    /**
      * Checks if a query contains any of the specified indices in its source command.
      * This is useful for determining if a query uses indices that are loaded into both clusters
      * (like enrich source indices or lookup indices), which may require special handling.
@@ -1850,21 +1877,10 @@ public final class EsqlTestUtils {
      * @return true if the query contains any of the specified indices, false otherwise
      */
     public static boolean queryContainsIndices(String query, Set<String> indicesToCheck) {
-        String[] commands = query.split("\\|");
-        // remove subqueries
-        String first = commands[0].split(",\\s+\\(")[0].trim();
-        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
-        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
-        int lastSetDelimiterPosition = -1;
-        if (setMatcher.find()) {
-            lastSetDelimiterPosition = setMatcher.end();
-        }
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
+        String sourceCommand = sourceCommand(query);
         // Split "FROM a, b, c" into "FROM" and "a, b, c"
-        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-        String command = commandParts[0].trim();
-        if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+        if (sourceCommand != null && sourceCommand.trim().split("\\s+", 2).length > 1) {
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(sourceCommand).collect(UnresolvedRelation.class);
             if (relations.isEmpty()) {
                 return false;
             }
@@ -1880,25 +1896,14 @@ public final class EsqlTestUtils {
     }
 
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
-        String[] commands = query.split("\\|");
-        // remove subqueries
-        String first = commands[0].split(",\\s+\\(")[0].trim();
-
+        String first = firstCommandWithSetStatements(query);
         // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
-        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
-        int lastSetDelimiterPosition = -1;
-        if (setMatcher.find()) {
-            lastSetDelimiterPosition = setMatcher.end();
-        }
-        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition);
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
-
-        // Split "FROM a, b, c" into "FROM" and "a, b, c"
-        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-
-        String command = commandParts[0].trim();
-        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
-        if (SourceCommand.isSourceCommand(command)) {
+        String setStatements = first.substring(0, setStatementsLength(first));
+        String afterSetStatements = sourceCommand(query);
+        if (afterSetStatements != null) {
+            // Split "FROM a, b, c" into "FROM" and "a, b, c"
+            String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+            String command = commandParts[0].trim();
             String commandArgs = commandParts[1].trim();
             List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
             if (relations.isEmpty()) {
@@ -2040,9 +2045,9 @@ public final class EsqlTestUtils {
 
     /**
      * Rewrites index names inside a LET-prefix query for cross-cluster testing.
-     * Real index names in LET binding bodies are converted to remote patterns ({@code *:index,index}).
-     * LET binding names used as FROM sources in subsequent bindings or the main query are left unchanged.
-     * Each {@code LET name = (subquery);} statement declares exactly one binding.
+     * Real index names in LET subquery bodies are converted to remote patterns ({@code *:index,index}).
+     * LET subquery names used as FROM sources in subsequent named subqueries or the main query are left unchanged.
+     * Each {@code LET name = (subquery);} statement declares exactly one named subquery.
      */
     private static String convertLetQueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
         // Split at the top-level ';' to separate the LET statements from the main query.
@@ -2053,7 +2058,7 @@ public final class EsqlTestUtils {
         }
         String mainQuery = String.join(";", parts.subList(letCount, parts.size())).strip();
 
-        // First pass: collect all binding names so we can skip rewriting them as remote indices.
+        // First pass: collect all subquery names so we can skip rewriting them as remote indices.
         Set<String> letBindingNames = new HashSet<>();
         List<String[]> parsedBindings = new ArrayList<>();
         for (String letStatement : parts.subList(0, letCount)) {
@@ -2065,7 +2070,7 @@ public final class EsqlTestUtils {
             parsedBindings.add(new String[] { name, binding.substring(eqIdx + 1).strip() });
         }
 
-        // Second pass: rewrite each binding body, leaving LET binding name references unchanged.
+        // Second pass: rewrite each subquery body, leaving LET subquery name references unchanged.
         StringBuilder result = new StringBuilder();
         for (String[] parsedBinding : parsedBindings) {
             String bodyWithParens = parsedBinding[1];
@@ -2076,7 +2081,7 @@ public final class EsqlTestUtils {
             result.append("LET ").append(parsedBinding[0]).append(" = (").append(rewrittenBody).append(");\n");
         }
 
-        // Rewrite the main query, treating LET binding names as non-indices.
+        // Rewrite the main query, treating LET subquery names as non-indices.
         if (mainQuery.isEmpty() == false) {
             result.append(convertSubqueryToRemoteIndices(mainQuery, bothClusterIndices, letBindingNames));
         }
@@ -2147,7 +2152,7 @@ public final class EsqlTestUtils {
                 String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices, letBindingNames);
                 transformed.add("(" + transformedSubquery + ")");
             } else if (letBindingNames.contains(unquoteIndexName(indexPatternOrSubquery))) {
-                // This source is a LET binding name, not a real ES index — leave it unchanged.
+                // This source is a LET subquery name, not a real ES index — leave it unchanged.
                 transformed.add(indexPatternOrSubquery);
             } else {
                 // Indices that live on both clusters (enrich source / lookup indices) must become
@@ -2188,7 +2193,7 @@ public final class EsqlTestUtils {
      * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
      *
      * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
-     * @param letBindingNames    LET binding names, which are not real indices and must not be rewritten.
+     * @param letBindingNames    LET subquery names, which are not real indices and must not be rewritten.
      */
     private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices, Set<String> letBindingNames) {
         StringBuilder result = new StringBuilder();

@@ -32,8 +32,11 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER
  * REST handler for {@code POST /_query/stream}: runs an ES|QL query and streams the result to the client as NDJSON
  * as it is produced, one row per line. See {@link EsqlStreamResponseListener} for the response shape.
  *
- * <p>The body is the same as for {@code POST /_query}, except that {@code columnar} is not supported. The query runs
- * only for as long as the connection stays open: a disconnect cancels it.</p>
+ * <p>The body is the same as for {@code POST /_query}, except that {@code columnar} is not supported, plus three fields
+ * that only this API has: {@code max_rows} and {@code max_bytes}, which end the response early, and {@code store}, where
+ * only {@code none} is supported. {@code max_rows} must be a whole JSON number. {@code max_bytes} is either a whole JSON
+ * number, which is a count of bytes, or a size string with a unit such as {@code "1mb"}. The query runs only for as long
+ * as the response is open: a disconnect cancels it, and so does a response that ends at a limit.</p>
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestEsqlStreamQueryAction extends BaseRestHandler {
@@ -72,14 +75,23 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        EsqlQueryRequest esqlRequest;
+        RequestXContent.ParsedStreamRequest parsed;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = RequestXContent.parseSync(parser);
+            parsed = RequestXContent.parseStream(parser);
         }
-        return streamingChannelConsumer(esqlRequest, request, client);
+        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client);
     }
 
     static RestChannelConsumer streamingChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
+        return streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, client);
+    }
+
+    static RestChannelConsumer streamingChannelConsumer(
+        EsqlQueryRequest esqlRequest,
+        StreamOptions options,
+        RestRequest request,
+        NodeClient client
+    ) {
         if (esqlRequest.columnar()) {
             throw new IllegalArgumentException("[columnar] cannot be used with [POST /_query/stream]");
         }
@@ -95,7 +107,11 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
-            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel, client.threadPool().getThreadContext());
+            EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(
+                channel,
+                client.threadPool().getThreadContext(),
+                options
+            );
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(
                 esqlRequest,
                 restListener.resultStreamListener(),

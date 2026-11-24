@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166806
+summary: Heap-derived discovered files default and a higher listed-objects cap
+type: enhancement

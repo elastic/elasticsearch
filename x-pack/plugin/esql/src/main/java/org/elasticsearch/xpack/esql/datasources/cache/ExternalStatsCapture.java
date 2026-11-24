@@ -59,9 +59,11 @@ public final class ExternalStatsCapture {
 
     /**
      * Appends a contribution to a sink named outright rather than found on the current thread. Used by
-     * {@link StripeStatsStaging}, which stages a stripe from whichever chunk's parser thread completes its
-     * cover — a thread the binding owner never bound, since it binds the thread that drives the iteration.
-     * This is the one definition of the append, so both entry points share the list's identity and locking.
+     * {@link StripeStatsStaging}, and needed for {@link StripeStatsStaging#flush}: a stripe staged from
+     * {@code contribute} runs on a parser thread, which both coordinators DO bind — they bind around the
+     * per-chunk {@code reader.read(...).close()} they drive — but the flush runs on the thread that closes the
+     * read, which nothing bound. This is the one definition of the append, so both entry points share the
+     * list's identity and locking.
      */
     static void recordTo(ConcurrentMap<String, List<Map<String, Object>>> sink, String filePath, Map<String, Object> stats) {
         if (filePath == null || stats == null || stats.isEmpty()) {

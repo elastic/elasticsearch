@@ -1796,7 +1796,8 @@ public class IndexSettingsTests extends ESTestCase {
         for (IndexMode mode : IndexMode.values()) {
             Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
             if (mode == IndexMode.TIME_SERIES) {
-                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
+                builder.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim");
             }
             Settings settings = builder.build();
             boolean expectedForMode = mode.isStrictColumnar()
@@ -1808,6 +1809,26 @@ public class IndexSettingsTests extends ESTestCase {
             );
         }
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.EMPTY));
+    }
+
+    /**
+     * Time series indices that route on {@code index.routing_path} build their {@code _tsid} while parsing each document, which the
+     * batch path can't do, so batch indexing is off by default for them. An explicit opt-in is still honored.
+     */
+    public void testBatchIndexingDefaultsToFalseForRoutingPathTimeSeries() {
+        Settings routingPath = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(routingPath));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(routingPath));
+        assertFalse(IndexSettingsModule.newIndexSettings("index", routingPath).isBatchIndexingEnabled());
+
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings explicitOptIn = Settings.builder().put(routingPath).put(IndexSettings.BATCH_INDEXING.getKey(), true).build();
+        assertTrue(IndexSettings.BATCH_INDEXING.get(explicitOptIn));
+        assertTrue(IndexSettingsModule.newIndexSettings("index", explicitOptIn).isBatchIndexingEnabled());
     }
 
     public void testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting() {

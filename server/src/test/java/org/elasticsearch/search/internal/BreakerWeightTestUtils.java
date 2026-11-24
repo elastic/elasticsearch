@@ -15,6 +15,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -42,6 +43,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * to the request breaker, and of the estimators that size those charges.
  */
 final class BreakerWeightTestUtils {
+
+    /** The class of the doc id range iterator behind {@link DocIdSetIterator#all}, private to Lucene. */
+    private static final Class<? extends DocIdSetIterator> DOC_ID_RANGE_CLASS = DocIdSetIterator.all(1).getClass();
 
     private BreakerWeightTestUtils() {}
 
@@ -88,9 +92,10 @@ final class BreakerWeightTestUtils {
             }
             long charged = estimator.bytesForLeaf(ctx, supplier, Long.MAX_VALUE);
             boolean matchesNothing = supplier.cost() == 0;
-            long retained = RamUsageTester.ramUsed(supplier.get(Long.MAX_VALUE).iterator());
-            // An intersection that matches nothing keeps an empty array, which is not charged.
-            if (matchesNothing == false) {
+            DocIdSetIterator iterator = supplier.get(Long.MAX_VALUE).iterator();
+            long retained = RamUsageTester.ramUsed(iterator);
+            // An intersection that matches nothing keeps an empty array, and a match-all path iterates a doc id range: neither is charged.
+            if (matchesNothing == false && isDocIdRange(iterator) == false) {
                 assertThat(
                     String.format(Locale.ROOT, "%s [maxDoc=%d, charged=%d, retained=%d]", query, ctx.reader().maxDoc(), charged, retained),
                     charged,
@@ -98,6 +103,11 @@ final class BreakerWeightTestUtils {
                 );
             }
         }
+    }
+
+    /** Whether {@code iterator} iterates a doc id range, as from {@link DocIdSetIterator#all}, which keeps no doc id set. */
+    static boolean isDocIdRange(DocIdSetIterator iterator) {
+        return iterator.getClass() == DOC_ID_RANGE_CLASS;
     }
 
     /** Request breaker that keeps track of what is in use, the peak, and every accepted reservation. A negative limit never trips. */

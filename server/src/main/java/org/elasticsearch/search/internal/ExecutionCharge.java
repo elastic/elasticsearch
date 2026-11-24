@@ -85,7 +85,7 @@ record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
             return points(pointInSetQuery.getField());
         }
         if (query instanceof RangeFieldQuery) {
-            return points(fieldOf(query));
+            return points(new RangeFieldExecutionEstimator(fieldOf(query)));
         }
         final IndexedSpatialQueries.Kind spatialKind = IndexedSpatialQueries.kindOf(query);
         if (spatialKind == null) {

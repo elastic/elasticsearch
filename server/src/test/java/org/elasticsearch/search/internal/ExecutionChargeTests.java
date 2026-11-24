@@ -73,11 +73,11 @@ public class ExecutionChargeTests extends ESTestCase {
     public void testRangeField() {
         long[] min = { 1 };
         long[] max = { 10 };
-        assertCharged(LongRange.newIntersectsQuery(FIELD, min, max), PointsExecutionEstimator.class);
-        assertCharged(LongRange.newWithinQuery(FIELD, min, max), PointsExecutionEstimator.class);
-        assertCharged(LongRange.newContainsQuery(FIELD, min, max), PointsExecutionEstimator.class);
-        assertCharged(LongRange.newCrossesQuery(FIELD, min, max), PointsExecutionEstimator.class);
-        assertCharged(IntRange.newIntersectsQuery(FIELD, new int[] { 1 }, new int[] { 10 }), PointsExecutionEstimator.class);
+        assertCharged(LongRange.newIntersectsQuery(FIELD, min, max), RangeFieldExecutionEstimator.class);
+        assertCharged(LongRange.newWithinQuery(FIELD, min, max), RangeFieldExecutionEstimator.class);
+        assertCharged(LongRange.newContainsQuery(FIELD, min, max), RangeFieldExecutionEstimator.class);
+        assertCharged(LongRange.newCrossesQuery(FIELD, min, max), RangeFieldExecutionEstimator.class);
+        assertCharged(IntRange.newIntersectsQuery(FIELD, new int[] { 1 }, new int[] { 10 }), RangeFieldExecutionEstimator.class);
     }
 
     public void testRangeFieldIsFoundThroughVisit() {

@@ -91,6 +91,13 @@ public class PointsExecutionBreakerTests extends ESTestCase {
         assertChargesThenReleases(LongRange.newIntersectsQuery(RANGE_FIELD, new long[] { 100 }, new long[] { 1500 }));
     }
 
+    public void testRangeFieldQueryCoveringLeafChargesNothing() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        Query query = LongRange.newIntersectsQuery(RANGE_FIELD, new long[] { -1 }, new long[] { NUM_DOCS + 20 });
+        assertThat(runSearch(query, breaker), equalTo(NUM_DOCS));
+        assertThat("a range covering every document's range matches the leaf without building a set", breaker.peak(), equalTo(0L));
+    }
+
     public void testDistanceQueryChargesAndReleases() throws IOException {
         assertChargesThenReleases(LatLonPoint.newDistanceQuery(GEO_FIELD, 0, 0, 500_000));
     }

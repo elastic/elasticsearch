@@ -44,7 +44,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
 
-    public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> SLOW_HANDOFF_THRESHOLD_SETTING = Setting.timeSetting(
         "stateless.cluster.primary_relocation.slow_handoff_warning_threshold",
         TimeValue.timeValueSeconds(5),
         Setting.Property.Dynamic,

@@ -143,7 +143,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger.MAX_SLOW_OPERATION_THREAD_DUMPS;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
@@ -911,7 +911,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         value = "org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger:INFO"
     )
     public void testSlowRelocationLogsRepeatedHotThreadsDumps() {
-        final var nodeSettings = Settings.builder().put(SLOW_RELOCATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
+        final var nodeSettings = Settings.builder().put(SLOW_HANDOFF_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
         final var indexNodeA = startMasterAndIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
         createIndex(indexName, 1, 0);

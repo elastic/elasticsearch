@@ -88,7 +88,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_HANDOFF_THRESHOLD_SETTING;
 
 /// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
 /// See [StatelessPrimaryRelocationTargetService] for target side logic.
@@ -140,7 +140,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     @Nullable
     private final ThrottledPrimaryRelocations throttledPrimaryRelocations;
 
-    private volatile TimeValue slowRelocationWarningThreshold;
+    private volatile TimeValue slowHandoffWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
     private volatile TimeValue preFlushSlowUploadQueueThreshold;
     private volatile TimeValue prewarmWaitTimeout;
@@ -175,7 +175,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             : null;
 
         clusterService.getClusterSettings()
-            .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+            .initializeAndWatch(SLOW_HANDOFF_THRESHOLD_SETTING, value -> this.slowHandoffWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
@@ -346,7 +346,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         final var threadDumpListener = SlowRelocationLogger.slowShardOperationListener(
             indexShard,
             request.targetAllocationId(),
-            slowRelocationWarningThreshold,
+            slowHandoffWarningThreshold,
             "flush and acquire permits",
             indexShard::getActiveOperationsCount
         );
@@ -518,7 +518,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         relocationSourceMetricsBuilder.recordSecondFlushDuration(secondFlushDuration.millis());
                         relocationSourceMetricsBuilder.recordHandoffDuration(handOffDuration.millis());
 
-                        boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
+                        boolean aboveThreshold = relocationDuration.getMillis() >= slowHandoffWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
                             final var indexingStats = indexShard.indexingStats().getTotal();
                             final boolean shuttingDown = isShuttingDown();
@@ -555,7 +555,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                                 secondFlushDuration,
                                 handOffDuration,
                                 aboveThreshold ? "above" : "below",
-                                slowRelocationWarningThreshold
+                                slowHandoffWarningThreshold
                             ).withFields(fields);
                             logger.log(Level.INFO, message);
                         }

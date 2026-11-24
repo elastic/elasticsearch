@@ -258,12 +258,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final Resource resource;
         private final ByteString resourceSchemaUrl;
         private final TsidBuilder resourceTsidBuilder;
+        private final TargetIndex resourceTargetIndex;
         private final Map<Hash128, ScopeGroup> scopes;
 
         ResourceGroup(Resource resource, ByteString resourceSchemaUrl, TsidBuilder resourceTsidBuilder) {
             this.resource = resource;
             this.resourceSchemaUrl = resourceSchemaUrl;
             this.resourceTsidBuilder = resourceTsidBuilder;
+            this.resourceTargetIndex = TargetIndex.defaultForMetrics().withAttributeOverrides(resource.getAttributesList());
             this.scopes = new HashMap<>();
         }
 
@@ -305,7 +307,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final InstrumentationScope scope;
         private final ByteString scopeSchemaUrl;
         private final TsidBuilder scopeTsidBuilder;
-        private final @Nullable String scopeRoutingDataset;
+        private final TargetIndex scopeTargetIndex;
         // index -> timestamp -> dataPointGroupHash -> DataPointGroup
         private final Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroupsByIndexAndTimestamp;
 
@@ -314,7 +316,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             this.scope = scope;
             this.scopeSchemaUrl = scopeSchemaUrl;
             this.scopeTsidBuilder = scopeTsidBuilder;
-            this.scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
+            this.scopeTargetIndex = resourceGroup.resourceTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                .maybeApplyScopeBasedRouting(scope);
             this.dataPointGroupsByIndexAndTimestamp = new HashMap<>();
         }
 
@@ -348,13 +351,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             dataPointGroupTsidBuilder.addAll(scopeTsidBuilder);
             // in addition to the fields that go into the _tsid, we also need to group by timestamp and start timestamp
             Hash128 timestamp = new Hash128(dataPoint.getTimestampUnixNano(), dataPoint.getStartTimestampUnixNano());
-            TargetIndex targetIndex = TargetIndex.evaluate(
-                TargetIndex.TYPE_METRICS,
-                dataPoint.getAttributes(),
-                scopeRoutingDataset,
-                scope.getAttributesList(),
-                resourceGroup.resource.getAttributesList()
-            );
+            TargetIndex targetIndex = scopeTargetIndex.withAttributeOverrides(dataPoint.getAttributes());
             var dataPointGroupsByTimestamp = dataPointGroupsByIndexAndTimestamp.computeIfAbsent(targetIndex, k -> new HashMap<>());
             var dataPointGroups = dataPointGroupsByTimestamp.computeIfAbsent(timestamp, k -> new HashMap<>());
             DataPointGroup dataPointGroup = dataPointGroups.get(dataPointGroupHash);

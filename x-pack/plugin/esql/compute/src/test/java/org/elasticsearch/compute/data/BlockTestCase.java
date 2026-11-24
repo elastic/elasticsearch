@@ -892,6 +892,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         assertThat(block.elementType(), equalTo(expectedElementType()));
         assertThat(block.mayHaveNulls(), equalTo(hasNull));
         assertThat(block.areAllValuesNull(), equalTo(allNull));
+        assertThat(block.nullValuesCount(), equalTo((int) expected.stream().filter(Objects::isNull).count()));
         assertThat(block.doesHaveMultivaluedFields(), equalTo(hasMultivalued));
         if (block.mayHaveMultivaluedFields() == false) {
             assertThat(hasMultivalued, equalTo(false));

@@ -7285,6 +7285,32 @@ id:keyword | c:long | _unmapped_fields:_source
 1          | 4      | {any}
 ;
 
+// The same without a SORT before DEDUP, which makes it the plain grouped limit and not the grouped top-N.
+disabledSourceWithIncludesAndExcludesSiblings_withDedupUnsorted
+required_capability: optional_fields_load_all_single_source_column
+required_capability: source_field_mapping
+required_capability: optional_fields_load_all_compound_output_limit_by_dedup
+required_capability: dedup_command
+required_capability: optional_fields_load_all_dedup_compares_unmapped_fields
+required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_excludes, unmapped_source_includes
+| WHERE id::long == 1 OR id::long == 5
+| KEEP id, a.b*, arr*
+| DEDUP
+| INLINE STATS c = COUNT(*)
+| SORT id::long
+| LIMIT 1
+;
+
+id:keyword | c:long | _unmapped_fields:_source
+1          | 4      | {any}
+;
+
 
 ###########################################################################
 # The new commands over fields that are mapped in one index and not another #

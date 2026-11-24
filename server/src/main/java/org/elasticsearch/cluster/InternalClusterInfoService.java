@@ -375,9 +375,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchSearchCopyDemands() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                searchCopyDemandCollector.collectSearchCopyDemands(
-                    clusterStateSupplier.get(),
-                    ActionListener.releaseAfter(new ActionListener<>() {
+                final ActionListener<Map<ClusterInfo.NodeAndShard, SearchCopyDemand>> listener = ActionListener.releaseAfter(
+                    new ActionListener<>() {
                         @Override
                         public void onResponse(Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands) {
                             searchCopyDemands = demands;
@@ -388,28 +387,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             logger.warn("failed to fetch search copy demands", e);
                             searchCopyDemands = Map.of();
                         }
-                    }, fetchRefs.acquire())
+                    },
+                    fetchRefs.acquire()
                 );
+                // A throw before the collector notifies its listener must still release the refresh reference.
+                ActionListener.run(listener, l -> searchCopyDemandCollector.collectSearchCopyDemands(clusterStateSupplier.get(), l));
             }
         }
 
         private void fetchNodeSearchCapacities() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                nodeSearchCapacityCollector.collectNodeSearchCapacities(
-                    clusterStateSupplier.get(),
-                    ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Map<String, NodeSearchCapacity> capacities) {
-                            nodeSearchCapacities = capacities;
-                        }
+                final ActionListener<Map<String, NodeSearchCapacity>> listener = ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Map<String, NodeSearchCapacity> capacities) {
+                        nodeSearchCapacities = capacities;
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("failed to fetch node search capacities", e);
-                            nodeSearchCapacities = Map.of();
-                        }
-                    }, fetchRefs.acquire())
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to fetch node search capacities", e);
+                        nodeSearchCapacities = Map.of();
+                    }
+                }, fetchRefs.acquire());
+                // A throw before the collector notifies its listener must still release the refresh reference.
+                ActionListener.run(listener, l -> nodeSearchCapacityCollector.collectNodeSearchCapacities(clusterStateSupplier.get(), l));
             }
         }
 

@@ -381,6 +381,73 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         }
     }
 
+    public void testSearchCopyDemandCollectorReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
+            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(nodeAndShard, new SearchCopyDemand(1.25d, 3.0d));
+            final SearchCopyDemandCollector searchCopyDemandCollector = mock(SearchCopyDemandCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated search copy demand failure"); }).when(
+                searchCopyDemandCollector
+            ).collectSearchCopyDemands(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY,
+                searchCopyDemandCollector,
+                NodeSearchCapacityCollector.EMPTY
+            );
+
+            // A throw before the listener still finishes this refresh with an empty map.
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(Map.of()));
+
+            // A later refresh still runs.
+            doAnswer(invocation -> {
+                final ActionListener<Map<ClusterInfo.NodeAndShard, SearchCopyDemand>> listener = invocation.getArgument(1);
+                listener.onResponse(demands);
+                return null;
+            }).when(searchCopyDemandCollector).collectSearchCopyDemands(any(), any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
+        }
+    }
+
+    public void testNodeSearchCapacityCollectorReleasesRefreshAfterThrow() {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final Map<String, NodeSearchCapacity> capacities = Map.of("node-id", new NodeSearchCapacity(4.0d, 8.0d));
+            final NodeSearchCapacityCollector nodeSearchCapacityCollector = mock(NodeSearchCapacityCollector.class);
+            doAnswer(invocation -> { throw new IllegalStateException("simulated node search capacity failure"); }).when(
+                nodeSearchCapacityCollector
+            ).collectNodeSearchCapacities(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY,
+                SearchCopyDemandCollector.EMPTY,
+                nodeSearchCapacityCollector
+            );
+
+            // A throw before the listener still finishes this refresh with an empty map.
+            ClusterInfo clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(Map.of()));
+
+            // A later refresh still runs.
+            doAnswer(invocation -> {
+                final ActionListener<Map<String, NodeSearchCapacity>> listener = invocation.getArgument(1);
+                listener.onResponse(capacities);
+                return null;
+            }).when(nodeSearchCapacityCollector).collectNodeSearchCapacities(any(), any());
+            clusterInfo = refresh(clusterInfoService);
+            assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(capacities));
+        }
+    }
+
     private static Settings baseSettings() {
         return baseSettingsBuilder().build();
     }

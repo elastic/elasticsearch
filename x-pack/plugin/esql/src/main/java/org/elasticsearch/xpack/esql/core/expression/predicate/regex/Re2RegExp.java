@@ -52,7 +52,7 @@ public final class Re2RegExp {
      * @throws IllegalArgumentException if the expression isn't valid RE2
      */
     public Re2RegExp(String pattern, int flags) {
-        this.literals = (flags & Re2Programs.FOLD_CASE) == 0 ? literals(pattern) : null;
+        this.literals = (flags & Re2Programs.FOLD_CASE) == 0 ? literals(pattern, flags) : null;
         this.parsed = literals == null ? Re2Programs.parse(pattern, flags) : null;
     }
 
@@ -151,9 +151,10 @@ public final class Re2RegExp {
      * The strings of an alternation of literals, optionally in a group, optionally anchored at either end, the shape
      * of most PromQL label matchers, which Grafana's multi-value variables expand to: {@code a}, {@code a|b},
      * {@code ^(?:a|b)$}. As the expression is matched whole, its anchors at either end hold anyway. Null if the
-     * expression isn't of that shape, or its literals have a rune past the BMP or are too long to make a union of.
+     * expression isn't of that shape, or its literals have a rune past the BMP or are too long to make a union of. A
+     * non-capturing group is only taken as one when the flags let the parser accept it.
      */
-    private static List<String> literals(String pattern) {
+    private static List<String> literals(String pattern, int flags) {
         int start = 0;
         int end = pattern.length();
         if (start < end && pattern.charAt(start) == '^') {
@@ -163,7 +164,14 @@ public final class Re2RegExp {
             end--;
         }
         if (end - start >= 2 && pattern.charAt(start) == '(' && pattern.charAt(end - 1) == ')') {
-            start += pattern.startsWith("?:", start + 1) ? 3 : 1;
+            if (pattern.startsWith("?:", start + 1)) {
+                if ((flags & Re2Programs.PERL_X) == 0) {
+                    return null;
+                }
+                start += 3;
+            } else {
+                start += 1;
+            }
             end--;
         }
         List<String> literals = new ArrayList<>();

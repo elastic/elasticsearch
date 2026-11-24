@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
@@ -123,9 +124,28 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         }
         // accounted on the breaker of the shard, as a regexp query's automaton is
         CircuitBreaker circuitBreaker = context.getCircuitBreaker();
-        Automaton automaton = circuitBreaker == null
-            ? pattern().createAutomaton(caseInsensitive())
-            : pattern().createAutomaton(caseInsensitive(), circuitBreaker, NAME + ":" + fieldType.name());
+        if (circuitBreaker == null) {
+            return automatonQuery(pattern().createAutomaton(caseInsensitive()), fieldType, constantScoreRewrite, context);
+        }
+        String label = NAME + ":" + fieldType.name();
+        Automaton automaton = pattern().createAutomaton(caseInsensitive(), circuitBreaker, label);
+        // the field compiles the automaton as it builds the query, an indexed keyword to the UTF-8 automaton it walks its
+        // terms with, so the peak of that is held while it runs, as a regexp query's shared automaton holds it
+        long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, label);
+        try {
+            return automatonQuery(automaton, fieldType, constantScoreRewrite, context);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation);
+        }
+    }
+
+    private org.apache.lucene.search.Query automatonQuery(
+        Automaton automaton,
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
         return fieldType.automatonQuery(
             () -> automaton,
             () -> new CharacterRunAutomaton(automaton),

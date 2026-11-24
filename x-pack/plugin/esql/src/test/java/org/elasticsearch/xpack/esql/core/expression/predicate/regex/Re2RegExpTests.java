@@ -295,6 +295,13 @@ public class Re2RegExpTests extends ESTestCase {
         assertDoesNotMatch("k", "K", "\u212a");
     }
 
+    /** The literals are only taken out of a non-capturing group where the parser would accept the group. */
+    public void testLiteralsInGroupFollowTheParserFlags() {
+        expectThrows(IllegalArgumentException.class, () -> new Re2RegExp("(?:a|b)", Re2Programs.DOT_NL));
+        expectThrows(IllegalArgumentException.class, () -> new Re2RegExp("^(?:a)$", 0));
+        assertTrue(run(new Re2RegExp("(a|b)", Re2Programs.DOT_NL)).run("b"));
+    }
+
     private static void assertAgreesWithMatcher(String regex) {
         Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
         Automaton automaton;

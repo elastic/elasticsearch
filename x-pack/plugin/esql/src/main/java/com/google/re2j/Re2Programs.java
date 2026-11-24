@@ -23,6 +23,7 @@ public final class Re2Programs {
     public static final int DOT_NL = RE2.DOT_NL;
     public static final int NON_GREEDY = RE2.NON_GREEDY;
     public static final int PERL = RE2.PERL;
+    public static final int PERL_X = RE2.PERL_X;
 
     public static final int EMPTY_BEGIN_LINE = Utils.EMPTY_BEGIN_LINE;
     public static final int EMPTY_END_LINE = Utils.EMPTY_END_LINE;

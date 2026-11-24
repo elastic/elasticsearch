@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2RegExp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,6 +30,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -78,6 +80,24 @@ public class Re2LikeShardQueryTests extends MapperServiceTestCase {
         SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
         expectThrows(CircuitBreakingException.class, () -> query(regex, limited));
         assertThat("past the program's reservation", small.peak(), greaterThan(100 * Re2RegExp.BYTES_PER_INSTRUCTION));
+        assertThat(small.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The field compiles the automaton while it builds the query, which for an indexed keyword expands it to UTF-8 bytes:
+     * the peak of that is held on the breaker while it runs, as it is for a {@code regexp} query.
+     */
+    public void testCompilationIsChargedToTheShardBreaker() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(ByteSizeValue.ofMb(1).getBytes());
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), breaker);
+
+        assertThat(query("abc", context), notNullValue());
+        assertThat(breaker.peak(), greaterThanOrEqualTo(new AutomatonQueryCostEstimator(0).estimate()));
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        TrackingCircuitBreaker small = new TrackingCircuitBreaker(new AutomatonQueryCostEstimator(0).estimate() - 1);
+        SearchExecutionContext limited = new SearchExecutionContext(createSearchExecutionContext(keyword(true)), small);
+        expectThrows(CircuitBreakingException.class, () -> query("abc", limited));
         assertThat(small.getUsed(), equalTo(0L));
     }
 

@@ -51,8 +51,8 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
 
@@ -214,10 +214,10 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 assertThat(parsed.id(), equalTo(response.id()));
                 assertThat(parsed.isRunning(), equalTo(response.isRunning()));
                 assertThat(parsed.isPartial(), equalTo(response.isPartial()));
-                assertThat(parsed.shardFailures(), arrayWithSize(numFailures));
+                assertThat(parsed.shardFailures(), hasSize(numFailures));
                 for (int i = 0; i < numFailures; i++) {
                     ShardSearchFailure expected = shardFailures.get(i);
-                    ShardSearchFailure actual = parsed.shardFailures()[i];
+                    ShardSearchFailure actual = parsed.shardFailures().get(i);
                     assertThat(actual.shard(), equalTo(expected.shard()));
                     assertThat(
                         actual.getCause().getMessage(),

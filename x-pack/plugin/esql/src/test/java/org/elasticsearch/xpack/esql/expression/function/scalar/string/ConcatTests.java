@@ -164,7 +164,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
             mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataType.KEYWORD));
         }
         Expression expression = build(testCase.getSource(), mix);
-        // A context of its own, so the warnings can be read here and are not checked against the test case's
+        // Not driverContext(): the base class fails the test if one of those ends with warnings
         List<CircuitBreaker> breakers = new ArrayList<>();
         DriverContext context = driverContext(breakers);
         try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(row(fieldValues))) {
@@ -173,7 +173,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         context.finish();
         String warning = "java.lang.IllegalArgumentException: concatenating more than [1048576] bytes is not supported";
         if (expression.foldable()) {
-            // Folded while the evaluator is built, which reports warnings as response headers
+            // evaluator() folds a CONCAT of constants, and folding reports warnings as response headers
             assertWarnings(
                 "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: " + warning

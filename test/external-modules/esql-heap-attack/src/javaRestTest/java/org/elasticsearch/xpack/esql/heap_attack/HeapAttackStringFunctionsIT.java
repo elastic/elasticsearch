@@ -44,8 +44,8 @@ public class HeapAttackStringFunctionsIT extends HeapAttackTestCase {
 
     /**
      * Ten chained {@code CONCAT}s, each making the string ten times longer. The seventh would build
-     * 10MB, which is over the 1MB limit, so it returns {@code null} with a warning. The last three
-     * get {@code null} as input and return {@code null}.
+     * 10,000,000 bytes, which is over the 1MB limit, so it returns {@code null} with a warning. The
+     * last three get {@code null} as input and return {@code null}.
      */
     public void testHugeConcat() throws IOException {
         initSingleDocIndex();

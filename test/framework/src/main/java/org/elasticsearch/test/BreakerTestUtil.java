@@ -9,11 +9,21 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class BreakerTestUtil {
     private static final Logger logger = LogManager.getLogger(BreakerTestUtil.class);
@@ -55,6 +65,40 @@ public class BreakerTestUtil {
             throw new IllegalArgumentException("expected runnable to *not* break under a limit of " + onePastLimit + " bytes");
         }
         return limit;
+    }
+
+    /**
+     * The bytes the request breakers of all nodes hold for parsed requests, from the held memory metric. Every node must
+     * run {@link TestTelemetryPlugin} and a real request breaker, since the test cluster can make it a noop one that
+     * charges nothing.
+     */
+    public static long parsedRequestHeldBytes(InternalTestCluster cluster) {
+        return parsedRequestMeasurements(cluster).stream().mapToLong(Measurement::getLong).sum();
+    }
+
+    /**
+     * The held memory measurements of the request breakers of all nodes for parsed requests. A new measurement is
+     * recorded each time a charge is added or released, so a growing count shows a request was charged even when the
+     * held bytes are back to zero. Has the same needs as {@link #parsedRequestHeldBytes}.
+     */
+    public static List<Measurement> parsedRequestMeasurements(InternalTestCluster cluster) {
+        List<Measurement> measurements = new ArrayList<>();
+        for (String node : cluster.getNodeNames()) {
+            TestTelemetryPlugin telemetry = cluster.getInstance(PluginsService.class, node)
+                .filterPlugins(TestTelemetryPlugin.class)
+                .findFirst()
+                .orElseThrow();
+            for (Measurement measurement : telemetry.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)) {
+                Map<String, Object> attributes = measurement.attributes();
+                if (CircuitBreaker.REQUEST.equals(attributes.get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
+                    && ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST.equals(
+                        attributes.get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)
+                    )) {
+                    measurements.add(measurement);
+                }
+            }
+        }
+        return measurements;
     }
 
     /**

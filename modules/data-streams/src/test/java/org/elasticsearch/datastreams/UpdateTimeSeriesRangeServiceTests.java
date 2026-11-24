@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -50,9 +51,15 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.TIME_SERIES_POLL_I
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
@@ -75,12 +82,17 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private UpdateTimeSeriesRangeService instance;
+    private MasterServiceTaskQueue<?> taskQueue;
 
     @Before
     public void createInstance() {
         ClusterService mockClusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL));
         when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
+        // The task queue is mocked because executing it requires a real master service; the executor itself is covered by the
+        // updateTimeSeriesTemporalRange tests above.
+        taskQueue = mock(MasterServiceTaskQueue.class);
+        doReturn(taskQueue).when(mockClusterService).createTaskQueue(anyString(), any(), any());
         threadPool = new TestThreadPool(getTestName());
         instance = new UpdateTimeSeriesRangeService(Settings.EMPTY, threadPool, mockClusterService);
     }
@@ -350,6 +362,19 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         instance.setPollInterval(TimeValue.timeValueMinutes(1));
         assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(1)));
         assertThat(instance.job, nullValue());
+    }
+
+    public void testOnMasterUpdatesImmediatelyAndSchedules() {
+        instance.onMaster();
+        verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
+        assertThat(instance.job, notNullValue());
+
+        // a new election while the first update is still running must not queue a second one
+        instance.offMaster();
+        assertThat(instance.job, nullValue());
+        instance.onMaster();
+        verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
+        assertThat(instance.job, notNullValue());
     }
 
     static Instant getEndTime(ProjectMetadata project, String dataStreamName, int index) {

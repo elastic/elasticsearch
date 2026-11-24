@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +32,39 @@ public interface SearchStats {
     boolean isIndexed(FieldName field);
 
     boolean hasDocValues(FieldName field);
+
+    /**
+     * Whether {@code field}, a child of a nested object, has doc values on every shard here that maps it, and at least one
+     * shard maps it. {@link #hasDocValues} answers {@code false} for these, since ES|QL does not extract them as columns.
+     */
+    default boolean nestedFieldHasDocValues(FieldName field) {
+        return false;
+    }
+
+    /**
+     * Whether every shard here accepts {@code nested} queries. Lucene's nested query is refused where
+     * {@code search.allow_expensive_queries} is {@code false}, so a predicate may only become one when this holds.
+     */
+    default boolean nestedQueriesAllowed() {
+        return false;
+    }
+
+    /**
+     * Whether every shard here that maps the nested child {@code field} can query it, and every shard that maps its nested
+     * object maps it too. At least one must map it. Where the object is mapped but the field is not, its children hold null
+     * for it in memory, which a query on the field cannot match the way a predicate on null would.
+     */
+    default boolean nestedFieldIsSearchable(FieldName field) {
+        return false;
+    }
+
+    /**
+     * Whether Lucene can compare this nested child's values exactly as its block loader reads them, as {@code type},
+     * on every applicable shard. Requires searchable doc values and excludes normalizers that also change query literals.
+     */
+    default boolean nestedFieldIsQueryable(FieldName field, DataType type) {
+        return false;
+    }
 
     /**
      * Whether every shard here can query {@code field}, read as {@code type}: see
@@ -100,6 +135,18 @@ public interface SearchStats {
     }
 
     boolean isSingleValue(FieldName field);
+
+    /**
+     * The distinct values of a {@code keyword} field across all shards, sorted, or {@code null} if there are more than
+     * {@code limit} of them or if they cannot be listed. They are listed from the terms of the index, which is only possible when
+     * these are exactly the values ES|QL reads for the field from its doc values: a document holds a value if and only if a term
+     * query for it matches. A value that {@code ignore_above} skips is neither a term nor a doc value. Values that only deleted
+     * documents hold may be included.
+     */
+    @Nullable
+    default List<BytesRef> distinctKeywordValues(FieldName field, int limit) {
+        return null;
+    }
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 

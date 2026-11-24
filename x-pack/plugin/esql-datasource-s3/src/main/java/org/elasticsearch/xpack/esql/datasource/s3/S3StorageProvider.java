@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -335,7 +336,13 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private BucketRegionResolver.ClientPair pairForRegion(String region) {
-        return new BucketRegionResolver.ClientPair(buildRetryClient(region), buildRetryAsyncClient(region));
+        S3Client sync = buildRetryClient(region);
+        try {
+            return new BucketRegionResolver.ClientPair(sync, buildRetryAsyncClient(region));
+        } catch (RuntimeException e) {
+            IOUtils.closeWhileHandlingException(asCloseable(sync));
+            throw e;
+        }
     }
 
     /**
@@ -379,6 +386,22 @@ public class S3StorageProvider implements StorageProvider {
 
     boolean discoversRegion() {
         return resolver != null && config != null && config.region() == null;
+    }
+
+    boolean hasResolvedRegion(String bucket) {
+        return resolver != null && resolver.hasResolvedRegion(bucket);
+    }
+
+    boolean healWrongRegion(String bucket, Throwable cause) {
+        if (discoversRegion() == false || BucketRegionResolver.isWrongRegion(cause) == false) {
+            return false;
+        }
+        String observed = BucketRegionResolver.observedRegion(cause);
+        invalidateBucketRegion(bucket, observed);
+        if (observed != null && observed.isEmpty() == false) {
+            rememberBucketRegion(bucket, observed);
+        }
+        return true;
     }
 
     /**
@@ -806,11 +829,15 @@ public class S3StorageProvider implements StorageProvider {
         S3Client listingClient = clientsFor(bucket).sync();
         // S3 is a flat namespace — ListObjectsV2 is inherently prefix-based and recursive.
         // The recursive flag is effectively ignored.
-        return new S3StorageIterator(listingClient, bucket, keyPrefix, prefix, regionHint());
+        return new S3StorageIterator(this, listingClient, bucket, keyPrefix, prefix, regionHint());
     }
 
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        return listChildren(prefix, limit, true);
+    }
+
+    private StorageChildren listChildren(StoragePath prefix, int limit, boolean allowHeal) throws IOException {
         validateS3Scheme(prefix);
         String bucket = prefix.host();
         String keyPrefix = extractKey(prefix);
@@ -859,6 +886,12 @@ public class S3StorageProvider implements StorageProvider {
             throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
+            if (allowHeal && healWrongRegion(bucket, e)) {
+                return listChildren(prefix, limit, false);
+            }
+            if (e instanceof ExternalException runtime) {
+                throw runtime;
+            }
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
             // retry layer re-attempts it and the adaptive backoff hears about it.
             ExternalUnavailableException unavailable = mapResolveFailure(prefix, e);
@@ -896,8 +929,23 @@ public class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        S3Client client = clientsFor(bucket).sync();
-        return existsWithClient(client, bucket, key, path);
+        try {
+            return existsWithClient(clientsFor(bucket).sync(), bucket, key, path);
+        } catch (Exception e) {
+            if (healWrongRegion(bucket, e)) {
+                return existsWithClient(clientsFor(bucket).sync(), bucket, key, path);
+            }
+            if (e instanceof IOException ioe) {
+                throw ioe;
+            }
+            if (e instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IOException(
+                "Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
+                e
+            );
+        }
     }
 
     private boolean existsWithClient(S3Client client, String bucket, String key, StoragePath path) throws IOException {
@@ -1094,17 +1142,27 @@ public class S3StorageProvider implements StorageProvider {
      * Iterator for S3 object listing with pagination support.
      */
     private static final class S3StorageIterator implements StorageIterator {
-        private final S3Client s3Client;
+        private final S3StorageProvider provider;
+        private S3Client s3Client;
         private final String bucket;
         private final String prefix;
         private final StoragePath baseDirectory;
         private final String regionHint;
+        private boolean healed;
 
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
         private boolean firstPageFetched;
 
-        S3StorageIterator(S3Client s3Client, String bucket, String prefix, StoragePath baseDirectory, String regionHint) {
+        S3StorageIterator(
+            S3StorageProvider provider,
+            S3Client s3Client,
+            String bucket,
+            String prefix,
+            StoragePath baseDirectory,
+            String regionHint
+        ) {
+            this.provider = provider;
             this.s3Client = s3Client;
             this.bucket = bucket;
             this.prefix = prefix;
@@ -1139,32 +1197,27 @@ public class S3StorageProvider implements StorageProvider {
         }
 
         private void fetchNextBatch() {
+            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
+            if (continuationToken != null) {
+                requestBuilder.continuationToken(continuationToken);
+            }
             ListObjectsV2Response response;
             try {
-                ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
-
-                if (continuationToken != null) {
-                    requestBuilder.continuationToken(continuationToken);
-                }
-
                 response = s3Client.listObjectsV2(requestBuilder.build());
                 ExternalPlanningIo.addMetadataGet(0);
             } catch (Exception e) {
-                ExternalPlanningIo.addMetadataGet(0);
-                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
-                if (expired != null) {
-                    throw expired;
+                if (healed == false && provider.healWrongRegion(bucket, e)) {
+                    healed = true;
+                    try {
+                        s3Client = provider.clientsFor(bucket).sync();
+                        response = s3Client.listObjectsV2(requestBuilder.build());
+                        ExternalPlanningIo.addMetadataGet(0);
+                    } catch (Exception retry) {
+                        throw listingFailure(retry);
+                    }
+                } else {
+                    throw listingFailure(e);
                 }
-                ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
-                if (unavailable != null) {
-                    throw unavailable;
-                }
-                String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
-                    ? "Access denied listing objects in the configured path. "
-                        + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
-                        + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in the configured path";
-                throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
             if (truncatedWithoutToken(response)) {
                 throw new UncheckedIOException(
@@ -1174,6 +1227,27 @@ public class S3StorageProvider implements StorageProvider {
             currentBatch = response.contents().iterator();
             continuationToken = continuationTokenOf(response);
             firstPageFetched = true;
+        }
+
+        private RuntimeException listingFailure(Exception e) {
+            ExternalPlanningIo.addMetadataGet(0);
+            if (e instanceof ExternalException runtime) {
+                return runtime;
+            }
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
+            if (expired != null) {
+                return expired;
+            }
+            ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
+            if (unavailable != null) {
+                return unavailable;
+            }
+            String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
+                ? "Access denied listing objects in the configured path. "
+                    + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
+                    + "or use exact file paths instead of glob patterns."
+                : "Failed to list objects in the configured path";
+            return new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -17,6 +18,9 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -83,7 +87,21 @@ final class BucketRegionResolver {
     }
 
     ClientPair clientsFor(String bucket) throws IOException {
-        return pairFor(regionFor(bucket));
+        String region = regionFor(bucket);
+        try {
+            return pairFor(region);
+        } catch (RuntimeException e) {
+            rethrowProbeFailure(bucket, e);
+            throw new AssertionError("unreachable");
+        }
+    }
+
+    boolean hasResolvedRegion(String bucket) {
+        if (explicitRegion != null) {
+            return true;
+        }
+        CompletableFuture<String> cached = regions.get(bucket);
+        return cached != null && cached.isDone() && cached.isCompletedExceptionally() == false;
     }
 
     /**
@@ -111,7 +129,7 @@ final class BucketRegionResolver {
     }
 
     void rememberRegion(String bucket, String region) {
-        regions.put(bucket, CompletableFuture.completedFuture(region));
+        regions.putIfAbsent(bucket, CompletableFuture.completedFuture(region));
     }
 
     void close() {
@@ -151,8 +169,16 @@ final class BucketRegionResolver {
         try {
             return existing.get(waitTimeoutNanos, TimeUnit.NANOSECONDS);
         } catch (TimeoutException e) {
-            rethrowProbeFailure(bucket, e);
-            throw new AssertionError("unreachable");
+            StoragePath path = StoragePath.of("s3://" + bucket);
+            throw new ExternalUnavailableException(
+                Condition.STORE_UNAVAILABLE,
+                path,
+                "timed out waiting for bucket region",
+                "",
+                false,
+                0L,
+                e
+            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             rethrowProbeFailure(bucket, e);
@@ -234,15 +260,22 @@ final class BucketRegionResolver {
         if (cause instanceof IOException ioe) {
             throw ioe;
         }
-        if (cause instanceof RuntimeException runtime) {
-            StoragePath path = StoragePath.of("s3://" + bucket);
-            if (runtime instanceof Exception exception) {
-                ExternalUnavailableException unavailable = S3StorageProvider.mapResolveFailure(path, exception);
-                if (unavailable != null) {
-                    throw unavailable;
-                }
-            }
+        if (cause instanceof ExternalException runtime) {
             throw runtime;
+        }
+        StoragePath path = StoragePath.of("s3://" + bucket);
+        if (cause instanceof Exception exception) {
+            ExternalUnavailableException unavailable = S3StorageProvider.mapResolveFailure(path, exception);
+            if (unavailable != null) {
+                throw unavailable;
+            }
+        }
+        S3Exception s3 = s3Exception(cause);
+        if (s3 != null && isNoSuchBucket(s3)) {
+            throw new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "", cause instanceof Exception e ? e : null);
+        }
+        if (cause instanceof IllegalStateException closed && closed.getMessage() != null && closed.getMessage().contains("closed")) {
+            throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, path, "S3 client is closed", "", false, 0L, closed);
         }
         throw new IOException("Failed to resolve region for bucket [" + bucket + "]", cause);
     }
@@ -284,9 +317,30 @@ final class BucketRegionResolver {
                 return header;
             }
         }
+        String fromXml = regionFromXml(xmlPayload(s3));
+        if (fromXml != null) {
+            return fromXml;
+        }
         String xmlSource = s3.awsErrorDetails() != null ? s3.awsErrorDetails().errorMessage() : s3.getMessage();
         if (xmlSource == null) {
             xmlSource = s3.toString();
+        }
+        return regionFromXml(xmlSource);
+    }
+
+    @Nullable
+    private static String xmlPayload(S3Exception s3) {
+        if (s3.awsErrorDetails() == null) {
+            return null;
+        }
+        SdkBytes raw = s3.awsErrorDetails().rawResponse();
+        return raw == null ? null : raw.asUtf8String();
+    }
+
+    @Nullable
+    private static String regionFromXml(String xmlSource) {
+        if (xmlSource == null || xmlSource.isEmpty()) {
+            return null;
         }
         Matcher matcher = REGION_ELEMENT.matcher(xmlSource);
         return matcher.find() ? matcher.group(1) : null;

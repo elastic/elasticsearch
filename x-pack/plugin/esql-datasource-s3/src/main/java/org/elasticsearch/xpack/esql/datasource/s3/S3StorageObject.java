@@ -101,7 +101,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile S3AsyncClient s3AsyncClient;
     /** Non-null when this object is owned by a provider that resolves per-bucket region. */
     private S3StorageProvider owner;
-    private final AtomicBoolean wrongRegionHealed = new AtomicBoolean();
     private final RetryStrategy asyncRetryStrategy;
     private final StorageIdentity storageIdentity;
     private final String bucket;
@@ -235,10 +234,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     private boolean canHealWrongRegion(Throwable cause) {
-        return owner != null
-            && owner.discoversRegion()
-            && BucketRegionResolver.isWrongRegion(cause)
-            && wrongRegionHealed.compareAndSet(false, true);
+        return owner != null && owner.discoversRegion() && BucketRegionResolver.isWrongRegion(cause);
+    }
+
+    private boolean canHealWrongRegion(Throwable cause, AsyncReadHandle handle) {
+        return canHealWrongRegion(cause) && handle.markWrongRegionHealed();
     }
 
     private void applyWrongRegionHeal(Throwable cause) throws IOException {
@@ -1269,21 +1269,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         ActionListener<DirectReadBuffer> listener
     ) {
         counters.bindPlanningIo();
-        try {
-            ensureClients();
-        } catch (Exception e) {
-            listener.onFailure(mapReadFailure("Failed to read object from", e));
-            return () -> {};
-        }
-        if (s3AsyncClient == null) {
-            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
-            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
-            // start would recurse until the stack overflows. StorageObject.super is illegal here because
-            // this class does not implement StorageObject directly.
-            super.readBytesAsync(position, length, factory, executor, listener);
-            return () -> {};
-        }
-
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return () -> {};
@@ -1293,10 +1278,58 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single ByteBuffer; ranges larger than 2 GiB
-            // are not supportable here. Callers needing larger reads must split the range or fall
-            // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return () -> {};
+        }
+        if (owner != null && owner.discoversRegion() && owner.hasResolvedRegion(bucket) == false) {
+            AsyncReadHandle handle = new AsyncReadHandle();
+            try {
+                executor.execute(() -> {
+                    if (handle.isCancelled()) {
+                        if (handle.tryCompleteListener()) {
+                            listener.onFailure(new TaskCancelledException("read cancelled"));
+                        }
+                        return;
+                    }
+                    try {
+                        ensureClients();
+                    } catch (Exception e) {
+                        if (handle.tryCompleteListener()) {
+                            listener.onFailure(mapReadFailure("Failed to read object from", e));
+                        }
+                        return;
+                    }
+                    startReadBytesAsyncWithClients(position, length, factory, executor, listener, handle);
+                });
+            } catch (RejectedExecutionException rejected) {
+                listener.onFailure(mapReadFailure("Failed to read object from", rejected));
+                return () -> {};
+            }
+            return handle::cancel;
+        }
+        try {
+            ensureClients();
+        } catch (Exception e) {
+            listener.onFailure(mapReadFailure("Failed to read object from", e));
+            return () -> {};
+        }
+        return startReadBytesAsyncWithClients(position, length, factory, executor, listener, null);
+    }
+
+    private Releasable startReadBytesAsyncWithClients(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        AsyncReadHandle existingHandle
+    ) {
+        if (s3AsyncClient == null) {
+            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
+            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
+            // start would recurse until the stack overflows. StorageObject.super is illegal here because
+            // this class does not implement StorageObject directly.
+            super.readBytesAsync(position, length, factory, executor, listener);
             return () -> {};
         }
 
@@ -1315,11 +1348,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             initialToken = acquired.token();
             initialDelay = acquired.delay();
         } catch (Exception e) {
-            counters.addRequest(System.nanoTime() - startNanos, 0L);
-            listener.onFailure(mapReadFailure("Failed to read object from", e));
-            return () -> {};
+            if (existingHandle == null || existingHandle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", e));
+            }
+            return existingHandle == null ? () -> {} : existingHandle::cancel;
         }
-        AsyncReadHandle handle = new AsyncReadHandle();
+        AsyncReadHandle handle = existingHandle == null ? new AsyncReadHandle() : existingHandle;
         scheduleReadAttempt(initialDelay, request, (int) length, factory, executor, listener, initialToken, startNanos, handle);
         return handle::cancel;
     }
@@ -1343,6 +1378,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
         /** Set while waiting in backoff; cleared before the next attempt starts. */
         private volatile Runnable cancelCallback;
+        private final AtomicBoolean wrongRegionHealed = new AtomicBoolean();
+
+        boolean markWrongRegionHealed() {
+            return wrongRegionHealed.compareAndSet(false, true);
+        }
 
         /**
          * Transitions into the backoff phase: stores the delay future so {@link #cancel} can
@@ -1540,18 +1580,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return;
         }
         Throwable unwrapped = unwrapCompletionWrappers(throwable);
-        if (canHealWrongRegion(unwrapped)) {
-            executor.execute(() -> {
-                try {
-                    applyWrongRegionHeal(unwrapped);
-                    readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
-                } catch (Exception e) {
-                    if (handle.tryCompleteListener()) {
-                        counters.addRequest(System.nanoTime() - startNanos, 0L);
-                        listener.onFailure(mapReadFailure("Failed to read object from", e));
+        if (canHealWrongRegion(unwrapped, handle)) {
+            try {
+                executor.execute(() -> {
+                    try {
+                        applyWrongRegionHeal(unwrapped);
+                        readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
+                    } catch (Exception e) {
+                        if (handle.tryCompleteListener()) {
+                            counters.addRequest(System.nanoTime() - startNanos, 0L);
+                            listener.onFailure(mapReadFailure("Failed to read object from", e));
+                        }
                     }
+                });
+            } catch (RejectedExecutionException rejected) {
+                if (handle.tryCompleteListener()) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    listener.onFailure(mapReadFailure("Failed to read object from", rejected));
                 }
-            });
+            }
             return;
         }
         if (BucketRegionResolver.isWrongRegion(unwrapped)) {

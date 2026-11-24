@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -21,10 +23,15 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class S3BucketRegionTests extends ESTestCase {
 
@@ -163,9 +170,9 @@ public class S3BucketRegionTests extends ESTestCase {
                     assertArrayEquals(BODY, in.readAllBytes());
                 }
                 fake.setHome(BUCKET, "ca-central-1");
-                ExternalClientException thrown = expectThrows(ExternalClientException.class, object::newStream);
-                assertThat(thrown.getMessage(), containsString("set region on the dataset"));
-                assertThat(thrown.getMessage(), containsString("ca-central-1"));
+                try (InputStream in = object.newStream()) {
+                    assertArrayEquals(BODY, in.readAllBytes());
+                }
             }
         }
     }
@@ -248,6 +255,55 @@ public class S3BucketRegionTests extends ESTestCase {
         }
     }
 
+    public void testResolverCloseClosesExtraPairs() throws Exception {
+        S3Client probeSync = mock(S3Client.class);
+        S3AsyncClient probeAsync = mock(S3AsyncClient.class);
+        S3Client extraSync = mock(S3Client.class);
+        S3AsyncClient extraAsync = mock(S3AsyncClient.class);
+        AtomicInteger closed = new AtomicInteger();
+        doAnswer(invocation -> {
+            closed.incrementAndGet();
+            return null;
+        }).when(extraSync).close();
+        doAnswer(invocation -> {
+            closed.incrementAndGet();
+            return null;
+        }).when(extraAsync).close();
+        BucketRegionResolver resolver = new BucketRegionResolver(
+            "us-east-1",
+            "eu-west-1",
+            probeSync,
+            probeAsync,
+            TimeUnit.SECONDS.toNanos(5),
+            region -> new BucketRegionResolver.ClientPair(extraSync, extraAsync)
+        );
+        resolver.clientsFor("bucket");
+        resolver.close();
+        assertEquals(2, closed.get());
+        verify(probeSync, never()).close();
+        verify(probeAsync, never()).close();
+    }
+
+    public void testRememberRegionDoesNotOverwriteNewer() throws Exception {
+        AtomicReference<String> built = new AtomicReference<>();
+        BucketRegionResolver resolver = new BucketRegionResolver(
+            "us-east-1",
+            null,
+            mock(S3Client.class),
+            mock(S3AsyncClient.class),
+            TimeUnit.SECONDS.toNanos(5),
+            region -> {
+                built.set(region);
+                return new BucketRegionResolver.ClientPair(mock(S3Client.class), mock(S3AsyncClient.class));
+            }
+        );
+        resolver.rememberRegion("bucket", "eu-west-1");
+        resolver.rememberRegion("bucket", "ap-southeast-2");
+        resolver.clientsFor("bucket");
+        assertEquals("eu-west-1", built.get());
+        resolver.close();
+    }
+
     public void testListChildrenUsesResolvedRegion() throws Exception {
         try (RegionalS3Fake fake = new RegionalS3Fake()) {
             fake.putBucket(BUCKET, "ca-central-1");
@@ -257,6 +313,20 @@ public class S3BucketRegionTests extends ESTestCase {
                 assertNotNull(children);
                 assertEquals(1, fake.headBucketCount(BUCKET));
                 assertEquals(0, fake.wrongRegionGets(BUCKET));
+            }
+        }
+    }
+
+    public void testListChildrenSelfHealsStaleRegion() throws Exception {
+        try (RegionalS3Fake fake = new RegionalS3Fake()) {
+            fake.putBucket(BUCKET, "eu-west-1");
+            fake.putObject(BUCKET, KEY, BODY);
+            try (S3StorageProvider provider = provider(fake)) {
+                var first = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/data"), 16);
+                assertNotNull(first);
+                fake.setHome(BUCKET, "ap-southeast-2");
+                var second = provider.listChildren(StoragePath.of("s3://" + BUCKET + "/data"), 16);
+                assertNotNull(second);
             }
         }
     }

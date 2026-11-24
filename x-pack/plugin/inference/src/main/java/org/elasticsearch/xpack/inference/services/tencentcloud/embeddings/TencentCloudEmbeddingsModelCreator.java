@@ -30,7 +30,15 @@ public class TencentCloudEmbeddingsModelCreator implements ModelCreator<TencentC
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new TencentCloudEmbeddingsModel(inferenceId, serviceSettings, taskSettings, chunkingSettings, secretSettings, context);
+        return new TencentCloudEmbeddingsModel(
+            inferenceId,
+            taskType,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override

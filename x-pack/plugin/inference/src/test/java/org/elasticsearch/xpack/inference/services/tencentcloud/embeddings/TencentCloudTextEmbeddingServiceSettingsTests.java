@@ -23,14 +23,14 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentCloudServiceSettingsTests<
-    TencentCloudEmbeddingsServiceSettings> {
+public class TencentCloudTextEmbeddingServiceSettingsTests extends AbstractTencentCloudServiceSettingsTests<
+    TencentCloudTextEmbeddingServiceSettings> {
 
     private static final int TEST_DIMENSIONS = 1024;
     private static final int TEST_MAX_INPUT_TOKENS = 512;
 
-    public static TencentCloudEmbeddingsServiceSettings createRandom() {
-        return new TencentCloudEmbeddingsServiceSettings(
+    public static TencentCloudTextEmbeddingServiceSettings createRandom() {
+        return new TencentCloudTextEmbeddingServiceSettings(
             randomAlphaOfLength(8),
             randomBoolean() ? randomAlphaOfLength(5) : null,
             new RateLimitSettings(randomIntBetween(1, 1000)),
@@ -42,11 +42,11 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
 
     @Override
     protected TencentCloudCommonServiceSettings createInstance(String modelId, String region, RateLimitSettings rateLimitSettings) {
-        return new TencentCloudEmbeddingsServiceSettings(modelId, region, rateLimitSettings, null, null, null);
+        return new TencentCloudTextEmbeddingServiceSettings(modelId, region, rateLimitSettings, null, null, null);
     }
 
     public void testFromMap_MinimalConfig() {
-        var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
+        var settings = TencentCloudTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
             ConfigurationParseContext.PERSISTENT
         );
@@ -58,7 +58,7 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
     }
 
     public void testFromMap_Request_MinimalConfig() {
-        var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
+        var settings = TencentCloudTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
             ConfigurationParseContext.REQUEST
         );
@@ -74,13 +74,13 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
         var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID, ServiceFields.DIMENSIONS, TEST_DIMENSIONS));
         assertThrows(
             org.elasticsearch.xcontent.XContentParseException.class,
-            () -> TencentCloudEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+            () -> TencentCloudTextEmbeddingServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
     }
 
     public void testFromMap_Request_ApiKeyInServiceSettings_Ignored() {
         // api_key appears alongside service settings in REQUEST payloads; the parser must tolerate it as a no-op.
-        var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
+        var settings = TencentCloudTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID, "api_key", "sk-unused")),
             ConfigurationParseContext.REQUEST
         );
@@ -88,7 +88,7 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
     }
 
     public void testFromMap_AllFields_Success() {
-        var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
+        var settings = TencentCloudTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
@@ -114,7 +114,7 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
     }
 
     public void testUpdateServiceSettings_MaxInputTokens_IsMutable() {
-        var original = new TencentCloudEmbeddingsServiceSettings(TEST_MODEL_ID, "sh", new RateLimitSettings(20), null, null, 256);
+        var original = new TencentCloudTextEmbeddingServiceSettings(TEST_MODEL_ID, "sh", new RateLimitSettings(20), null, null, 256);
         var updated = original.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS)));
         assertThat(updated.maxInputTokens(), is(TEST_MAX_INPUT_TOKENS));
         // Immutable fields unchanged
@@ -126,7 +126,7 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
 
     public void testUpdateServiceSettings_SimilarityAndDimensions_AreImmutable() {
         // The strict update parser does not declare similarity or dimensions, so including them throws.
-        var original = new TencentCloudEmbeddingsServiceSettings(TEST_MODEL_ID, "bj", new RateLimitSettings(20), null, null, null);
+        var original = new TencentCloudTextEmbeddingServiceSettings(TEST_MODEL_ID, "bj", new RateLimitSettings(20), null, null, null);
         assertThrows(
             org.elasticsearch.xcontent.XContentParseException.class,
             () -> original.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.SIMILARITY, SimilarityMeasure.DOT_PRODUCT.toString())))
@@ -138,7 +138,7 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
     }
 
     public void testUpdateEmbeddingDetails_ReturnsCopyWithNewValues() {
-        var settings = new TencentCloudEmbeddingsServiceSettings(TEST_MODEL_ID, null, new RateLimitSettings(20), null, null, null);
+        var settings = new TencentCloudTextEmbeddingServiceSettings(TEST_MODEL_ID, null, new RateLimitSettings(20), null, null, null);
 
         var updated = settings.updateEmbeddingDetails(TEST_DIMENSIONS, SimilarityMeasure.COSINE);
 
@@ -151,17 +151,18 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
     }
 
     @Override
-    protected Writeable.Reader<TencentCloudEmbeddingsServiceSettings> instanceReader() {
-        return TencentCloudEmbeddingsServiceSettings::new;
+    protected Writeable.Reader<TencentCloudTextEmbeddingServiceSettings> instanceReader() {
+        return TencentCloudTextEmbeddingServiceSettings::new;
     }
 
     @Override
-    protected TencentCloudEmbeddingsServiceSettings createTestInstance() {
+    protected TencentCloudTextEmbeddingServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected TencentCloudEmbeddingsServiceSettings mutateInstance(TencentCloudEmbeddingsServiceSettings instance) throws IOException {
+    protected TencentCloudTextEmbeddingServiceSettings mutateInstance(TencentCloudTextEmbeddingServiceSettings instance)
+        throws IOException {
         var modelId = instance.modelId();
         var region = instance.region();
         var rateLimitSettings = instance.rateLimitSettings();
@@ -178,12 +179,12 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
             case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(16, 8192));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new TencentCloudEmbeddingsServiceSettings(modelId, region, rateLimitSettings, similarity, dimensions, maxInputTokens);
+        return new TencentCloudTextEmbeddingServiceSettings(modelId, region, rateLimitSettings, similarity, dimensions, maxInputTokens);
     }
 
     @Override
-    protected TencentCloudEmbeddingsServiceSettings mutateInstanceForVersion(
-        TencentCloudEmbeddingsServiceSettings instance,
+    protected TencentCloudTextEmbeddingServiceSettings mutateInstanceForVersion(
+        TencentCloudTextEmbeddingServiceSettings instance,
         TransportVersion version
     ) {
         return instance;

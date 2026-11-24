@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.tencentcloud;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -25,9 +26,11 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudMultimodalEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudTextEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
@@ -39,6 +42,7 @@ import java.util.Map;
 
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.ESTestCase.assertThat;
@@ -78,7 +82,7 @@ public class TencentCloudServiceParameterizedTestConfiguration {
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(
-            EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK),
+            EnumSet.of(TEXT_EMBEDDING, EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK),
             TencentCloudService.NAME
         ) {
 
@@ -97,7 +101,7 @@ public class TencentCloudServiceParameterizedTestConfiguration {
             protected Map<String, Object> createMinimalServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
                 var map = new HashMap<String, Object>(Map.of(MODEL_ID, MODEL_ID_VALUE));
                 // dimensions is only readable in a PERSISTENT context; putting it in a REQUEST map fails with unknown field
-                if (taskType == TEXT_EMBEDDING && parseContext == ConfigurationParseContext.PERSISTENT) {
+                if ((taskType == TEXT_EMBEDDING || taskType == EMBEDDING) && parseContext == ConfigurationParseContext.PERSISTENT) {
                     map.put(DIMENSIONS, DIMENSIONS_VALUE);
                 }
                 return map;
@@ -108,7 +112,7 @@ public class TencentCloudServiceParameterizedTestConfiguration {
                 var map = createMinimalServiceSettingsMap(taskType, parseContext);
                 map.put(REGION_FIELD_NAME, REGION_VALUE);
                 RateLimitSettingsTests.addRateLimitSettingsToMap(map, REQUESTS_PER_MINUTE);
-                if (taskType == TEXT_EMBEDDING) {
+                if (taskType == TEXT_EMBEDDING || taskType == EMBEDDING) {
                     map.put(SIMILARITY, SIMILARITY_VALUE.toString());
                     map.put(MAX_INPUT_TOKENS, MAX_INPUT_TOKENS_VALUE);
                 }
@@ -122,7 +126,8 @@ public class TencentCloudServiceParameterizedTestConfiguration {
                 ConfigurationParseContext context
             ) {
                 return switch (taskType) {
-                    case TEXT_EMBEDDING -> TencentCloudEmbeddingsServiceSettings.fromMap(serviceSettings, context);
+                    case TEXT_EMBEDDING -> TencentCloudTextEmbeddingServiceSettings.fromMap(serviceSettings, context);
+                    case EMBEDDING -> TencentCloudEmbeddingServiceSettings.fromMap(serviceSettings, context);
                     case COMPLETION, CHAT_COMPLETION -> TencentCloudChatCompletionServiceSettings.fromMap(serviceSettings, context);
                     case RERANK -> TencentCloudRerankServiceSettings.fromMap(serviceSettings, context);
                     default -> throw new IllegalStateException("Unexpected value: " + taskType);
@@ -133,6 +138,7 @@ public class TencentCloudServiceParameterizedTestConfiguration {
             protected TaskSettings getEmptyTaskSettings(TaskType taskType) {
                 return switch (taskType) {
                     case TEXT_EMBEDDING -> TencentCloudEmbeddingsTaskSettings.EMPTY_SETTINGS;
+                    case EMBEDDING -> TencentCloudMultimodalEmbeddingsTaskSettings.EMPTY_SETTINGS;
                     case COMPLETION, CHAT_COMPLETION -> TencentCloudChatCompletionTaskSettings.EMPTY_SETTINGS;
                     case RERANK -> TencentCloudRerankTaskSettings.EMPTY_SETTINGS;
                     default -> throw new IllegalStateException("Unexpected value: " + taskType);
@@ -147,6 +153,10 @@ public class TencentCloudServiceParameterizedTestConfiguration {
             @Override
             protected Map<String, Object> createAllTaskSettingsMap(TaskType taskType) {
                 var map = new HashMap<String, Object>();
+                if (taskType == EMBEDDING) {
+                    map.put("input_type", "ingest");
+                    map.put("prompt_name", "Document");
+                }
                 if (taskType == RERANK) {
                     map.put(TencentCloudRerankTaskSettings.TOP_N, TOP_N_VALUE);
                     map.put(TencentCloudRerankTaskSettings.RETURN_DOCUMENTS, RETURN_DOCUMENTS_VALUE);
@@ -173,7 +183,13 @@ public class TencentCloudServiceParameterizedTestConfiguration {
                 ConfigurationParseContext parseContext
             ) {
                 switch (taskType) {
-                    case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets, minimalSettings, parseContext);
+                    case TEXT_EMBEDDING, EMBEDDING -> assertEmbeddingModel(
+                        model,
+                        taskType,
+                        modelIncludesSecrets,
+                        minimalSettings,
+                        parseContext
+                    );
                     case COMPLETION, CHAT_COMPLETION -> assertChatCompletionModel(model, taskType, modelIncludesSecrets, minimalSettings);
                     case RERANK -> assertRerankModel(model, modelIncludesSecrets, minimalSettings);
                     default -> Assert.fail("unexpected task type [" + taskType + "]");
@@ -213,16 +229,22 @@ public class TencentCloudServiceParameterizedTestConfiguration {
         }
     }
 
-    private static void assertTextEmbeddingModel(
+    private static void assertEmbeddingModel(
         Model model,
+        TaskType taskType,
         boolean modelIncludesSecrets,
         boolean minimalSettings,
         ConfigurationParseContext parseContext
     ) {
         assertThat(model, instanceOf(TencentCloudEmbeddingsModel.class));
         var embeddingsModel = (TencentCloudEmbeddingsModel) model;
-        assertThat(embeddingsModel.getTaskType(), is(TEXT_EMBEDDING));
-        assertCommonSettings(embeddingsModel, modelIncludesSecrets, EMBEDDINGS_PATH, minimalSettings);
+        assertThat(embeddingsModel.getTaskType(), is(taskType));
+        assertCommonSettings(
+            embeddingsModel,
+            modelIncludesSecrets,
+            taskType == EMBEDDING ? "multimodal-embeddings" : EMBEDDINGS_PATH,
+            minimalSettings
+        );
 
         var ss = embeddingsModel.getServiceSettings();
         if (minimalSettings) {
@@ -243,7 +265,19 @@ public class TencentCloudServiceParameterizedTestConfiguration {
             assertThat(ss.similarity(), is(SIMILARITY_VALUE));
             assertThat(ss.maxInputTokens(), is(MAX_INPUT_TOKENS_VALUE));
         }
-        assertThat(embeddingsModel.getTaskSettings(), is(TencentCloudEmbeddingsTaskSettings.EMPTY_SETTINGS));
+        if (taskType == EMBEDDING) {
+            assertThat(embeddingsModel.getServiceSettings(), instanceOf(TencentCloudEmbeddingServiceSettings.class));
+            assertThat(
+                embeddingsModel.getTaskSettings(),
+                is(
+                    minimalSettings
+                        ? TencentCloudMultimodalEmbeddingsTaskSettings.EMPTY_SETTINGS
+                        : new TencentCloudMultimodalEmbeddingsTaskSettings(InputType.INGEST, "Document")
+                )
+            );
+        } else {
+            assertThat(embeddingsModel.getTaskSettings(), is(TencentCloudEmbeddingsTaskSettings.EMPTY_SETTINGS));
+        }
     }
 
     private static void assertChatCompletionModel(Model model, TaskType taskType, boolean modelIncludesSecrets, boolean minimalSettings) {

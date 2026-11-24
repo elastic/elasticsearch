@@ -154,8 +154,10 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionTaskSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudMultimodalEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudTextEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
@@ -257,8 +259,15 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
-                TencentCloudEmbeddingsServiceSettings.NAME,
-                TencentCloudEmbeddingsServiceSettings::new
+                TencentCloudTextEmbeddingServiceSettings.NAME,
+                TencentCloudTextEmbeddingServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudEmbeddingServiceSettings.NAME,
+                TencentCloudEmbeddingServiceSettings::new
             )
         );
         namedWriteables.add(
@@ -266,6 +275,13 @@ public class InferenceNamedWriteablesProvider {
                 TaskSettings.class,
                 TencentCloudEmbeddingsTaskSettings.NAME,
                 TencentCloudEmbeddingsTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TencentCloudMultimodalEmbeddingsTaskSettings.NAME,
+                TencentCloudMultimodalEmbeddingsTaskSettings::new
             )
         );
         namedWriteables.add(

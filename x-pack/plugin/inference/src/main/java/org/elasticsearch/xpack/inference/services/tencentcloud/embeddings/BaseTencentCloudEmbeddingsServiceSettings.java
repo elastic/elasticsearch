@@ -35,36 +35,26 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 /**
- * Settings for the TencentCloud embeddings service. Extends {@link TencentCloudCommonServiceSettings} and adds the
- * embeddings-specific fields: dimensions, similarity measure, and max input tokens.
+ * Service settings shared by the TencentCloud {@code text_embedding} and {@code embedding} tasks. The two tasks expose the same
+ * fields and differ only in the endpoint they call, so subclasses only provide their writeable name.
  */
-public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonServiceSettings {
+public abstract class BaseTencentCloudEmbeddingsServiceSettings extends TencentCloudCommonServiceSettings {
 
-    public static final String NAME = "tencentcloud_embeddings_service_settings";
-
-    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
-    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
-
-    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean isPersistentParser) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            isPersistentParser,
-            Builder::new
-        );
+    /**
+     * Declares the embeddings service-settings fields on the given parser.
+     */
+    protected static <B extends Builder<?>> void declareEmbeddingsFields(
+        ObjectParser<B, ConfigurationParseContext> parser,
+        boolean isPersistentParser
+    ) {
         TencentCloudCommonServiceSettings.declareCommonFields(parser, TencentCloudCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS);
         parser.declareString(Builder::setSimilarity, SimilarityMeasure::fromString, new ParseField(SIMILARITY));
-        // The Tencent Cloud embeddings API does not accept a `dimensions` parameter, so only parse it from the persistent parser where it
+        // The TencentCloud embeddings APIs do not accept a `dimensions` parameter, so only parse it from the persistent parser where it
         // configures the local index mapping rather than the outbound request.
         if (isPersistentParser) {
             parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         }
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
-        return parser;
-    }
-
-    public static TencentCloudEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        return TencentCloudCommonServiceSettings.fromMap(map, context, parser);
     }
 
     @Nullable
@@ -74,7 +64,7 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
     @Nullable
     private final Integer maxInputTokens;
 
-    public TencentCloudEmbeddingsServiceSettings(
+    protected BaseTencentCloudEmbeddingsServiceSettings(
         String modelId,
         String region,
         @Nullable RateLimitSettings rateLimitSettings,
@@ -88,17 +78,24 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
         this.maxInputTokens = maxInputTokens;
     }
 
-    public TencentCloudEmbeddingsServiceSettings(StreamInput in) throws IOException {
+    protected BaseTencentCloudEmbeddingsServiceSettings(StreamInput in) throws IOException {
         super(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
+    /**
+     * Creates a settings instance of the concrete type with the given values.
+     */
+    protected abstract BaseTencentCloudEmbeddingsServiceSettings create(
+        String modelId,
+        String region,
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens
+    );
 
     @Override
     public SimilarityMeasure similarity() {
@@ -121,7 +118,7 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
     }
 
     @Override
-    public TencentCloudEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+    public BaseTencentCloudEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
             return Update.PARSER.apply(xParser, null).mergeInto(this);
         } catch (IOException e) {
@@ -129,18 +126,8 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
         }
     }
 
-    /**
-     * Return an updated copy with the resolved embedding size and similarity measure.
-     */
-    public TencentCloudEmbeddingsServiceSettings updateEmbeddingDetails(int newDimensions, SimilarityMeasure newSimilarity) {
-        return new TencentCloudEmbeddingsServiceSettings(
-            this.modelId(),
-            this.region(),
-            this.rateLimitSettings(),
-            newSimilarity,
-            newDimensions,
-            this.maxInputTokens()
-        );
+    public BaseTencentCloudEmbeddingsServiceSettings updateEmbeddingDetails(int newDimensions, SimilarityMeasure newSimilarity) {
+        return create(modelId(), region(), rateLimitSettings(), newSimilarity, newDimensions, maxInputTokens);
     }
 
     @Override
@@ -170,7 +157,7 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
     public boolean equals(Object o) {
         if (this == o) return true;
         if (super.equals(o) == false) return false;
-        TencentCloudEmbeddingsServiceSettings that = (TencentCloudEmbeddingsServiceSettings) o;
+        BaseTencentCloudEmbeddingsServiceSettings that = (BaseTencentCloudEmbeddingsServiceSettings) o;
         return similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens);
@@ -181,7 +168,13 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
         return Objects.hash(super.hashCode(), similarity, dimensions, maxInputTokens);
     }
 
-    public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudEmbeddingsServiceSettings> {
+    /**
+     * Accumulates the embeddings fields on behalf of a concrete settings builder.
+     *
+     * @param <T> the concrete settings type
+     */
+    public abstract static class Builder<T extends BaseTencentCloudEmbeddingsServiceSettings> extends
+        TencentCloudCommonServiceSettings.Builder<T> {
         private SimilarityMeasure similarity;
         private Integer dimensions;
         private Integer maxInputTokens;
@@ -200,9 +193,18 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
             this.maxInputTokens = maxInputTokens;
         }
 
+        protected abstract T build(
+            String modelId,
+            String region,
+            RateLimitSettings rateLimitSettings,
+            SimilarityMeasure similarity,
+            Integer dimensions,
+            Integer maxInputTokens
+        );
+
         @Override
-        protected TencentCloudEmbeddingsServiceSettings build(String modelId, String region, RateLimitSettings rateLimitSettings) {
-            return new TencentCloudEmbeddingsServiceSettings(modelId, region, rateLimitSettings, similarity, dimensions, maxInputTokens);
+        protected final T build(String modelId, String region, RateLimitSettings rateLimitSettings) {
+            return build(modelId, region, rateLimitSettings, similarity, dimensions, maxInputTokens);
         }
     }
 
@@ -226,15 +228,14 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
 
         private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
 
-        public TencentCloudEmbeddingsServiceSettings mergeInto(TencentCloudEmbeddingsServiceSettings existing) {
-            var updatedMaxInputTokens = applyUpdate(this.maxInputTokens, existing.maxInputTokens());
-            return new TencentCloudEmbeddingsServiceSettings(
+        BaseTencentCloudEmbeddingsServiceSettings mergeInto(BaseTencentCloudEmbeddingsServiceSettings existing) {
+            return existing.create(
                 existing.modelId(),
                 existing.region(),
                 mergedRateLimitSettings(existing),
                 existing.similarity(),
                 existing.dimensions(),
-                updatedMaxInputTokens
+                applyUpdate(this.maxInputTokens, existing.maxInputTokens())
             );
         }
     }

@@ -1128,11 +1128,16 @@ public final class DocumentParser {
             assert this.tsid == null || indexSettings.getMode().isTsdb() : "tsid should only be set for time series indices";
             XContentParserDecorator parserDecorator = source.getMeteringParserDecorator();
             Mapping mapping = mappingLookup.getMapping();
-            if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED
-                || mappingLookup.nestedLookup().getNestedMappers().isEmpty() == false) {
-                // With subobjects:false dots are not expanded, except when the mapping has nested fields: a dotted key into a nested field
-                // (e.g. "n.k") must be parsed inside the nested document, which only happens for the structured form {"n": {"k": ...}}.
+            NestedLookup nestedLookup = mappingLookup.nestedLookup();
+            if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = parserDecorator.decorate(DotExpandingXContentParser.expandDots(parser, this.path), mapping);
+            } else if (nestedLookup.getNestedMappers().isEmpty() == false) {
+                // With subobjects:false dotted names are literal field names, except for names inside a nested field: a nested field is a
+                // document boundary, so a key like "n.k" must be parsed as {"n": {"k": ...}} to end up in the nested document.
+                this.parser = parserDecorator.decorate(
+                    DotExpandingXContentParser.expandDots(parser, this.path, nestedLookup::hasNestedParent),
+                    mapping
+                );
             } else {
                 this.parser = parserDecorator.decorate(parser, mapping);
             }

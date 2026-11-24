@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.function.Predicate;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
@@ -34,11 +35,14 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     private static final class WrappingParser extends FilterXContentParser {
 
         private final ContentPath contentPath;
+        // when not null, only dotted field names whose full path matches are expanded, all others keep their literal name
+        private final Predicate<String> shouldExpand;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
         private XContentParser delegate; // cached top of stack — avoids peek() on every delegate() call
 
-        WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
+        WrappingParser(XContentParser in, ContentPath contentPath, Predicate<String> shouldExpand) throws IOException {
             this.contentPath = contentPath;
+            this.shouldExpand = shouldExpand;
             parsers.push(in);
             this.delegate = in;
             if (in.currentToken() == Token.FIELD_NAME) {
@@ -48,7 +52,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         @Override
         public XContentParser switchParser(XContentParser parser) throws IOException {
-            return new WrappingParser(parser, contentPath);
+            return new WrappingParser(parser, contentPath, shouldExpand);
         }
 
         @Override
@@ -84,6 +88,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             }
             final int dotCount = FieldTypeLookup.dotCount(field);
             if (dotCount == 0) {
+                return;
+            }
+            if (shouldExpand != null && shouldExpand.test(contentPath.pathAsText(field)) == false) {
                 return;
             }
             doExpandDots(delegate, field, dotCount);
@@ -206,7 +213,19 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @return  the wrapped XContentParser
      */
     static XContentParser expandDots(XContentParser in, ContentPath contentPath) throws IOException {
-        return new WrappingParser(in, contentPath);
+        return new WrappingParser(in, contentPath, null);
+    }
+
+    /**
+     * Like {@link #expandDots(XContentParser, ContentPath)}, but only expands the dotted field names for which {@code shouldExpand}
+     * returns true. All other field names keep their literal name.
+     *
+     * @param in            the parser to wrap
+     * @param contentPath   the path of the object that is being parsed, used to compute the full path of a field
+     * @param shouldExpand  tests the full path of a dotted field name, as it is in the document, not as it would be after expansion
+     */
+    static XContentParser expandDots(XContentParser in, ContentPath contentPath, Predicate<String> shouldExpand) throws IOException {
+        return new WrappingParser(in, contentPath, shouldExpand);
     }
 
     private enum State {

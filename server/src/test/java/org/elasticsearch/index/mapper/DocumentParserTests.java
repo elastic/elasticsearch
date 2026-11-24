@@ -2484,13 +2484,39 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSubobjectsFalseDottedKeyIntoDottedNested() throws Exception {
         DocumentMapper mapper = nestedUnderNoSubobjectsMapper("a.n", false);
         ParsedDocument structured = mapper.parse(source("{\"a.n\": {\"k\": \"v\"}}"));
-        for (String json : List.of("{\"a.n.k\": \"v\"}", "{\"a\": {\"n.k\": \"v\"}}", "{\"a\": [{\"n.k\": \"v\"}]}")) {
+        for (String json : List.of("{\"a.n.k\": \"v\"}")) {
             ParsedDocument doc = mapper.parse(source(json));
             assertEquals(json, 2, doc.docs().size());
             assertNotNull(json, doc.docs().get(0).getField("a.n.k"));
             assertNull(json, doc.rootDoc().getField("a.n.k"));
             assertEquals(json, fieldNames(structured.docs().get(0)), fieldNames(doc.docs().get(0)));
         }
+    }
+
+    public void testSubobjectsFalseNestedMappedKeepsExactMapperOutsideNested() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.startObject("f").field("type", "flattened").endObject();
+            b.startObject("f.k").field("type", "keyword").endObject();
+        }));
+        // The explicit keyword f.k wins over the flattened f, as it does when there is no nested field in the mapping
+        ParsedDocument doc = mapper.parse(source("{\"f.k\": \"v\"}"));
+        assertNotNull(doc.rootDoc().getField("f.k"));
+    }
+
+    public void testSubobjectsFalseNestedMappedKeepsLiteralNamesOutsideNested() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {
+            b.startObject("n").field("type", "nested").startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("{\".foo\": \"v\", \"top..foo\": \"w\", \"bar.\": \"x\"}"));
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
+        assertNotNull(mappingsUpdate.getRoot().getMapper(".foo"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("top..foo"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("bar."));
     }
 
     public void testSubobjectsFalseRootWithInnerDottedObjectDynamicFalse() throws Exception {

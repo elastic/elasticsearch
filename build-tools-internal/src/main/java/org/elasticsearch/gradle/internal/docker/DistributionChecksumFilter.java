@@ -29,15 +29,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Replaces the {@code @es_sha512_<arch>@} tokens in the Docker Hub Dockerfile with the SHA-512 checksums of the Linux
- * distribution tarballs. The Docker Official Images build downloads the published tarballs, and its policy requires
- * that every download is verified. The tarballs are not reproducible between builds, so the checksums have to come
- * from the tarballs that are built (and published) together with the Dockerfile.
+ * Replaces the {@code @es_sha512_<arch>@} tokens in the Dockerfile of a published build context with the SHA-512
+ * checksums of the Linux distribution tarballs. The Dockerfile downloads the published tarballs and verifies them, as
+ * the Docker Official Images policy requires for the Docker Hub image. The tarballs are not reproducible between
+ * builds, so the checksums have to come from the tarballs that are built (and published) together with the Dockerfile.
  * <p>
  * Gradle creates the filter first and only then sets {@link #setTarballs(Iterable)}, so the content is transformed
  * lazily, on the first read.
  */
-public class DockerHubChecksumFilter extends FilterReader {
+public class DistributionChecksumFilter extends FilterReader {
 
     private static final Pattern TARBALL_NAME = Pattern.compile("^elasticsearch-.+-linux-(?<arch>[a-z0-9_]+)\\.tar\\.gz$");
     private static final Pattern TOKEN = Pattern.compile("@es_sha512_(?<arch>[a-z0-9_]+)@");
@@ -45,7 +45,7 @@ public class DockerHubChecksumFilter extends FilterReader {
     private Iterable<File> tarballs;
     private Reader transformed;
 
-    public DockerHubChecksumFilter(Reader in) {
+    public DistributionChecksumFilter(Reader in) {
         super(in);
     }
 

@@ -33,7 +33,7 @@ def separateLayers = dockerHub ? [] : ['jdk', 'modules/x-pack-ml/platform/*/lib'
 
 FROM ${base_image} AS builder
 
-RUN microdnf install -y findutils tar gzip util-linux-core<%= dockerHub ? ' gnupg2' : '' %>
+RUN microdnf install -y findutils tar gzip util-linux-core gnupg2
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -53,13 +53,17 @@ RUN set -eux; \\
     mv /tmp/tini /bin/tini; \\
     chmod 0555 /bin/tini
 
-WORKDIR /usr/share/elasticsearch<% if (dockerHub) { %>
+WORKDIR /usr/share/elasticsearch<% if (local_distribution) { %>
+COPY elasticsearch-${version} .
+RUN \\<% } else { %>
 <% /*
-  The Docker Official Images policy requires that downloads are verified. The `@es_sha512_<arch>@` tokens are
-  replaced with the checksums of the tarballs built together with this Dockerfile by DockerHubChecksumFilter.
-  The tarballs are not reproducible, so the checksums only match the tarballs published by the same build.
-  This block must not be rendered in the `docker-build-context`: the transform task for local builds replaces
-  the download line by line.
+  The published build contexts download the published distribution, which must be verified (the Docker Official
+  Images policy requires it for the Docker Hub image). DistributionChecksumFilter replaces the `@es_sha512_<arch>@`
+  tokens with the checksums of the tarballs built together with this Dockerfile. The tarballs are not reproducible,
+  so the checksums only match the tarballs published by the same build.
+
+  Images built locally copy in the distribution instead (`local_distribution`), so that building an image does not
+  require the tarballs of all architectures.
 */ %>
 # Download the Elasticsearch distribution and verify it against its SHA-512 checksum and against Elastic's
 # signature. The signing key is not fetched from a keyserver: the signature must have been made by the key
@@ -81,9 +85,8 @@ RUN set -eux; \\
     gpg --batch --status-fd 1 --verify /tmp/elasticsearch.tar.gz.asc /tmp/elasticsearch.tar.gz \\
         | grep '^\\[GNUPG:\\] VALIDSIG .* 46095ACC8548582C1A2699A9D27D666CD88E42B4\$'; \\
     gpgconf --kill all; \\
-    rm -rf "\$GNUPGHOME" /tmp/elasticsearch.tar.gz.asc<% } else { %>
-RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz<% } %>
-RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
+    rm -rf "\$GNUPGHOME" /tmp/elasticsearch.tar.gz.asc
+RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\<% } %>
 # Configure the distribution for Docker
     sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
 # Create required directory

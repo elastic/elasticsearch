@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThrows;
 
-public class DockerHubChecksumFilterTests {
+public class DistributionChecksumFilterTests {
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -41,7 +41,7 @@ public class DockerHubChecksumFilterTests {
             tarball("elasticsearch-9.5.0-linux-x86_64.tar.gz", "x86_64"),
             tarball("elasticsearch-9.5.0-linux-aarch64.tar.gz", "aarch64")
         );
-        DockerHubChecksumFilter filter = new DockerHubChecksumFilter(
+        DistributionChecksumFilter filter = new DistributionChecksumFilter(
             new StringReader("aarch64) sum='@es_sha512_aarch64@' ;;\nx86_64) sum='@es_sha512_x86_64@' ;;\n")
         );
         filter.setTarballs(tarballs);
@@ -57,7 +57,7 @@ public class DockerHubChecksumFilterTests {
 
     @Test
     public void computesSha512PerArchitecture() throws IOException {
-        Map<String, String> checksums = DockerHubChecksumFilter.checksums(
+        Map<String, String> checksums = DistributionChecksumFilter.checksums(
             List.of(
                 tarball("elasticsearch-9.5.0-SNAPSHOT-linux-x86_64.tar.gz", "x86_64"),
                 tarball("elasticsearch-9.5.0-SNAPSHOT-linux-aarch64.tar.gz", "aarch64")
@@ -69,14 +69,14 @@ public class DockerHubChecksumFilterTests {
     @Test
     public void failsWithoutTarballForEveryArchitecture() throws IOException {
         List<File> tarballs = List.of(tarball("elasticsearch-9.5.0-linux-x86_64.tar.gz", "x86_64"));
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DockerHubChecksumFilter.checksums(tarballs));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DistributionChecksumFilter.checksums(tarballs));
         assertThat(e.getMessage(), containsString("No Elasticsearch tarball for architecture [aarch64]"));
     }
 
     @Test
     public void failsOnUnexpectedFiles() throws IOException {
         List<File> tarballs = List.of(tarball("elasticsearch-9.5.0-linux-x86_64.tar.gz.sha512", "x86_64"));
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DockerHubChecksumFilter.checksums(tarballs));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> DistributionChecksumFilter.checksums(tarballs));
         assertThat(e.getMessage(), containsString("Not an Elasticsearch Linux tarball"));
     }
 
@@ -84,14 +84,14 @@ public class DockerHubChecksumFilterTests {
     public void failsOnTokenWithoutChecksum() {
         IllegalStateException e = assertThrows(
             IllegalStateException.class,
-            () -> DockerHubChecksumFilter.replaceTokens("sum='@es_sha512_ppc64le@'", Map.of("x86_64", "abc"))
+            () -> DistributionChecksumFilter.replaceTokens("sum='@es_sha512_ppc64le@'", Map.of("x86_64", "abc"))
         );
         assertThat(e.getMessage(), containsString("No Elasticsearch tarball for architecture [ppc64le]"));
     }
 
     @Test
     public void failsWhenTarballsAreNotSet() {
-        DockerHubChecksumFilter filter = new DockerHubChecksumFilter(new StringReader("@es_sha512_x86_64@"));
+        DistributionChecksumFilter filter = new DistributionChecksumFilter(new StringReader("@es_sha512_x86_64@"));
         assertThrows(IllegalStateException.class, () -> filter.transferTo(new StringWriter()));
     }
 

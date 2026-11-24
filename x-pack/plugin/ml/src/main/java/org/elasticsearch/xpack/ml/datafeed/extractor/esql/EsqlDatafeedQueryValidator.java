@@ -119,53 +119,16 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
-        if (describeAvailable.getAsBoolean() == false) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_ESQL_DESCRIBE_UNAVAILABLE, esqlDatafeedSubject(datafeedId))
-                )
-            );
-            return;
-        }
-        warnOnOuterLimit(esqlQuery, datafeedId);
-        String describeQuery = describeQuery(esqlQuery, timeField, summaryCountField);
-
-        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            try {
-                List<String> unavailable = unavailableClustersWithoutDescription(response);
-                if (unavailable.isEmpty() == false) {
-                    logger.debug(
-                        () -> "[" + datafeedId + "] ES|QL DESCRIBE probe skipped clusters " + unavailable + ". Deferring to start."
-                    );
-                    listener.onResponse(Boolean.TRUE);
-                    return;
-                }
-                checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(Boolean.TRUE);
-        }, e -> {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            // A source that does not exist yet or an unreachable remote does not fail PUT, same as a DSL datafeed. Start checks remotes.
-            if (isDeferredExistenceFailure(cause) || org.elasticsearch.ExceptionsHelper.isRemoteUnavailableException(e)) {
-                logger.debug(() -> "[" + datafeedId + "] ES|QL DESCRIBE probe failed with [" + cause + "]. Deferring to runtime.");
-                listener.onResponse(Boolean.TRUE);
-            } else {
-                listener.onFailure(e);
-            }
-        });
-
-        queryRunner.executeAsync(
+        describe(
             client,
-            describeQuery,
-            null,
             headers,
+            esqlQuery,
             projectRouting,
-            List.of(),
-            ExecutionMetadata.CCS_ONLY,
-            responseListener
+            timeField,
+            summaryCountField,
+            Phase.PUT,
+            listener.map(remoteSources -> Boolean.TRUE),
+            datafeedId
         );
     }
 
@@ -185,6 +148,27 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<List<String>> listener,
         @Nullable String datafeedId
     ) {
+        describe(client, headers, esqlQuery, projectRouting, timeField, summaryCountField, Phase.START, listener, datafeedId);
+    }
+
+    /** PUT defers a source that does not exist, an unreachable remote and skipped clusters, as for a DSL datafeed. Start fails. */
+    private enum Phase {
+        PUT,
+        START
+    }
+
+    /** Runs the {@code DESCRIBE} probe and returns the remote sources, or an empty list when PUT defers. */
+    private void describe(
+        Client client,
+        Map<String, String> headers,
+        String esqlQuery,
+        @Nullable String projectRouting,
+        String timeField,
+        @Nullable String summaryCountField,
+        Phase phase,
+        ActionListener<List<String>> listener,
+        @Nullable String datafeedId
+    ) {
         if (describeAvailable.getAsBoolean() == false) {
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
@@ -193,32 +177,61 @@ public class EsqlDatafeedQueryValidator {
             );
             return;
         }
+        if (phase == Phase.PUT) {
+            warnOnOuterLimit(esqlQuery, datafeedId);
+        }
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            List<String> unavailable = unavailableClustersWithoutDescription(response);
-            if (unavailable.isEmpty() == false) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(
-                        Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE,
-                        esqlDatafeedSubject(datafeedId),
-                        unavailable,
-                        summaryCountField == null ? List.of(timeField) : List.of(timeField, summaryCountField)
-                    )
-                );
-            }
-            checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
             List<String> remote = new ArrayList<>();
-            for (EsqlClusterInfo cluster : response.response().clusters()) {
-                String alias = cluster.clusterAlias();
-                if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
-                    continue;
+            try {
+                List<String> unavailable = unavailableClustersWithoutDescription(response);
+                if (unavailable.isEmpty() == false) {
+                    if (phase == Phase.PUT) {
+                        logger.debug(
+                            () -> "[" + datafeedId + "] ES|QL DESCRIBE probe skipped clusters " + unavailable + ". Deferring to start."
+                        );
+                        listener.onResponse(List.of());
+                        return;
+                    }
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(
+                            Messages.DATAFEED_ESQL_START_CLUSTERS_UNAVAILABLE,
+                            esqlDatafeedSubject(datafeedId),
+                            unavailable,
+                            summaryCountField == null ? List.of(timeField) : List.of(timeField, summaryCountField)
+                        )
+                    );
                 }
-                // An unknown expression still names a remote cluster, so keep it for the cluster-level checks.
-                remote.add(
-                    alias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + Objects.requireNonNullElse(cluster.indexExpression(), "*")
-                );
+                checkDescription(EsqlQueryDescription.from(response.response()), timeField, summaryCountField, datafeedId);
+                for (EsqlClusterInfo cluster : response.response().clusters()) {
+                    String alias = cluster.clusterAlias();
+                    if (alias.equals(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS) || alias.equals(ProjectRoutingResolver.ORIGIN)) {
+                        continue;
+                    }
+                    // An unknown expression still names a remote cluster, so keep it for the cluster-level checks.
+                    remote.add(
+                        alias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + Objects.requireNonNullElse(
+                            cluster.indexExpression(),
+                            "*"
+                        )
+                    );
+                }
+            } catch (Exception e) {
+                // Fail directly: the failure handler below would defer a column check failure that looks like a missing source.
+                listener.onFailure(e);
+                return;
             }
             listener.onResponse(List.copyOf(remote));
-        }, listener::onFailure);
+        }, e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            // A source that does not exist yet or an unreachable remote does not fail PUT, same as a DSL datafeed. Start checks remotes.
+            if (phase == Phase.PUT
+                && (isDeferredExistenceFailure(cause) || org.elasticsearch.ExceptionsHelper.isRemoteUnavailableException(e))) {
+                logger.debug(() -> "[" + datafeedId + "] ES|QL DESCRIBE probe failed with [" + cause + "]. Deferring to runtime.");
+                listener.onResponse(List.of());
+            } else {
+                listener.onFailure(e);
+            }
+        });
         queryRunner.executeAsync(
             client,
             describeQuery(esqlQuery, timeField, summaryCountField),

@@ -198,15 +198,10 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
     }
 
-    public void testCheckEsqlSourcesAtStartShouldProbeWithHeadersAndEffectiveProjectRouting() {
+    public void testResolveRemoteSourcesGivenEsqlDatafeedShouldProbeWithHeadersAndEffectiveProjectRouting() {
         EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
         Client probeClient = mock(Client.class);
         DatafeedConfig datafeed = newEsqlDatafeed().setHeaders(Map.of("h", "v")).setProjectRouting("_alias:prod-*").build();
-        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(
-            datafeed,
-            new CrossProjectModeDecider(Settings.EMPTY),
-            false
-        );
         List<String> remote = List.of("east:logs-*");
         doAnswer(invocation -> {
             invocation.<ActionListener<List<String>>>getArgument(6).onResponse(remote);
@@ -214,19 +209,18 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        TransportStartDatafeedAction.checkEsqlSourcesAtStart(
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.resolveRemoteSources(
             validator,
-            probeClient,
+            () -> probeClient,
             datafeed,
-            effective,
             newJob(),
             new CrossProjectModeDecider(Settings.EMPTY),
             params,
             future
         );
 
-        future.actionGet();
+        assertThat(future.actionGet(), equalTo(remote));
         assertThat(params.getDatafeedIndices(), equalTo(remote));
         // cross-project search is off, so the persisted project routing is inert and must not reach ES|QL
         verify(validator).validateAtStart(
@@ -241,7 +235,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
     }
 
-    public void testCheckEsqlSourcesAtStartGivenProbeFailureShouldFailListener() {
+    public void testResolveRemoteSourcesGivenProbeFailureShouldFailListener() {
         EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
         DatafeedConfig datafeed = newEsqlDatafeed().build();
         doAnswer(invocation -> {
@@ -250,11 +244,10 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         }).when(validator).validateAtStart(any(), any(), any(), any(), any(), any(), any(), any());
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        TransportStartDatafeedAction.checkEsqlSourcesAtStart(
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.resolveRemoteSources(
             validator,
-            mock(Client.class),
-            datafeed,
+            () -> mock(Client.class),
             datafeed,
             newJob(),
             new CrossProjectModeDecider(Settings.EMPTY),
@@ -266,7 +259,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(params.getDatafeedIndices(), equalTo(List.of()));
     }
 
-    public void testCheckEsqlSourcesAtStartWithCrossProjectEnabledShouldNotProbe() {
+    public void testResolveRemoteSourcesGivenEsqlDatafeedWithCrossProjectEnabledShouldNotProbe() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
         DatafeedConfig datafeed = newEsqlDatafeed().build();
@@ -275,22 +268,35 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
 
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        TransportStartDatafeedAction.checkEsqlSourcesAtStart(
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.resolveRemoteSources(validator, () -> mock(Client.class), datafeed, newJob(), decider, params, future);
+
+        assertThat(future.actionGet(), equalTo(List.of()));
+        verifyNoInteractions(validator);
+        assertThat(TransportStartDatafeedAction.skipsRemoteClusterChecks(datafeed, decider), is(true));
+    }
+
+    public void testResolveRemoteSourcesGivenDslDatafeedShouldStoreIndicesAndReturnRemoteOnesWithoutProbing() {
+        EsqlDatafeedQueryValidator validator = mock(EsqlDatafeedQueryValidator.class);
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("dsl-datafeed", "job_id").setIndices(
+            List.of("local-index", "east:logs-*", "_origin:logs-*")
+        ).build();
+
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("dsl-datafeed", 0L);
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        TransportStartDatafeedAction.resolveRemoteSources(
             validator,
-            mock(Client.class),
-            datafeed,
+            () -> { throw new AssertionError("a DSL datafeed is not probed"); },
             datafeed,
             newJob(),
-            decider,
+            new CrossProjectModeDecider(Settings.EMPTY),
             params,
             future
         );
 
-        future.actionGet();
-        assertThat(params.getDatafeedIndices(), equalTo(List.of()));
+        assertThat(future.actionGet(), equalTo(List.of("east:logs-*")));
+        assertThat(params.getDatafeedIndices(), equalTo(datafeed.getIndices()));
         verifyNoInteractions(validator);
-        assertThat(TransportStartDatafeedAction.skipsRemoteClusterChecks(datafeed, decider), is(true));
     }
 
     public void testDatafeedTaskShouldExposeDatafeedIndicesFromParams() {

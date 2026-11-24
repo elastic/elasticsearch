@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -282,37 +283,23 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             }
         };
 
-        // An ES|QL datafeed has no index list, so ask ES|QL which remote clusters the query reads.
-        Consumer<Job> createDataExtractor = job -> {
-            DatafeedConfig datafeed = datafeedConfigHolder.get();
-            if (datafeed.getEsqlQuery() == null) {
-                checkRemoteSourcesAndCreateExtractor.accept(job, trueRemoteIndices(params.getDatafeedIndices()));
-                return;
-            }
-            DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
-                datafeed,
-                crossProjectModeDecider,
-                datafeed.getCloudInternalCredential() != null
-            );
-            checkEsqlSourcesAtStart(
-                esqlQueryValidator,
-                CloudCredentialsExtension.getInstance()
-                    .credentialManager()
-                    .wrapClient(
-                        new ParentTaskAssigningClient(client, clusterService.localNode(), task),
-                        datafeed.getCloudInternalCredential()
-                    ),
-                datafeed,
-                effectiveDatafeed,
-                job,
-                crossProjectModeDecider,
-                params,
-                ActionListener.wrap(
-                    unused -> checkRemoteSourcesAndCreateExtractor.accept(job, trueRemoteIndices(params.getDatafeedIndices())),
-                    responseHeaderPreservingListener::onFailure
-                )
-            );
-        };
+        Consumer<Job> createDataExtractor = job -> resolveRemoteSources(
+            esqlQueryValidator,
+            () -> CloudCredentialsExtension.getInstance()
+                .credentialManager()
+                .wrapClient(
+                    new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+                    datafeedConfigHolder.get().getCloudInternalCredential()
+                ),
+            datafeedConfigHolder.get(),
+            job,
+            crossProjectModeDecider,
+            params,
+            ActionListener.wrap(
+                remoteIndices -> checkRemoteSourcesAndCreateExtractor.accept(job, remoteIndices),
+                responseHeaderPreservingListener::onFailure
+            )
+        );
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
             Job job = jobBuilder.build();
@@ -334,7 +321,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 crossProjectModeDecider,
                 datafeedConfig.getCloudInternalCredential() != null
             );
-            params.setDatafeedIndices(datafeedConfig.getIndices());
             params.setJobId(datafeedConfig.getJobId());
             setIndicesOptionsIfPresent(params, effectiveDatafeed);
             datafeedConfigHolder.set(datafeedConfig);
@@ -378,26 +364,31 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     /**
-     * Probes the query of an ES|QL datafeed and stores the remote sources it reads in {@code params} as the datafeed indices, so
-     * the remote cluster checks of a DSL datafeed apply, on this node and on the node that runs the datafeed. Only remote sources
-     * are stored, which is all those checks read. Cross-project mode has projects, not remote clusters, so it has nothing to probe.
+     * Stores the sources of the datafeed in {@code params}, where the node that runs the datafeed reads them, and returns the remote
+     * ones for the remote cluster checks. A DSL datafeed lists its indices. An ES|QL datafeed has no index list, so a probe of its
+     * query finds the remote sources. Cross-project mode has projects, not remote clusters, so it has nothing to probe.
      */
-    static void checkEsqlSourcesAtStart(
+    static void resolveRemoteSources(
         EsqlDatafeedQueryValidator validator,
-        Client probeClient,
+        Supplier<Client> probeClient,
         DatafeedConfig datafeed,
-        DatafeedConfig effectiveDatafeed,
         Job job,
         CrossProjectModeDecider crossProjectModeDecider,
         StartDatafeedAction.DatafeedParams params,
-        ActionListener<Void> listener
+        ActionListener<List<String>> listener
     ) {
-        if (skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
-            listener.onResponse(null);
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeed,
+            crossProjectModeDecider,
+            datafeed.getCloudInternalCredential() != null
+        );
+        if (datafeed.getEsqlQuery() == null || skipsRemoteClusterChecks(effectiveDatafeed, crossProjectModeDecider)) {
+            params.setDatafeedIndices(datafeed.getIndices());
+            listener.onResponse(trueRemoteIndices(params.getDatafeedIndices()));
             return;
         }
         validator.validateAtStart(
-            probeClient,
+            probeClient.get(),
             datafeed.getHeaders(),
             datafeed.getEsqlQuery(),
             effectiveDatafeed.getProjectRouting(),
@@ -405,7 +396,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveDatafeed, job),
             ActionListener.wrap(remoteSources -> {
                 params.setDatafeedIndices(remoteSources);
-                listener.onResponse(null);
+                listener.onResponse(trueRemoteIndices(remoteSources));
             }, listener::onFailure),
             datafeed.getId()
         );

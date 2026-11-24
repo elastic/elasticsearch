@@ -58,9 +58,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -405,13 +403,13 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new DatafeedTimingStats(jobBuilder.getId())
         );
 
-        TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
+        TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1", List.of("remotecluster:index-*"));
 
         buildDatafeedJob(datafeedTask, datafeedContext, datafeedJobHandler);
         assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
-    public void testCheckRemoteIndicesAreAvailableGivenNullIndicesShouldNotThrow() {
+    public void testCheckRemoteIndicesAreAvailableGivenNullTaskIndicesShouldNotThrow() {
         datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry(),
@@ -428,10 +426,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(TimeValue.timeValueHours(1))
             .build();
-        DatafeedConfig datafeedWithoutIndices = spy(datafeed);
-        doReturn(null).when(datafeedWithoutIndices).getIndices();
 
-        datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1"), datafeedWithoutIndices);
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(newDatafeedTask("datafeed1", null), datafeed);
     }
 
     public void testBuildGivenEsqlRemoteSourceAndNoRemoteSearchingShouldFail() throws Exception {

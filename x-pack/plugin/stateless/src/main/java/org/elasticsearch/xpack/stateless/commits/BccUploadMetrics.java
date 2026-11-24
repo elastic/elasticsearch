@@ -122,8 +122,8 @@ public class BccUploadMetrics {
     /// Records the total duration, the number of attempts and the generation queue wait of a successful BCC upload.
     public void recordBccUploadCompleted(long totalSizeInBytes, BccUploadResult result) {
         bccUploadDurationHistogram.record(result.totalUploadTimeMs(), Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(totalSizeInBytes)));
-        bccUploadAttemptsHistogram.record(result.attempts().getLast().attempt());
-        bccUploadGenerationQueueDurationHistogram.record(result.attempts().getLast().generationQueueWaitMs());
+        bccUploadAttemptsHistogram.record(result.timing().attempt());
+        bccUploadGenerationQueueDurationHistogram.record(result.timing().generationQueueWaitMs());
     }
 
     /// Records all BCC upload metrics: size, number of commits, age before freeze, and timestamp range.

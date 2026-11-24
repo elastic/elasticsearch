@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AbsentFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
@@ -182,6 +183,7 @@ public class ApproximationSupportTests extends ESTestCase {
         InstantSelector.class,
         RangeSelector.class,
         PromqlFunctionCall.class,
+        AbsentFunction.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         CountValuesAggregate.class,

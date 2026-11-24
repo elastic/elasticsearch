@@ -427,6 +427,12 @@ tests:
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
+  method: "test {yaml=remote_cluster/40_text_expansion/*}"
+  issue: https://github.com/elastic/elasticsearch/issues/164050
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
+  method: "test {yaml=multi_cluster/40_text_expansion/*}"
   issue: https://github.com/elastic/elasticsearch/issues/164050
 - class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
   tasks:
@@ -611,16 +617,6 @@ tests:
   - :x-pack:plugin:spatial:internalClusterTest
   method: testCartesianShape
   issue: https://github.com/elastic/elasticsearch/issues/165745
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/165756
-- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
-  tasks:
-  - :x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest
-  method: testIndexingLogsdbColumnar
-  issue: https://github.com/elastic/elasticsearch/issues/165787
 - class: org.elasticsearch.index.codec.postings.ES812PostingsFormatTests
   tasks:
   - :server:test
@@ -800,11 +796,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testDriverFailingWhileBlockedClosesItsSleep
   issue: https://github.com/elastic/elasticsearch/issues/167028
-- class: org.elasticsearch.xpack.searchablesnapshots.store.input.FrozenIndexInputTests
-  tasks:
-  - :x-pack:plugin:searchable-snapshots:test
-  method: testWithMemorySegmentSliceColdCacheCopiesIntoConfinedScratchBeyondBlobCacheIndexRange
-  issue: https://github.com/elastic/elasticsearch/issues/167030
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -840,3 +831,7 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testNodeChurnDuringRealtimeShouldRecoverAndKeepDatafeedStarted
   issue: https://github.com/elastic/elasticsearch/issues/166780
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.TopTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  issue: https://github.com/elastic/elasticsearch/issues/167247

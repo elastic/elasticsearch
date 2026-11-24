@@ -58,6 +58,8 @@ import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -109,6 +111,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * }
  * }</pre>
  */
+@RunWith(ESRandomizedRunner.class)
 public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     protected static final String TIMESTAMP_FIELD = "@timestamp";

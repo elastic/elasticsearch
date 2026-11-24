@@ -25,10 +25,13 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
+@RunWith(ESRandomizedRunner.class)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 public class Lucene70DocValuesFormatTests extends LegacyBaseDocValuesFormatTestCase {
 

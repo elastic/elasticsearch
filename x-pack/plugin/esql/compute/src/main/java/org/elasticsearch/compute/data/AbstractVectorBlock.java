@@ -42,6 +42,11 @@ abstract class AbstractVectorBlock extends AbstractBlockRefCounted implements Bl
     }
 
     @Override
+    public final int nullValuesCount() {
+        return 0;
+    }
+
+    @Override
     public final boolean mayHaveMultivaluedFields() {
         return false;
     }

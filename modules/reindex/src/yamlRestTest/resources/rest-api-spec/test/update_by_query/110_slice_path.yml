@@ -75,11 +75,10 @@ setup:
   - match: {count: 3}
 
 ---
-"Update by query with _all in the path":
+"Update by query without a slice updates every slice":
   - do:
       update_by_query:
         index:   sliced
-        _slice:  _all
         refresh: true
   - match: {updated: 3}
   - match: {failures: []}
@@ -105,3 +104,38 @@ setup:
         refresh: true
   - match: {updated: 0}
   - match: {failures: []}
+
+---
+"Update by query without a slice covers slice-enabled and plain indices":
+  - do:
+      index:
+        index:   plain_mixed
+        id:      "10"
+        routing: custom
+        refresh: true
+        body:    { "company": "hen" }
+
+  - do:
+      update_by_query:
+        index:   sliced,plain_mixed
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: ctx._source.company = "updated"
+  - match: {updated: 4}
+  - match: {failures: []}
+
+  - do:
+      get:
+        index:  sliced
+        id:     "1"
+        _slice: tenant-a
+  - match: {_source.company: updated}
+
+  - do:
+      get:
+        index:   plain_mixed
+        id:      "10"
+        routing: custom
+  - match: {_source.company: updated}

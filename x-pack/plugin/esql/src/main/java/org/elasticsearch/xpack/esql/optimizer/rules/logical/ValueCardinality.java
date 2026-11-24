@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -233,12 +234,13 @@ enum ValueCardinality {
      * Whether {@code output} is one of the grouping keys of {@code aggregate}, rather than an aggregate function.
      */
     private static boolean isGroupKey(Aggregate aggregate, NamedExpression output) {
-        Expression unwrappedOutput = Alias.unwrap(output);
-        for (Expression grouping : aggregate.groupings()) {
-            // BY x + 1: the output is an alias of the grouping. BY languages: the same column, with the same id.
-            if (unwrappedOutput.semanticEquals(Alias.unwrap(grouping))
-                || (grouping instanceof NamedExpression named && named.id().equals(output.id()))) {
-                return true;
+        if (Alias.unwrap(output) instanceof Attribute outputAttribute) {
+            for (Expression grouping : aggregate.groupings()) {
+                // The output of a group key is the attribute of the grouping, or an alias of it.
+                Attribute groupingAttribute = Expressions.attribute(grouping);
+                if (groupingAttribute != null && outputAttribute.id().equals(groupingAttribute.id())) {
+                    return true;
+                }
             }
         }
         return false;

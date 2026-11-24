@@ -225,6 +225,15 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey(filtered, "c"), equalTo(MAYBE_MULTI));
     }
 
+    /** A group key that is an expression, or a renamed column, is single-valued in a later {@code STATS} too. */
+    public void testEarlierAggregateExpressionOrRenamedKeyIsSingle() {
+        String expression = "FROM test | STATS c = COUNT(*) BY k = languages + 1 | STATS n = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(expression, "k"), equalTo(SINGLE));
+
+        String renamed = "FROM test | RENAME languages AS l | STATS c = COUNT(*) BY l | STATS n = COUNT(*) BY l";
+        assertThat(cardinalityOfKey(renamed, "l"), equalTo(SINGLE));
+    }
+
     public void testEarlierAggregateValuesIsUnknown() {
         String query = "FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v";
         assertThat(cardinalityOfKey(query, "v"), equalTo(MAYBE_MULTI));

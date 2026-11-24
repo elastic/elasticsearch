@@ -268,13 +268,13 @@ public final class ScheduledUsageReporter implements UsageReporter {
     }
 
     /**
-     * Stops the schedule and makes a last attempt to publish: it drains the accumulator, so that the usage since the last tick is not
-     * lost on a restart, and publishes what is pending. The drain covers a partial window, which is correct because the record carries
-     * the real window (see the class javadoc); its drain time is moved past the previous one if needed, so that it never shares an id
-     * with the last tick. The flush waits at most the request timeout for a cycle that is still running, and stops starting batches
-     * after the same timeout from the start of the close. It cannot bound a batch that is already being published: a publisher may make
-     * several requests for one batch, so the close can take longer than the timeout. What is not sent is lost, which can only
-     * under-count, and is reported with a warning.
+     * Stops the schedule and makes a last attempt to publish: it publishes what is pending, then drains the accumulator, so that the
+     * usage since the last tick is not lost on a restart, and publishes that too. The drain covers a partial window, which is correct
+     * because the record carries the real window (see the class javadoc); its drain time is moved past the previous one if needed, so
+     * that it never shares an id with the last tick. The flush waits at most the request timeout for a cycle that is still running, and
+     * stops starting batches after the same timeout from the start of the close. It cannot bound a batch that is already being
+     * published: a publisher may make several requests for one batch, so the close can take longer than the timeout. What is not sent is
+     * lost, which can only under-count, and is reported with a warning.
      */
     @Override
     public void close() {
@@ -291,8 +291,12 @@ public final class ScheduledUsageReporter implements UsageReporter {
         try {
             acquired = cycle.tryAcquire(flushTimeout.nanos(), TimeUnit.NANOSECONDS);
             if (acquired) {
+                BooleanSupplier beforeDeadline = () -> relativeNanos.getAsLong() - deadline < 0;
+                // The pending records go first: adding the last window to a full store would evict the oldest of them before they
+                // had a chance to be delivered.
+                publish(beforeDeadline);
                 drain(clock.instant());
-                publish(() -> relativeNanos.getAsLong() - deadline < 0);
+                publish(beforeDeadline);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

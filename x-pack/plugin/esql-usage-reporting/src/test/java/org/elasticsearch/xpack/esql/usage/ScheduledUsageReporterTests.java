@@ -162,6 +162,10 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     }
 
     private ScheduledUsageReporter reporter(int batchSize, String requestTimeout) {
+        return reporter(batchSize, requestTimeout, store);
+    }
+
+    private ScheduledUsageReporter reporter(int batchSize, String requestTimeout, PendingStore pendingStore) {
         Settings settings = Settings.builder()
             .put(UsageReportingSettings.PERIOD.getKey(), "5m")
             .put(UsageReportingSettings.BATCH_SIZE.getKey(), batchSize)
@@ -171,7 +175,7 @@ public class ScheduledUsageReporterTests extends ESTestCase {
             UsageReportingSettings.of(settings),
             accumulator,
             builder,
-            store,
+            pendingStore,
             publisher,
             IDENTITY,
             taskQueue.getThreadPool(),
@@ -183,10 +187,14 @@ public class ScheduledUsageReporterTests extends ESTestCase {
 
     /** Puts records in the store as a previous cycle that could not publish them would have. */
     private void addPending(int count) {
+        store.add(pendingRecords(count));
+    }
+
+    private List<UsageRecord> pendingRecords(int count) {
         builder.recordsPerSnapshot = count;
         Instant time = at("2026-11-23T10:00:00Z");
         UsageSnapshot snapshot = new UsageSnapshot(time, Map.of(Outcome.SUCCESS, new CpuComponents(0, 0, 2_000_000, 0)));
-        store.add(builder.build(snapshot, IDENTITY, Duration.ofMinutes(5), time));
+        return builder.build(snapshot, IDENTITY, Duration.ofMinutes(5), time);
     }
 
     private static PublishResult accepted(List<UsageRecord> records) {
@@ -271,6 +279,23 @@ public class ScheduledUsageReporterTests extends ESTestCase {
 
         assertThat(accumulator.drains, contains(at("2026-12-01T00:00:00Z"), at("2026-12-01T00:01:00Z")));
         assertThat(builder.periods, contains(Duration.ofMinutes(5), Duration.ofSeconds(60)));
+    }
+
+    /** With a full store, adding the last window first would evict the oldest pending record before it was published. */
+    public void testCloseGivesThePendingRecordsAChanceBeforeAddingTheLastWindow() {
+        BoundedPendingStore bounded = new BoundedPendingStore(1);
+        ScheduledUsageReporter reporter = reporter(10, "1s", bounded);
+        bounded.add(pendingRecords(1)); // left by a cycle that could not publish; the store is full
+        builder.recordsPerSnapshot = 1;
+
+        reporter.close();
+
+        assertThat(publisher.batches.size(), equalTo(2));
+        assertThat(publisher.batches.get(0), contains("es-node_2026-11-23T10:00:00Z_0"));
+        assertThat(publisher.batches.get(1), contains("es-node_" + at("2026-11-23T10:03:20.001Z") + "_0"));
+        assertThat(reporter.recordsSent(), equalTo(2L));
+        assertThat(bounded.droppedCount(), equalTo(0L));
+        assertThat(bounded.size(), equalTo(0));
     }
 
     public void testTheFinalDrainDoesNotShareAnIdWithATickAtTheSameInstant() {
@@ -541,10 +566,10 @@ public class ScheduledUsageReporterTests extends ESTestCase {
             contains(at("2026-11-23T10:05:00Z"), at("2026-11-23T10:10:00Z"), at("2026-11-23T10:10:05Z"))
         );
         assertThat("the record of the last window covers the five seconds", builder.periods.get(2), equalTo(Duration.ofSeconds(5)));
-        assertThat(
-            publisher.batches.get(publisher.batches.size() - 1),
-            contains("es-node_2026-11-23T10:10:00Z_0", "es-node_2026-11-23T10:10:05Z_0")
-        );
+        // The pending record is published first, then the record of the last window, in a batch of its own.
+        List<List<String>> batches = publisher.batches;
+        assertThat(batches.get(batches.size() - 2), contains("es-node_2026-11-23T10:10:00Z_0"));
+        assertThat(batches.get(batches.size() - 1), contains("es-node_2026-11-23T10:10:05Z_0"));
 
         reporter.close(); // idempotent
         runUntil("2026-11-23T10:30:00Z");

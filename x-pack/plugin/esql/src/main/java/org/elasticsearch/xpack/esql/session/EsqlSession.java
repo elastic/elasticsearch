@@ -2024,12 +2024,14 @@ public class EsqlSession {
      * A query refused because the dataset it names is closed fails in dataset resolution, before the analyzed plan could flag it as
      * an external-source query. Flag it here, or its failure would be recorded nowhere, not even under the {@code closed} category.
      */
-    private static <T> ActionListener<T> markExternalSourceOnClosedRefusal(ActionListener<T> listener, EsqlExecutionInfo executionInfo) {
-        return ActionListener.wrap(listener::onResponse, e -> {
+    static <T> ActionListener<T> markExternalSourceOnClosedRefusal(ActionListener<T> listener, EsqlExecutionInfo executionInfo) {
+        // delegateResponse only intercepts failures. ActionListener.wrap would also catch an exception thrown by the response
+        // handler, which here is the whole analysis pipeline, and complete the listener a second time with it.
+        return listener.delegateResponse((l, e) -> {
             if (DatasetClosedException.isClosedRefusal(e)) {
                 executionInfo.markExternalSource();
             }
-            listener.onFailure(e);
+            l.onFailure(e);
         });
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetClosedException;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -1698,5 +1699,58 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> composed = new HashMap<>(record.safeMetadata());
         composed.putAll(statistics);
         return composed;
+    }
+
+    /** A refusal for a closed dataset flags the query as an external-source one, so its failure is metered, and still fails it. */
+    public void testClosedDatasetRefusalFlagsTheQueryAsExternalSource() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<String> listener = EsqlSession.markExternalSourceOnClosedRefusal(
+            ActionListener.wrap(r -> fail("no response expected"), failure::set),
+            executionInfo
+        );
+
+        Exception refusal = new DatasetClosedException("logs");
+        listener.onFailure(refusal);
+
+        assertTrue(executionInfo.externalSource());
+        assertThat(failure.get(), sameInstance(refusal));
+    }
+
+    public void testOtherFailuresAreNotFlaggedAsExternalSource() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<String> listener = EsqlSession.markExternalSourceOnClosedRefusal(
+            ActionListener.wrap(r -> fail("no response expected"), failure::set),
+            executionInfo
+        );
+
+        Exception other = new IllegalStateException("boom");
+        listener.onFailure(other);
+
+        assertFalse(executionInfo.externalSource());
+        assertThat(failure.get(), sameInstance(other));
+    }
+
+    /** A response handler that throws must not complete the listener a second time, with a failure. */
+    public void testAThrowingResponseHandlerDoesNotCompleteTheListenerTwice() {
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        AtomicInteger failures = new AtomicInteger();
+        ActionListener<String> throwing = new ActionListener<>() {
+            @Override
+            public void onResponse(String response) {
+                throw new IllegalStateException("response handler failed");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failures.incrementAndGet();
+            }
+        };
+
+        ActionListener<String> listener = EsqlSession.markExternalSourceOnClosedRefusal(throwing, executionInfo);
+
+        expectThrows(IllegalStateException.class, () -> listener.onResponse("ok"));
+        assertThat(failures.get(), equalTo(0));
     }
 }

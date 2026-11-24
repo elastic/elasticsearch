@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -111,8 +113,39 @@ public class EsqlAscTimestampSortOnDescIndexSortIT extends AbstractEsqlIntegTest
         }
     }
 
+    /** A filter means the query does not match all documents, so the top n can be anywhere in the segment. */
+    public void testAscSortWithFilter() throws IOException {
+        // Without missing timestamps, so the end of each segment is never skipped for another reason
+        List<Doc> docs = populate(false);
+        List<Long> sorted = docs.stream().map(Doc::timestamp).filter(Objects::nonNull).sorted().toList();
+        // The documents at the end of each segment have the smallest timestamps, so the filter removes them
+        long threshold = sorted.get(sorted.size() / 2);
+        int limit = randomIntBetween(1, 20);
+        List<Long> expected = sorted.stream().filter(t -> t > threshold).limit(limit).toList();
+        assertThat(
+            timestamps("WHERE @timestamp > TO_DATETIME(" + threshold + ") | SORT @timestamp ASC | LIMIT " + limit),
+            equalTo(expected)
+        );
+    }
+
+    /** Only the index that is sorted by descending {@code @timestamp} can read the end of its segments. */
+    public void testAscSortWithIndexWithOtherSort() throws IOException {
+        String otherIndex = "asc_sort_on_other_index";
+        List<Doc> docs = new ArrayList<>(populate(INDEX, "desc", 0.1));
+        docs.addAll(populate(otherIndex, randomFrom("asc", null), 0.1));
+        int limit = randomIntBetween(1, 20);
+        assertThat(
+            timestamps(INDEX + "," + otherIndex, "SORT @timestamp ASC | LIMIT " + limit),
+            equalTo(expectedTimestamps(docs, limit, true))
+        );
+    }
+
     private List<Long> timestamps(String sortAndLimit) {
-        try (EsqlQueryResponse response = run("FROM " + INDEX + " | " + sortAndLimit + " | EVAL t = TO_LONG(@timestamp) | KEEP t")) {
+        return timestamps(INDEX, sortAndLimit);
+    }
+
+    private List<Long> timestamps(String indices, String sortAndLimit) {
+        try (EsqlQueryResponse response = run("FROM " + indices + " | " + sortAndLimit + " | EVAL t = TO_LONG(@timestamp) | KEEP t")) {
             List<Long> timestamps = new ArrayList<>();
             getValuesList(response).forEach(row -> timestamps.add((Long) row.get(0)));
             return timestamps;
@@ -131,17 +164,24 @@ public class EsqlAscTimestampSortOnDescIndexSortIT extends AbstractEsqlIntegTest
     }
 
     private List<Doc> populate(double missingFraction) throws IOException {
+        return populate(INDEX, "desc", missingFraction);
+    }
+
+    /**
+     * Creates {@code index} sorted by {@code @timestamp} in {@code sortOrder}, or without an index sort if {@code sortOrder} is null.
+     */
+    private List<Doc> populate(String index, @Nullable String sortOrder, double missingFraction) throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put("index.number_of_shards", randomIntBetween(1, 3))
+            .put("index.number_of_replicas", 0);
+        if (sortOrder != null) {
+            settings.put("index.sort.field", "@timestamp").put("index.sort.order", sortOrder);
+        }
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate(INDEX)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", randomIntBetween(1, 3))
-                        .put("index.number_of_replicas", 0)
-                        .put("index.sort.field", "@timestamp")
-                        .put("index.sort.order", "desc")
-                )
+                .prepareCreate(index)
+                .setSettings(settings)
                 .setMapping("@timestamp", "type=date", "id", "type=integer")
         );
         int distinctTimestamps = randomIntBetween(5, 60);
@@ -159,17 +199,17 @@ public class EsqlAscTimestampSortOnDescIndexSortIT extends AbstractEsqlIntegTest
                 if (timestamp != null) {
                     source.put("@timestamp", timestamp);
                 }
-                bulk.add(client().prepareIndex(INDEX).setId(Integer.toString(id)).setSource(source));
+                bulk.add(client().prepareIndex(index).setId(Integer.toString(id)).setSource(source));
                 docs.add(new Doc(id, timestamp));
             }
             assertNoFailures(bulk.get());
-            client().admin().indices().prepareRefresh(INDEX).get();
+            client().admin().indices().prepareRefresh(index).get();
         }
         BulkRequestBuilder deletes = client().prepareBulk();
         List<Doc> remaining = new ArrayList<>();
         for (Doc doc : docs) {
             if (randomInt(9) == 0) {
-                deletes.add(client().prepareDelete(INDEX, Integer.toString(doc.id())));
+                deletes.add(client().prepareDelete(index, Integer.toString(doc.id())));
             } else {
                 remaining.add(doc);
             }
@@ -177,9 +217,9 @@ public class EsqlAscTimestampSortOnDescIndexSortIT extends AbstractEsqlIntegTest
         if (deletes.numberOfActions() > 0) {
             assertNoFailures(deletes.get());
         }
-        client().admin().indices().prepareRefresh(INDEX).get();
+        client().admin().indices().prepareRefresh(index).get();
         if (randomBoolean()) {
-            assertNoFailures(client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(1).get());
+            assertNoFailures(client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get());
         }
         return remaining;
     }

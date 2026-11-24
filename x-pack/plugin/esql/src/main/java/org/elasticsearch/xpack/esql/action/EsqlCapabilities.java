@@ -5067,6 +5067,13 @@ public class EsqlCapabilities {
          */
         FETCH_PHASE(EsqlFlags.FETCH_PHASE_FEATURE_FLAG),
 
+        /**
+         * A time-series {@code STATS} grouped by the same dimension twice (e.g. {@code BY cluster, c2 = cluster}) reads
+         * the dimension once instead of failing local planning with a duplicate output attribute.
+         * https://github.com/elastic/elasticsearch/issues/166793
+         */
+        FIX_TS_GROUP_BY_SAME_DIMENSION_TWICE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

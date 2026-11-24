@@ -25,7 +25,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 /// Represents a file embedded in a [Blob] stored in the blob store.
 ///
-/// In order to save costs for uploading multiple files to the blob store, file are concatenated together into a single [BccBlob]. Then each
+/// In order to save costs for uploading multiple files to the blob store, files are concatenated together into a single [Blob]. Then each
 /// of the original file can be located in the [Blob] using an offset and a fileLength.
 ///
 /// @param blob the blob file containing this location

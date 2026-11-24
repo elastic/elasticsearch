@@ -274,14 +274,17 @@ public class FileSplitProvider implements SplitProvider {
      * splits with no object-store I/O. Wave size is {@code taskConcurrency}: that is how many
      * drivers the planner will start, so extra footers would not add parallelism. Text has no
      * footer to skip, so a wave would only collapse range splits and cut drivers; text keeps the
-     * full survivor count. A null reader (unresolved format) also skips the wave, which is the
-     * conservative direction: everything gets planned, as before #165532.
+     * full survivor count. Splittable compressed text (bzip2) still waves: planning scans each
+     * object end to end for block boundaries. A null reader (unresolved format) also skips the
+     * wave, which is the conservative direction: everything gets planned, as before #165532.
      */
     static int filteredLimitPlanWave(SplitDiscoveryContext context, int survivorCount, FormatReader reader) {
         if (context.filteredLimit() == false || survivorCount <= 0) {
             return survivorCount;
         }
-        if (reader instanceof RangeAwareFormatReader == false) {
+        boolean wave = reader instanceof RangeAwareFormatReader
+            || reader instanceof CompressionDelegatingFormatReader wrapping && wrapping.codec() instanceof SplittableDecompressionCodec;
+        if (wave == false) {
             return survivorCount;
         }
         return Math.min(survivorCount, Math.max(1, context.taskConcurrency()));

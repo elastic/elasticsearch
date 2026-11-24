@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -8676,11 +8678,12 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /**
      * The wave helper itself: a {@link RangeAwareFormatReader} is capped at {@code taskConcurrency};
-     * CSV is not. A null reader fail-opens. Resolving through {@link FormatReaderRegistry#byName}
-     * then {@link FormatReader#withConfig} (the production {@code resolveConfiguredReader} shape)
-     * still waves: {@code ParquetFormatReader#withSchemaMaxFields} returns another
-     * {@code ParquetFormatReader}, and ORC's {@code NoConfigFormatReader} returns {@code this}.
-     * Neither supports whole-file compression, so the registry cannot wrap them in
+     * CSV is not. Splittable compressed text still waves because planning scans for block
+     * boundaries; gzip does not. A null reader fail-opens. Resolving through
+     * {@link FormatReaderRegistry#byName} then {@link FormatReader#withConfig} (the production
+     * {@code resolveConfiguredReader} shape) still waves: {@code ParquetFormatReader#withSchemaMaxFields}
+     * returns another {@code ParquetFormatReader}, and ORC's {@code NoConfigFormatReader} returns
+     * {@code this}. Neither supports whole-file compression, so the registry cannot wrap them in
      * {@code CompressionDelegatingFormatReader}.
      */
     public void testFilteredLimitPlanWaveAppliesOnlyToRangeAwareReaders() {
@@ -8693,12 +8696,99 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, csv));
         assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, null));
 
+        FormatReader splittable = new CompressionDelegatingFormatReader(csv, new FakeSplittableCodec(new long[] { 0L }));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable));
+        assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, splittable.withConfig(Map.of())));
+        FormatReader gzip = new CompressionDelegatingFormatReader(csv, new GzipDecompressionCodec());
+        assertEquals(8, FileSplitProvider.filteredLimitPlanWave(ctx, 8, gzip));
+
         FormatReaderRegistry registry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
         registry.byName("parquet");
         FormatReader resolved = registry.byName("parquet").withConfig(Map.of());
         assertThat(resolved, instanceOf(RangeAwareFormatReader.class));
         assertEquals(2, FileSplitProvider.filteredLimitPlanWave(ctx, 8, resolved));
+    }
+
+    /**
+     * Splittable compressed text still pays {@code findBlockBoundaries} per planned file, so the
+     * filtered-LIMIT wave keeps that scan to {@code taskConcurrency}. Files past the wave become
+     * whole-file splits with no object-store I/O. Sequential, parallel, and async all cap the scan.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfBlockBoundaryScans() throws Exception {
+        assumeTrue("bzip2 wrap is snapshot-only", Build.current().isSnapshot());
+        int files = 8;
+        int taskConcurrency = 2;
+        long fileLength = 1_000_000_000L;
+        long[] boundaries = new long[200];
+        for (int i = 0; i < boundaries.length; i++) {
+            boundaries[i] = (long) i * 5_000_000L;
+        }
+        FakeSplittableCodec codec = new FakeSplittableCodec(boundaries);
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < files; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/f" + i + ".ndjson.bz2"), fileLength, Instant.EPOCH));
+        }
+        SplitDiscoveryContext ctx = contextWithFilteredLimit(
+            new SplitDiscoveryContext(
+                null,
+                GlobExpander.fileListOf(entries, "s3://b/*.ndjson.bz2"),
+                Map.of(),
+                PartitionMetadata.EMPTY,
+                List.of()
+            ),
+            taskConcurrency
+        );
+
+        codec.resetScans();
+        assertBlockBoundaryWave(splittableBz2Provider(codec, null).discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("sequential plans only the first wave", taskConcurrency, codec.scans());
+
+        FileSplitProvider parallel = splittableBz2Provider(codec, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        codec.resetScans();
+        assertBlockBoundaryWave(parallel.discoverSplits(ctx), files, taskConcurrency);
+        assertEquals("parallel plans only the first wave", taskConcurrency, codec.scans());
+
+        codec.resetScans();
+        PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
+        parallel.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
+        assertBlockBoundaryWave(future.actionGet(30, TimeUnit.SECONDS), files, taskConcurrency);
+        assertEquals("async plans only the first wave", taskConcurrency, codec.scans());
+    }
+
+    private static FileSplitProvider splittableBz2Provider(FakeSplittableCodec codec, @Nullable Executor executor) {
+        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        codecRegistry.register(codec);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecRegistry);
+        formatRegistry.registerLazy("ndjson", (s, bf) -> new NdJsonFormatReader(s, bf, null), Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson");
+        formatRegistry.byName("ndjson");
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY,
+            executor
+        );
+    }
+
+    private static void assertBlockBoundaryWave(SplitDiscoveryResult result, int files, int taskConcurrency) {
+        Map<String, List<FileSplit>> byFile = new LinkedHashMap<>();
+        for (ExternalSplit split : result.splits()) {
+            FileSplit fileSplit = (FileSplit) split;
+            byFile.computeIfAbsent(fileSplit.path().objectName(), k -> new ArrayList<>()).add(fileSplit);
+        }
+        assertEquals("every listed file still produces splits", files, byFile.size());
+        for (int i = 0; i < files; i++) {
+            String name = "f" + i + ".ndjson.bz2";
+            List<FileSplit> fileSplits = byFile.get(name);
+            if (i < taskConcurrency) {
+                assertThat("wave file " + name + " must keep block-aligned splits", fileSplits.size(), greaterThan(1));
+            } else {
+                assertEquals("file " + name + " past the wave collapses to a whole-file split", 1, fileSplits.size());
+            }
+        }
     }
 
     /**
@@ -10683,9 +10773,18 @@ public class FileSplitProviderTests extends ESTestCase {
     /** Fake SplittableDecompressionCodec returning canned block boundaries, for unit-testing split logic. */
     private static final class FakeSplittableCodec implements SplittableDecompressionCodec {
         private final long[] boundaries;
+        private final AtomicInteger scans = new AtomicInteger();
 
         FakeSplittableCodec(long[] boundaries) {
             this.boundaries = boundaries;
+        }
+
+        int scans() {
+            return scans.get();
+        }
+
+        void resetScans() {
+            scans.set(0);
         }
 
         @Override
@@ -10705,6 +10804,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         @Override
         public long[] findBlockBoundaries(StorageObject object, long start, long end, LongConsumer ignored) {
+            scans.incrementAndGet();
             return boundaries.clone();
         }
 

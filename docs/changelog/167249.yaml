@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 166793
+pr: 167249
+summary: Read a twice-grouped TS dimension once
+type: bug

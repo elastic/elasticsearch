@@ -30,6 +30,9 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
 
     @Override
     protected LocalRecoveryRetriesHealthInfo determineCurrentHealth() {
+        assert indicesClusterStateService.get() != null
+            : "the supplier is only read once health monitoring starts, which is driven by a cluster state "
+                + "update and so cannot happen before node construction (and hence the injector) completes";
         return new LocalRecoveryRetriesHealthInfo(indicesClusterStateService.get().getLocalRecoveryRetryCounts());
     }
 

@@ -301,6 +301,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -402,9 +403,6 @@ class NodeConstruction {
      * References for storing in a Node
      */
     private Injector injector;
-    // IndicesClusterStateService is a Guice-managed eager singleton, not yet constructible when
-    // LocalRecoveryRetriesHealthTracker is built in loadDiagnosticServices(); set once the injector exists.
-    private final SetOnce<IndicesClusterStateService> indicesClusterStateServiceRef = new SetOnce<>();
     private Environment environment;
     private NodeEnvironment nodeEnvironment;
     private PluginsService pluginsService;
@@ -1433,6 +1431,9 @@ class NodeConstruction {
             )
         );
 
+        // IndicesClusterStateService is a Guice-managed eager singleton, not yet constructible here;
+        // loadDiagnosticServices gets a supplier instead and the real instance is set once the injector exists.
+        final SetOnce<IndicesClusterStateService> indicesClusterStateServiceRef = new SetOnce<>();
         modules.add(
             loadPluginShutdownService(clusterService),
             loadDiagnosticServices(
@@ -1444,7 +1445,8 @@ class NodeConstruction {
                 telemetryProvider,
                 repositoriesService,
                 fileSettingsHealthTracker,
-                projectResolver
+                projectResolver,
+                indicesClusterStateServiceRef::get
             )
         );
 
@@ -1680,7 +1682,8 @@ class NodeConstruction {
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
         FileSettingsHealthTracker fileSettingsHealthTracker,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        Supplier<IndicesClusterStateService> indicesClusterStateService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1718,7 +1721,7 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService, projectResolver),
             fileSettingsHealthTracker,
-            new LocalRecoveryRetriesHealthTracker(indicesClusterStateServiceRef::get)
+            new LocalRecoveryRetriesHealthTracker(indicesClusterStateService)
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

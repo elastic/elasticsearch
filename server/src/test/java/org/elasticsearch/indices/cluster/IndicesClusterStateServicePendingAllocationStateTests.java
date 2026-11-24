@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthTracker;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -592,6 +593,25 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         handleRecoveryFailureWithRetry(shardRouting);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(isInFlight(shardRouting));
+        assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
+        assertThat(
+            indicesClusterStateService.getLocalRecoveryRetryCounts(),
+            equalTo(Map.of(ShardAllocationId.fromRouting(shardRouting), 1))
+        );
+    }
+
+    /// [RecoveryListener#onRecoveryDone] releases the InFlight ticket before [ShardStateAction#shardStarted] reaches master,
+    /// so a shard that just finished recovering can briefly have no ticket while master still sees it as initializing.
+    /// [IndexShard#recoveryState] still has the count for that window, so it must be reported from there instead.
+    public void testGetLocalRecoveryRetryCountsFallsBackToRecoveryStateAfterTicketReleased() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        handleRecoveryFailureWithRetry(shardRouting);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(isInFlight(shardRouting));
+
+        indicesService.completeRecoveryViaListener();
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
         assertThat(

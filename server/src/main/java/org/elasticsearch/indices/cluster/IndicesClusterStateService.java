@@ -245,11 +245,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return pendingAllocationStates.keySet().stream().anyMatch(key -> key.shardId().equals(shardId));
     }
 
-    /// Snapshot of local recovery retry counts (&gt; 0 only) for shard allocations on this node that have
-    /// failed recovery and are either recovering again or awaiting their next local retry. [IndexShard]
-    /// itself does not exist during the awaiting-retry window, so a caller cannot read this count from
-    /// [IndexShard#recoveryState] at all times -- this map is the only place it survives in between
-    /// attempts.
+    /// Snapshot of local recovery retry counts (non-zero only) for shard allocations on this node that have
+    /// failed recovery and are either recovering again, awaiting their next local retry or awaiting to be
+    /// started.
     public Map<ShardAllocationId, Integer> getLocalRecoveryRetryCounts() {
         final Map<ShardAllocationId, Integer> result = new HashMap<>();
         for (final var entry : pendingAllocationStates.entrySet()) {
@@ -260,6 +258,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             };
             if (retries > 0) {
                 result.put(entry.getKey(), retries);
+            }
+        }
+        // onRecoveryDone removes the InFlight ticket before sending shardStarted, so a shard that just finished
+        // recovering can briefly have no pending allocation state while master still sees it as initializing.
+        // IndexShard#recoveryState retains the retry count through that window, so fall back to it here.
+        for (final AllocatedIndex<? extends Shard> indexService : indicesService) {
+            for (final Shard shard : indexService) {
+                final ShardRouting routing = shard.routingEntry();
+                if (routing.active()) {
+                    continue;
+                }
+                final ShardAllocationId key = ShardAllocationId.fromRouting(routing);
+                if (pendingAllocationStates.containsKey(key)) {
+                    continue;
+                }
+                final int localRetries = shard.recoveryState().getLocalRetries();
+                if (localRetries > 0) {
+                    result.put(key, localRetries);
+                }
             }
         }
         return result;

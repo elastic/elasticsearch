@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -459,10 +460,13 @@ public class SearchContextStats implements SearchStats {
         return count;
     }
 
+    private static final BytesRef EMPTY_STRING = new BytesRef();
+
     @Override
-    public List<BytesRef> distinctValues(FieldName field, int limit) {
+    public List<BytesRef> distinctKeywordValues(FieldName field, int limit) {
         String name = field.string();
         TreeSet<BytesRef> values = new TreeSet<>();
+        boolean emptyStringReadsAsNull = false;
         try {
             for (SearchExecutionContext context : contexts) {
                 MappedFieldType fieldType = context.getFieldType(name);
@@ -471,20 +475,19 @@ public class SearchContextStats implements SearchStats {
                     continue;
                 }
                 // The terms of the index are the values that are read only for a plain keyword: a normalizer indexes other terms
-                // than the values, and the values that ignore_above skips are not indexed but may still be read.
+                // than the values. The values that ignore_above skips are neither indexed nor read from the doc values.
                 if (isExtractableMappedField(context, name) == false
                     || fieldType instanceof KeywordFieldType == false
                     || isQueryable(context, name, DataType.KEYWORD, true) == false) {
                     return null;
                 }
                 KeywordFieldType keyword = (KeywordFieldType) fieldType;
-                if (keyword.indexType().hasTerms() == false
-                    || keyword.hasDocValues() == false
-                    || keyword.ignoreAbove().valuesPotentiallyIgnored()) {
+                if (keyword.indexType().hasTerms() == false || keyword.hasDocValues() == false) {
                     return null;
                 }
+                emptyStringReadsAsNull |= keyword.emptyStringReadsAsNull();
                 for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                    Terms terms = leafContext.reader().terms(name);
+                    Terms terms = leafContext.reader().terms(keyword.name());
                     if (terms == null) {
                         continue;
                     }
@@ -503,7 +506,11 @@ public class SearchContextStats implements SearchStats {
                 }
             }
         } catch (IOException ex) {
-            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+            throw new UncheckedIOException(ex);
+        }
+        if (emptyStringReadsAsNull && values.contains(EMPTY_STRING)) {
+            // A term query for the empty string of one shard matches the documents with no value of a shard that reads it as null
+            return null;
         }
         return new ArrayList<>(values);
     }

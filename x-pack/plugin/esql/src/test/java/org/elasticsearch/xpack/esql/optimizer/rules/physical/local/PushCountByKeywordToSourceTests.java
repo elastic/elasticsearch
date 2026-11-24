@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -27,6 +30,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -110,6 +114,24 @@ public class PushCountByKeywordToSourceTests extends AbstractLocalPhysicalPlanOp
         assertThat(statsQueries(optimizer.plan(query, stats, new EsqlFlags(0))), empty());
     }
 
+    /**
+     * The values that are read from {@code _source} are not the terms of the index.
+     */
+    public void testFieldExtractPreference() {
+        String query = "from test | stats count(*) by keyword";
+        for (MappedFieldType.FieldExtractPreference preference : MappedFieldType.FieldExtractPreference.values()) {
+            QueryPragmas pragmas = new QueryPragmas(
+                Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.name()).build()
+            );
+            TestPlannerOptimizer optimizer = new TestPlannerOptimizer(
+                configuration(pragmas, query),
+                makeAnalyzer("mapping-all-types.json")
+            );
+            List<PhysicalPlan> statsQueries = statsQueries(optimizer.plan(query, statsWithValues("a", "b")));
+            assertThat(preference.name(), statsQueries, hasSize(preference == MappedFieldType.FieldExtractPreference.STORED ? 0 : 1));
+        }
+    }
+
     private PhysicalPlan plan(String query, SearchStats stats) {
         return plannerOptimizer.plan(query, stats, makeAnalyzer("mapping-all-types.json"));
     }
@@ -135,7 +157,7 @@ public class PushCountByKeywordToSourceTests extends AbstractLocalPhysicalPlanOp
     private static SearchStats statsWithValues(String... values) {
         return new EsqlTestUtils.TestSearchStats() {
             @Override
-            public List<BytesRef> distinctValues(FieldAttribute.FieldName field, int limit) {
+            public List<BytesRef> distinctKeywordValues(FieldAttribute.FieldName field, int limit) {
                 if (values.length > limit) {
                     return null;
                 }

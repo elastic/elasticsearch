@@ -139,11 +139,12 @@ public interface SearchStats {
     /**
      * The distinct values of a {@code keyword} field across all shards, sorted, or {@code null} if there are more than
      * {@code limit} of them or if they cannot be listed. They are listed from the terms of the index, which is only possible when
-     * these are exactly the values ES|QL reads for the field: a document holds a value if and only if a term query for it matches.
-     * Values that only deleted documents hold may be included.
+     * these are exactly the values ES|QL reads for the field from its doc values: a document holds a value if and only if a term
+     * query for it matches. A value that {@code ignore_above} skips is neither a term nor a doc value. Values that only deleted
+     * documents hold may be included.
      */
     @Nullable
-    default List<BytesRef> distinctValues(FieldName field, int limit) {
+    default List<BytesRef> distinctKeywordValues(FieldName field, int limit) {
         return null;
     }
 

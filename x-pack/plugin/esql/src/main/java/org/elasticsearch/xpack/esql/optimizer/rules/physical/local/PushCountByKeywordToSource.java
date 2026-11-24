@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -40,7 +41,7 @@ import java.util.List;
  * This is the "filter-by-filter" execution of a {@code terms} aggregation of the query DSL. Lucene counts the documents of a term
  * from the terms dictionary of every segment that has no deleted documents, so no document is visited and no value is read.
  * <p>
- * The values are listed from the terms of the index at planning time, see {@link SearchStats#distinctValues}. A document with many
+ * The values are listed from the terms of the index at planning time, see {@link SearchStats#distinctKeywordValues}. A document with many
  * values is counted once for each of them, as it matches the query of each, just like the aggregation groups it. The documents
  * with no value are counted by a query of their own, tagged with {@code null}.
  * <p>
@@ -64,6 +65,10 @@ public class PushCountByKeywordToSource extends PhysicalOptimizerRules.Parameter
         if (isPlainKeyword(field) == false || isPlainQuery(queryExec) == false) {
             return aggregateExec;
         }
+        if (ctx.configuration().pragmas().fieldExtractPreference() == MappedFieldType.FieldExtractPreference.STORED) {
+            // The values are read from _source, which also holds the ones that are not indexed, like those ignore_above skips
+            return aggregateExec;
+        }
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         if (pushdownPredicates.isPushableFieldAttribute(field) == false) {
             return aggregateExec;
@@ -73,7 +78,7 @@ public class PushCountByKeywordToSource extends PhysicalOptimizerRules.Parameter
         if (limit <= 0) {
             return aggregateExec;
         }
-        List<BytesRef> values = ctx.searchStats().distinctValues(field.fieldName(), limit);
+        List<BytesRef> values = ctx.searchStats().distinctKeywordValues(field.fieldName(), limit);
         if (values == null || values.isEmpty()) {
             return aggregateExec;
         }

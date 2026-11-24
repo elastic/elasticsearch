@@ -38,6 +38,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -1785,15 +1786,84 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             );
             FieldAttribute.FieldName field = new FieldAttribute.FieldName("kw");
             List<BytesRef> values = List.of(new BytesRef(""), new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d"));
-            assertEquals(values, stats.distinctValues(field, between(5, 100)));
-            assertNull(stats.distinctValues(field, between(0, 4)));
+            assertEquals(values, stats.distinctKeywordValues(field, between(5, 100)));
+            assertNull(stats.distinctKeywordValues(field, between(0, 4)));
             // Not a keyword
-            assertNull(stats.distinctValues(new FieldAttribute.FieldName("other"), 100));
+            assertNull(stats.distinctKeywordValues(new FieldAttribute.FieldName("other"), 100));
             // Not mapped anywhere
-            assertEquals(List.of(), stats.distinctValues(new FieldAttribute.FieldName("missing"), 100));
+            assertEquals(List.of(), stats.distinctKeywordValues(new FieldAttribute.FieldName("missing"), 100));
         } finally {
             IOUtils.close(mappedReader, otherReader, unmappedReader, mappedService, otherService, unmappedService);
             IOUtils.close(mappedDir, otherDir, unmappedDir);
+        }
+    }
+
+    /**
+     * The values that {@code ignore_above} skips are not indexed, and not read from the doc values either: the terms are
+     * still the values.
+     */
+    public void testDistinctValuesWithIgnoreAbove() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "ignore_above": 2 } } } }""");
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            // What the mapper writes for "a", for "bb" and for a value that is too long: nothing
+            writer.addDocument(keywordDocument("kw", "a"));
+            writer.addDocument(keywordDocument("kw", "bb"));
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            reader = writer.getReader();
+        }
+        try {
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertEquals(
+                List.of(new BytesRef("a"), new BytesRef("bb")),
+                stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100)
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * A shard that reads an empty string as a null holds none, and answers a term query for one with its documents that
+     * hold no value. The values are not listed if another shard holds an empty string.
+     */
+    public void testDistinctValuesWithEmptyStringAsNull() throws IOException {
+        final Settings emptyAsNull = Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build();
+        final String mapping = """
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""";
+        for (boolean otherShardHoldsEmptyString : new boolean[] { true, false }) {
+            final MapperService emptyAsNullService = createMapperService(emptyAsNull, mapping);
+            final MapperService otherService = createMapperService(mapping);
+            final Directory emptyAsNullDir = newDirectory();
+            final Directory otherDir = newDirectory();
+            final DirectoryReader emptyAsNullReader;
+            final DirectoryReader otherReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), emptyAsNullDir)) {
+                writer.addDocument(keywordDocument("kw", "a"));
+                emptyAsNullReader = writer.getReader();
+            }
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), otherDir)) {
+                writer.addDocument(keywordDocument("kw", otherShardHoldsEmptyString ? "" : "b"));
+                otherReader = writer.getReader();
+            }
+            try {
+                final SearchStats stats = SearchContextStats.from(
+                    List.of(
+                        createSearchExecutionContext(emptyAsNullService, newSearcher(emptyAsNullReader)),
+                        createSearchExecutionContext(otherService, newSearcher(otherReader))
+                    )
+                );
+                List<BytesRef> values = stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100);
+                if (otherShardHoldsEmptyString) {
+                    assertNull(values);
+                } else {
+                    assertEquals(List.of(new BytesRef("a"), new BytesRef("b")), values);
+                }
+            } finally {
+                IOUtils.close(emptyAsNullReader, otherReader, emptyAsNullService, otherService, emptyAsNullDir, otherDir);
+            }
         }
     }
 
@@ -1803,7 +1873,6 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     public void testDistinctValuesNotListed() throws IOException {
         for (String mapping : List.of(
             "\"type\": \"keyword\", \"normalizer\": \"lowercase\"",
-            "\"type\": \"keyword\", \"ignore_above\": 10",
             "\"type\": \"keyword\", \"index\": false",
             "\"type\": \"keyword\", \"doc_values\": false",
             "\"type\": \"text\"",
@@ -1831,7 +1900,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                         createSearchExecutionContext(otherService, newSearcher(otherReader))
                     )
                 );
-                assertNull(mapping, stats.distinctValues(new FieldAttribute.FieldName("kw"), 100));
+                assertNull(mapping, stats.distinctKeywordValues(new FieldAttribute.FieldName("kw"), 100));
             } finally {
                 IOUtils.close(keywordReader, otherReader, keywordService, otherService, keywordDir, otherDir);
             }

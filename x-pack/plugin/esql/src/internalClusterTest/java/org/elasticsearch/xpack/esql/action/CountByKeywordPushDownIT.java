@@ -174,10 +174,54 @@ public class CountByKeywordPushDownIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The values that are too long to index may still be read.
+     * The values that are too long to index are not read from the doc values either: their documents have no value.
      */
     public void testIgnoreAbove() {
-        count("FROM " + INDEX + " | STATS c = COUNT(*) BY ignored_above", false);
+        Map<String, Long> counts = count("FROM " + INDEX + " | STATS c = COUNT(*) BY ignored_above", true);
+        for (String value : counts.keySet()) {
+            assertTrue(value, value == null || value.length() <= 1);
+        }
+    }
+
+    /**
+     * Values that are read from {@code _source} include the ones that are too long to index.
+     */
+    public void testIgnoreAboveReadFromSource() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM " + INDEX + " | STATS c = COUNT(*) BY ignored_above");
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), "STORED").build()));
+        request.acceptedPragmaRisks(true);
+        count(request, false);
+    }
+
+    /**
+     * An index that reads an empty string as a null answers a term query for one with its documents that have no value.
+     * Those are not the documents of the empty string of another index.
+     */
+    public void testEmptyStringAsNull() {
+        String other = "empty_as_null";
+        client().admin()
+            .indices()
+            .prepareCreate(other)
+            .setSettings(Settings.builder().put("index.mapping.empty_keyword_string_as_null", true))
+            .setMapping("k", "type=keyword")
+            .get();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulk.add(client().prepareIndex(other).setSource("k", ""));
+        bulk.add(client().prepareIndex(other).setSource("n", 1));
+        bulk.add(client().prepareIndex(other).setSource("k", "a"));
+        assertFalse(bulk.get().hasFailures());
+        expected.merge(null, 2L, Long::sum);
+        expected.merge("a", 1L, Long::sum);
+        // The rule applies on the nodes with no shard that holds an empty string, so it is not known whether it does
+        Map<String, Long> counts = new HashMap<>();
+        try (EsqlQueryResponse response = run("FROM " + INDEX + "," + other + " | STATS c = COUNT(*) BY k")) {
+            response.values().forEachRemaining(row -> {
+                Long count = (Long) row.next();
+                assertNull(counts.put((String) row.next(), count));
+            });
+        }
+        assertThat(counts, equalTo(expected));
     }
 
     public void testNotIndexed() {

@@ -94,7 +94,6 @@ setup:
       ml.start_trained_model_deployment:
         model_id: text_expansion_model
         wait_for: started
-        timeout: 60s
 
 
 ---

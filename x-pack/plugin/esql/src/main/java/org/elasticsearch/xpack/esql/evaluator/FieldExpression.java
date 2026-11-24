@@ -201,7 +201,7 @@ public final class FieldExpression {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 1, IndexVersion.current().id())),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 1, IndexVersion.current().id(), null)),
             fields
         );
         Eval eval = new Eval(source, relation, List.of(new Alias(source, KEY, expression)));

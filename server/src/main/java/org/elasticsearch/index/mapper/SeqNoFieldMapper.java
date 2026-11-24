@@ -34,6 +34,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Mapper for the {@code _seq_no} field.
@@ -300,7 +301,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     private static final IndexableFieldType PRIMARY_TERM_COLUMN_FIELD_TYPE = NumericDocValuesField.TYPE;
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         return true;
     }
 

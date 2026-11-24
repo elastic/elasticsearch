@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -301,10 +302,29 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
 
         assertThat(e.getCause(), sameInstance(breaker));
         assertThat(e.getSuppressed(), arrayWithSize(1));
-        assertThat(e.getSuppressed()[0], instanceOf(BroadcastShardOperationFailedException.class));
+        assertThat("the cause chain is already the cause of the error", e.getSuppressed()[0].getCause(), nullValue());
         String stackTrace = (String) errorBody(e, true).get("stack_trace");
         assertThat(stackTrace, containsString("node-b"));
         assertThat(stackTrace, containsString("BroadcastShardOperationFailedException"));
+        assertThat(stackTrace, not(containsString("CIRCULAR REFERENCE")));
+    }
+
+    /** The wrappers are kept for their details, so what they wrap must not be reported a second time as a suppressed failure. */
+    @SuppressWarnings("unchecked")
+    public void testSuppressedWrappersDoNotRepeatTheFailure() throws IOException {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        CircuitBreakingException breaker = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(shardFailure(breaker))));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+
+        List<Map<String, Object>> suppressed = (List<Map<String, Object>>) errorBody(e).get("suppressed");
+        for (Map<String, Object> entry : suppressed) {
+            assertThat(entry.get("type"), not(equalTo("circuit_breaking_exception")));
+            assertThat((String) entry.get("reason"), not(containsString("Data too large")));
+        }
     }
 
     public void testRefreshIsOnlyRetriedForAClosedMember() {

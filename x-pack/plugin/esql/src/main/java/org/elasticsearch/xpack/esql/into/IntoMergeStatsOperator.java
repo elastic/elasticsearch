@@ -29,6 +29,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -211,9 +212,24 @@ public final class IntoMergeStatsOperator implements Operator {
             failure.setShard(wrapper.getShardId());
         }
         if (cause != underlying) {
-            failure.addSuppressed(cause);
+            failure.addSuppressed(describeWrappers(cause, underlying));
         }
         refreshFailure = failure;
+    }
+
+    /**
+     * The details of the wrappers around {@code underlying}, such as the node that failed, in an exception that has no cause. Suppressing
+     * the wrapper itself would attach the cause chain a second time: the response renders a wrapper as what it wraps, so the failure
+     * would be reported twice, and the stack trace would mark the direct cause as a circular reference.
+     */
+    private static ElasticsearchException describeWrappers(Throwable wrapper, Throwable underlying) {
+        List<String> wrappers = new ArrayList<>();
+        for (Throwable t = wrapper; t != null && t != underlying; t = t.getCause()) {
+            wrappers.add(t.toString());
+        }
+        ElasticsearchException details = new ElasticsearchException("the refresh failed through {}", wrappers);
+        details.setStackTrace(wrapper.getStackTrace());
+        return details;
     }
 
     private boolean refreshPending() {

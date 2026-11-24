@@ -194,6 +194,20 @@ public final class IntoMergeStatsOperatorTests extends ComputeTestCase {
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(1L, 1L)));
     }
 
+    public void testClosedShardDuringTheRefreshIsNotRetried() {
+        IntoMergeStatsOperator op = operator(REFRESH, INDEX);
+        op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));
+        op.finish();
+
+        // The write index closed after the refresh had resolved its targets. A retry would skip it and refresh nothing.
+        IndexClosedException closed = new IndexClosedException(new Index(DEST, "uuid"));
+        client.answerRefresh(new BroadcastResponse(1, 0, 1, List.of(new DefaultShardOperationFailedException(DEST, 0, closed))));
+        assertThat(client.refreshes, empty());
+        assertFalse(driverContext.hasPendingAsyncActions());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.getCause(), instanceOf(IndexClosedException.class));
+    }
+
     public void testRefreshIsOnlyRetriedForAClosedMember() {
         IntoMergeStatsOperator op = operator(REFRESH, INDEX);
         op.addInput(new IntoStats(1L, 1L).toPage(blockFactory));

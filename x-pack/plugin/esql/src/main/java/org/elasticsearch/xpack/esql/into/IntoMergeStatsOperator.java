@@ -74,38 +74,40 @@ public final class IntoMergeStatsOperator implements Operator {
      */
     public record Refresher(Client client, Supplier<ThreadContext.StoredContext> caller, String destination) {
         void refresh(ActionListener<Void> listener) {
-            ActionListener<Void> once = ActionListener.notifyOnce(listener);
-            send(new RefreshRequest(destination), ActionListener.wrap(once::onResponse, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof IndexClosedException) {
-                    // An alias can have closed members that the write never touched, which the strict options reject. Only now are
-                    // unavailable targets skipped, since the caller was already authorized for the destination by the first attempt.
-                    // Skipping them up front would also make security drop a destination that the caller may not refresh, and the
-                    // refresh would then succeed having refreshed nothing.
-                    RefreshRequest skippingClosedMembers = new RefreshRequest(destination);
-                    skippingClosedMembers.indicesOptions(
-                        IndicesOptions.builder(skippingClosedMembers.indicesOptions())
-                            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
-                            .build()
-                    );
-                    send(skippingClosedMembers, once);
-                } else {
-                    once.onFailure(e);
-                }
-            }));
+            send(new RefreshRequest(destination), ActionListener.notifyOnce(listener), true);
         }
 
-        private void send(RefreshRequest request, ActionListener<Void> listener) {
+        private void send(RefreshRequest request, ActionListener<Void> listener, boolean retryIfAMemberIsClosed) {
             try (ThreadContext.StoredContext ignored = caller.get()) {
-                client.execute(RefreshAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
+                client.execute(RefreshAction.INSTANCE, request, ActionListener.wrap(response -> {
                     if (response.getFailedShards() > 0) {
-                        l.onFailure(firstShardFailure(response));
+                        listener.onFailure(firstShardFailure(response));
                     } else if (response.getTotalShards() > 0 && response.getSuccessfulShards() == 0) {
                         // A primary that is not available is counted in the total, but as neither a success nor a failure
-                        l.onFailure(
+                        listener.onFailure(
                             new ElasticsearchStatusException("no shard of the destination was refreshed", RestStatus.SERVICE_UNAVAILABLE)
                         );
                     } else {
-                        l.onResponse(null);
+                        listener.onResponse(null);
+                    }
+                }, e -> {
+                    // Only a failure of the action itself gets here, such as resolving the targets. A shard that fails to refresh is
+                    // in the response above, and a closed one is not retried: the write index may have closed after the targets were
+                    // resolved, and skipping it would report success without having refreshed the rows that were written.
+                    if (retryIfAMemberIsClosed && ExceptionsHelper.unwrapCause(e) instanceof IndexClosedException) {
+                        // An alias can have closed members that the write never touched, which the strict options reject. Only now
+                        // are unavailable targets skipped, since the caller was already authorized for the destination by the first
+                        // attempt. Skipping them up front would also make security drop a destination that the caller may not
+                        // refresh, and the refresh would then succeed having refreshed nothing.
+                        RefreshRequest skippingClosedMembers = new RefreshRequest(destination);
+                        skippingClosedMembers.indicesOptions(
+                            IndicesOptions.builder(skippingClosedMembers.indicesOptions())
+                                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                                .build()
+                        );
+                        send(skippingClosedMembers, listener, false);
+                    } else {
+                        listener.onFailure(e);
                     }
                 }));
             } catch (Exception e) {

@@ -1024,14 +1024,19 @@ public abstract class FullTextFunction extends Function
                         )
                     );
                 }
-                // The same goes for an ENRICH that runs on the coordinator, when the filter also needs the fields it adds.
-                // This is also where the filter shared by all the aggregate functions of a STATS ends up.
+                // The same goes for an ENRICH that runs on the coordinator, e.g. when the filter also needs the fields it adds.
+                // This is also where the filter shared by all the aggregate functions of a STATS ends up. An ENRICH in an IN
+                // subquery doesn't count, that runs on its own.
                 if (isRuntimeSearch() == false
-                    && f.anyMatch(p -> p instanceof Enrich enrich && enrich.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                    && IndependentSubqueryJoin.anyMatchInMainScope(
+                        f,
+                        p -> p instanceof Enrich enrich && enrich.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR
+                    )) {
                     failures.add(
                         fail(
                             this,
-                            "[{}] {} cannot be used in a filter that references both index and enrich fields after ENRICH _coordinator:",
+                            "[{}] {} cannot be used in a filter that stays after ENRICH _coordinator:, it would search the index on "
+                                + "the coordinator",
                             functionName(),
                             functionType()
                         )

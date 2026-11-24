@@ -451,7 +451,12 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         optimize(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + match));
         optimize(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + match));
 
-        String error = "[MATCH] function cannot be used in a filter that references both index and enrich fields after ENRICH";
+        if (EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled()) {
+            // the subquery runs on its own, its ENRICH doesn't take the rows of the main query to the coordinator
+            optimize(coordinatorEnrichAnalyzer().query("FROM test | WHERE id IN (" + enrich + " | KEEP id) | WHERE " + match));
+        }
+
+        String error = "[MATCH] function cannot be used in a filter that stays after ENRICH _coordinator:";
         assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | WHERE " + both)), containsString(error));
         assertThat(error(coordinatorEnrichAnalyzer().query(enrich + " | STATS c = COUNT(*) WHERE " + both)), containsString(error));
         // not shared by all the aggregate functions, so it stays in the aggregation

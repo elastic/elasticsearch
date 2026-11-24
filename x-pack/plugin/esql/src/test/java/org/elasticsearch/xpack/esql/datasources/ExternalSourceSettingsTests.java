@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
@@ -36,6 +37,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
             ExternalSourceSettings.defaultMaxDiscoveredFiles(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
             (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings)
         );
+        assertEquals(3_000, (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(settings));
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
@@ -382,13 +384,15 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(21, ExternalSourceSettings.settings().size());
+        assertEquals(22, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.WORKER_READY_TIMEOUT));
         assertEquals(TimeValue.timeValueSeconds(10), ExternalSourceSettings.WORKER_READY_TIMEOUT.get(Settings.EMPTY));
         assertTrue(ExternalSourceSettings.WORKER_READY_TIMEOUT.isDynamic());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.FIRST_ATTEMPT_LISTING_FILES));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
+        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS));
+        assertTrue(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.isDynamic());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_DECOMPRESSION_RATIO_ZSTD));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_MAX_FIELDS));
@@ -397,6 +401,50 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertTrue(ExternalSourceSettings.ADMISSION_RESCUE_ENABLED.isDynamic());
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    public void testMaxDirectoryListingsBounds() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 0).build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 1_000_001).build()
+            )
+        );
+        assertEquals(
+            1,
+            (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 1).build()
+            )
+        );
+        assertEquals(
+            1_000_000,
+            (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 1_000_000).build()
+            )
+        );
+        assertEquals(
+            2_000,
+            (int) ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.get(
+                Settings.builder().put("esql.external.max_directory_listings", 2_000).build()
+            )
+        );
+    }
+
+    public void testMaxDirectoryListingsFollowsClusterSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS));
+        AtomicInteger observed = new AtomicInteger();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, observed::set);
+        assertEquals(3_000, observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.getKey(), 512).build());
+        assertEquals(512, observed.get());
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS.getKey(), 4_000).build());
+        assertEquals(4_000, observed.get());
     }
 
     public void testAdmissionRescueEnabledFollowsClusterSettings() {

@@ -12,6 +12,7 @@ package org.elasticsearch.iplocation.api;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -45,15 +46,15 @@ public interface IpDataLookup {
      */
     @Nullable
     default Map<String, Object> lookup(String ip) throws IOException {
-        IpLocationInfoMapCollector collector = new IpLocationInfoMapCollector();
-        Boolean result = lookup(ip, collector);
+        Map<String, Object> map = new HashMap<>();
+        Boolean result = lookup(ip, new IpLocationInfoMapCollector(map));
         if (result == null) {
             return null;
         }
         if (result == false) {
             return Map.of();
         }
-        return collector;
+        return map;
     }
 
     /**

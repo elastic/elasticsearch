@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -44,6 +45,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Runs csv-spec queries over an index whose mapping lost one keyword field ({@code dynamic: false}) with
@@ -295,6 +297,28 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return command;
     }
 
+    /** Does a RENAME of the query name this column, as the old name or as the new one? */
+    private static boolean renames(String query, String name) {
+        return Pattern.compile("(?i)\\bRENAME\\b[^|]*(?<![\\w.*])" + Pattern.quote(name) + "(?![\\w.*])").matcher(query).find();
+    }
+
+    private static final Pattern COMMAND_PATTERN = Pattern.compile("\\|\\s*([^\\s|]+)");
+    private static final Set<String> FILTERING_COMMANDS = Set.of("WHERE", "SORT", "LIMIT");
+
+    /**
+     * Does the query use no command but {@code WHERE}, {@code SORT} and {@code LIMIT}, in the query or in a subquery? The token after a
+     * pipe is the command, so a comment there, which is not one of them, makes the answer no.
+     */
+    private static boolean onlyFiltersSortsAndLimits(String query) {
+        Matcher command = COMMAND_PATTERN.matcher(query);
+        while (command.find()) {
+            if (FILTERING_COMMANDS.contains(command.group(1).toUpperCase(Locale.ROOT)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static boolean projectsColumns(String query) {
         return PROJECTING_COMMAND_PATTERN.matcher(query).find();
     }
@@ -523,8 +547,24 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 }
                 boolean expectedColumn = expected.columnNames().contains(removedField);
                 boolean alreadyAColumn = names.contains(removedField);
-                if (anyRemovedValue && (expectedColumn == false || alreadyAColumn)) {
+                // A field that the query names is a column of its own and keeps its key in the object, as any column does, so the object
+                // holds nothing that the column lacks: only a value that the original results do not have as a column is unexpected.
+                // A RENAME of the field is no such case: it renames the column and not the key, which stays with the value.
+                if (anyRemovedValue && expectedColumn == false && renames(testCase.query, removedField) == false) {
                     return actual;
+                }
+                // And the other way round: the key must still be there, with the value of the column. The object is not stripped when it
+                // differs, so a key that wrongly disappears fails the comparison with the expected results instead of passing unnoticed.
+                // Only for queries that filter, sort and limit: any other command can make the column differ from the key (an EVAL, a
+                // RENAME, a GROK or a MV_EXPAND), or decide which keys remain (a KEEP or a DROP). How the keys and those commands interact
+                // is not decided here but by DetermineUnmappedFieldsToKeepTests, UnmappedFieldsPatternTests and unmapped-load-all.csv-spec.
+                if (expectedColumn && alreadyAColumn && onlyFiltersSortsAndLimits(testCase.query)) {
+                    int column = names.indexOf(removedField);
+                    for (int i = 0; i < rows.size(); i++) {
+                        if (sortedDistinctValues(rows.get(i).get(column)).equals(sortedDistinctValues(removedValues.get(i))) == false) {
+                            return actual;
+                        }
+                    }
                 }
                 names.remove(unmappedColumn);
                 types.remove(unmappedColumn);
@@ -590,6 +630,18 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return new StacklessAssumptionViolatedException(
             "known issue " + issue + ": [" + testId + "] " + what + " when [" + index + "." + removedField + "] is removed from the mapping"
         );
+    }
+
+    /**
+     * The values of a keyword cell or of a key, to compare them loosely: a multivalued column is sorted and deduplicated, while the
+     * array in the {@code _source} keeps the order and the duplicates of the document.
+     */
+    private static List<String> sortedDistinctValues(Object cell) {
+        if (cell == null) {
+            return List.of();
+        }
+        Stream<?> values = cell instanceof List<?> list ? list.stream() : Stream.of(cell);
+        return values.map(String::valueOf).distinct().sorted().toList();
     }
 
     private static Object asKeyword(Object sourceValue) {

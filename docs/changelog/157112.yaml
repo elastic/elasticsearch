@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 157112
-summary: Fix coalesced range reader short-read hang
-type: bug

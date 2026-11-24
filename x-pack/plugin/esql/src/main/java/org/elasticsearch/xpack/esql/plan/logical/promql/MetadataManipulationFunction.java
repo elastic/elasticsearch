@@ -241,9 +241,10 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
                     var written = new TimeSeriesMetadataSet(
                         source,
                         packing,
-                        Literal.keyword(source, name),
+                        Literal.keyword(source, context.labelName(name)),
                         derived.toAttribute(),
-                        context.labelPath(name)
+                        context.labelPath(name),
+                        context.passthroughPaths()
                     );
                     packings.add(new Alias(source, packing.name(), written));
                 }

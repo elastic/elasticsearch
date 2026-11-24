@@ -730,9 +730,7 @@ public class Driver implements Releasable, Describable {
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
-                    if (fut.isDone() == false) {
-                        driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
-                    }
+                    driver.scheduler.addOrRunDelayedTask(() -> fut.onResponse(null));
                 }
             }
 

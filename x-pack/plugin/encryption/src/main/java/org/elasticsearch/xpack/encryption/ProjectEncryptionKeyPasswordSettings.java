@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.security.GeneralSecurityException;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Settings governing the project encryption key (PEK) at rest.
@@ -80,6 +81,64 @@ final class ProjectEncryptionKeyPasswordSettings {
      */
     static boolean hasPassword(Settings settings, String id) {
         return id != null && id.isEmpty() == false && PASSWORD.getConcreteSetting(PASSWORD_PREFIX + id).exists(settings);
+    }
+
+    /**
+     * Returns why {@code settings} don't let a node wrap the key for its persisted cluster state, or {@code null} if they do. Derives a
+     * wrapping key, since a configured password can still be unusable, such as one too short for FIPS; that is slow, so callers should
+     * cache the result.
+     */
+    @Nullable
+    static String wrapForGatewayFailure(Settings settings) {
+        String passwordId = getActivePasswordId(settings);
+        if (passwordId == null) {
+            return "[" + ACTIVE_PASSWORD_ID_KEY + "] is not configured";
+        }
+        try (SecureString password = getPassword(settings, passwordId)) {
+            if (password == null) {
+                return "[" + PASSWORD_PREFIX + passwordId + "] is not configured";
+            }
+            PasswordBasedEncryption.deriveKek(password.getChars(), PasswordBasedEncryption.generateSalt());
+            return null;
+        } catch (Exception e) {
+            return "[" + PASSWORD_PREFIX + passwordId + "] cannot be used to wrap the key: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Rejects a reload that removes a password this node needs while the cluster uses a key: the active one, which it wraps the key
+     * with, or the one its on-disk copy of the key is wrapped with, which it needs to read the key back after a restart. The latter
+     * is checked by decrypting the copy, {@code canReadCopy}, so that a reload can still correct a wrong password.
+     */
+    static void validateReload(
+        boolean currentCanWrap,
+        Settings current,
+        Settings updated,
+        Predicate<Settings> canReadCopy,
+        @Nullable String keyOnDiskPasswordId
+    ) {
+        if (currentCanWrap) {
+            String failure = wrapForGatewayFailure(updated);
+            if (failure != null) {
+                throw new IllegalArgumentException(
+                    "cannot reload cluster state encryption settings: the cluster uses a cluster state encryption key, and with the"
+                        + " reloaded settings this node could no longer persist cluster state ("
+                        + failure
+                        + "); keeping the previous settings"
+                );
+            }
+        }
+        if (canReadCopy.test(current) && canReadCopy.test(updated) == false) {
+            String setting = PASSWORD_PREFIX + keyOnDiskPasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: this node's on-disk copy of the cluster state encryption key is wrapped"
+                    + " with ["
+                    + setting
+                    + "], which the reloaded secure settings remove or change; keeping the previous settings. Keep ["
+                    + setting
+                    + "] unchanged until this node has persisted cluster state with the new password"
+            );
+        }
     }
 
     /**

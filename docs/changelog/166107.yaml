@@ -1,0 +1,6 @@
+area: Security
+issues: []
+pr: 166107
+summary: "[Encryption] Install the encryption key only once every node can persist\
+  \ it"
+type: bug

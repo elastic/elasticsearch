@@ -7,12 +7,24 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -24,6 +36,25 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, passwordId);
         secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + passwordId, password);
         return Settings.builder().setSecureSettings(secure).build();
+    }
+
+    /** Only stateless cluster secrets that carry the active password id make every node's password the same. */
+    public void testPasswordsFromClusterSecretsOnlyOnStatelessWhenTheyHoldTheActivePasswordId() throws IOException {
+        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
+        ClusterState withPassword = withClusterSecrets(state, ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY);
+        assertFalse(PasswordPekEncryption.passwordsFromClusterSecrets(state, true));
+        assertFalse(PasswordPekEncryption.passwordsFromClusterSecrets(withClusterSecrets(state, "s3.client.default.secret_key"), true));
+        assertFalse(PasswordPekEncryption.passwordsFromClusterSecrets(withPassword, false));
+        assertTrue(PasswordPekEncryption.passwordsFromClusterSecrets(withPassword, true));
+    }
+
+    static ClusterState withClusterSecrets(ClusterState state, String secretName) throws IOException {
+        String json = "{\"string_secrets\":{\"" + secretName + "\":\"v1\"}}";
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return ClusterState.builder(state)
+                .putCustom(ClusterSecrets.TYPE, new ClusterSecrets(1, SecureClusterStateSettings.fromXContent(parser)))
+                .build();
+        }
     }
 
     public void testWrapUnwrapRoundTrip() {
@@ -113,5 +144,23 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         assertThrows(Exception.class, () -> enc.unwrap(wrappedOld.wrapped(), wrappedOld.passwordId()));
         // New wrapped bytes unwrap correctly.
         assertThat(enc.unwrap(wrappedNew.wrapped(), wrappedNew.passwordId()), equalTo(plaintext));
+    }
+
+    /** The reload check decrypts this node's copy with the given settings, not the ones in use. */
+    public void testCanReadGatewayKeysWithGivenSettings() {
+        Settings right = settingsWithPassword("v1", "right-password-fips-ok-v1");
+        PasswordPekEncryption enc = new PasswordPekEncryption(() -> right);
+        assertFalse("no copy yet", enc.canReadGatewayKeysWith(right));
+
+        byte[] plaintext = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
+        random().nextBytes(plaintext);
+        new ProjectEncryptionKeyMetadata(Map.of("k1", new KeyEntry(plaintext, 1L)), "k1", "v1", Map.of(), enc).toXContentChunked(
+            new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY))
+        );
+
+        assertTrue(enc.canReadGatewayKeysWith(right));
+        assertFalse(enc.canReadGatewayKeysWith(settingsWithPassword("v1", "wrong-password-fips-ok-v1")));
+        assertFalse(enc.canReadGatewayKeysWith(settingsWithPassword("v2", "right-password-fips-ok-v1")));
+        assertEquals(true, enc.canReadGatewayKeys());
     }
 }

@@ -51,6 +51,17 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
     );
 
     private static final TransportVersion ESQL_TS_INFO_LIMIT = TransportVersion.fromName("esql_ts_info_limit");
+    private static final TransportVersion ESQL_TS_INFO_LIMIT_BACKPORT = TransportVersion.fromName("esql_ts_info_limit_backport");
+
+    /**
+     * Whether the {@code TS_INFO} limit is on the wire at this transport version. The limit came with
+     * {@code esql_ts_info_limit}, and the 9.6 and 9.5 backports carry it under {@code esql_ts_info_limit_backport}.
+     * The first definition holds a patch id from the serverless patch branch, which the transport version generator
+     * can't keep when it adds release branches, so the backports got a definition of their own.
+     */
+    public static boolean limitOnWire(TransportVersion version) {
+        return version.supports(ESQL_TS_INFO_LIMIT) || version.supports(ESQL_TS_INFO_LIMIT_BACKPORT);
+    }
 
     private final List<Attribute> attributes;
     @Nullable
@@ -79,7 +90,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
-            in.getTransportVersion().supports(ESQL_TS_INFO_LIMIT) ? in.readOptionalVInt() : null
+            limitOnWire(in.getTransportVersion()) ? in.readOptionalVInt() : null
         );
     }
 
@@ -87,7 +98,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        if (out.getTransportVersion().supports(ESQL_TS_INFO_LIMIT)) {
+        if (limitOnWire(out.getTransportVersion())) {
             out.writeOptionalVInt(limit);
         }
     }

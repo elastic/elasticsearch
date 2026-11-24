@@ -41,7 +41,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
@@ -74,14 +73,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.common.io.Streams.limitStream;
-import static org.elasticsearch.xpack.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
 /**
@@ -131,7 +128,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final AtomicLong replicatedContentSizeBytes = new AtomicLong();
     private final AtomicLong copiedGenerationalFilesSizeBytes = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
-    private final BlobFile blobFile;
+    private final BccBlob bccBlob;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
     private final long creationTimeInMillis;
     // VBCC can no longer be appended to once it is frozen
@@ -195,7 +192,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.uploadedBlobLocationsSupplier = uploadedBlobLocationsSupplier;
         this.pendingCompoundCommits = new ConcurrentSkipListSet<>();
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-        this.blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
+        this.bccBlob = new BccBlob(primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
@@ -386,7 +383,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
-            var referencedBlobs = referencedFiles.values().stream().map(location -> location.blobFile().blobName()).distinct().count();
+            var referencedBlobs = referencedFiles.values().stream().map(location -> location.bccBlob().blobName()).distinct().count();
             logger.debug(
                 """
                     {}{} appending commit ({} bytes). References external {} files in {} other CCs and adds
@@ -439,7 +436,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         for (var internalFile : internalFiles) {
             var fileLength = internalFile.length();
-            var blobLocation = new BlobLocation(blobFile, fileOffset, fileLength);
+            var blobLocation = new BlobLocation(bccBlob, fileOffset, fileLength);
 
             var previousFile = commitFiles.put(internalFile.name(), blobLocation);
             assert previousFile == null : internalFile.name();
@@ -462,7 +459,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             : Maps.newHashMapWithExpectedSize(extraContentFiles.size());
         for (var extraFile : extraContentFiles) {
             var fileLength = extraFile.length();
-            var blobLocation = new BlobLocation(blobFile, fileOffset, fileLength);
+            var blobLocation = new BlobLocation(bccBlob, fileOffset, fileLength);
 
             var previousFile = extraContent.put(extraFile.name(), blobLocation);
             assert previousFile == null : extraFile.name();
@@ -601,7 +598,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 })
                 .get();
             final var ccLocation = new BlobLocation(
-                maxBlobLocation.blobFile(),
+                maxBlobLocation.bccBlob(),
                 maxBlobLocation.offset() + maxBlobLocation.fileLength() - cc.sizeInBytes(),
                 cc.sizeInBytes()
             );
@@ -670,14 +667,17 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         // Current position of the start of the commit (relative to the start of the region)
         int currentPositionInRegion = (int) (currentOffset % cacheRegionSizeInBytes);
 
-        // Approximate position of the end of the header + replicated content (using the estimated max. header size as a hint)
-        int estimatedHeaderEnd = Math.addExact(currentPositionInRegion, estimatedMaxHeaderSizeInBytes);
+        final var replicatedContent = ReplicatedContent.create(
+            internalFiles,
+            internalFilesSize,
+            directory,
+            cacheRegionSizeInBytes,
+            currentPositionInRegion,
+            estimatedMaxHeaderSizeInBytes
+        );
 
-        // Approximate position of the end of the commit
-        var estimatedCommitEnd = Math.addExact(estimatedHeaderEnd, internalFilesSize);
-
-        // Check if the header and internal files completely fit into the same region, in which case there is no need for replicated content
-        if (estimatedCommitEnd < cacheRegionSizeInBytes) {
+        // There is no need for replicated content if the header and internal files completely fit into the same region
+        if (replicatedContent == ReplicatedContent.EMPTY) {
             logger.trace(
                 "{} skipping content replication: commit {} at offset [{}][{}] with [{}] bytes of internal files "
                     + "would fit within the cache region of [{}] bytes assuming an approximate header size of [{}] bytes",
@@ -689,17 +689,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 cacheRegionSizeInBytes,
                 estimatedMaxHeaderSizeInBytes
             );
-            return ReplicatedContent.EMPTY;
         }
-
-        LongPredicate shouldReplicate;
-        if (estimatedMaxHeaderSizeInBytes != 0) {
-            // Replicate content for internal files that are not in the same region as the header
-            shouldReplicate = (offset) -> cacheRegionSizeInBytes <= (estimatedHeaderEnd + offset);
-        } else {
-            shouldReplicate = ALWAYS_REPLICATE; // Keep previous behavior
-        }
-        return ReplicatedContent.create(true, internalFiles, directory, shouldReplicate);
+        return replicatedContent;
     }
 
     public BatchedCompoundCommit getFrozenBatchedCompoundCommit() {
@@ -842,7 +833,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public String getBlobName() {
-        return blobFile.blobName();
+        return bccBlob.blobName();
     }
 
     public ShardId getShardId() {

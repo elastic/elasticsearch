@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -45,7 +47,7 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
 
     public void testChargeIsHeldByTheResponseThatIsNotStored() throws Exception {
         createIndexWithTags();
-        long baseline = requestBreakerUsed();
+        assertRequestBreakersReleased();
         SubmitAsyncSearchRequest request = request();
         request.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(30));
         request.setKeepOnCompletion(false);
@@ -53,16 +55,16 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
         try {
             assertNull("the response is not stored", response.getId());
             assertFalse(response.isRunning());
-            assertThat(requestBreakerUsed(), greaterThan(baseline));
+            assertThat(requestBreakerUsed(), greaterThan(0L));
         } finally {
             response.decRef();
         }
-        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(baseline)));
+        assertRequestBreakersReleased();
     }
 
     public void testChargeIsReleasedOnceTheTaskStoredItsResponse() throws Exception {
         createIndexWithTags();
-        long baseline = requestBreakerUsed();
+        assertRequestBreakersReleased();
         SubmitAsyncSearchRequest request = request();
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
@@ -72,7 +74,7 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
         try {
             ensureTaskCompletion(id);
             // Without deleting the search, so only the task closing can release what its response held.
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(baseline)));
+            assertRequestBreakersReleased();
 
             AsyncSearchResponse stored = getAsyncSearch(id);
             try {
@@ -81,7 +83,7 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
             } finally {
                 stored.decRef();
             }
-            assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(baseline)));
+            assertRequestBreakersReleased();
         } finally {
             deleteAsyncSearch(id);
         }
@@ -95,9 +97,13 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
     }
 
     private void createIndexWithTags() {
+        // Sync the translog on each bulk, so the checks don't wait for a periodic sync to release its pages from the request breaker.
         assertAcked(
             prepareCreate(INDEX).setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             ).setMapping("tag", "type=keyword", "n", "type=long")
         );
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -105,6 +111,10 @@ public class AsyncSearchAggregationChargeIT extends AsyncSearchIntegTestCase {
             bulk.add(prepareIndex(INDEX).setSource("tag", "tag-" + i, "n", i));
         }
         assertNoFailures(bulk.get());
+    }
+
+    private static void assertRequestBreakersReleased() throws Exception {
+        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
     }
 
     /** The bytes the request breakers of all nodes hold. */

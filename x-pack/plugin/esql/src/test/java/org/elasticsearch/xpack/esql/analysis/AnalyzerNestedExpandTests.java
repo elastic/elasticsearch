@@ -484,11 +484,12 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         );
     }
 
+    /** The same analyzer, on nodes new enough to report runtime fields in field caps. {@code NESTED_EXPAND} requires that. */
     private TestAnalyzer nestedAnalyzer() {
-        return nestedAnalyzer(minimumVersionAtLeast(NestedExpand.VERSION));
+        return nestedAnalyzer(minimumVersionAtLeast(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD));
     }
 
-    /** An analyzer over the indices this class describes, over nodes that report runtime fields in field caps. */
+    /** An analyzer over the indices this class describes. The transport version is the one the caller asked for. */
     public static TestAnalyzer nestedAnalyzer(TransportVersion minimumVersion) {
         return EsqlTestUtils.analyzer()
             .addIndex("ne", resolution("ne", nestedIndex()))
@@ -600,11 +601,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                 resolution("ne_lookup_note", index("ne_lookup_note", IndexMode.LOOKUP, field("id", "keyword"), field("note", "keyword")))
             )
             .stripErrorPrefix(true)
-            .minimumTransportVersion(
-                minimumVersion.supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD)
-                    ? minimumVersion
-                    : FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD
-            );
+            .minimumTransportVersion(minimumVersion);
     }
 
     private static FieldCapabilitiesIndexResponse nestedIndex() {

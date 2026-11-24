@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.Before;
@@ -425,6 +426,53 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         nestedAnalyzer().error(
             "FROM ne_conflict | WHERE NESTED_ANY(items.sub.v == \"a\")",
             containsString("NESTED_ANY cannot read [items.sub.v]")
+        );
+    }
+
+    public void testRuntimeFieldUnderThePathIsOutsideTheNestedScope() {
+        nestedAnalyzer().error(
+            "FROM ne_rt | WHERE NESTED_ANY(items.calc == 1)",
+            containsString("Field [items.calc] is outside the nested scope")
+        );
+    }
+
+    public void testRuntimeFieldAndNestedChildAreReadPerIndex() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt_mix | WHERE NESTED_ANY(items.calc == 1) | KEEP id");
+        List<Or> found = new ArrayList<>();
+        plan.forEachExpressionDown(Or.class, found::add);
+        assertThat(found, hasSize(1));
+        assertThat(found.getFirst().right(), instanceOf(NestedPredicate.class));
+        NestedPredicate predicate = (NestedPredicate) found.getFirst().right();
+        assertThat(predicate.path(), equalTo("items"));
+        assertThat(predicate.relativePaths(), equalTo(List.of("calc")));
+        List<FieldAttribute> parent = new ArrayList<>();
+        found.getFirst().left().forEachDown(FieldAttribute.class, parent::add);
+        assertThat(parent, hasSize(1));
+        assertThat(parent.getFirst().name(), equalTo("items.calc"));
+        assertThat(parent.getFirst().field(), not(instanceOf(NestedScopeField.class)));
+    }
+
+    public void testRuntimeFieldAndNestedChildOfDifferentTypesIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne_rt_types | WHERE NESTED_ANY(items.calc == \"a\")",
+            containsString(
+                "NESTED_ANY cannot read [items.calc]: it is a runtime field of type [long] in some indices and a field of "
+                    + "nested [items] of type [keyword] in others"
+            )
+        );
+    }
+
+    public void testRuntimeFieldCannotShareAPredicateWithAnotherChild() {
+        nestedAnalyzer().error(
+            "FROM ne_rt_mix | WHERE NESTED_ANY(items.calc == 1 AND items.sku == \"a\")",
+            containsString("NESTED_ANY cannot read [items.calc], a runtime field in some indices, together with [items.sku]")
+        );
+    }
+
+    public void testEvalStillReplacesANameThatIsAlsoARuntimeField() {
+        nestedAnalyzer().error(
+            "FROM ne_rt_mix | EVAL items.calc = 1 | WHERE NESTED_ANY(items.calc == 1)",
+            containsString("NESTED_ANY cannot use [items.calc]: a column of that name replaces it here")
         );
     }
 

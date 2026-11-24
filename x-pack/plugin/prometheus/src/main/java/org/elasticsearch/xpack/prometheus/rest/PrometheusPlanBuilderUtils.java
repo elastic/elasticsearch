@@ -255,24 +255,36 @@ final class PrometheusPlanBuilderUtils {
     }
 
     /**
-     * A metric stored as {@code metrics.<name>} is matched on {@code <name>}, the name the matcher is written against, so
-     * that an anchor such as the {@code ^} of {@code ^system.*} holds at the start of the name rather than of the prefix.
+     * A metric stored as {@code metrics.<name>} is matched on {@code <name>}, the name the matcher is written against. A
+     * literal is compared with the prefix prepended; a regex is matched on the name after the prefix, so that an anchor
+     * such as the {@code ^} of {@code ^system.*} holds at the start of the name rather than of the prefix.
      */
     private static Expression translateMetricNameMatcher(Expression metricNameField, LabelMatcher matcher) {
         Expression rawMetricNameCondition = LabelMatchers.condition(Source.EMPTY, metricNameField, matcher);
-        Expression prefixed = new StartsWith(Source.EMPTY, metricNameField, Literal.keyword(Source.EMPTY, METRICS_PREFIX));
-        Expression unprefixedName = new Substring(
-            Source.EMPTY,
-            metricNameField,
-            Literal.integer(Source.EMPTY, METRICS_PREFIX.length() + 1),
-            null
-        );
-        Expression unprefixedNameCondition = LabelMatchers.condition(Source.EMPTY, unprefixedName, matcher);
-        return switch (matcher.matcher()) {
-            case REG -> combineOr(List.of(rawMetricNameCondition, combineAnd(List.of(prefixed, unprefixedNameCondition))));
-            case NEQ, NREG -> combineAnd(
-                List.of(rawMetricNameCondition, combineOr(List.of(new Not(Source.EMPTY, prefixed), unprefixedNameCondition)))
+        Expression prefixedMetricNameCondition;
+        if (matcher.matcher().isRegex()) {
+            Expression prefixed = new StartsWith(Source.EMPTY, metricNameField, Literal.keyword(Source.EMPTY, METRICS_PREFIX));
+            Expression unprefixedName = new Substring(
+                Source.EMPTY,
+                metricNameField,
+                Literal.integer(Source.EMPTY, METRICS_PREFIX.length() + 1),
+                null
             );
+            Expression unprefixedNameCondition = LabelMatchers.condition(Source.EMPTY, unprefixedName, matcher);
+            prefixedMetricNameCondition = matcher.isNegation()
+                ? combineOr(List.of(new Not(Source.EMPTY, prefixed), unprefixedNameCondition))
+                : combineAnd(List.of(prefixed, unprefixedNameCondition));
+        } else {
+            List<String> values = matcher.values().stream().map(value -> METRICS_PREFIX + value).toList();
+            prefixedMetricNameCondition = LabelMatchers.condition(
+                Source.EMPTY,
+                metricNameField,
+                new LabelMatcher(matcher.name(), values, matcher.matcher())
+            );
+        }
+        return switch (matcher.matcher()) {
+            case REG -> combineOr(List.of(rawMetricNameCondition, prefixedMetricNameCondition));
+            case NEQ, NREG -> combineAnd(List.of(rawMetricNameCondition, prefixedMetricNameCondition));
             case EQ -> throw new IllegalArgumentException("exact __name__ matchers are handled before info nodes");
         };
     }

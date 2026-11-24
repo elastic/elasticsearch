@@ -92,6 +92,7 @@ public class RelocationOtherNodeShutdownTimeouts {
             // the warming cap does not free a slot, so the shards of the passed deadline may still be queued for one
             return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_GRACE_ELAPSED);
         }
+        // The previous share may come from another deadline. That is fine: the extension is capped by the share of the tightest one.
         final double waitMs;
         if (previousPlan != null && previousPlan.isEqualSharePlan()) {
             waitMs = tightestDeadline.extensionMs(previousPlan);

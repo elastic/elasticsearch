@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore.DescriptorsAndApplicationNamesCache;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -493,12 +492,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
-     * An empty wildcard expansion must be invalidated when a new application matches it, including {@code ?} wildcards
-     * interpreted by the in-memory matcher when expensive queries are disabled.
+     * An empty wildcard expansion must be invalidated when a new application matches it, including when the wildcard is
+     * interpreted by the in-memory matcher because expensive queries are disabled.
      */
     public void testNegativeWildcardCacheIsInvalidatedWhenMatchingApplicationIsCreated() throws Exception {
         clusterService.getClusterSettings().applySettings(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false).build());
-        final Set<String> applications = Set.of("app-?*");
+        final Set<String> applications = Set.of("app-*");
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> initial = new PlainActionFuture<>();
         store.getPrivileges(applications, null, initial);
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(emptyList())));
@@ -1210,6 +1209,32 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
+     * An application name may contain a colon, so the doc id must be split at the last colon: the cache clear has to name
+     * the full application, otherwise the changed application's cache entries are not invalidated.
+     */
+    public void testDeletePrivilegesClearsCachesForApplicationNameContainingColon() throws Exception {
+        final String application = "app1-x:y";
+
+        final PlainActionFuture<Map<String, List<String>>> future = new PlainActionFuture<>();
+        store.deletePrivileges(application, List.of("p1"), WriteRequest.RefreshPolicy.IMMEDIATE, future);
+        assertThat(requests, iterableWithSize(1));
+        final DeleteRequest delete = (DeleteRequest) requests.get(0);
+        requests.clear();
+        assertThat(delete.id(), equalTo("application-privilege_" + application + ":p1"));
+
+        listener.get()
+            .onResponse(new DeleteResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, "uuid", 0), delete.id(), 1, 1, 1, true));
+        assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
+
+        assertThat(requests, iterableWithSize(1));
+        assertThat(requests.get(0), instanceOf(ClearPrivilegesCacheRequest.class));
+        assertThat(((ClearPrivilegesCacheRequest) requests.get(0)).applicationNames(), arrayContaining(application));
+        listener.get().onResponse(null);
+
+        assertThat(future.actionGet(), equalTo(Map.of(application, List.of("p1"))));
+    }
+
+    /**
      * Deleting privileges that do not exist must not clear the privileges and roles caches: nothing cached can be stale,
      * and the cluster-wide clear is expensive (it invalidates the entire role cache on every node).
      */
@@ -1279,40 +1304,41 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     /**
-     * Invalidation must cover the loader's {@link StringMatcher} rules, including {@code ?} wildcards and {@code /regex/} patterns.
+     * Only an exact name or a trailing {@code *} (prefix match) is supported. Any other wildcard syntax is a literal name.
      */
-    public void testInvalidationMatchingIsAtLeastAsBroadAsLoaderMatching() {
+    public void testInvalidationKeepsEntriesWithUnsupportedWildcardForms() {
+        final String applicationName = randomAlphaOfLengthBetween(3, 10);
+        final List<String> unsupportedNames = List.of(
+            applicationName + "x",
+            applicationName + "x*",
+            "*" + applicationName.substring(1),
+            applicationName.charAt(0) + "*" + applicationName.substring(1),
+            applicationName.charAt(0) + "?" + applicationName.substring(2),
+            "/" + applicationName + "/"
+        );
+        for (String queriedName : unsupportedNames) {
+            store.getApplicationNamesCache().put(singleton(queriedName), Set.of());
+        }
+
+        store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList(applicationName));
+
+        assertEquals(unsupportedNames.size(), store.getApplicationNamesCache().count());
+    }
+
+    /**
+     * Invalidation must evict every entry whose queried names match a changed application under the loader's matching rule.
+     */
+    public void testInvalidationEvictsEntriesMatchedByExactNameOrTrailingWildcard() {
         final String applicationName = randomAlphaOfLengthBetween(3, 10);
         for (String queriedName : List.of(
             applicationName,
-            applicationName.substring(0, randomIntBetween(0, applicationName.length() - 1)) + "*",
-            "*" + applicationName.substring(randomIntBetween(1, applicationName.length())),
-            applicationName.charAt(0) + "*" + applicationName.charAt(applicationName.length() - 1),
-            applicationName.substring(0, 1) + "?" + applicationName.substring(2),
-            applicationName.substring(0, 1) + "?*",
-            "/" + applicationName + "/"
+            "*",
+            applicationName.substring(0, randomIntBetween(1, applicationName.length())) + "*"
         )) {
-            assertTrue(queriedName, StringMatcher.of(queriedName).test(applicationName));
-
             store.getApplicationNamesCache().put(singleton(queriedName), Set.of(applicationName));
             store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList(applicationName));
             assertEquals(queriedName, 0, store.getApplicationNamesCache().count());
         }
-    }
-
-    /**
-     * Query-based expansion can cache a malformed regex as a literal term; invalidation must conservatively evict it.
-     */
-    public void testInvalidationTreatsUnparsablePatternAsStale() {
-        // A pattern starting with '/' must end with '/' for StringMatcher; this one does not and fails to parse
-        store.getApplicationNamesCache().put(singleton("/malformed-regex"), Set.of());
-        store.getApplicationNamesCache().put(singleton("unrelated-*"), Set.of("unrelated-1"));
-
-        store.getDescriptorsAndApplicationNamesCache().invalidate(singletonList("app-1"));
-
-        assertEquals(1, store.getApplicationNamesCache().count());
-        assertNull(store.getApplicationNamesCache().get(singleton("/malformed-regex")));
-        assertEquals(Set.of("unrelated-1"), store.getApplicationNamesCache().get(singleton("unrelated-*")));
     }
 
     public void testInvalidateAll() {

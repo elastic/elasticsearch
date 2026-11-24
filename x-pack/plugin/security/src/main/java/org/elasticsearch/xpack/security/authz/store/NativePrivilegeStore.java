@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -55,8 +54,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.support.Automatons;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -261,7 +258,7 @@ public class NativePrivilegeStore {
     }
 
     /**
-     * Application name expansion must stay within {@link StringMatcher}'s matching rules so that
+     * Application name expansion must stay within {@link #matchesAnyQueriedName}'s matching rules so that
      * {@link DescriptorsAndApplicationNamesCache#canReferenceAnyOf} invalidates every affected names cache entry.
      */
     private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
@@ -298,8 +295,26 @@ public class NativePrivilegeStore {
             return new Tuple<>(boolQuery, null);
         } else {
             logger.trace("expensive queries are not allowed, switching to filtering application names in memory");
-            return new Tuple<>(null, StringMatcher.of(applications));
+            return new Tuple<>(null, applicationName -> matchesAnyQueriedName(applications, applicationName));
         }
+    }
+
+    /**
+     * Whether the application name matches any of the queried names. The only matching supported is an exact name, or a name
+     * ending in {@code *} which matches by prefix. The loader and the cache invalidation share this so that every affected
+     * names cache entry is invalidated.
+     */
+    private static boolean matchesAnyQueriedName(Collection<String> queriedNames, String applicationName) {
+        for (String queriedName : queriedNames) {
+            if (queriedName.endsWith("*")) {
+                if (applicationName.startsWith(queriedName.substring(0, queriedName.length() - 1))) {
+                    return true;
+                }
+            } else if (applicationName.equals(queriedName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void setAllowExpensiveQueries(boolean allowExpensiveQueries) {
@@ -505,7 +520,8 @@ public class NativePrivilegeStore {
     private static Tuple<String, String> nameFromDocId(String docId) {
         final String name = docId.substring(DOC_TYPE_VALUE.length() + 1);
         assert name != null && name.length() > 0 : "Invalid name '" + name + "'";
-        final int colon = name.indexOf(':');
+        // Split at the last colon: an application name may contain one, but a privilege name may not
+        final int colon = name.lastIndexOf(':');
         assert colon > 0 : "Invalid name '" + name + "' (missing colon)";
         return new Tuple<>(name.substring(0, colon), name.substring(colon + 1));
     }
@@ -716,27 +732,12 @@ public class NativePrivilegeStore {
 
         /**
          * Whether the queried names could match a changed application, including one missing from a cached empty result.
-         * Uses the loader's {@link StringMatcher} rules; invalid or overly complex patterns are conservatively treated as stale.
+         * Uses the same {@link NativePrivilegeStore#matchesAnyQueriedName} rule as the loader.
          */
         private static boolean canReferenceAnyOf(Set<String> queriedNames, Set<String> applicationNames) {
-            for (String queriedName : queriedNames) {
-                if (applicationNames.contains(queriedName)) {
+            for (String applicationName : applicationNames) {
+                if (matchesAnyQueriedName(queriedNames, applicationName)) {
                     return true;
-                }
-                if (Automatons.isLiteralPattern(queriedName) == false) {
-                    final Predicate<String> matcher;
-                    try {
-                        matcher = StringMatcher.of(queriedName);
-                    } catch (ElasticsearchSecurityException e) {
-                        // Invalid or overly complex patterns cannot be proven unrelated to the changed applications.
-                        logger.debug(() -> format("invalidating names cache entry for unparsable pattern [%s]", queriedName), e);
-                        return true;
-                    }
-                    for (String applicationName : applicationNames) {
-                        if (matcher.test(applicationName)) {
-                            return true;
-                        }
-                    }
                 }
             }
             return false;

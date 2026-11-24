@@ -374,7 +374,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         routingNodes.startShard(iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-2",
                         0L,
-                        MoveReason.of(MoveType.CANNOT_REMAIN),
+                        MoveReason.CANNOT_REMAIN,
                         changes,
                         RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
@@ -427,7 +427,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         routingNodes.startShard(iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-0",
                         0L,
-                        MoveReason.of(MoveType.CANNOT_REMAIN),
+                        MoveReason.CANNOT_REMAIN,
                         changes,
                         RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
@@ -572,7 +572,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             changes,
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
@@ -594,7 +594,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             randomRoutingNodes.startShard(iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             changes,
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
@@ -1551,7 +1551,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             shard,
                             "node-1",
                             0L,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             allocation.changes(),
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
@@ -1562,7 +1562,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             shard,
                             "node-0",
                             0L,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             allocation.changes(),
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
@@ -2006,7 +2006,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             ),
             randomValueOtherThan(shard2PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
             randomLongBetween(100, 999),
-            MoveReason.of(MoveType.CANNOT_REMAIN),
+            MoveReason.CANNOT_REMAIN,
             routingChangesObserver,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -2126,7 +2126,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             ),
             "node-2",
             randomLongBetween(100, 999),
-            MoveReason.of(MoveType.CANNOT_REMAIN),
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -2137,7 +2137,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             startedShard2OnNode3,
             "node-4",
             randomLongBetween(100, 999),
-            MoveReason.of(MoveType.CANNOT_REMAIN),
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
@@ -2150,7 +2150,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             startedShard2OnNode4,
             "node-5",
             randomLongBetween(100, 999),
-            MoveReason.of(MoveType.CANNOT_REMAIN),
+            MoveReason.CANNOT_REMAIN,
             RoutingChangesObserver.NOOP,
             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );

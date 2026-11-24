@@ -244,7 +244,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                                 indexShardRoutingTable.shard(0),
                                 node.getId(),
                                 0L,
-                                MoveReason.of(MoveType.CANNOT_REMAIN),
+                                MoveReason.CANNOT_REMAIN,
                                 routingAllocation.changes(),
                                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );

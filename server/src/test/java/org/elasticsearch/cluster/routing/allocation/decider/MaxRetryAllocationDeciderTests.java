@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.MoveReason;
-import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -295,7 +294,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                         source,
                         targetNodeId,
                         0,
-                        MoveReason.of(MoveType.CANNOT_REMAIN),
+                        MoveReason.CANNOT_REMAIN,
                         allocation.changes(),
                         RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
@@ -419,7 +418,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                         source,
                         targetNodeId,
                         0,
-                        MoveReason.of(MoveType.CANNOT_REMAIN),
+                        MoveReason.CANNOT_REMAIN,
                         allocation.changes(),
                         RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                     );
@@ -450,7 +449,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     source,
                     freshNodeId,
                     0,
-                    MoveReason.of(MoveType.CANNOT_REMAIN),
+                    MoveReason.CANNOT_REMAIN,
                     allocation.changes(),
                     RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
@@ -487,7 +486,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     source,
                     targetNodeId,
                     0,
-                    MoveReason.of(MoveType.CANNOT_REMAIN),
+                    MoveReason.CANNOT_REMAIN,
                     allocation.changes(),
                     RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
@@ -562,7 +561,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                             primary,
                             primaryTargetNode,
                             0,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             alloc.changes(),
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
@@ -571,7 +570,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                             startedReplica,
                             replicaTargetNode,
                             0,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             alloc.changes(),
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );
@@ -607,7 +606,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                             startedReplica,
                             replicaTargetNode,
                             0,
-                            MoveReason.of(MoveType.CANNOT_REMAIN),
+                            MoveReason.CANNOT_REMAIN,
                             alloc.changes(),
                             RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                         );

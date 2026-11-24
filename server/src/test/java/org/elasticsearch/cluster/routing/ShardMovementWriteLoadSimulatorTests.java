@@ -82,7 +82,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 expectedShardSize,
-                MoveReason.of(MoveType.CANNOT_REMAIN),
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -139,7 +139,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 movedAndStartedShard,
                 "node_0",
                 expectedShardSize,
-                MoveReason.of(MoveType.CANNOT_REMAIN),
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -184,7 +184,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 expectedShardSize,
-                MoveReason.of(MoveType.CANNOT_REMAIN),
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -213,7 +213,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 0,
-                MoveReason.of(MoveType.CANNOT_REMAIN),
+                MoveReason.CANNOT_REMAIN,
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );

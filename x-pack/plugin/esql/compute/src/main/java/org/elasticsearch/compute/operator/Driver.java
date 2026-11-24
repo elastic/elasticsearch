@@ -111,7 +111,7 @@ public class Driver implements Releasable, Describable {
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
     private final DriverScheduler scheduler = new DriverScheduler();
     /** Reusable list to collect blocked results, avoiding new allocation on every driver loop. */
-    private final List<IsBlockedResult> blockedResults = new ArrayList<>();
+    private final List<IsBlockedResult> blockedOrFailedResults = new ArrayList<>();
 
     /**
      * Status reported to the tasks API. We write the status at most once every
@@ -474,19 +474,12 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()), currentTimeNanosSupplier, lastStatusUpdate);
 
         if (movedPage == false) {
-            blockedResults.clear();
-            IsBlockedResult failed = null;
-            for (Operator op : activeOperators) {
-                IsBlockedResult blocked = op.isBlocked();
-                if (blocked.listener().isFailed()) {
-                    failed = blocked;
-                    break;
-                }
-                if (blocked.listener().isDone() == false) {
-                    blockedResults.add(blocked);
-                }
-            }
-            IsBlockedResult result = failed != null ? failed : oneOf(blockedResults);
+            blockedOrFailedResults.clear();
+            activeOperators.stream()
+                .map(Operator::isBlocked)
+                .filter(laf -> laf.listener().isSuccess() == false)
+                .forEach(blockedOrFailedResults::add);
+            IsBlockedResult result = oneOf(blockedOrFailedResults);
             onNoPagesMoved();
             return result;
         }

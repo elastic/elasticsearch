@@ -1045,12 +1045,28 @@ public enum DataType implements Writeable {
      * {@code true} if values of this type can be a grouping key: a {@code STATS BY}, {@code INLINE STATS BY}
      * or {@code LIMIT BY} grouping, or a {@code DEDUP} column.
      * <p>
-     * Grouping keys follow the type's own equality: group keys compare encoded values, so every path that
-     * produces a value of a groupable type (block loaders, evaluators, conversions, deserialization) must
-     * encode equal values as identical bits. {@code null} keys equal each other. {@code STATS BY} expands a
-     * multivalue into one key per value, while {@code LIMIT BY} and {@code DEDUP} compare a multivalue as one
-     * key with list semantics, sensitive to order and repeats. {@code _source}, {@code _tsid} and spatial
+     * A groupable type supports {@code ==}, and grouping agrees with it: two keys land in the same group
+     * exactly when {@code ==} is true. {@code LIMIT BY} and {@code DEDUP} compare a multivalue value by value,
+     * in order. {@code STATS BY} splits a multivalue into one group per value. Group keys compare encoded
+     * values, so every path that produces a value of a groupable type (block loaders, evaluators, conversions,
+     * deserialization) must encode equal values as identical bits. {@code _source}, {@code _tsid} and spatial
      * shapes compare by their encoded bytes.
+     * <p>
+     * Exceptions, rather than the rule:
+     * <ul>
+     *     <li>groupable without {@code ==}: {@code null} (by design), {@code _source}, {@code _tsid}, and a
+     *         counter reached indirectly (a renamed field or {@code BY c = <counter>});</li>
+     *     <li>{@code ==} but not groupable: {@code date_range}, {@code exponential_histogram} and {@code tdigest}.
+     *         Their siblings {@code double_range} and {@code histogram} are groupable;</li>
+     *     <li>{@code dense_vector} is groupable, but not in {@code STATS} or {@code INLINE STATS}, because
+     *         {@code BlockHash} cannot group it. {@code LIMIT BY} and {@code DEDUP} encode it row by row
+     *         and accept it;</li>
+     *     <li>all {@code NaN}s are one group, like nulls, even though {@code NaN == NaN} is false.
+     *         Single-key {@code STATS} already does this. Multi-key {@code STATS}, {@code LIMIT BY} and
+     *         {@code DEDUP} still split {@code NaN}s by bit pattern, and {@code 0.0} and {@code -0.0} can
+     *         land in different groups. Both are known exceptions tracked by
+     *         <a href="https://github.com/elastic/elasticsearch/issues/167086">#167086</a>.</li>
+     * </ul>
      * <p>
      * New types reject grouping until this is deliberately enabled. Since {@code LIMIT BY} is GA, the set of
      * groupable types can only grow, and a type that becomes groupable later needs a transport version gate

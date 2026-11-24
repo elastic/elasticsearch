@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.l
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.LIST_PAGE_SIZE;
+import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.MIN_FINISH_SAMPLE;
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.cheaperToFinish;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -75,7 +76,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Worked checks for the finish-vs-flat page-count rule. The first survivor is already listed, so remaining
- * cost is {@code (S - 1) * ceil(k / P) <= ceil(L * k / P)}.
+ * cost is {@code (S - 1) * ceil(k / P) <= ceil(L * k' / P)} with {@code k' = max(k, MIN_FINISH_SAMPLE)}.
+ * A quiet first folder must not shrink the prefix estimate.
  */
 public class PartitionPruningWalkTests extends ESTestCase {
 
@@ -92,10 +94,17 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testOneHundredSixtyEightHourlyLeavesFlatten() {
+        // k=5 floors to 12 on the prefix: 167 remaining pages > ceil(2880*12/1000)=35
         assertFalse(cheaperToFinish(168, 5, 2880));
     }
 
+    public void testOneHundredSixtyEightHourlyLeavesFlattenWhenSampleExceedsMinFloor() {
+        // k=50: floor is a no-op; 167 remaining pages > ceil(2880*50/1000)=144
+        assertFalse(cheaperToFinish(168, 50, 2880));
+    }
+
     public void testThreeOfTenLeavesFlatten() {
+        // k=5 floors to 12: 2 remaining pages > ceil(10*12/1000)=1
         assertFalse(cheaperToFinish(3, 5, 10));
     }
 
@@ -105,7 +114,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testFiveOfOneHundredIdsFlattenWhenEachDirIsOneObject() {
-        assertFalse("k=1: 4 remaining pages > ceil(100/1000)=1 prefix page", cheaperToFinish(5, 1, 100));
+        // k=1 floors to 12: 4 remaining pages > ceil(100*12/1000)=2
+        assertFalse(cheaperToFinish(5, 1, 100));
     }
 
     public void testSingleSurvivorAlwaysFinishes() {
@@ -141,8 +151,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
         assertTrue(cheaperToFinish(3, LIST_PAGE_SIZE + 1, 4.5));
     }
 
-    public void testTwoSparseSurvivorsFinishAtEqualRemainingCost() {
-        assertTrue("1 remaining page == ceil(100/1000)=1", cheaperToFinish(2, 1, 100));
+    public void testTwoSparseSurvivorsFinishAgainstFlooredPrefix() {
+        assertTrue("1 remaining page <= ceil(100*12/1000)=2", cheaperToFinish(2, 1, 100));
     }
 
     public void testMultiSurvivorPagesWhenObjectsExceedPageSize() {
@@ -152,7 +162,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
 
     public void testEmptyFirstListingStillCostsOnePage() {
         assertTrue(cheaperToFinish(1, 0, 10));
-        assertFalse("S=5 empty dirs vs 1 prefix page", cheaperToFinish(5, 0, 100));
+        // k=0 bills as 1 page/dir; prefix floors to 12: 4 remaining > ceil(100*12/1000)=2
+        assertFalse("S=5 empty dirs vs floored prefix pages", cheaperToFinish(5, 0, 100));
     }
 
     public void testFractionalPrefixWidth() {
@@ -161,8 +172,27 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testSparseWideHiveLeavesStillFlatten() {
-        // 154 matching day dirs, k=4: 153 remaining pages vs ~2 prefix pages of the synthetic tree.
+        // 154 matching day dirs, k=4 floors to 12: 153 remaining pages vs ceil(462*12/1000)=6.
         assertFalse(cheaperToFinish(154, 4, 462));
+    }
+
+    public void testQuietFirstFolderDoesNotFlattenNinetyDayPrefix() {
+        // 154 of 90×154 day dirs. Without the floor, k=4 sizes the prefix at ceil(13860*4/1000)=56
+        // and flattens. With k'=12, 153 remaining <= ceil(13860*12/1000)=167, so finish.
+        assertTrue(cheaperToFinish(154, 4, 154 * 90));
+        assertTrue("k=10 still floors to 12", cheaperToFinish(154, MIN_FINISH_SAMPLE - 2, 154 * 90));
+        assertTrue(cheaperToFinish(154, MIN_FINISH_SAMPLE, 154 * 90));
+        // Same 1-day S, shorter retention: need k'>=71 (14-day) / already-false at 12 (30-day).
+        // Quiet-folder flatten of those prefixes is accepted; 12 is the 90-day layout, not a min-sample.
+        assertFalse("14-day L of the same 154 prefixes still flattens", cheaperToFinish(154, 4, 154 * 14));
+        assertFalse("30-day L of the same 154 prefixes still flattens", cheaperToFinish(154, 4, 154 * 30));
+    }
+
+    public void testFinishCostUsesMeasuredKNotThePrefixFloor() {
+        // pageSize 10 so measured k=5 is one page and the floor (12) is two. Remaining 2 pages
+        // vs ceil(2*5/10)=1 would flatten if finish used k'; measured k finishes (2 <= ceil(2*12/10)=3).
+        assertTrue(cheaperToFinish(3, 5, 2, 10));
+        assertFalse("flooring finish k would be 2*ceil(12/10)=4 > 3", cheaperToFinish(3, 12, 2, 10));
     }
 
     public void testParallelWalkMatchesSequentialOrderAndIssuedCount() throws Exception {

@@ -48,6 +48,12 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.L
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.MIXED_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.NOW;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.PADDED_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_ACCOUNTS;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DAY_END;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_DAY_START;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_MATCHING_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.RETENTION_HIVE_PREFIX;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_END;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
@@ -69,6 +75,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.o
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.paddedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.pathsOf;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.reference;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.retentionHiveTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.temporalHints;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
@@ -587,8 +594,8 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
-     * Sparse {@code k=4} on 154 matching day dirs: RULE still flattens after a complete walk. Raising the
-     * ceiling is what avoids the 46M-object prefix listing, not a new finish-vs-flat formula.
+     * Sparse {@code k=4} on 154 matching day dirs: RULE still flattens after a complete walk. The k' floor
+     * is the 90-day × 154 1-day break-even, not a min-sample; this 3-day synthetic width still flattens.
      */
     public void testWideHiveTreeOneDayRuleStillFlattensSparseLeaves() throws IOException {
         List<StorageEntry> tree = wideHiveTree();
@@ -598,6 +605,36 @@ public class ListingWalkHarnessTests extends ESTestCase {
         expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred);
         assertTrue("RULE finish-vs-flat still prefix-lists this sparse tree", walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
         assertEquals(WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES, walk.listChildrenRequests());
+    }
+
+    /**
+     * 10-prefix × 90-day tree, 1-day filter, first shaped survivor has 2 objects (junk {@code _temporary}
+     * sorts first). Globstar plus listing hints so month/day prune by folder value and grain-IN cannot
+     * splice the walk away. Without {@code k' = max(k, 12)} RULE would flatten; with it the walk
+     * finishes and never prefix-lists the dataset root.
+     */
+    public void testQuietFirstFolderOnNinetyDayTreeFinishesUnderRule() throws IOException {
+        List<StorageEntry> tree = retentionHiveTree();
+        List<Expression> filters = List.of(window(RETENTION_HIVE_DAY_START, RETENTION_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, RETENTION_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(RETENTION_HIVE_MATCHING_FILES, ref.paths().size());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, RETENTION_HIVE_GLOB, hints, MAX, pred);
+        assertObserved(walked, ref);
+        assertFalse(
+            "90-day quiet-first RULE must not prefix-list the dataset",
+            walk.listedPrefixes().contains(RETENTION_HIVE_PREFIX + "/")
+        );
+        int dayListings = 0;
+        for (String prefix : walk.listedPrefixes()) {
+            if (prefix.contains("/day=")) {
+                dayListings++;
+            }
+        }
+        assertEquals("finish lists each matching day dir", RETENTION_HIVE_ACCOUNTS, dayListings);
     }
 
     /** RULE flattens 7-day (k=8); ALWAYS_FINISH lists the 7 days; ALWAYS_FLAT prefix-lists without measuring. */

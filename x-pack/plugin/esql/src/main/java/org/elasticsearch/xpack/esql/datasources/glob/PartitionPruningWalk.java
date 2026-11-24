@@ -66,8 +66,11 @@ import java.util.function.Predicate;
  * than flattening the prefix. Transient retries sit on the storage provider; this class does not add a second retry.
  * Limit errors ({@link DiscoveredFilesLimitException}) likewise propagate. Survivors are finished with one recursive
  * listing each, but only when something was pruned and {@link #cheaperToFinish} says the remaining listings cost no
- * more LIST pages than one flat listing of the prefix (the first survivor is already listed); otherwise the walk
- * returns {@code null} and the caller flat-lists.
+ * more LIST pages than one flat listing of the prefix (the first survivor is already listed). An undersized first
+ * sample does not shrink that prefix estimate: the flat side uses {@code k' = max(k, MIN_FINISH_SAMPLE)} so one
+ * quiet folder cannot make a 90-day 154-prefix 1-day listing look cheaper than finishing. A 14-day or 30-day
+ * prefix of that same 1-day {@code S} still flattens. Otherwise the walk returns {@code null} and the caller
+ * flat-lists.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -114,6 +117,19 @@ final class PartitionPruningWalk {
     static final int LIST_PAGE_SIZE = 1000;
 
     /**
+     * Floor on the first-survivor object count used as {@code k'} when sizing the prefix in
+     * {@link #cheaperToFinish}. Not a min-sample of folders and not a page-size law: 154 remaining-1 of a
+     * 90-day 154-prefix tree ({@code L = 154 * 90}) need {@code k' >= 11} so {@code 153 <= ceil(L * k' / P)}
+     * at {@link #LIST_PAGE_SIZE} 1000. 12 is that break-even plus slack if {@code estimatedPrefixWidth}
+     * lands a little under {@code 154 * 90}. Same {@code S}, 14-day {@code L = 2156}: need {@code k' >= 71};
+     * floor 12 still flattens. 30-day same. Finish cost still uses measured {@code k}. Sampling more folders
+     * is later work. {@code if (k < MIN) finish} would also finish those shorter prefixes, and would
+     * over-finish a uniformly sparse bucket; walk files skip the glob expander's folder-range filter, so
+     * that path can return grain-IN supersets.
+     */
+    static final int MIN_FINISH_SAMPLE = 12;
+
+    /**
      * Test-only override of {@link #finishSurvivors}' cost check. Production always uses {@link FinishMode#RULE}.
      * Captured on the {@link WalkSession} at construction so {@link #tryWalkAsync} honors {@link #withFinishMode}
      * from the calling thread.
@@ -154,9 +170,14 @@ final class PartitionPruningWalk {
     /**
      * True when finishing the remaining {@code survivors - 1} directories costs no more LIST pages than
      * flattening {@code estimatedPrefixWidth} directories of the same size, given the first survivor is
-     * already listed: {@code (S - 1) * ceil(k / P) <= ceil(L * k / P)}. Flatten still pays the prefix
+     * already listed: {@code (S - 1) * ceil(k / P) <= ceil(L * k' / P)} with
+     * {@code k' = max(k, MIN_FINISH_SAMPLE)}. Flatten still pays the prefix
      * listing on top of that probe; finish reuses it. {@code estimatedPrefixWidth} is the product, over
      * walked levels, of average partition-shaped children per listed directory.
+     *
+     * <p>{@code k'} sizes the prefix; finish cost still uses measured {@code k}. {@link #MIN_FINISH_SAMPLE}
+     * is the 90-day × 154-prefix 1-day break-even plus slack, not the measured count and not a page-size
+     * law. A 14-day or 30-day prefix of that same 1-day {@code S} still flattens.
      */
     static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth) {
         return cheaperToFinish(survivors, objectsUnderFirst, estimatedPrefixWidth, LIST_PAGE_SIZE);
@@ -170,11 +191,13 @@ final class PartitionPruningWalk {
             throw new IllegalArgumentException("pageSize must be positive: " + pageSize);
         }
         // An empty LIST still costs one page. Billing k=0 as 1 keeps an empty first survivor from
-        // making every remaining listing look free.
+        // making every remaining listing look free. The prefix estimate floors k at MIN_FINISH_SAMPLE
+        // so a quiet folder cannot shrink the bucket.
         long k = Math.max(1L, objectsUnderFirst);
+        long kForPrefix = Math.max(k, MIN_FINISH_SAMPLE);
         long pagesPerDir = ceilDiv(k, pageSize);
         double remainingFinishPages = (double) (survivors - 1) * pagesPerDir;
-        double flatPages = Math.ceil(estimatedPrefixWidth * k / pageSize);
+        double flatPages = Math.ceil(estimatedPrefixWidth * kForPrefix / pageSize);
         return remainingFinishPages <= flatPages;
     }
 
@@ -621,8 +644,9 @@ final class PartitionPruningWalk {
      * one flat listing of the prefix — otherwise {@code null} to signal a flat fallback.
      *
      * <p>The first partition-shaped survivor is listed before the decision so {@code k} is measured rather than
-     * guessed. Junk dirs ({@code _temporary}) sort first in {@code dirs} and would understate {@code k}. If the
-     * rule then flattens, that one LIST is wasted; the collector is discarded with the {@code null} return.
+     * guessed. Junk dirs ({@code _temporary}) sort first in {@code dirs} and would understate {@code k}. A sample
+     * smaller than {@link #MIN_FINISH_SAMPLE} does not shrink the prefix estimate. If the rule then flattens, that
+     * one LIST is wasted; the collector is discarded with the {@code null} return.
      */
     @Nullable
     private static WalkResult finishSurvivors(

@@ -16,7 +16,9 @@ import org.apache.lucene.util.UnicodeUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The field schema shared by every row in a {@link SourceBatch}, independent of the physical layout
@@ -42,6 +44,23 @@ public final class SourceSchema {
 
     private final FieldLevel nonLeaves;
     private final FieldLevel leaves;
+
+    /**
+     * Registers the fields of a structured value, such as a histogram object, on a schema and returns a handle holding their
+     * resolved indices. This lets writers of a field type resolve its layout once per schema rather than once per value.
+     * Factories are cache keys by identity, see {@link #getSubSchema}, so implementations should be singletons.
+     *
+     * @param <T> the handle holding the resolved indices
+     */
+    @FunctionalInterface
+    public interface SubSchemaFactory<T> {
+        /** Registers the fields of the value named {@code name} under the non-leaf field {@code parentIdx} of {@code schema}. */
+        T create(SourceSchema schema, int parentIdx, String name);
+    }
+
+    private record SubSchemaKey(int parentIdx, String name, SubSchemaFactory<?> factory) {}
+
+    private Map<SubSchemaKey, Object> subSchemas;
 
     /**
      * Creates a new schema with root automatically added as non-leaf index 0.
@@ -135,6 +154,26 @@ public final class SourceSchema {
      */
     public int appendLeaf(String name, int parentIdx, int predictedIdx) {
         return leaves.append(name, parentIdx, predictedIdx);
+    }
+
+    /**
+     * Returns the sub-schema {@code factory} registers for the value named {@code name} under the non-leaf field
+     * {@code parentIdx}. The fields are registered on first use; later calls with the same arguments return the same handle.
+     */
+    public <T> T getSubSchema(int parentIdx, String name, SubSchemaFactory<T> factory) {
+        if (subSchemas == null) {
+            subSchemas = new HashMap<>();
+        }
+        SubSchemaKey key = new SubSchemaKey(parentIdx, name, factory);
+        // a key only ever maps to the value its own factory created, so the value is a T
+        @SuppressWarnings("unchecked")
+        T subSchema = (T) subSchemas.get(key);
+        if (subSchema == null) {
+            // not computeIfAbsent: a factory may resolve nested sub-schemas, which modifies the map
+            subSchema = factory.create(this, parentIdx, name);
+            subSchemas.put(key, subSchema);
+        }
+        return subSchema;
     }
 
     /**

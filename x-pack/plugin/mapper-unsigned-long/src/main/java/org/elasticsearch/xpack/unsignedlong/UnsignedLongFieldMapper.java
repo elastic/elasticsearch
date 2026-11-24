@@ -814,6 +814,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean readsEmptyStringAsNull() {
+        // parseCreateField reads an empty string as null; unsigned_long has no coerce parameter to turn that off.
+        return true;
+    }
+
+    @Override
     public UnsignedLongFieldType fieldType() {
         return (UnsignedLongFieldType) super.fieldType();
     }

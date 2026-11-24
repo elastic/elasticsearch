@@ -3,7 +3,7 @@
 ## Parameters
 
 `field`
-:   field to clamp.
+:   Expression to clamp. If `null`, the function returns `null`.
 
 `min`
 :   The min value to clamp data into.

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -165,12 +166,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var response = responseFuture.actionGet();
         assertThat(
             response.cancelledInQueue(),
-            equalTo(
-                Set.of(
-                    new CancelRecoveriesAction.CancelledInQueue(shardId1, allocationId1),
-                    new CancelRecoveriesAction.CancelledInQueue(shardId2, allocationId2)
-                )
-            )
+            equalTo(Set.of(new ShardAllocationId(shardId1, allocationId1), new ShardAllocationId(shardId2, allocationId2)))
         );
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
@@ -276,7 +272,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertThat(response.cancelledInQueue(), equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId1, allocationId1))));
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(new ShardAllocationId(shardId1, allocationId1))));
         indexShard0.ensureRecoveryNotCancelled();
     }
 
@@ -417,7 +413,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertThat(response.cancelledInQueue(), equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId2, allocationId2))));
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(new ShardAllocationId(shardId2, allocationId2))));
 
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
@@ -433,9 +429,9 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             shardId,
             true,
             new RecoverySource.ReshardSplitRecoverySource(shardId),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
+            new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, "test"),
             ShardRouting.Role.DEFAULT,
-            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
         ).initialize(randomIdentifier(), allocationId, 0L);
 
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
@@ -490,7 +486,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 if (e instanceof RecoveryCancelledException) {
                     cancelled.set(true);
                 } else {
@@ -523,8 +519,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
     private static RecoveryState newRecoveryState(ShardId shardId, RecoveryPriority recoveryPriority) {
         String relocatingNodeId = switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING ->
-                null;
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING,
+                UNASSIGNED_RESHARD_SPLIT_TARGET -> null;
             case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
             case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");
         };

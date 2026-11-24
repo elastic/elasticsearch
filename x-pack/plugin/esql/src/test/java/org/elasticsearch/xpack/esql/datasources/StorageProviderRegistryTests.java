@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -27,12 +34,17 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -95,6 +107,95 @@ public class StorageProviderRegistryTests extends ESTestCase {
             );
             assertEquals(1L, requests.getLong());
             assertEquals("s3", requests.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE));
+        }
+    }
+
+    /**
+     * The {@link ThreadContext} given to the registry must reach the {@link RetryableStorageProvider} it builds, so an
+     * async read completing on a thread with an empty context still completes under the issuing context. A registry
+     * that drops the argument fails here.
+     */
+    public void testThreadContextReachesAsyncReadCompletion() throws Exception {
+        String identityHeader = "X-Test-Identity";
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+        try (
+            StorageProviderRegistry registry = new StorageProviderRegistry(
+                Settings.EMPTY,
+                null,
+                () -> false,
+                RetryScheduler.DIRECT,
+                LocalFileAccess.UNRESTRICTED,
+                AdmissionTracker.NOOP,
+                threadContext
+            )
+        ) {
+            // A real object cannot be used: the test must control the completing thread, which a storage SDK callback thread does by
+            // completing the read with an empty ThreadContext.
+            StorageObject leaf = new AbstractTestStorageObject() {
+                @Override
+                public InputStream newStream() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long length() {
+                    return 4;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.now();
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return path;
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor executor,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    sdkThread.execute(() -> {
+                        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                            listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                        }
+                    });
+                }
+            };
+            registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> new MeteredStubStorageProvider(leaf)));
+            StorageObject obj = registry.provider(path).newObject(path, 4);
+            threadContext.putHeader(identityHeader, "issuing-user");
+            PlainActionFuture<String> observed = new PlainActionFuture<>();
+            obj.startReadBytesAsync(
+                0,
+                4,
+                len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                Runnable::run,
+                ActionListener.wrap(buffer -> {
+                    buffer.close();
+                    observed.onResponse(threadContext.getHeader(identityHeader));
+                }, observed::onFailure)
+            );
+            assertEquals("issuing-user", observed.get(10, TimeUnit.SECONDS));
+        } finally {
+            terminate(sdkThread);
         }
     }
 

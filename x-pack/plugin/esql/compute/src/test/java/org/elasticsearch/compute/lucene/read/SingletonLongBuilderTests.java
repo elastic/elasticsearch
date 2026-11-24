@@ -18,7 +18,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
@@ -127,6 +130,32 @@ public class SingletonLongBuilderTests extends ComputeTestCase {
                 }
             }
         }
+    }
+
+    public void testReusesArrayAcrossPages() {
+        BlockFactory parent = blockFactory();
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory factory = parent.newChildFactory(local);
+        int count = between(1_000, 10_000);
+        long arrayBytes = (long) count * Long.BYTES;
+        for (int page = 0; page < 3; page++) {
+            try (SingletonLongBuilder builder = new SingletonLongBuilder(count, factory)) {
+                for (int i = 0; i < count; i++) {
+                    builder.appendLong(page + i);
+                }
+                try (Block block = builder.build()) {
+                    assertThat(parent.breaker().getUsed(), equalTo(block.ramBytesUsed()));
+                    LongVector vector = ((LongBlock) block).asVector();
+                    assertThat(vector.getPositionCount(), equalTo(count));
+                    for (int i = 0; i < count; i++) {
+                        assertThat(vector.getLong(i), equalTo((long) page + i));
+                    }
+                }
+            }
+            assertThat(parent.breaker().getUsed(), equalTo(arrayBytes));
+        }
+        local.close();
+        assertThat(parent.breaker().getUsed(), equalTo(0L));
     }
 
     static IndexWriter createIndexWriter(Directory directory) throws IOException {

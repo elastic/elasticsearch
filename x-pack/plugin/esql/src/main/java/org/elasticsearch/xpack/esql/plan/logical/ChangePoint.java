@@ -62,7 +62,7 @@ public class ChangePoint extends UnaryPlan
     private final Attribute targetPvalue;
     private final List<Expression> groupings;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public ChangePoint(
         Source source,

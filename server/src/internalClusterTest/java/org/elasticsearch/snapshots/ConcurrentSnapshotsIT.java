@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -49,7 +50,9 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -734,9 +737,15 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         networkDisruption.stopDisrupting();
 
         logger.info("--> make sure all failing requests get a response");
-        assertAcked(firstDeleteFuture, secondDeleteFuture);
+        assertDeleteFailsOnMasterFailover(firstDeleteFuture);
+        assertDeleteFailsOnMasterFailover(secondDeleteFuture);
         expectThrows(SnapshotException.class, createSnapshot);
         awaitNoMoreRunningOperations();
+    }
+
+    private static void assertDeleteFailsOnMasterFailover(ActionFuture<AcknowledgedResponse> deleteFuture) {
+        final var failure = expectThrows(RepositoryException.class, deleteFuture::actionGet);
+        assertThat(ExceptionsHelper.unwrap(failure, NotMasterException.class), instanceOf(NotMasterException.class));
     }
 
     public void testQueuedOperationsOnMasterDisconnectAndRepoFailure() throws Exception {
@@ -777,7 +786,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> make sure all failing requests get a response");
         expectThrows(SnapshotException.class, firstFailedSnapshotFuture);
         expectThrows(SnapshotException.class, secondFailedSnapshotFuture);
-        assertAcked(deleteFuture.get());
+        assertDeleteFailsOnMasterFailover(deleteFuture);
 
         awaitNoMoreRunningOperations();
     }
@@ -914,7 +923,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
         expectThrows(ElasticsearchException.class, snapshotThree);
         expectThrows(ElasticsearchException.class, snapshotFour);
-        assertAcked(deleteFuture.get());
+        try {
+            assertAcked(deleteFuture.actionGet());
+        } catch (RepositoryException e) {
+            // The old master may fail the listener before shutdown, or the request may retry on the new master and succeed.
+            assertThat(ExceptionsHelper.unwrap(e, NotMasterException.class), instanceOf(NotMasterException.class));
+        }
         try {
             createBlockedSnapshot.actionGet();
         } catch (ElasticsearchException ex) {
@@ -1323,6 +1337,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     /** Verifies that a finalization failing while masterless does not forget another write that survives re-election. */
+    @TestLogging(value = "org.elasticsearch.snapshots.SnapshotsService:DEBUG", reason = "wait for finalization to fail before re-election")
     public void testNotMasterDuringFinalizationDoesNotClearOtherRepositorySlot() throws Exception {
         final String master = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
@@ -1368,9 +1383,21 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             // Hold joins so that finalization encounters a genuinely masterless node before the next election can finish.
             internalCluster().getInstance(Coordinator.class, master).startInitialJoin();
             awaitClusterState(master, state -> state.nodes().isLocalNodeElectedMaster() == false);
-            unblockNode(failingRepository, master);
-            final var failure = expectThrows(SnapshotException.class, () -> failingSnapshot.actionGet(10, TimeUnit.SECONDS));
-            assertThat(ExceptionsHelper.unwrap(failure, NotMasterException.class), instanceOf(NotMasterException.class));
+            // The listener fails before finalization does. Wait for finalization to fail too, so that this test still exercises
+            // releasing the failing repository's write slot while the healthy repository's write remains blocked.
+            MockLog.awaitLogger(() -> {
+                unblockNode(failingRepository, master);
+                final var failure = expectThrows(SnapshotException.class, () -> failingSnapshot.actionGet(10, TimeUnit.SECONDS));
+                assertThat(failure.getMessage(), containsString("no longer master"));
+            },
+                SnapshotsService.class,
+                new MockLog.SeenEventExpectation(
+                    "finalization failed while masterless",
+                    SnapshotsService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*" + failingRepository + "*failed to update cluster state during snapshot finalization"
+                )
+            );
 
             allowElection.onResponse(null);
             masterTransportService.clearAllRules();

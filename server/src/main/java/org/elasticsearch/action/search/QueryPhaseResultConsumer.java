@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -26,8 +27,10 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -47,6 +50,8 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -70,6 +75,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final Executor executor;
     /** Where the time spent merging results is charged, or {@code null}. */
     private volatile TaskLoadAttribution.Target mergeLoad;
+    /** The docs each shard matched, recorded only while {@link #mergeLoad} is set. */
+    private final Map<ShardId, Long> docsMatched = new ConcurrentHashMap<>();
+    /** Whether a shard did not count the docs it matched, so that every shard counts as one result instead. */
+    private volatile boolean docsMatchedUnknown;
     private final CircuitBreaker circuitBreaker;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
@@ -79,9 +88,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final boolean hasTopDocs;
     private final boolean hasAggs;
     private final boolean performFinalReduce;
+    /**
+     * Pooled {@link SearchHits} created by top_hits during partial and final reductions. This list is shared with the
+     * {@link SearchPhaseController.ReducedQueryPhase}, which drains it when it builds the search response (so ownership moves
+     * to the response). Whatever is still in the list when this consumer is closed was never handed to a response, for example
+     * because the search failed after the reduce, so {@link #doClose()} releases it. All access after the reduce must
+     * synchronize on the list itself.
+     */
     private final List<SearchHits> topHitsToRelease;
-    // Set when the list is passed to ReducedQueryPhase so doClose() does not release it
-    private volatile boolean topHitsOwnershipTransferred;
 
     private final Consumer<Exception> onPartialMergeFailure;
 
@@ -147,6 +161,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
+     * The total hits of the result of {@code shardId}, or {@code 0} before it is consumed. Once a shard did not count its hits,
+     * every consumed shard counts as {@code 1}.
+     */
+    public long docsMatched(ShardId shardId) {
+        Long docs = docsMatched.get(shardId);
+        if (docs == null) {
+            return 0L;
+        }
+        return docsMatchedUnknown ? 1L : docs;
+    }
+
+    /**
      * Where the time spent merging results is charged, or {@code null} when it is not charged.
      */
     @Nullable
@@ -166,15 +192,39 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return bytes;
     }
 
+    /**
+     * Moves the charge for the reduced aggregations to {@code response}, which holds them, so it is released with the response and
+     * not when this consumer is closed. Does nothing if there is no charge.
+     */
+    synchronized void transferAggregationChargeTo(SearchResponse response) {
+        // Under the lock like every write to circuitBreakerBytes, so the bytes are released once, here or in doClose.
+        long bytes = circuitBreakerBytes;
+        if (bytes == 0) {
+            return;
+        }
+        response.adoptAggregationCharge(releaseCharge(circuitBreaker, bytes));
+        circuitBreakerBytes = 0;
+    }
+
+    /**
+     * Releases {@code bytes} from {@code breaker} when closed. Static, so the response that holds it doesn't keep this consumer and its
+     * last partial merge result alive.
+     */
+    private static Releasable releaseCharge(CircuitBreaker breaker, long bytes) {
+        return Releasables.assertOnce(() -> breaker.addWithoutBreaking(-bytes));
+    }
+
     @Override
     protected synchronized void doClose() {
         assert assertFailureAndBreakerConsistent();
         releaseBuffer();
-        if (topHitsToRelease != null && topHitsOwnershipTransferred == false) {
-            for (SearchHits h : topHitsToRelease) {
-                h.decRef();
+        if (topHitsToRelease != null) {
+            synchronized (topHitsToRelease) {
+                for (SearchHits h : topHitsToRelease) {
+                    h.decRef();
+                }
+                topHitsToRelease.clear();
             }
-            topHitsToRelease.clear();
         }
         circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
         circuitBreakerBytes = 0;
@@ -200,6 +250,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult);
+        TotalHits totalHits = querySearchResult.getTotalHits();
+        if (mergeLoad != null && totalHits != null && querySearchResult.getSearchShardTarget() != null) {
+            if (totalHits.value() == 0 && totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+                // the shard ran with hit counting disabled
+                docsMatchedUnknown = true;
+            }
+            docsMatched.put(querySearchResult.getSearchShardTarget().getShardId(), totalHits.value());
+        }
         consume(querySearchResult, next);
     }
 
@@ -318,7 +376,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 queryPhaseRankCoordinatorContext,
                 topHitsToRelease
             );
-            topHitsOwnershipTransferred = true;
             buffer = null;
         } finally {
             if (buffer != null) {
@@ -335,11 +392,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // reduced aggregations can be null if all shards failed
             && aggs != null) {
 
-            // Update the circuit breaker to replace the estimation with the uncompressed size of the newly reduced result.
-            // Uncompressed (not on-the-wire) size matches the heap held by the live aggregations tree, which is what
-            // we have at this point.
-            long finalSize = DelayableWriteable.getUncompressedSerializedSize(reducePhase.aggregations()) - breakerSize;
-            addWithoutBreaking(finalSize);
+            // Replace the estimate with the heap of the reduced result, which the response holds until it is released.
+            // That heap can be well above the charge held so far, so a growing charge is checked and this search fails
+            // if it goes over the limit, not the next one.
+            long finalSize = reducePhase.aggregations().estimateHeapBytes() - breakerSize;
+            if (finalSize > 0) {
+                addEstimateAndMaybeBreak(finalSize);
+            } else {
+                addWithoutBreaking(finalSize);
+            }
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
         }
         if (progressListener != SearchProgressListener.NOOP) {
@@ -351,7 +412,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             );
         }
         return reducePhase;
-
     }
 
     private static void consumePartialMergeResult(

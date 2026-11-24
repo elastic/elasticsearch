@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -45,6 +46,7 @@ public class SearchResponseMetrics {
     public static final String TOOK_DURATION_TOTAL_HISTOGRAM_NAME = "es.search_response.took_durations.histogram";
     public static final String RESPONSE_COUNT_TOTAL_COUNTER_NAME = "es.search_response.response_count.total";
     public static final String STORE_BYTES_READ_HISTOGRAM_NAME = "es.search_response.store_bytes_read.histogram";
+    public static final String CACHE_MISS_WAIT_HISTOGRAM_NAME = "es.search_response.cache_miss_wait.histogram";
     private static final String SEARCH_PHASE_METRIC_FORMAT = "es.search_response.took_durations.%s.histogram";
     public static final String CAN_MATCH_SHARD_RESULT_BYTES_HISTOGRAM_NAME = "es.search.coord.can_match.result.bytes.histogram";
     public static final String CAN_MATCH_SHARD_RESULT_BYTES_TOTAL_NAME = "es.search.coord.can_match.result.bytes.total";
@@ -75,6 +77,7 @@ public class SearchResponseMetrics {
     private final LongHistogram tookDurationTotalMillisHistogram;
     private final LongCounter responseCountTotalCounter;
     private final LongHistogram storeBytesReadHistogram;
+    private final DoubleHistogram cacheMissWaitHistogram;
 
     private final Map<String, LongHistogram> phaseNameToDurationHistogram;
     private final Map<String, LongHistogram> phaseNameToShardResultBytesHistogram;
@@ -99,6 +102,15 @@ public class SearchResponseMetrics {
             STORE_BYTES_READ_HISTOGRAM_NAME,
             "The number of bytes read from the store while serving a search request, expressed as a histogram",
             "bytes"
+        );
+        // A double histogram, so that waits of a millisecond or two keep their fractional part: the default long buckets are
+        // whole numbers and the values are truncated, which understates them by up to a millisecond.
+        this.cacheMissWaitHistogram = meterRegistry.registerDoubleHistogram(
+            CACHE_MISS_WAIT_HISTOGRAM_NAME,
+            "The time in milliseconds a search request spent waiting on blob store cache misses, summed over all of its shards "
+                + "and misses so it can exceed the request's took time, expressed as a histogram. "
+                + "Only recorded for requests that waited",
+            "millis"
         );
 
         phaseNameToDurationHistogram = Map.of(
@@ -337,6 +349,10 @@ public class SearchResponseMetrics {
 
     public void recordStoreBytesRead(long bytesRead, Map<String, Object> attributes) {
         storeBytesReadHistogram.record(bytesRead, attributes);
+    }
+
+    public void recordCacheMissWait(long waitNanos, Map<String, Object> attributes) {
+        cacheMissWaitHistogram.record(waitNanos / (double) TimeUnit.MILLISECONDS.toNanos(1), attributes);
     }
 
     /**

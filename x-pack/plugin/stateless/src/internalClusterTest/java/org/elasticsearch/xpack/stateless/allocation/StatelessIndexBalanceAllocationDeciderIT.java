@@ -389,6 +389,10 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
             // The unowned documents grace period would otherwise delay the completion of the reshard by minutes
             .put(SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // A split target's recovery only completes once its start split request does, and this test stalls every one of
+            // those requests until all of them have arrived. All the targets an index node holds must therefore be able to
+            // recover at the same time, otherwise the ones left queued never send the request being waited on.
+            .put(unthrottledIncomingRecoveryNodeSettings())
             .build();
         startMasterOnlyNode(settings);
         final var indexNodes = startIndexNodes(2, settings);

@@ -253,7 +253,12 @@ public enum DataType implements Writeable {
         builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER).supportedOnAllNodes()
     ),
     /**
-     * 64-bit unsigned numbers packed into a java {@code long}.
+     * 64-bit unsigned numbers packed into a java {@code long}. ESQL stores {@code unsigned_long} inside a signed {@code LongBlock}
+     * with the sign bit flipped. This allows signed-long ordering to match unsigned ordering. The
+     * {@link org.elasticsearch.xpack.esql.core.util.NumericUtils}
+     * class provides conversion and calculation utilities for this encoding.
+     *
+     * @see org.elasticsearch.xpack.esql.core.util.NumericUtils#unsignedLongAsNumber(long)
      */
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues().supportedOnAllNodes()),
     /**

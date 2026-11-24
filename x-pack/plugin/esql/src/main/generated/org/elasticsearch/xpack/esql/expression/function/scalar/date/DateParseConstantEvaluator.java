@@ -73,7 +73,7 @@ public final class DateParseConstantEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock valBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
@@ -101,7 +101,7 @@ public final class DateParseConstantEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, BytesRefVector valVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef val = valVector.getBytesRef(p, valScratch);

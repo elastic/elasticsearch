@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -40,6 +41,8 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,7 +91,10 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -105,6 +111,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -123,6 +130,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -132,14 +140,17 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -365,7 +376,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BccBlob.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -435,7 +446,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+                    .filter(BccBlob::startsWithBlobPrefix)
                     .count()
             );
 
@@ -963,7 +974,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var destinationShardId = new ShardId(sourceShardId.getIndex(), node1.shardId.getId() + 1);
 
             var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
-            objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm);
+            objectStoreService.copyShard(
+                task,
+                sourceShardId,
+                destinationShardId,
+                new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE)
+            );
 
             // Shards should now have the same data, let's read from destination shard.
             var dir = SearchDirectory.unwrapDirectory(node2.searchStore.directory());
@@ -1060,7 +1076,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var destinationShardId = new ShardId(sourceShardId.getIndex(), node.shardId.getId() + 1);
             assertThrows(
                 TaskCancelledException.class,
-                () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
+                () -> objectStoreService.copyShard(
+                    task,
+                    sourceShardId,
+                    destinationShardId,
+                    new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE)
+                )
             );
             // Some threads might have already passed the cancellation check at the time of cancel
             if (blobCopyCount.get() > blobsToCopyBeforeCancel + numCopyThreads) {
@@ -1068,6 +1089,89 @@ public class ObjectStoreServiceTests extends ESTestCase {
             }
 
             releaseCopyThreads.ifPresent(CountDownLatch::countDown);
+        }
+    }
+
+    public void testCopyShardSkipsCommitsUploadedAfterLatestCommitToCopy() throws IOException {
+        final var primaryTerm = randomLongBetween(1, 42);
+        final var commitCount = between(3, 8);
+        final var copiedBlobs = new ConcurrentLinkedQueue<String>();
+        final var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
+
+        var node = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.allProjects()
+        ) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // the wait on commitCloseLatch below assumes every commit is released immediately, not true when delayed.
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize,
+                        @Nullable Executor executor
+                    ) throws IOException {
+                        copiedBlobs.add(blobName);
+                    }
+                };
+            }
+        };
+
+        try (node) {
+            var commitCloseLatch = new CountDownLatch(commitCount);
+            var commits = node.generateIndexCommits(commitCount, randomBoolean(), false, ignored -> commitCloseLatch.countDown());
+            for (var indexCommit : commits) {
+                node.commitService.onCommitCreation(indexCommit);
+            }
+            safeAwait(commitCloseLatch);
+
+            var uploadedBlobs = node.objectStoreService.getProjectBlobContainer(node.shardId, primaryTerm)
+                .listBlobs(OperationPurpose.INDICES)
+                .keySet()
+                .stream()
+                .sorted(Comparator.comparingLong(BccBlob::parseGenerationFromBlobName))
+                .toList();
+            assertThat(uploadedBlobs.size(), greaterThan(1));
+            var latestToCopyIndex = randomIntBetween(0, uploadedBlobs.size() - 2);
+            var latestCommitToCopy = new PrimaryTermAndGeneration(
+                primaryTerm,
+                BccBlob.parseGenerationFromBlobName(uploadedBlobs.get(latestToCopyIndex))
+            );
+
+            // Test commits with newer terms aren't copied
+            final var newerTermContainer = node.objectStoreService.getProjectBlobContainer(node.shardId, primaryTerm + 1);
+            newerTermContainer.writeBlob(
+                OperationPurpose.INDICES,
+                BccBlob.blobNameFromGeneration(latestCommitToCopy.generation() - 1),
+                randomBytesReference(between(1, 100)),
+                true
+            );
+
+            var destinationShardId = new ShardId(node.shardId.getIndex(), node.shardId.getId() + 1);
+            node.objectStoreService.copyShard(task, node.shardId, destinationShardId, latestCommitToCopy);
+
+            assertThat(new ArrayList<>(copiedBlobs), containsInAnyOrder(uploadedBlobs.subList(0, latestToCopyIndex + 1).toArray()));
         }
     }
 
@@ -1142,7 +1246,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             var failure = assertThrows(
                 Exception.class,
-                () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
+                () -> objectStoreService.copyShard(
+                    task,
+                    sourceShardId,
+                    destinationShardId,
+                    new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE)
+                )
             );
             assertThat(failure, instanceOf(throwIOE ? IOException.class : RuntimeException.class));
             assertThat(failure.getMessage(), equalTo("Fail copy"));
@@ -1244,7 +1353,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1252,7 +1361,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1260,7 +1369,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     testHarness.shardId,
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1708,7 +1817,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             safeAwait(waitForUploadLatch);
 
             final var measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM);
             // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
             assertThat(
                 measurements.stream().map(Measurement::getLong).toList(),
@@ -1718,7 +1827,85 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
                 equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
             );
+
+            final var partDurations = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_UPLOAD_PART_DURATION_HISTOGRAM);
+            assertThat(partDurations.size(), equalTo((isMultipart ? 3 : 1) * (1 + retriesPerPart)));
+            assertTrue(partDurations.stream().allMatch(m -> m.getLong() >= 0L));
+            assertThat(
+                partDurations.stream().map(m -> m.attributes().get("multipart")).distinct().toList(),
+                equalTo(isMultipart ? List.of(true) : List.of(false))
+            );
+
+            final var objectStoreUploads = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC);
+            assertThat(objectStoreUploads.size(), equalTo(1));
+            assertThat(objectStoreUploads.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
+    }
+
+    public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {
+        final var blobStorePath = PathUtils.get(createTempDir().toString());
+        final var blobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
+        final long primaryTerm = randomLongBetween(1L, 100L);
+        final var bccGenerations = new HashSet<Long>();
+        for (int i = randomIntBetween(1, 5); i > 0; i--) {
+            bccGenerations.add(randomLongBetween(1L, 1000L));
+        }
+        for (long generation : bccGenerations) {
+            writeRandomBlob(blobContainer, BccBlob.blobNameFromGeneration(generation));
+        }
+        final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
+        // a merge blob must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName();
+        writeRandomBlob(blobContainer, mergeBlobName);
+        final String junkBlobName = randomAlphaOfLength(10);
+        writeRandomBlob(blobContainer, junkBlobName);
+
+        MockLog.assertThatLogger(() -> {
+            try {
+                final var blobs = ObjectStoreService.listBlobs(primaryTerm, blobContainer);
+                assertThat(blobs, aMapWithSize(bccGenerations.size()));
+                for (long generation : bccGenerations) {
+                    assertThat(blobs, hasKey(new PrimaryTermAndGeneration(primaryTerm, generation)));
+                }
+
+                final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
+                assertThat(latestBlob, notNullValue());
+                assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
+                assertThat(latestBlob.v2().name(), equalTo(BccBlob.blobNameFromGeneration(maxBccGeneration)));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        },
+            ObjectStoreService.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning for merge blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + mergeBlobName + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "warning for unknown blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + junkBlobName + "*"
+            )
+        );
+    }
+
+    private static void writeRandomBlob(BlobContainer blobContainer, String blobName) throws IOException {
+        blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
+    }
+
+    private static String randomMergeBlobName() {
+        return MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

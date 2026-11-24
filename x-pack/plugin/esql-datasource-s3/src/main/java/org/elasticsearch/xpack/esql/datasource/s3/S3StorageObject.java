@@ -12,6 +12,7 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
 import software.amazon.awssdk.retries.api.RecordSuccessRequest;
 import software.amazon.awssdk.retries.api.RefreshRetryTokenRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -47,20 +49,23 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredEx
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
-import org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -68,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import javax.net.ssl.SSLException;
 
@@ -83,9 +89,18 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     /** Scope key for the async-read retry token bucket; one bucket per {@link RetryStrategy} instance. */
     private static final String ASYNC_READ_RETRY_SCOPE = "s3-async-read";
+    /**
+     * Token-bucket scope for blocking {@code newStream} GETs. The sync {@link S3Client} still
+     * has Standard retries (list/head share that client). This loop retries after the SDK
+     * gives up and polls {@link #closed} between attempts. {@link AbortRegisteringHttpClient}
+     * refuses new executes once closed so a nested SDK retry cannot hang after abort.
+     */
+    private static final String STREAMING_GET_RETRY_SCOPE = "s3-streaming-get";
 
-    private final S3Client s3Client;
-    private final S3AsyncClient s3AsyncClient;
+    private volatile S3Client s3Client;
+    private volatile S3AsyncClient s3AsyncClient;
+    /** Non-null when this object is owned by a provider that resolves per-bucket region. */
+    private S3StorageProvider owner;
     private final RetryStrategy asyncRetryStrategy;
     private final StorageIdentity storageIdentity;
     private final String bucket;
@@ -101,15 +116,45 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile String probedEtag;
     /** Some S3-compatible stores do not implement If-Match on GET; validate each response ETag instead. */
     private volatile boolean ifMatchUnsupported;
+    /** Set by {@link #close()}; in-flight {@link #newStream} must not start or continue a GET. */
+    private final AtomicBoolean closed = new AtomicBoolean();
+    /**
+     * Apache executes and live GET streams. {@link #close()} aborts every handle so a hung
+     * {@code getObject} or a truncated body drops the socket instead of draining.
+     */
+    private final Set<Abortable> inFlightAborts = ConcurrentHashMap.newKeySet();
+    /**
+     * Threads blocked in {@code S3Client.getObject} register Apache executes here via
+     * {@link AbortRegisteringHttpClient}. {@code null} outside a tracked GET.
+     */
+    static final ThreadLocal<Set<Abortable>> HTTP_ABORT_SINK = new ThreadLocal<>();
+    static final ThreadLocal<AtomicBoolean> HTTP_ABORT_CLOSED = new ThreadLocal<>();
+    /**
+     * Executes registered by this thread's {@code getObject}. {@link #trackedSyncGet} removes them
+     * after the SDK returns so they cover error-body reads without leaking past {@link #wrapLiveGet}.
+     */
+    static final ThreadLocal<Set<Abortable>> HTTP_ABORT_EXECUTES = new ThreadLocal<>();
 
-    // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
-    // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
-    // asyncRetryStrategy (AWS Standard semantics) itself, so that every attempt gets a fresh
-    // CrossRegionAwareResponseTransformer (which creates a fresh KnownLengthAsyncResponseTransformer
-    // internally). See KnownLengthAsyncResponseTransformer's javadoc for why a transformer must not span
-    // attempts, and CrossRegionAwareResponseTransformer's javadoc for how cross-region redirects are handled.
-    // The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
-    // cross-provider retry/resume on top.
+    static Set<Abortable> httpAbortSink() {
+        return HTTP_ABORT_SINK.get();
+    }
+
+    static Set<Abortable> httpAbortExecutes() {
+        return HTTP_ABORT_EXECUTES.get();
+    }
+
+    static boolean httpAbortClosed() {
+        AtomicBoolean flag = HTTP_ABORT_CLOSED.get();
+        return flag != null && flag.get();
+    }
+
+    // Retries: blocking newStream uses the sync Apache S3Client (Standard retries, shared with
+    // list/head — SDK 2.31 has no per-GetObject retry off switch). awaitGetObject is a second
+    // Standard loop that polls closed. Abort-if-closed fails SDK retries after close() without a
+    // new socket. The async client is doNotRetry; readBytesAsync drives asyncRetryStrategy itself
+    // so every attempt gets a fresh CrossRegionAwareResponseTransformer. See
+    // KnownLengthAsyncResponseTransformer's javadoc. RetryableStorageObject adds cross-provider
+    // resume on top.
 
     S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, null, bucket, key, path);
@@ -165,6 +210,44 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         this.bucket = bucket;
         this.key = key;
         this.path = path;
+    }
+
+    void ownedBy(S3StorageProvider owner) {
+        this.owner = owner;
+    }
+
+    private void ensureClients() throws IOException {
+        if (owner == null) {
+            return;
+        }
+        BucketRegionResolver.ClientPair pair = owner.clientsFor(bucket);
+        s3Client = pair.sync();
+        s3AsyncClient = pair.async();
+    }
+
+    private static boolean isActionableWrongRegion(Throwable cause) {
+        if (BucketRegionResolver.isWrongRegion(cause) == false) {
+            return false;
+        }
+        S3Exception s3 = BucketRegionResolver.s3Exception(cause);
+        return s3 != null && (s3.statusCode() == 301 || BucketRegionResolver.observedRegion(cause) != null);
+    }
+
+    private boolean canHealWrongRegion(Throwable cause) {
+        return owner != null && owner.discoversRegion() && BucketRegionResolver.isWrongRegion(cause);
+    }
+
+    private boolean canHealWrongRegion(Throwable cause, AsyncReadHandle handle) {
+        return canHealWrongRegion(cause) && handle.markWrongRegionHealed();
+    }
+
+    private void applyWrongRegionHeal(Throwable cause) throws IOException {
+        String observed = BucketRegionResolver.observedRegion(cause);
+        owner.invalidateBucketRegion(bucket, observed);
+        if (observed != null && observed.isEmpty() == false) {
+            owner.rememberBucketRegion(bucket, observed);
+        }
+        ensureClients();
     }
 
     S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path, long length) {
@@ -237,23 +320,18 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     public InputStream newStream() throws IOException {
         long startNanos = System.nanoTime();
         try {
+            ensureClients();
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key);
-            ResponseInputStream<GetObjectResponse> response = getObject(request);
+            ResponseInputStream<GetObjectResponse> response = getObjectHealed(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, 0L, false);
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
-            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover
-            // and count a small drain. Metered publishes delivered-to-caller; drain leftover is a second
-            // APM bytes event via publishDrainedBytes. Abort skips leftover.
+            // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover.
+            // Metered publishes delivered-to-caller. Apache close() of a small leftover drains and
+            // credits those bytes; abort skips leftover.
             long expectedLength = contentLengthOrUnknown(metadata);
-            TransientTypingInputStream typed = new TransientTypingInputStream(
-                response,
-                path,
-                expectedLength,
-                leftover -> counters.publishDrainedBytes(leftover)
-            );
-            return metered(typed, typed::abort);
+            return metered(typingStream(response, expectedLength));
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
@@ -342,6 +420,19 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cause
             );
         }
+        if (isActionableWrongRegion(cause)) {
+            String region = BucketRegionResolver.observedRegion(cause);
+            String detail = cause instanceof S3Exception s3 && s3.statusCode() == 301
+                ? "HTTP 301 PermanentRedirect"
+                : S3FailureDetail.of(cause);
+            return new ExternalClientException(
+                ExternalClientException.Condition.ACCESS_DENIED,
+                path,
+                detail,
+                BucketRegionResolver.wrongRegionRemedy(bucket, region),
+                cause
+            );
+        }
         if (cause instanceof S3Exception denied && denied.statusCode() == 403) {
             // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
             // The storage object does not know the data source's auth mode, so no remedy names a setting.
@@ -353,7 +444,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cause
             );
         }
-        if (cause instanceof NoSuchKeyException) {
+        if (isMissingObject(cause)) {
             return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "", cause);
         }
         if (isClosedClient(cause)) {
@@ -383,6 +474,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
         return new IOException(context + ": " + S3FailureDetail.of(cause), cause);
+    }
+
+    /**
+     * A missing object, not a missing bucket. {@link NoSuchKeyException}, a 404 whose error code is
+     * {@code NoSuchKey}, or a bodyless 404 (fixtures and gateways that omit the XML error) are a gone key.
+     * {@code NoSuchBucket} is a different 404 and must not start stale-listing recovery.
+     */
+    private static boolean isMissingObject(Throwable cause) {
+        if (cause instanceof NoSuchKeyException) {
+            return true;
+        }
+        if (cause instanceof S3Exception missing && missing.statusCode() == 404) {
+            if (missing.awsErrorDetails() == null) {
+                return true;
+            }
+            String code = missing.awsErrorDetails().errorCode();
+            return code == null || code.isEmpty() || "NoSuchKey".equals(code);
+        }
+        return false;
     }
 
     /**
@@ -519,18 +629,214 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * {@code NotImplemented} does not support If-Match on GET: one unconditioned retry is allowed,
      * but its response and every later response must carry the pinned ETag.
      */
+    private ResponseInputStream<GetObjectResponse> getObjectHealed(GetObjectRequest.Builder builder) {
+        try {
+            return getObject(builder);
+        } catch (RuntimeException e) {
+            if (canHealWrongRegion(e) == false) {
+                throw e;
+            }
+            try {
+                applyWrongRegionHeal(e);
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
+            return getObject(builder);
+        }
+    }
+
+    private HeadObjectResponse headObjectHealed() {
+        HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
+        try {
+            return s3Client.headObject(request);
+        } catch (RuntimeException e) {
+            if (canHealWrongRegion(e) == false) {
+                throw e;
+            }
+            try {
+                applyWrongRegionHeal(e);
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
+            return s3Client.headObject(request);
+        }
+    }
+
     private ResponseInputStream<GetObjectResponse> getObject(GetObjectRequest.Builder builder) {
         boolean sentIfMatch = applyIfMatch(builder);
         GetObjectRequest request = builder.build();
         try {
-            return validateGeneration(s3Client.getObject(request));
+            return validateGeneration(awaitGetObject(request));
         } catch (S3Exception e) {
             if (sentIfMatch && isIfMatchUnsupported(e)) {
                 ifMatchUnsupported = true;
                 logger.debug("S3 If-Match not implemented for [{}]; validating response ETags instead", path);
-                return validateGeneration(s3Client.getObject(unpinned(request)));
+                return validateGeneration(awaitGetObject(unpinned(request)));
             }
             throw e;
+        }
+    }
+
+    /**
+     * Issues GET on the sync Apache client. {@link #close()} aborts the in-flight Apache request
+     * (headers) or the live stream (body).
+     */
+    private ResponseInputStream<GetObjectResponse> awaitGetObject(GetObjectRequest request) {
+        if (isOpenCancelled()) {
+            throw new CancellationException("read cancelled");
+        }
+        if (asyncRetryStrategy == null) {
+            return trackedSyncGet(request);
+        }
+        RetryToken token;
+        try {
+            token = asyncRetryStrategy.acquireInitialToken(AcquireInitialTokenRequest.create(STREAMING_GET_RETRY_SCOPE)).token();
+        } catch (Exception e) {
+            return trackedSyncGet(request);
+        }
+        for (;;) {
+            if (isOpenCancelled()) {
+                throw new CancellationException("read cancelled");
+            }
+            ResponseInputStream<GetObjectResponse> stream;
+            try {
+                stream = trackedSyncGet(request);
+            } catch (RuntimeException e) {
+                Throwable unwrapped = unwrapCompletionWrappers(e);
+                if (unwrapped instanceof CancellationException cancelled) {
+                    throw cancelled;
+                }
+                if (isOpenCancelled()) {
+                    throw new CancellationException("read cancelled");
+                }
+                RefreshRetryTokenResponse refresh;
+                try {
+                    refresh = asyncRetryStrategy.refreshRetryToken(
+                        RefreshRetryTokenRequest.builder()
+                            .token(token)
+                            .failure(asSdkException(e))
+                            .suggestedDelay(retryAfterDelay(e))
+                            .build()
+                    );
+                } catch (Exception giveUp) {
+                    if (unwrapped instanceof RuntimeException runtime) {
+                        throw runtime;
+                    }
+                    throw e;
+                }
+                token = refresh.token();
+                Duration delay = refresh.delay();
+                if (delay.isPositive()) {
+                    sleepUntilClosedOrDelay(delay);
+                }
+                continue;
+            }
+            try {
+                asyncRetryStrategy.recordSuccess(RecordSuccessRequest.create(token));
+            } catch (RuntimeException e) {
+                stream.abort();
+                throw e;
+            }
+            return stream;
+        }
+    }
+
+    /** Parks for {@code delay} but returns as soon as {@link #close()} or query cancel. */
+    private void sleepUntilClosedOrDelay(Duration delay) {
+        long deadlineNanos = System.nanoTime() + delay.toNanos();
+        while (isOpenCancelled() == false && System.nanoTime() < deadlineNanos) {
+            long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime());
+            if (remainingMs <= 0) {
+                return;
+            }
+            try {
+                Thread.sleep(Math.min(50L, remainingMs));
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new CancellationException("read cancelled");
+            }
+        }
+        if (isOpenCancelled()) {
+            throw new CancellationException("read cancelled");
+        }
+    }
+
+    private boolean isOpenCancelled() {
+        return closed.get() || StorageRetryCancellation.isCancelled();
+    }
+
+    /**
+     * One Apache GET. Registers an unpark handle (unit tests) and the HTTP execute
+     * ({@link AbortRegisteringHttpClient}) so {@link #close()} unblocks a hung open, then wraps
+     * the returned stream so abort/close drops the socket.
+     */
+    private ResponseInputStream<GetObjectResponse> trackedSyncGet(GetObjectRequest request) {
+        Thread waiter = Thread.currentThread();
+        Abortable unpark = () -> LockSupport.unpark(waiter);
+        inFlightAborts.add(unpark);
+        Set<Abortable> executes = ConcurrentHashMap.newKeySet();
+        HTTP_ABORT_SINK.set(inFlightAborts);
+        HTTP_ABORT_CLOSED.set(closed);
+        HTTP_ABORT_EXECUTES.set(executes);
+        try {
+            if (isOpenCancelled()) {
+                throw new CancellationException("read cancelled");
+            }
+            ResponseInputStream<GetObjectResponse> in = s3Client.getObject(request);
+            if (isOpenCancelled()) {
+                abortQuietly(in);
+                throw new CancellationException("read cancelled");
+            }
+            return wrapLiveGet(in);
+        } finally {
+            inFlightAborts.removeAll(executes);
+            inFlightAborts.remove(unpark);
+            HTTP_ABORT_SINK.remove();
+            HTTP_ABORT_CLOSED.remove();
+            HTTP_ABORT_EXECUTES.remove();
+        }
+    }
+
+    private ResponseInputStream<GetObjectResponse> wrapLiveGet(ResponseInputStream<GetObjectResponse> in) {
+        AtomicBoolean dropped = new AtomicBoolean();
+        Abortable drop = new Abortable() {
+            @Override
+            public void abort() {
+                if (dropped.compareAndSet(false, true) == false) {
+                    return;
+                }
+                inFlightAborts.remove(this);
+                abortQuietly(in);
+            }
+        };
+        inFlightAborts.add(drop);
+        if (closed.get()) {
+            drop.abort();
+            throw new CancellationException("read cancelled");
+        }
+        FilterInputStream tracking = new FilterInputStream(in) {
+            @Override
+            public void close() throws IOException {
+                if (dropped.get()) {
+                    return;
+                }
+                try {
+                    in.close();
+                } finally {
+                    if (dropped.compareAndSet(false, true)) {
+                        inFlightAborts.remove(drop);
+                    }
+                }
+            }
+        };
+        return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, drop));
+    }
+
+    private static void abortQuietly(ResponseInputStream<GetObjectResponse> in) {
+        try {
+            in.abort();
+        } catch (RuntimeException ignored) {
+            // Best-effort drop of a GET the reader already abandoned.
         }
     }
 
@@ -620,6 +926,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return metadata.contentLength() != null ? metadata.contentLength() : -1L;
     }
 
+    private TransientTypingInputStream typingStream(InputStream response, long expectedLength) {
+        return new TransientTypingInputStream(response, path, expectedLength, leftover -> {
+            if (leftover > 0) {
+                counters.publishDrainedBytes(leftover);
+            }
+        });
+    }
+
     @Override
     public InputStream newStream(long position, long length) throws IOException {
         if (position < 0) {
@@ -635,20 +949,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         try {
+            ensureClients();
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader);
-            ResponseInputStream<GetObjectResponse> response = getObject(request);
+            ResponseInputStream<GetObjectResponse> response = getObjectHealed(request);
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
             // contentLength of this response body (the range size), or -1 if unknown.
-            // Metered publishes delivered-to-caller; drain leftover is a second APM bytes event.
+            // Metered publishes delivered-to-caller. Apache close() of a small leftover drains
+            // and credits those bytes; abort skips leftover.
             long expectedLength = contentLengthOrUnknown(metadata);
-            TransientTypingInputStream typed = new TransientTypingInputStream(
-                response,
-                path,
-                expectedLength,
-                leftover -> counters.publishDrainedBytes(leftover)
-            );
-            return metered(typed, typed::abort);
+            return metered(typingStream(response, expectedLength));
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -692,21 +1002,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public void abortStream(InputStream stream) throws IOException {
-        if (stream instanceof MeteredInputStream metered) {
-            metered.abort();
-        } else if (stream instanceof Abortable abortable) {
-            abortable.abort();
-        } else {
-            logger.trace(
-                () -> Strings.format(
-                    "abortStream received non-Abortable stream [%s] for [%s]; falling back to close() which may drain the body",
-                    stream.getClass().getName(),
-                    path
-                )
-            );
-            stream.close();
+    public void close() {
+        closed.set(true);
+        for (Abortable abortable : inFlightAborts) {
+            try {
+                abortable.abort();
+            } catch (RuntimeException ignored) {
+                // Best-effort: a failed abort must not hide the rest.
+            }
         }
+        inFlightAborts.clear();
     }
 
     @Override
@@ -721,10 +1026,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      */
     private void probeObject() throws IOException {
         try {
+            ensureClients();
             // Size discovery for the read path: folding it into a GET lets exists() and length() on one object
             // cost a single request. bytes=0-0 rather than a suffix range: the Content-Range total is the same.
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
-            try (var response = getObject(request)) {
+            try (var response = getObjectHealed(request)) {
                 // Drain the 1-byte body so the HTTP connection returns to the pool
                 // instead of being aborted on close.
                 byte[] drained = response.readAllBytes();
@@ -778,9 +1084,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * does.
      */
     StorageEntry headObjectMetadata() throws IOException {
+        ensureClients();
         HeadObjectResponse response;
         try {
-            response = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            response = headObjectHealed();
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
             if (e instanceof S3Exception s3e
@@ -887,7 +1194,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private void probeObjectViaRangeGet() throws IOException {
         try {
             GetObjectRequest.Builder request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0");
-            try (var response = getObject(request)) {
+            try (var response = getObjectHealed(request)) {
                 byte[] drained = response.readAllBytes();
                 GetObjectResponse metadata = response.response();
                 ExternalPlanningIo.addMetadataGet(drained.length);
@@ -962,15 +1269,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         ActionListener<DirectReadBuffer> listener
     ) {
         counters.bindPlanningIo();
-        if (s3AsyncClient == null) {
-            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
-            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
-            // start would recurse until the stack overflows. StorageObject.super is illegal here because
-            // this class does not implement StorageObject directly.
-            super.readBytesAsync(position, length, factory, executor, listener);
-            return () -> {};
-        }
-
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return () -> {};
@@ -980,10 +1278,61 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single ByteBuffer; ranges larger than 2 GiB
-            // are not supportable here. Callers needing larger reads must split the range or fall
-            // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return () -> {};
+        }
+        if (owner != null && owner.discoversRegion() && owner.hasResolvedRegion(bucket) == false) {
+            AsyncReadHandle handle = new AsyncReadHandle();
+            // Complete this read on cancel without aborting the shared HeadBucket probe.
+            handle.completeOnCancel(() -> listener.onFailure(new TaskCancelledException("read cancelled")));
+            try {
+                executor.execute(() -> {
+                    if (handle.isCancelled()) {
+                        return;
+                    }
+                    try {
+                        ensureClients();
+                    } catch (Exception e) {
+                        if (handle.tryCompleteListener()) {
+                            listener.onFailure(mapReadFailure("Failed to read object from", e));
+                        }
+                        return;
+                    }
+                    if (handle.isCancelled()) {
+                        return;
+                    }
+                    handle.leaveBackoff();
+                    startReadBytesAsyncWithClients(position, length, factory, executor, listener, handle);
+                });
+            } catch (RejectedExecutionException rejected) {
+                listener.onFailure(mapReadFailure("Failed to read object from", rejected));
+                return () -> {};
+            }
+            return handle::cancel;
+        }
+        try {
+            ensureClients();
+        } catch (Exception e) {
+            listener.onFailure(mapReadFailure("Failed to read object from", e));
+            return () -> {};
+        }
+        return startReadBytesAsyncWithClients(position, length, factory, executor, listener, null);
+    }
+
+    private Releasable startReadBytesAsyncWithClients(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        AsyncReadHandle existingHandle
+    ) {
+        if (s3AsyncClient == null) {
+            // Must call super.readBytesAsync (the StorageObject default via AbstractMeteredStorageObject),
+            // not super.startReadBytesAsync: this class's readBytesAsync delegates here, so the default
+            // start would recurse until the stack overflows. StorageObject.super is illegal here because
+            // this class does not implement StorageObject directly.
+            super.readBytesAsync(position, length, factory, executor, listener);
             return () -> {};
         }
 
@@ -1002,11 +1351,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             initialToken = acquired.token();
             initialDelay = acquired.delay();
         } catch (Exception e) {
-            counters.addRequest(System.nanoTime() - startNanos, 0L);
-            listener.onFailure(mapReadFailure("Failed to read object from", e));
-            return () -> {};
+            if (existingHandle == null || existingHandle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", e));
+            }
+            return existingHandle == null ? () -> {} : existingHandle::cancel;
         }
-        AsyncReadHandle handle = new AsyncReadHandle();
+        AsyncReadHandle handle = existingHandle == null ? new AsyncReadHandle() : existingHandle;
         scheduleReadAttempt(initialDelay, request, (int) length, factory, executor, listener, initialToken, startNanos, handle);
         return handle::cancel;
     }
@@ -1030,6 +1381,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
         /** Set while waiting in backoff; cleared before the next attempt starts. */
         private volatile Runnable cancelCallback;
+        private final AtomicBoolean wrongRegionHealed = new AtomicBoolean();
+
+        boolean markWrongRegionHealed() {
+            return wrongRegionHealed.compareAndSet(false, true);
+        }
 
         /**
          * Transitions into the backoff phase: stores the delay future so {@link #cancel} can
@@ -1038,8 +1394,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
          */
         void enterBackoff(CompletableFuture<?> delayFuture, Runnable onCancelled) {
             inFlight.set(delayFuture);
+            completeOnCancel(onCancelled);
+        }
+
+        /**
+         * Completes the listener on {@link #cancel} without aborting a future. Used while waiting
+         * for the shared HeadBucket probe: other reads may need that probe, so cancel must not
+         * interrupt it.
+         */
+        void completeOnCancel(Runnable onCancelled) {
             cancelCallback = onCancelled;
-            // cancel() may have been called between the attempt failing and enterBackoff.
             if (cancelled) {
                 fireCancelCallback();
             }
@@ -1227,6 +1591,34 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return;
         }
         Throwable unwrapped = unwrapCompletionWrappers(throwable);
+        if (canHealWrongRegion(unwrapped, handle)) {
+            try {
+                executor.execute(() -> {
+                    try {
+                        applyWrongRegionHeal(unwrapped);
+                        readAttempt(request, length, factory, executor, listener, retryToken, startNanos, handle);
+                    } catch (Exception e) {
+                        if (handle.tryCompleteListener()) {
+                            counters.addRequest(System.nanoTime() - startNanos, 0L);
+                            listener.onFailure(mapReadFailure("Failed to read object from", e));
+                        }
+                    }
+                });
+            } catch (RejectedExecutionException rejected) {
+                if (handle.tryCompleteListener()) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    listener.onFailure(mapReadFailure("Failed to read object from", rejected));
+                }
+            }
+            return;
+        }
+        if (BucketRegionResolver.isWrongRegion(unwrapped)) {
+            if (handle.tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(mapReadFailure("Failed to read object from", unwrapped));
+            }
+            return;
+        }
         // If the request sent If-Match and the store does not support it, retry once without the
         // header. This matches the sync path's fallback and does not consume retry budget.
         if (request.ifMatch() != null && isIfMatchUnsupported(unwrapped)) {

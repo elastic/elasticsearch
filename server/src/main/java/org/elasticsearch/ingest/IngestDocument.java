@@ -9,10 +9,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
@@ -46,13 +44,21 @@ import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
+ * <p>
+ * The methods that read or change a field (<code>getFieldValue</code>, <code>hasField</code>, <code>removeField</code>,
+ * <code>appendFieldValue</code> and <code>setFieldValue</code>) come in two forms, one that takes the path as a {@link String} and one
+ * that takes a {@link FieldPath}, and they behave the same. The {@link String} forms parse the path every time they are called (a cache
+ * of recently parsed paths keeps that cheap), whereas a {@link FieldPath} is parsed once, when it is created. Prefer the
+ * {@link FieldPath} forms wherever the path is known up front, as the fields that a processor is configured with are. The
+ * {@link String} forms are not deprecated, and they are the natural choice when the path is only known at run time, for example when it
+ * is taken from the contents of the document, or comes from a caller that has no use for a {@link FieldPath}.
  */
 public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
     public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
-    private static final String INGEST_PREFIX = INGEST_KEY + ".";
-    private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
+    static final String INGEST_PREFIX = INGEST_KEY + ".";
+    static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
     private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
@@ -221,12 +227,28 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
+        return getFieldValue(FieldPath.parse(path), clazz, ignoreMissing);
+    }
+
+    /**
+     * Same as {@link #getFieldValue(String, Class)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public <T> T getFieldValue(FieldPath fieldPath, Class<T> clazz) {
+        return getFieldValue(fieldPath, clazz, false);
+    }
+
+    /**
+     * Same as {@link #getFieldValue(String, Class, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public <T> T getFieldValue(FieldPath fieldPath, Class<T> clazz, boolean ignoreMissing) {
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
         Object result = resolve(
-            fieldPath.pathElements,
-            fieldPath.pathElements.length,
+            parsedPath.pathElements,
+            parsedPath.pathElements.length,
             path,
             context,
             accessPattern,
@@ -263,14 +285,30 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
+        return hasField(FieldPath.parse(path), failOutOfRange);
+    }
+
+    /**
+     * Same as {@link #hasField(String)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public boolean hasField(FieldPath fieldPath) {
+        return hasField(fieldPath, false);
+    }
+
+    /**
+     * Same as {@link #hasField(String, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public boolean hasField(FieldPath fieldPath, boolean failOutOfRange) {
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
-        int leafKeyIndex = fieldPath.pathElements.length - 1;
-        int lastContainerIndex = fieldPath.pathElements.length - 2;
-        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
+        int leafKeyIndex = parsedPath.pathElements.length - 1;
+        int lastContainerIndex = parsedPath.pathElements.length - 2;
+        String leafKey = parsedPath.pathElements[leafKeyIndex];
         for (int i = 0; i <= lastContainerIndex; i++) {
-            String pathElement = fieldPath.pathElements[i];
+            String pathElement = parsedPath.pathElements[i];
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -288,7 +326,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -324,7 +362,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = typedMap.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -418,13 +456,29 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
+        removeField(FieldPath.parse(path), ignoreMissing);
+    }
+
+    /**
+     * Same as {@link #removeField(String)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void removeField(FieldPath fieldPath) {
+        removeField(fieldPath, false);
+    }
+
+    /**
+     * Same as {@link #removeField(String, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void removeField(FieldPath fieldPath, boolean ignoreMissing) {
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
-        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
+        String leafKey = parsedPath.pathElements[parsedPath.pathElements.length - 1];
         Object result = resolve(
-            fieldPath.pathElements,
-            fieldPath.pathElements.length - 1,
+            parsedPath.pathElements,
+            parsedPath.pathElements.length - 1,
             path,
             context,
             accessPattern,
@@ -655,7 +709,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value, boolean allowDuplicates) {
-        setFieldValue(path, value, true, allowDuplicates, false);
+        setFieldValue(FieldPath.parse(path), value, true, allowDuplicates, false);
     }
 
     /**
@@ -673,7 +727,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
-        setFieldValue(path, value, true, allowDuplicates, ignoreEmptyValues);
+        setFieldValue(FieldPath.parse(path), value, true, allowDuplicates, ignoreEmptyValues);
     }
 
     /**
@@ -695,6 +749,36 @@ public final class IngestDocument {
     }
 
     /**
+     * Same as {@link #appendFieldValue(String, Object)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, Object value) {
+        appendFieldValue(fieldPath, value, true);
+    }
+
+    /**
+     * Same as {@link #appendFieldValue(String, Object, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, Object value, boolean allowDuplicates) {
+        setFieldValue(fieldPath, value, true, allowDuplicates, false);
+    }
+
+    /**
+     * Same as {@link #appendFieldValue(String, Object, boolean, boolean)} but takes a path that has already been parsed, see
+     * {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        setFieldValue(fieldPath, value, true, allowDuplicates, ignoreEmptyValues);
+    }
+
+    /**
+     * Same as {@link #appendFieldValue(String, ValueSource, boolean, boolean)} but takes a path that has already been parsed, see
+     * {@link FieldPath}.
+     */
+    public void appendFieldValue(FieldPath fieldPath, ValueSource valueSource, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        appendFieldValue(fieldPath, valueSource.copyAndResolve(templateModel), allowDuplicates, ignoreEmptyValues);
+    }
+
+    /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created.
      * If the last item in the path is a list, the value will replace the existing list as a whole.
@@ -705,7 +789,14 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false, false, false);
+        setFieldValue(FieldPath.parse(path), value, false, false, false);
+    }
+
+    /**
+     * Same as {@link #setFieldValue(String, Object)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void setFieldValue(FieldPath fieldPath, Object value) {
+        setFieldValue(fieldPath, value, false, false, false);
     }
 
     /**
@@ -719,6 +810,13 @@ public final class IngestDocument {
      */
     public void setFieldValue(String path, ValueSource valueSource) {
         setFieldValue(path, valueSource.copyAndResolve(templateModel));
+    }
+
+    /**
+     * Same as {@link #setFieldValue(String, ValueSource)} but takes a path that has already been parsed, see {@link FieldPath}.
+     */
+    public void setFieldValue(FieldPath fieldPath, ValueSource valueSource) {
+        setFieldValue(fieldPath, valueSource.copyAndResolve(templateModel));
     }
 
     /**
@@ -747,6 +845,24 @@ public final class IngestDocument {
     }
 
     /**
+     * Same as {@link #setFieldValue(String, ValueSource, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     * <p>
+     * As with that method, nothing is done if <code>ignoreEmptyValue</code> is set and the value that is produced is empty. That includes
+     * resolving the path, so a path that is malformed is not reported in that case.
+     */
+    public void setFieldValue(FieldPath fieldPath, ValueSource valueSource, boolean ignoreEmptyValue) {
+        Object value = valueSource.copyAndResolve(templateModel);
+        if (valueSource instanceof ValueSource.TemplatedValue) {
+            if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+                setFieldValue(fieldPath, value);
+            }
+        } else {
+            // see the comment in the String path version of this method
+            setFieldValue(fieldPath, value);
+        }
+    }
+
+    /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
@@ -762,17 +878,31 @@ public final class IngestDocument {
         }
     }
 
-    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
+    /**
+     * Same as {@link #setFieldValue(String, Object, boolean)} but takes a path that has already been parsed, see {@link FieldPath}.
+     * <p>
+     * As with that method, nothing is done if <code>ignoreEmptyValue</code> is set and the value is empty. That includes resolving the
+     * path, so a path that is malformed is not reported in that case.
+     */
+    public void setFieldValue(FieldPath fieldPath, Object value, boolean ignoreEmptyValue) {
+        if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+            setFieldValue(fieldPath, value);
+        }
+    }
+
+    private void setFieldValue(FieldPath fieldPath, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
         assert append || (allowDuplicates == false && ignoreEmptyValues == false)
             : "allowDuplicates and ignoreEmptyValues only apply if append is true";
+        final FieldPath parsedPath = fieldPath.resolve(this);
+        final String path = parsedPath.path;
         final IngestPipelineFieldAccessPattern accessPattern = getAccessPattern();
-        final FieldPath fieldPath = FieldPath.of(path, accessPattern);
-        Object context = fieldPath.initialContext(this);
-        int leafKeyIndex = fieldPath.pathElements.length - 1;
-        int lastContainerIndex = fieldPath.pathElements.length - 2;
-        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        parsedPath.validate(accessPattern);
+        Object context = parsedPath.initialContext(this);
+        int leafKeyIndex = parsedPath.pathElements.length - 1;
+        int lastContainerIndex = parsedPath.pathElements.length - 2;
+        String leafKey = parsedPath.pathElements[leafKeyIndex];
         for (int i = 0; i <= lastContainerIndex; i++) {
-            String pathElement = fieldPath.pathElements[i];
+            String pathElement = parsedPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -799,7 +929,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -846,7 +976,7 @@ public final class IngestDocument {
                             // Iterate through the remaining path elements, joining them with dots, until we get a hit
                             String combinedPath = pathElement;
                             for (int j = i + 1; j <= lastContainerIndex; j++) {
-                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                combinedPath = combinedPath + "." + parsedPath.pathElements[j];
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
@@ -1267,99 +1397,6 @@ public final class IngestDocument {
 
         public String getFieldName() {
             return fieldName;
-        }
-    }
-
-    private static final class FieldPath {
-
-        private static final int MAX_SIZE = 512;
-        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-
-        // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
-        // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
-        // of an ArrayList to hold the results, then a new String is created for each path element, and
-        // then finally a String[] is allocated to hold the actual result -- in addition to all that, we
-        // do some processing ourselves on the path and path elements to validate and prepare them.
-        // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
-        //
-        // note that parsing is independent of the access pattern: the only thing that depends on the access pattern is whether
-        // the parsed path is valid, and that is checked (cheaply) on every call to 'of' rather than being baked into the cache.
-
-        static FieldPath of(String path, IngestPipelineFieldAccessPattern accessPattern) {
-            if (Strings.isEmpty(path)) {
-                throw new IllegalArgumentException("path cannot be null nor empty");
-            }
-            FieldPath res = CACHE.get(path);
-            if (res == null) {
-                res = new FieldPath(path);
-                if (CACHE.size() > MAX_SIZE) {
-                    CACHE.clear();
-                }
-                CACHE.put(path, res);
-            }
-            res.validate(path, accessPattern);
-            return res;
-        }
-
-        private final String[] pathElements;
-        private final boolean useIngestContext;
-        private final boolean containsBrackets;
-
-        // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path) {
-            String newPath;
-            if (path.startsWith(INGEST_PREFIX)) {
-                useIngestContext = true;
-                newPath = path.substring(INGEST_PREFIX.length());
-            } else {
-                useIngestContext = false;
-                if (path.startsWith(SOURCE_PREFIX)) {
-                    newPath = path.substring(SOURCE_PREFIX.length());
-                } else {
-                    newPath = path;
-                }
-            }
-            String[] pathParts = newPath.split("\\.");
-            if (pathParts.length == 0) {
-                // String#split drops trailing empty strings, so a path made up of nothing but separators (e.g. "." or "_source..")
-                // yields no elements at all, which is just as invalid as an empty element in the beginning or middle of a path
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
-            }
-            boolean brackets = false;
-            for (String pathPart : pathParts) {
-                // empty path elements are not valid in any access pattern
-                if (pathPart.isEmpty()) {
-                    throw new IllegalArgumentException("path [" + path + "] is not valid");
-                }
-                brackets |= pathPart.contains("[") || pathPart.contains("]");
-            }
-            this.pathElements = pathParts;
-            this.containsBrackets = brackets;
-        }
-
-        /**
-         * Checks the access pattern specific rules for a parsed path. The {@link IngestPipelineFieldAccessPattern#CLASSIC} pattern
-         * supports syntax like context aware array access, so it has no further restrictions. The
-         * {@link IngestPipelineFieldAccessPattern#FLEXIBLE} pattern reserves square brackets for (future) array access syntax, so
-         * path elements containing them are rejected.
-         * @param fullPath The un-split path to use for error messages
-         * @param accessPattern The access pattern to validate against
-         * @throws IllegalArgumentException if this path is not valid for the access pattern
-         */
-        private void validate(String fullPath, IngestPipelineFieldAccessPattern accessPattern) {
-            switch (accessPattern) {
-                case CLASSIC -> {
-                }
-                case FLEXIBLE -> {
-                    if (containsBrackets) {
-                        throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
-                    }
-                }
-            }
-        }
-
-        public Object initialContext(IngestDocument document) {
-            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
         }
     }
 

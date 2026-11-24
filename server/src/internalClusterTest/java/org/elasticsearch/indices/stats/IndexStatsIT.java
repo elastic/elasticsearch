@@ -62,7 +62,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1305,7 +1304,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                         final IndicesStatsResponse response = indicesAdmin().stats(request).get();
                         if (response.getFailedShards() > 0) {
                             failed.set(true);
-                            shardFailures.get().addAll(Arrays.asList(response.getShardFailures()));
+                            shardFailures.get().addAll(response.getShardFailures());
                             latch.countDown();
                         }
                     } catch (final ExecutionException | InterruptedException e) {

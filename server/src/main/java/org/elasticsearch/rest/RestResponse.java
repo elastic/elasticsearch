@@ -45,6 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
+import static org.elasticsearch.rest.RestController.ERROR_TRACE_PARAM;
 
 public final class RestResponse implements Releasable {
 
@@ -171,7 +172,7 @@ public final class RestResponse implements Releasable {
         // switched in the xcontent rendering parameters.
         // For authorization problems (RestStatus.UNAUTHORIZED) we don't want to do this since this could
         // leak information to the caller who is unauthorized to make this call
-        if (params.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
+        if (params.paramAsBoolean(ERROR_TRACE_PARAM, ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
 
@@ -334,12 +335,12 @@ public final class RestResponse implements Releasable {
 
     private static void addShardFailures(ESLogMessage message, Exception e) {
         if (ExceptionsHelper.unwrap(e, SearchPhaseExecutionException.class) instanceof SearchPhaseExecutionException search) {
-            final ShardSearchFailure[] shardFailures = search.shardFailures();
-            if (shardFailures.length == 0) {
+            List<ShardSearchFailure> shardFailures = search.shardFailures();
+            if (shardFailures.isEmpty()) {
                 return;
             }
             final DistinctShardFailures distinct = DistinctShardFailures.from(shardFailures);
-            message.field("elasticsearch.error.shard_failure_count", shardFailures.length);
+            message.field("elasticsearch.error.shard_failure_count", shardFailures.size());
             message.field("elasticsearch.error.distinct_shard_failure_count", distinct.count());
             message.field("elasticsearch.error.shard_failures", distinct.reported());
         }
@@ -353,7 +354,7 @@ public final class RestResponse implements Releasable {
          * keys on the immediate cause, which hides a failure whose own deepest cause differs from another's behind a shared wrapper;
          * the response body groups that way and keeps its existing semantics.
          */
-        static DistinctShardFailures from(ShardSearchFailure[] shardFailures) {
+        static DistinctShardFailures from(List<ShardSearchFailure> shardFailures) {
             final Set<ReportedCause> seen = new HashSet<>();
             final List<Map<String, Object>> reported = new ArrayList<>(MAX_REPORTED_SHARD_FAILURES);
             for (ShardSearchFailure failure : shardFailures) {
@@ -407,12 +408,12 @@ public final class RestResponse implements Releasable {
             // shard is attached only when the recorded cause is the one that shard failed with. Identity is required because two
             // unrelated failures can share a class and a message, which means the fallback is skipped once transport
             // serialization has rebuilt the cause and the shard failures as separate objects
-            final ShardSearchFailure[] shardFailures = search.shardFailures();
-            if (shardFailures.length > 0
-                && shardFailures[0].index() != null
-                && walkCauseChain(shardFailures[0].getCause()).deepest() == causes.deepest()) {
-                message.field("elasticsearch.error.index", shardFailures[0].index());
-                message.field("elasticsearch.error.shard", shardFailures[0].shardId());
+            List<ShardSearchFailure> shardFailures = search.shardFailures();
+            if (shardFailures.isEmpty() == false
+                && shardFailures.getFirst().index() != null
+                && walkCauseChain(shardFailures.getFirst().getCause()).deepest() == causes.deepest()) {
+                message.field("elasticsearch.error.index", shardFailures.getFirst().index());
+                message.field("elasticsearch.error.shard", shardFailures.getFirst().shardId());
             }
         }
     }

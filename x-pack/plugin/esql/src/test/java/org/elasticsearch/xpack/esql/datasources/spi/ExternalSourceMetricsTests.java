@@ -901,6 +901,69 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(acc.queryCpuNanos(DataSourceUsageAccumulator.CPU_SPLIT_DISCOVERY), equalTo(4_000L));
     }
 
+    /** The CPU of a query that succeeded is what is billed: it has the counter that matches the billing signal. */
+    public void testCpuOfASuccessfulQueryGoesToTheCounterThatIsBilled() {
+        metrics.recordQueryCpu(10L, 20L, 30L, 40L);
+
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_CPU_TOTAL), hasSize(4));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL), hasSize(0));
+    }
+
+    /**
+     * The CPU of a query that failed or was cancelled is not billed: it has a counter of its own, with its outcome, so that the
+     * first keeps matching the billing signal.
+     */
+    public void testCpuOfAFailedOrCancelledQueryGoesToACounterOfItsOwn() {
+        metrics.recordQueryCpu(ExternalSourceMetrics.OUTCOME_FAILURE, 1L, 2L, 3L, 4L);
+        metrics.recordQueryCpu(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, 0L, 30L, 0L);
+
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_CPU_TOTAL), hasSize(0));
+        List<Measurement> unsuccessful = measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL);
+        // four components of the failed query, two of the cancelled one: a component that is zero is not recorded
+        assertThat(unsuccessful, hasSize(6));
+        assertThat(
+            unsuccessfulCpu(unsuccessful, ExternalSourceMetrics.OUTCOME_FAILURE, ExternalSourceMetrics.CPU_COMPONENT_EXECUTION),
+            equalTo(1L)
+        );
+        assertThat(
+            unsuccessfulCpu(unsuccessful, ExternalSourceMetrics.OUTCOME_FAILURE, ExternalSourceMetrics.CPU_COMPONENT_READ),
+            equalTo(2L)
+        );
+        assertThat(
+            unsuccessfulCpu(unsuccessful, ExternalSourceMetrics.OUTCOME_FAILURE, ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
+            equalTo(3L)
+        );
+        assertThat(
+            unsuccessfulCpu(unsuccessful, ExternalSourceMetrics.OUTCOME_FAILURE, ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY),
+            equalTo(4L)
+        );
+        assertThat(
+            unsuccessfulCpu(unsuccessful, ExternalSourceMetrics.OUTCOME_CANCELLED, ExternalSourceMetrics.CPU_COMPONENT_EXECUTION),
+            equalTo(10L)
+        );
+        assertThat(
+            unsuccessfulCpu(unsuccessful, ExternalSourceMetrics.OUTCOME_CANCELLED, ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
+            equalTo(30L)
+        );
+    }
+
+    /** Recording the CPU is best effort: an outcome that is not one never fails the query, and records nothing. */
+    public void testCpuOfAnUnknownOutcomeIsNotRecorded() {
+        metrics.recordQueryCpu("unknown", 1L, 2L, 3L, 4L);
+
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_CPU_TOTAL), hasSize(0));
+        assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL), hasSize(0));
+    }
+
+    private static long unsuccessfulCpu(List<Measurement> measurements, String outcome, String component) {
+        List<Measurement> found = measurements.stream()
+            .filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
+            .toList();
+        assertThat("one measurement for outcome [" + outcome + "] and component [" + component + "]", found, hasSize(1));
+        return found.get(0).getLong();
+    }
+
     private List<Measurement> measurements(InstrumentType type, String name) {
         return registry.getRecorder().getMeasurements(type, name);
     }

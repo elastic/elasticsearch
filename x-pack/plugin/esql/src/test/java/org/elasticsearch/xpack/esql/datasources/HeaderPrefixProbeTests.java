@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -84,12 +86,13 @@ public class HeaderPrefixProbeTests extends ESTestCase {
 
         private InputStream remember(InputStream stream) {
             opened.add(stream);
-            return stream;
-        }
-
-        @Override
-        public void abortStream(InputStream stream) {
-            aborted.add(stream);
+            return new FilterInputStream(stream) {
+                @Override
+                public void close() throws IOException {
+                    aborted.add(stream);
+                    super.close();
+                }
+            };
         }
 
         @Override

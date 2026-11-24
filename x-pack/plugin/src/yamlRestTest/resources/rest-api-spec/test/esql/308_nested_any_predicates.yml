@@ -1,0 +1,1085 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_nested_any, nested_expand]
+      reason: "NESTED_ANY is snapshot-only"
+  - do:
+      indices.create:
+        index: nested_any_parity
+        body:
+          settings:
+            number_of_shards: 2
+          mappings:
+            properties:
+              id: { type: keyword }
+              s: { type: keyword }
+              t: { type: text }
+              i: { type: integer }
+              l: { type: long }
+              dbl: { type: double }
+              dt: { type: date }
+              ip: { type: ip }
+              b: { type: boolean }
+              x: { type: keyword }
+              sip: { type: keyword }
+              items:
+                type: nested
+                properties:
+                  s: { type: keyword }
+                  sip: { type: keyword }
+                  t: { type: text }
+                  i: { type: integer }
+                  l: { type: long }
+                  dbl: { type: double }
+                  dt: { type: date }
+                  ip: { type: ip }
+                  b: { type: boolean }
+                  x: { type: keyword }
+  - do:
+      indices.create:
+        index: nested_any_shapes
+        body:
+          settings:
+            number_of_shards: 2
+          mappings:
+            properties:
+              id: { type: keyword }
+              n: { type: long }
+              top: { type: keyword }
+              items:
+                type: nested
+                properties:
+                  sku: { type: keyword }
+                  qty: { type: long }
+                  tags: { type: keyword }
+                  flag: { type: boolean }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_any_parity", "_id": "1" } }
+          - { "id": "1", "s": "alpha", "t": "hello world", "i": 1, "l": 1, "dbl": 1.2, "dt": "2021-01-01T00:00:00Z", "ip": "10.0.0.1", "b": true, "x": "k", "sip": "10.0.0.1", "items": [ { "s": "alpha", "t": "hello world", "i": 1, "l": 1, "dbl": 1.2, "dt": "2021-01-01T00:00:00Z", "ip": "10.0.0.1", "b": true, "x": "k", "sip": "10.0.0.1" } ] }
+          - { "index": { "_index": "nested_any_parity", "_id": "2" } }
+          - { "id": "2", "s": "beta", "t": "goodbye world", "i": 2, "l": 5, "dbl": 1.8, "dt": "2021-03-15T00:00:00Z", "ip": "10.0.0.9", "b": false, "x": "k", "sip": "10.0.0.9", "items": [ { "s": "beta", "t": "goodbye world", "i": 2, "l": 5, "dbl": 1.8, "dt": "2021-03-15T00:00:00Z", "ip": "10.0.0.9", "b": false, "x": "k", "sip": "10.0.0.9" } ] }
+          - { "index": { "_index": "nested_any_parity", "_id": "3" } }
+          - { "id": "3", "s": "gamma", "t": "hello there", "i": 3, "l": 3, "dbl": 2.5, "dt": "2022-06-01T00:00:00Z", "ip": "192.168.1.1", "b": true, "x": "k", "sip": "192.168.1.1", "items": [ { "s": "gamma", "t": "hello there", "i": 3, "l": 3, "dbl": 2.5, "dt": "2022-06-01T00:00:00Z", "ip": "192.168.1.1", "b": true, "x": "k", "sip": "192.168.1.1" } ] }
+          - { "index": { "_index": "nested_any_parity", "_id": "4" } }
+          - { "id": "4", "s": "delta", "t": "farewell", "i": 4, "l": 2, "dbl": 0.5, "dt": "2020-12-31T23:59:59Z", "ip": "172.16.0.1", "b": false, "x": "k", "sip": "172.16.0.1", "items": [ { "s": "delta", "t": "farewell", "i": 4, "l": 2, "dbl": 0.5, "dt": "2020-12-31T23:59:59Z", "ip": "172.16.0.1", "b": false, "x": "k", "sip": "172.16.0.1" } ] }
+          - { "index": { "_index": "nested_any_parity", "_id": "5" } }
+          - { "id": "5", "x": "z", "items": [ { "x": "z" } ] }
+          - { "index": { "_index": "nested_any_parity", "_id": "6" } }
+          - { "id": "6", "s": "", "x": "k", "items": [ { "s": "", "x": "k" } ] }
+          - { "index": { "_index": "nested_any_shapes", "_id": "1" } }
+          - {"id": "1", "n": 1, "top": ["p", "q"], "items": [{"sku": "a", "qty": 1, "tags": ["x", "y"], "flag": [true, false]}, {"sku": "b", "qty": 2}]}
+          - { "index": { "_index": "nested_any_shapes", "_id": "2" } }
+          - {"id": "2", "n": 2, "top": "p", "items": [{"qty": 5}]}
+          - { "index": { "_index": "nested_any_shapes", "_id": "3" } }
+          - {"id": "3", "n": 3, "top": "q", "items": [{"sku": "a", "qty": 9, "tags": "x", "flag": true}]}
+          - { "index": { "_index": "nested_any_shapes", "_id": "4" } }
+          - {"id": "4", "n": 4, "top": "p", "items": []}
+          - { "index": { "_index": "nested_any_shapes", "_id": "5" } }
+          - {"id": "5", "n": 5, "top": "q", "items": [{"sku": "b", "qty": 3}]}
+          - { "index": { "_index": "nested_any_shapes", "_id": "6" } }
+          - {"id": "6", "n": 6, "top": "p", "items": [{"sku": "a", "qty": 4, "flag": false}, {"sku": "c", "qty": 7}]}
+
+---
+"a keyword equality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s == "alpha" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s == "alpha") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a keyword inequality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s != "alpha" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s != "alpha") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a keyword IN predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s IN ("alpha", "gamma") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s IN ("alpha", "gamma")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a keyword LIKE predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s LIKE "al*" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s LIKE "al*") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a keyword RLIKE predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s RLIKE "[a-z]+ta" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s RLIKE "[a-z]+ta") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a keyword IS NULL predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE x == "z" AND s IS NULL | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.x == "z" AND items.s IS NULL) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a keyword IS NOT NULL predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s IS NOT NULL AND x == "k" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s IS NOT NULL AND items.x == "k") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a STARTS_WITH predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE STARTS_WITH(s, "al") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(STARTS_WITH(items.s, "al")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a ENDS_WITH predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE ENDS_WITH(s, "ta") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(ENDS_WITH(items.s, "ta")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a LENGTH predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE LENGTH(s) > 4 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(LENGTH(items.s) > 4) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a TO_UPPER predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE TO_UPPER(s) == "BETA" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(TO_UPPER(items.s) == "BETA") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a CONCAT predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE CONCAT(s, "x") == "gammax" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(CONCAT(items.s, "x") == "gammax") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a text equality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE t == "hello world" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.t == "hello world") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a text LIKE predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE t LIKE "hello*" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.t LIKE "hello*") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a integer comparison predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE i > 2 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.i > 2) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a integer range predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE i >= 2 AND i <= 3 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.i >= 2 AND items.i <= 3) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a integer IN predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE i IN (1, 3) | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.i IN (1, 3)) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a integer modulo predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE i % 2 == 0 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.i % 2 == 0) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a ABS predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE ABS(i - 3) < 2 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(ABS(items.i - 3) < 2) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a two nested fields predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE i + l > 5 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.i + items.l > 5) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a field against field predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE i == l | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.i == items.l) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a long comparison predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE l >= 3 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.l >= 3) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a double comparison predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE dbl > 1.5 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.dbl > 1.5) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a ROUND predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE ROUND(dbl) == 2 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(ROUND(items.dbl) == 2) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a COALESCE predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE COALESCE(i, 0) > 2 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(COALESCE(items.i, 0) > 2) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a CASE predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE CASE(i > 2, true, false) | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(CASE(items.i > 2, true, false)) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a date comparison predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE dt > TO_DATETIME("2021-02-01T00:00:00Z") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.dt > TO_DATETIME("2021-02-01T00:00:00Z")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a YEAR predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE YEAR(dt) == 2021 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(YEAR(items.dt) == 2021) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a DATE_EXTRACT predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE DATE_EXTRACT("month_of_year", dt) == 3 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(DATE_EXTRACT("month_of_year", items.dt) == 3) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a date against now predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE dt < NOW() | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.dt < NOW()) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a CIDR_MATCH predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE CIDR_MATCH(ip, "10.0.0.0/8") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(CIDR_MATCH(items.ip, "10.0.0.0/8")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a ip equality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE ip == TO_IP("10.0.0.1") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.ip == TO_IP("10.0.0.1")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a boolean field predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE b | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.b) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a boolean equality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE b == false | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.b == false) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a NOT inside predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NOT b AND i > 0 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(NOT items.b AND items.i > 0) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a OR predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s == "alpha" OR i > 3 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s == "alpha" OR items.i > 3) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a AND with OR predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE (s == "alpha" AND i < 3) OR b | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY((items.s == "alpha" AND items.i < 3) OR items.b) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a negated comparison predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NOT (i > 2) AND s IS NOT NULL | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(NOT (items.i > 2) AND items.s IS NOT NULL) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"NESTED_ANY counts across shards":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.qty > 1) | STATS c = COUNT(*)'
+  - match: { values: [[5]] }
+
+---
+"NESTED_ANY keeps working after RENAME":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | RENAME id AS pid | WHERE NESTED_ANY(items.sku == "a") | KEEP pid | SORT pid'
+  - match: { values: [["1"], ["3"], ["6"]] }
+
+---
+"NESTED_ANY after MV_EXPAND repeats the parent":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | MV_EXPAND top | WHERE NESTED_ANY(items.sku == "a") | KEEP id, top | SORT id, top'
+  - match: { values: [["1","p"], ["1","q"], ["3","q"], ["6","p"]] }
+
+---
+"NESTED_ANY over a child that is null for some objects":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku != "a") | KEEP id | SORT id'
+  - match: { values: [["1"], ["5"], ["6"]] }
+
+---
+"NESTED_ANY over a multivalued child follows the ordinary comparison":
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.tags == "x") | KEEP id | SORT id'
+  - match: { values: [["3"]] }
+
+---
+"NESTED_ANY flag sorts and limits":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.qty > 4) | SORT h DESC, id | KEEP id, h | LIMIT 3'
+  - match: { values: [["2", true], ["3", true], ["6", true]] }
+
+---
+"NESTED_ANY inside CASE":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL t = CASE(NESTED_ANY(items.sku == "a"), "yes", "no") | KEEP id, t | SORT id'
+  - match: { values: [["1","yes"], ["2","no"], ["3","yes"], ["4","no"], ["5","no"], ["6","yes"]] }
+
+---
+"NESTED_ANY before NESTED_EXPAND":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a") | NESTED_EXPAND items | KEEP id, items.sku, items.qty | SORT id, items.qty'
+  - match: { values: [["1","a",1], ["1","b",2], ["3","a",9], ["6","a",4], ["6","c",7]] }
+
+---
+"NESTED_ANY in WHERE cannot follow a coordinator pipeline breaker":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | SORT id | LIMIT 3 | WHERE NESTED_ANY(items.sku == "a") | KEEP id'
+  - match: { error.reason: "/(?s).*NESTED_ANY\\smust\\srun\\son\\sthe\\sdata\\snodes.*/" }
+
+---
+"NESTED_ANY in EVAL cannot follow a coordinator pipeline breaker":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | SORT id | LIMIT 3 | EVAL h = NESTED_ANY(items.qty > 1) | KEEP id, h'
+  - match: { error.reason: "/(?s).*NESTED_ANY\\smust\\srun\\son\\sthe\\sdata\\snodes.*/" }
+
+---
+"a TO_LONG predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE TO_LONG(dbl) == 1 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(TO_LONG(items.dbl) == 1) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a TO_INTEGER predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE TO_INTEGER(dbl) > 1 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(TO_INTEGER(items.dbl) > 1) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a MONTH predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE MONTH(dt) == 3 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(MONTH(items.dt) == 3) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a DAY predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE DAY(dt) == 15 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(DAY(items.dt) == 15) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a HOUR predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE HOUR(dt) == 23 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(HOUR(items.dt) == 23) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a CLAMP predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE CLAMP(i, 2, 3) == 2 | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(CLAMP(items.i, 2, 3) == 2) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a TO_IP over a keyword predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE TO_IP(sip) == TO_IP("10.0.0.1") | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(TO_IP(items.sip) == TO_IP("10.0.0.1")) | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a empty string equality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s == "" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s == "") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"a empty string inequality predicate selects the same rows as on a top-level field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE s != "" | KEEP id | SORT id'
+  - is_true: values.0.0
+  - set: { values: top_level }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_parity | WHERE NESTED_ANY(items.s != "") | KEEP id | SORT id'
+  - match: { values: $top_level }
+
+---
+"NESTED_ANY treats a multivalued predicate result like false, as a WHERE does":
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.flag) | KEEP id | SORT id'
+  - match: { values: [["3"]] }
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.flag) | KEEP id, h | SORT id'
+  - match: { values: [["1", false], ["2", false], ["3", true], ["4", false], ["5", false], ["6", false]] }
+
+---
+"a name under the nested path is not a child":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a" AND items.undeclared == "x") | KEEP id'
+  - match: { error.reason: "/(?s).*Unknown\\scolumn\\s\\[items\\.undeclared\\].*/" }
+
+---
+"a limit after EVAL of a nested predicate keeps the predicate on the data nodes":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.qty > 4) | KEEP id, h | LIMIT 100 | SORT id'
+  - match: { values: [["1", false], ["2", true], ["3", true], ["4", false], ["5", false], ["6", true]] }
+
+---
+"NESTED_ANY cannot read a parent field":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == id) | KEEP id'
+  - match: { error.reason: "/(?s).*Field\\s\\[id\\]\\sis\\soutside\\sthe\\snested\\sscope.*/" }
+
+---
+"a computed column named like a child replaces it":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL items.sku = "z" | WHERE NESTED_ANY(items.sku == "z") | KEEP id'
+  - match: { error.reason: "/(?s).*NESTED_ANY\\scannot\\suse\\s\\[items\\.sku\\].*a\\scolumn\\sof\\sthat\\sname\\sreplaces\\sit\\shere.*/" }

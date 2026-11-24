@@ -924,7 +924,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             IntervalsSourceProvider provider = new IntervalsSourceProvider.Disjunction(sources, null);
             IntervalQueryBuilder queryBuilder = new IntervalQueryBuilder(TEXT_FIELD_NAME, provider);
             SearchExecutionContext context = createSearchExecutionContext();
-            expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> queryBuilder.toQuery(context));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(context));
+            assertThat(e.getCause(), instanceOf(IndexSearcher.TooManyNestedClauses.class));
+            assertThat(e.getMessage(), containsString("too many nested clauses"));
+            assertThat(e.getMessage(), containsString("maxClauseCount is set to " + maxClauses));
+            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
         } finally {
             IndexSearcher.setMaxClauseCount(origBoolMaxClauseCount);
         }

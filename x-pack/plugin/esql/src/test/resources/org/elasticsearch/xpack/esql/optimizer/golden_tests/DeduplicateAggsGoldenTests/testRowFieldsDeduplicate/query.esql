@@ -1,0 +1,2 @@
+ROW a = 1, b = 1
+| STATS x = MIN(a), y = MIN(b)

@@ -98,6 +98,14 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         assertEquals("Malformed data in [a{}$1.csv]", Condition.MALFORMED_DATA.render("a{}$1.csv", "", ""));
     }
 
+    public void testStaleCachedObjectMatchesRewriteAndDelete() {
+        StoragePath path = StoragePath.of("s3://b/x.csv");
+        assertTrue(ExternalException.isStaleCachedObject(new ExternalObjectChangedException(path)));
+        assertTrue(ExternalException.isStaleCachedObject(new ExternalClientException(Condition.OBJECT_NOT_FOUND, path, "", "")));
+        assertFalse(ExternalException.isStaleCachedObject(new ExternalClientException(Condition.ACCESS_DENIED, path, "", "")));
+        assertFalse(ExternalException.isStaleCachedObject(new IllegalStateException("not a storage condition")));
+    }
+
     private static void assertRendered(Condition condition, String withObject, String withoutObject) {
         assertEquals(withObject, condition.render("x.csv", "", ""));
         assertEquals(withoutObject, condition.render("", "", ""));

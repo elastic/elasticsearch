@@ -16,13 +16,14 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TransportResponseHandler;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
- * Charges a shard response to the coordinating node's request breaker from when it starts arriving until it is read, see
- * {@link TransportResponseHandler#reserveResponseBytes}. A trip means this node has no room for the response, not that the shard
- * failed, so it is reported to the search, which fails as a whole instead of retrying the shard on another copy. A remote cluster's
- * response in a CCS search with minimized round trips is charged the same way.
+ * Charges a response from another node to this node's request breaker from when it starts arriving until it is read, see
+ * {@link TransportResponseHandler#reserveResponseBytes}. For a shard response, a trip means this node has no room for the response, not
+ * that the shard failed, so it is reported to the search, which fails as a whole instead of retrying the shard on another copy. A remote
+ * cluster's response in a CCS search and a relayed get async search response work the same way.
  * <p>
  * Holds the state of one response, so each request needs its own.
  */
@@ -37,10 +38,11 @@ public final class ShardResponseReservation {
     private final CircuitBreaker circuitBreaker;
     private final String label;
     private final Consumer<Exception> onTrip;
+    private final AtomicLong reservedTotal = new AtomicLong();
     private volatile CircuitBreakingException trip;
 
     /**
-     * @param onTrip fails the search, called on the response handler's executor
+     * @param onTrip fails the request, called on the response handler's executor
      */
     public ShardResponseReservation(CircuitBreaker circuitBreaker, String label, Consumer<Exception> onTrip) {
         this.circuitBreaker = circuitBreaker;
@@ -58,7 +60,15 @@ public final class ShardResponseReservation {
             trip = e;
             throw e;
         }
+        reservedTotal.addAndGet(bytes);
         return Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, label));
+    }
+
+    /**
+     * The bytes reserved so far, released or not. Once the response is read, this is the size it arrived with.
+     */
+    public long reservedTotal() {
+        return reservedTotal.get();
     }
 
     /**

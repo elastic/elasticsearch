@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 
 import java.util.List;
 
@@ -54,6 +55,7 @@ public final class EsqlProfileSchemaRegistry {
         return List.of(
             variant(AbstractPageMappingOperator.Status.ENTRY, AbstractPageMappingOperator.Status.PROFILE_SCHEMA),
             variant(FetchDocsSourceOperator.Status.ENTRY, FetchDocsSourceOperator.Status.PROFILE_SCHEMA),
+            variant(FetchOperator.Status.ENTRY, FetchOperator.Status.PROFILE_SCHEMA),
             variant(AbstractPageMappingToIteratorOperator.Status.ENTRY, AbstractPageMappingToIteratorOperator.Status.PROFILE_SCHEMA),
             variant(AggregationOperator.Status.ENTRY, AggregationOperator.Status.PROFILE_SCHEMA),
             variant(ExchangeSinkOperator.Status.ENTRY, ExchangeSinkOperator.Status.PROFILE_SCHEMA),

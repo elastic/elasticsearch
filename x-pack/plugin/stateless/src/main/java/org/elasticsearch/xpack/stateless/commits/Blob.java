@@ -43,7 +43,7 @@ public sealed interface Blob extends Writeable permits BccBlob, MergeBlob {
     static <T extends Blob> T readFrom(StreamInput in, Class<T> expectedType) throws IOException {
         final String blobName = in.readString();
         final Blob blob;
-        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+        if (BccBlob.startsWithBlobPrefix(blobName)) {
             blob = BccBlob.readFrom(blobName, in);
         } else if (MergeBlob.startsWithPrefix(blobName)) {
             blob = MergeBlob.readFrom(blobName, in);

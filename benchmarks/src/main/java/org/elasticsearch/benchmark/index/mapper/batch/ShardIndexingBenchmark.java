@@ -187,7 +187,8 @@ public class ShardIndexingBenchmark {
                 "half_float.absent10",
                 "long.str",
                 "long.dbl",
-                "integer.noindex" }
+                "integer.noindex",
+                "date.str" }
         )
         public String shape;
 
@@ -259,7 +260,8 @@ public class ShardIndexingBenchmark {
                 "long.dbl",
                 "integer.noindex",
                 "long.nullexplicit",
-                "scaled_float.dense" }
+                "scaled_float.dense",
+                "date.str" }
         )
         public String shape;
 

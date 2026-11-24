@@ -397,7 +397,12 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
         for (Slot slot : slots) {
             if (slot.value() == null) {
-                MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(doc, KEYED_FIELD, new BytesRef(slot.key() + "\0"));
+                MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(
+                    doc,
+                    KEYED_FIELD,
+                    new BytesRef(slot.key() + "\0"),
+                    null
+                );
             } else {
                 MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordValue(
                     doc,

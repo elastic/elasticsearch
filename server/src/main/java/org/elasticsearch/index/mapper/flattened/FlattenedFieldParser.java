@@ -14,10 +14,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackPostMapper;
@@ -38,17 +38,11 @@ class FlattenedFieldParser {
     static final byte SEPARATOR_BYTE = '\0';
 
     /**
-     * The type the keyed doc values report for a document whose leaves are all null: the keyed term's type plus binary doc values, so
-     * the document presents the keyed field the way a document holding a keyed term does. Not tokenized, like the keyed term, so Lucene
-     * asks no analyzer for the keyed field, which has none.
+     * The type the keyed doc values report for a document whose leaves are all null, built from the keyed term's type so the document
+     * presents the keyed field the way a document holding a keyed term does. Static rather than built per mapper, because the keyed term
+     * is always a {@link StringField}, whatever the mapping.
      */
-    private static final FieldType KEYED_TYPE_WHEN_VALUELESS;
-    static {
-        FieldType type = new FieldType(StringField.TYPE_NOT_STORED);
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.freeze();
-        KEYED_TYPE_WHEN_VALUELESS = type;
-    }
+    private static final FieldType KEYED_TYPE_WHEN_VALUELESS = ColumnarBinaryDocValuesField.typeWhenValueless(StringField.TYPE_NOT_STORED);
 
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;

@@ -609,9 +609,6 @@ public class SplitSourceService {
 
         private final ShardId targetShardId;
         private final ShardId sourceShardId;
-        // The shard instance holding the handoff slot claim, so that a newer instance's claim isn't released if the shard relocated away
-        // and back
-        private final IndexShard claimedBy;
         private final long expectedTargetPrimaryTerm;
         private final long expectedSourcePrimaryTerm;
         private final String expectedHistoryUuid;
@@ -632,7 +629,6 @@ public class SplitSourceService {
         ) {
             this.targetShardId = targetShardId;
             this.sourceShardId = sourceShardId;
-            this.claimedBy = shardsPreparingForHandoff.get(sourceShardId);
             this.expectedTargetPrimaryTerm = expectedTargetPrimaryTerm;
             this.expectedSourcePrimaryTerm = expectedSourcePrimaryTerm;
             this.expectedHistoryUuid = expectedHistoryUuid;
@@ -652,7 +648,7 @@ public class SplitSourceService {
                         assert decision.outcome != null : "Predicate returned true without setting outcome";
 
                         shouldRetry.set(false);
-                        shardsPreparingForHandoff.remove(sourceShardId, claimedBy);
+                        shardsPreparingForHandoff.remove(sourceShardId);
                         permits.close();
 
                         switch (decision.outcome) {
@@ -699,7 +695,7 @@ public class SplitSourceService {
 
                     @Override
                     public void onClusterServiceClose() {
-                        shardsPreparingForHandoff.remove(sourceShardId, claimedBy);
+                        shardsPreparingForHandoff.remove(sourceShardId);
                         // TODO: Should we release permits here ? Does it matter ?
                         permits.close();
                         listener.onFailure(new NodeClosedException(clusterService.localNode()));

@@ -425,7 +425,7 @@ public class Driver implements Releasable, Describable {
             Operator nextOp = activeOperators.get(iterator.nextIndex());
 
             // skip blocked operator
-            if (op.isBlocked().listener().isSuccess() == false) {
+            if (op.isBlocked().listener().isDone() == false) {
                 continue;
             }
 

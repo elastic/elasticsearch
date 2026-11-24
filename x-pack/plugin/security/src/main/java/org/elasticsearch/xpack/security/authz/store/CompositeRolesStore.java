@@ -322,6 +322,7 @@ public class CompositeRolesStore {
         );
 
         // Detach the shared lookup from caller authentication while preserving project and tracing headers.
+        final Map<String, List<String>> resolutionResponseHeaders;
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             final ActionListener<Role> lookupResultListener = sharedLookup.delegateResponse((subscribers, e) -> {
                 // Evict before notifying subscribers so a retry starts a fresh lookup instead of joining the failed one.
@@ -372,7 +373,11 @@ public class CompositeRolesStore {
                     buildRole.run();
                 }
             }), retrievalListener -> roleReference.resolve(roleReferenceResolver, retrievalListener));
+            // Relies on API key parsing, which emits deprecation warnings, being synchronous; later async headers are not captured.
+            resolutionResponseHeaders = threadContext.getResponseHeaders();
         }
+        // Return those warnings to the request that started the lookup, as before the lookup was shared.
+        resolutionResponseHeaders.forEach((name, values) -> values.forEach(value -> threadContext.addResponseHeader(name, value)));
     }
 
     private void invalidateRoleCache(ProjectScoped<RoleKey> cacheKey, SubscribableListener<Role> sharedLookup) {

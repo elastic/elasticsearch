@@ -112,9 +112,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplication
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -1034,6 +1037,53 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 assertNull(threadContext.getHeader("leaked"));
                 assertNull(threadContext.getTransient("leaked-transient"));
             }
+        }
+    }
+
+    /**
+     * Response headers emitted synchronously while resolving a role reference, such as API key deprecation warnings, are emitted
+     * inside the detached shared lookup context. They must still reach the request that started the lookup.
+     */
+    public void testResolutionResponseHeadersReachRequestThatStartedLookup() throws IOException {
+        final ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final CompositeRolesStore store = setupRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            threadContext,
+            listener -> fail("unexpected role retrieval"),
+            listener -> fail("unexpected application privileges")
+        );
+        // Like API key role references, this emits a response header synchronously while parsing its own descriptors.
+        final RoleReference roleReference = new RoleReference() {
+            @Override
+            public RoleKey id() {
+                return new RoleKey(Set.of("shared-role"), "test-source");
+            }
+
+            @Override
+            public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+                threadContext.addResponseHeader("resolution-warning", "deprecated field");
+                final RolesRetrievalResult result = new RolesRetrievalResult();
+                result.addDescriptors(Set.of(SHARED_ROLE));
+                listener.onResponse(result);
+            }
+        };
+        final ProjectId projectId = randomUniqueProjectId();
+        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+            threadContext.addResponseHeader("request-response", "first");
+            final PlainActionFuture<Role> first = new PlainActionFuture<>();
+            store.buildRoleFromRoleReference(roleReference, projectId, first);
+            first.actionGet();
+            assertEquals(
+                Map.of("request-response", List.of("first"), "resolution-warning", List.of("deprecated field")),
+                threadContext.getResponseHeaders()
+            );
+        }
+        // A cache hit does not resolve again, so it emits no resolution warnings.
+        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+            final PlainActionFuture<Role> second = new PlainActionFuture<>();
+            store.buildRoleFromRoleReference(roleReference, projectId, second);
+            second.actionGet();
+            assertEquals(Map.of(), threadContext.getResponseHeaders());
         }
     }
 

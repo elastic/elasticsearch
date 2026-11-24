@@ -425,6 +425,11 @@ public final class EsqlTestUtils {
         }
 
         @Override
+        public boolean holdsValuesAsTerms(FieldName field) {
+            return isIndexed(field);
+        }
+
+        @Override
         public boolean hasExactSubfield(FieldName field) {
             return exists(field);
         }

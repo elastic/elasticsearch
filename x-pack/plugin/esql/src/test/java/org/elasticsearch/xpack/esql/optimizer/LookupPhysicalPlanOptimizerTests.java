@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -44,10 +45,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -204,6 +207,69 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         FieldExtractExec extract2 = as(bulkExec.child(), FieldExtractExec.class);
         ParameterizedQueryExec paramQuery = as(extract2.child(), ParameterizedQueryExec.class);
         assertThat(paramQuery.emptyResult(), is(false));
+    }
+
+    /**
+     * A key that does not hold its values as terms, like a runtime field, is looked up with queries: the bulk lookup
+     * seeks the terms dictionary and would match nothing.
+     */
+    public void testNoBulkLookupOnFieldWithoutTerms() {
+        PhysicalPlan plan = optimizeLookupPlan("""
+            ROW language_name = "French"
+            | LOOKUP JOIN languages_lookup ON language_name
+            """, statsWithoutTerms("language_name"));
+
+        assertNoBulkLookup(plan);
+    }
+
+    public void testNoBulkLookupOnExpressionWithoutTerms() {
+        PhysicalPlan plan = optimizeLookupPlan("""
+            ROW name = "French"
+            | LOOKUP JOIN languages_lookup ON name == language_name
+            """, statsWithoutTerms("language_name"));
+
+        assertNoBulkLookup(plan);
+    }
+
+    /**
+     * With the stats of a real shard, the bulk lookup is used only for a key that holds its values as terms under its own name.
+     */
+    public void testBulkLookupFollowsTheMappingOfTheKey() throws IOException {
+        assertBulkLookup(true, """
+            { "_doc": { "properties": { "language_name": { "type": "keyword" } } } }""");
+        assertBulkLookup(true, """
+            { "_doc": { "properties": { "language_name": { "type": "keyword", "doc_values": false } } } }""");
+        assertBulkLookup(false, """
+            { "_doc": { "properties": { "language_name": { "type": "keyword", "index": false } } } }""");
+        assertBulkLookup(false, """
+            { "_doc": { "runtime": { "language_name": { "type": "keyword" } } } }""");
+        assertBulkLookup(false, """
+            { "_doc": { "properties": { "language_name": { "type": "alias", "path": "name" }, "name": { "type": "keyword" } } } }""");
+    }
+
+    private void assertBulkLookup(boolean expected, String lookupIndexMapping) throws IOException {
+        try (MapperService mapperService = createMapperService(lookupIndexMapping)) {
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService)));
+            List<String> queries = List.of(
+                "ROW language_name = \"French\" | LOOKUP JOIN languages_lookup ON language_name",
+                "ROW name = \"French\" | LOOKUP JOIN languages_lookup ON name == language_name"
+            );
+            for (String query : queries) {
+                PhysicalPlan plan = optimizeLookupPlan(query, stats);
+                assertThat(lookupIndexMapping + " " + query, plan.anyMatch(p -> p instanceof BulkLookupMvFilterExec), is(expected));
+            }
+        }
+    }
+
+    private static SearchStats statsWithoutTerms(String field) {
+        return new EsqlTestUtils.TestConfigurableSearchStats().exclude(EsqlTestUtils.TestConfigurableSearchStats.Config.INDEXED, field);
+    }
+
+    private static void assertNoBulkLookup(PhysicalPlan plan) {
+        assertThat(plan.anyMatch(p -> p instanceof BulkLookupMvFilterExec), is(false));
+        ParameterizedQueryExec paramQuery = as(plan.collect(ParameterizedQueryExec.class).getFirst(), ParameterizedQueryExec.class);
+        assertNull(paramQuery.bulkLookupLeft());
+        assertNull(paramQuery.bulkLookupRight());
     }
 
     private PhysicalPlan optimizeLookupPlan(String esql, SearchStats searchStats) {

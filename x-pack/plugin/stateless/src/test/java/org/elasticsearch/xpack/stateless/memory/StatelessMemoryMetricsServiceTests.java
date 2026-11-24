@@ -481,9 +481,6 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
-    /**
-     * Per-node heap follows primary routing, not {@link StatelessMemoryMetricsService.ShardMemoryMetrics#getMetricShardNodeId()}.
-     */
     public void testPerNodeMemoryMetricsUsesCallerIndexCount() {
         final int initialIndices = between(1, 10);
         final ClusterState appliedState = randomInitialTwoNodeClusterState(initialIndices);
@@ -504,6 +501,9 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Per-node heap follows primary routing, not {@link StatelessMemoryMetricsService.ShardMemoryMetrics#getMetricShardNodeId()}.
+     */
     public void testPerNodeMemoryMetricsUsesPrimaryRoutingNotMetricReporterNode() {
         final String indexName = randomIdentifier();
 

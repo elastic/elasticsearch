@@ -1401,25 +1401,29 @@ public abstract sealed class StringColumnReader implements ColumnPrefetcher.Colu
      * capped at two, into {@code counts}, and where it holds exactly one, that value's length in bytes into
      * {@code lengths}. The documents are resolved a page at a time and no value is decoded where the column keeps its
      * lengths apart.
+     *
+     * @return whether every document of the page holds exactly one value, so that every entry of {@code counts} is one and
+     *         {@code lengths[0..count)} is complete. A caller that gets true can hand {@code lengths} on as it is; one that
+     *         gets false reads {@code counts} to tell the documents apart.
      */
-    public void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {
+    public boolean readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths, PageBudget budget) throws IOException {
         assert budgetBound == false || this.budget == budget
             : "a reader's page storage outlives the call that grew it, so it answers to one budget for its life";
         this.budgetBound = true;
         this.budget = budget;
         if (count == 0) {
-            return;
+            return true;
         }
         growPageDocs(count);
         ranksOfAll(docs, offset, count);
-        final boolean oneApiece = pageable();
+        if (pageable()) {
+            byteLengthsOfPageRanks(count, counts, lengths);
+            return pageHasAbsent == false;
+        }
         for (int i = 0; i < count; i++) {
             final int rank = pageRanks[i];
             if (rank == ColumnIterator.NO_RANK) {
                 counts[i] = 0;
-            } else if (oneApiece) {
-                counts[i] = 1;
-                lengths[i] = byteLengthAt(rank);
             } else {
                 final long first = firstValueAddress(rank);
                 final long slots = valueCount(rank);
@@ -1430,6 +1434,26 @@ public abstract sealed class StringColumnReader implements ColumnPrefetcher.Colu
                     }
                 }
                 counts[i] = found;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * For a {@link #pageable} column, one value a document with none null: marks each of the page's documents holding
+     * a value in {@code counts}, a document with none as zero, and writes the length of each of those values to
+     * {@code lengths}. A rank is its own value address here, and {@link #pageRanks} holds them.
+     *
+     * <p>A layout that can read many lengths at once overrides this.
+     */
+    protected void byteLengthsOfPageRanks(int count, int[] counts, int[] lengths) throws IOException {
+        for (int i = 0; i < count; i++) {
+            final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                counts[i] = 0;
+            } else {
+                counts[i] = 1;
+                lengths[i] = byteLengthAt(rank);
             }
         }
     }

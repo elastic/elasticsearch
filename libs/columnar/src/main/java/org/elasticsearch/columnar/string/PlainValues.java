@@ -350,6 +350,14 @@ final class PlainValues {
         private long loadedLengths = -1;
         private int loadedCount;
 
+        /**
+         * The byte length of each slot of the block of lengths {@link #lengthsAt} last decoded. Kept apart from
+         * {@link #slotLengths} so a lengths-only read neither pays for the byte offsets that block's loader computes
+         * nor invalidates the block that loader has loaded.
+         */
+        private final int[] blockLengths;
+        private long decodedLengths = -1;
+
         /** The bytes of the loaded block of values, and the stream position they begin at. */
         private final BytesRef block = new BytesRef();
         private long loadedBlock = -1;
@@ -373,6 +381,7 @@ final class PlainValues {
                 this.slotStarts = null;
                 this.slotLengths = null;
                 this.codes = null;
+                this.blockLengths = null;
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
@@ -390,10 +399,56 @@ final class PlainValues {
             this.slotStarts = new long[lengthBlockSize];
             this.slotLengths = new int[lengthBlockSize];
             this.codes = new long[lengthBlockSize];
+            this.blockLengths = new int[lengthBlockSize];
         }
 
         long numValues() {
             return numValues;
+        }
+
+        /**
+         * Writes the byte length of the value at each of {@code ranks[0..count)} to the same position of {@code out}. A
+         * negative rank is skipped and leaves its position untouched. Ranks are value addresses, so this is for a column
+         * holding one slot a document, and none of them may address a null slot.
+         *
+         * <p>A length read needs only the stored codes, so a block is decoded straight to its lengths, without the byte
+         * offsets {@link #length} has to place a value. Ranks that arrive in ascending order, as a page's do, decode each
+         * block once.
+         */
+        void lengthsAt(int[] ranks, int count, int[] out) throws IOException {
+            if (constantLength >= 0) {
+                for (int i = 0; i < count; i++) {
+                    if (ranks[i] >= 0) {
+                        out[i] = constantLength;
+                    }
+                }
+                return;
+            }
+            for (int i = 0; i < count; i++) {
+                final int rank = ranks[i];
+                if (rank < 0) {
+                    continue;
+                }
+                final long block = (long) rank >>> lengthShift;
+                if (block != decodedLengths) {
+                    decodeLengths(block);
+                }
+                out[i] = blockLengths[rank & lengthMask];
+            }
+        }
+
+        /** Decodes the codes of {@code block} into {@link #blockLengths}. */
+        private void decodeLengths(long block) throws IOException {
+            final long[] stored = lengths.block(block);
+            final int slots = (int) Math.min(blockLengths.length, numValues - (block << lengthShift));
+            int previous = 0;
+            for (int i = 0; i < slots; i++) {
+                final long code = stored[i];
+                // A repeat takes the length before it, which is zero for a null; a block's first slot is never a repeat.
+                previous = code == REPEAT ? previous : code < LENGTH_BASE ? 0 : (int) (code - LENGTH_BASE);
+                blockLengths[i] = previous;
+            }
+            decodedLengths = block;
         }
 
         /**

@@ -535,7 +535,8 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     final int[] docs = asked.stream().mapToInt(Integer::intValue).toArray();
                     final int[] counts = new int[docs.length];
                     final int[] lengths = new int[docs.length];
-                    reader.readByteLengths(docs, 0, docs.length, counts, lengths, PageBudget.UNLIMITED);
+                    final boolean oneValueEach = reader.readByteLengths(docs, 0, docs.length, counts, lengths, PageBudget.UNLIMITED);
+                    boolean everyDocHoldsOne = true;
                     for (int i = 0; i < docs.length; i++) {
                         int nonNull = 0;
                         int length = -1;
@@ -551,6 +552,13 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                         if (nonNull == 1) {
                             assertEquals(label + " length", length, lengths[i]);
                         }
+                        everyDocHoldsOne &= nonNull == 1;
+                    }
+                    if (oneValueEach) {
+                        assertTrue("a page reported as one value each holds one value in every document", everyDocHoldsOne);
+                    }
+                    if (singleValued && everyDocHoldsOne) {
+                        assertTrue("a page of a single-valued column with a value in every document is one value each", oneValueEach);
                     }
                 }
             });

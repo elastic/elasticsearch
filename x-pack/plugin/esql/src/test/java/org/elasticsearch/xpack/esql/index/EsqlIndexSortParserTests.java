@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexSortConfig.SortEntry;
 import org.elasticsearch.index.IndexSortParser;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -247,6 +248,23 @@ public class EsqlIndexSortParserTests extends ESTestCase {
             () -> IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig()
         );
         assertThat(e.getMessage(), containsString("can't have computed keys on an index created before all nodes support them"));
+    }
+
+    public void testOlderIndicesKeepTheFieldSortSyntax() {
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORT_COMPUTED_KEYS);
+        for (String sort : List.of("host.name", "MV_MAX(`a b`) DESC NULLS LAST, @timestamp desc", "mv_min( `x``y` ) asc,_a NULLS first")) {
+            Settings settings = Settings.builder().put("index.sort", sort).put(IndexMetadata.SETTING_VERSION_CREATED, previous).build();
+            IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig();
+        }
+        // Syntax that only ES|QL reads, such as parentheses or comments, needs every node to parse the setting with ES|QL
+        for (String sort : List.of("(count) DESC", "count /* c */ DESC", "host.name, count // c")) {
+            Settings settings = Settings.builder().put("index.sort", sort).put(IndexMetadata.SETTING_VERSION_CREATED, previous).build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexSettingsModule.newIndexSettings("test", settings).getIndexSortConfig()
+            );
+            assertThat(e.getMessage(), containsString("on an index created before all nodes support computed keys"));
+        }
     }
 
     public void testResolve() {

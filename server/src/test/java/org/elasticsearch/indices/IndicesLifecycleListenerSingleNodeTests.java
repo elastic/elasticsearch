@@ -200,20 +200,34 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
     }
 
     public void testIndexCloseCompletesOnceWhenAfterIndexShardClosingThrows() throws Exception {
+        final AtomicInteger hookCalls = new AtomicInteger();
+        assertIndexCloseCompletesOnce(hookCalls, new IndexEventListener() {
+            @Override
+            public void afterIndexShardClosing(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+                hookCalls.incrementAndGet();
+                throw new IllegalStateException("simulated failure in afterIndexShardClosing");
+            }
+        });
+    }
+
+    public void testIndexCloseCompletesOnceWhenAfterIndexShardClosedThrows() throws Exception {
+        final AtomicInteger hookCalls = new AtomicInteger();
+        assertIndexCloseCompletesOnce(hookCalls, new IndexEventListener() {
+            @Override
+            public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+                hookCalls.incrementAndGet();
+                throw new IllegalStateException("simulated failure in afterIndexShardClosed");
+            }
+        });
+    }
+
+    private void assertIndexCloseCompletesOnce(AtomicInteger hookCalls, IndexEventListener throwingListener) throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         ensureGreen();
         Index idx = resolveIndex("test");
         IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
         ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
-        final AtomicInteger hookCalls = new AtomicInteger();
-        IndexEventListener throwingListener = new IndexEventListener() {
-            @Override
-            public void afterIndexShardClosing(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-                hookCalls.incrementAndGet();
-                throw new IllegalStateException("simulated failure in afterIndexShardClosing");
-            }
-        };
         indicesService.removeIndex(idx, DELETED, "delete", EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {});
         try {
             IndexService index = indicesService.createIndex(metadata, Arrays.asList(throwingListener), false);
@@ -233,8 +247,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 0
             );
 
-            // The shard is closed (and so the reference to it released) before the hook throws; releasing it again when handling the
-            // exception must not complete the index close a second time.
+            // The shard close may complete before the hook throws; the index close must still complete exactly once.
             final AtomicInteger indexClosed = new AtomicInteger();
             index.close(
                 "test",

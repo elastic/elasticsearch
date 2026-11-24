@@ -2056,8 +2056,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /// Removes shard with given id.
         ///
-        /// Closes `onClosed` exactly once, unless it throws, whether the removal succeeded or not (failures to close the shard are the
-        /// responsibility of the implementation to log and swallow).
+        /// Closes `onClosed` exactly once, however the removal ends, including when this method throws. It may be closed
+        /// asynchronously, after this method returns or throws. Failures to close the shard are the responsibility of the implementation
+        /// to log and swallow.
         void removeShard(int shardId, String message, Executor closeExecutor, Releasable onClosed);
     }
 

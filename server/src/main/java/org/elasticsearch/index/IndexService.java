@@ -436,12 +436,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }))) {
                 final Set<Integer> shardIds = shardIds();
                 for (final int shardId : shardIds) {
-                    final var onShardClosed = Releasables.releaseOnce(refs.acquire());
                     try {
-                        removeShard(shardId, reason, shardCloseExecutor, onShardClosed);
+                        removeShard(shardId, reason, shardCloseExecutor, refs.acquire());
                     } catch (Exception e) {
                         logger.warn("failed to close shard", e);
-                        onShardClosed.close();
                     }
                 }
             }
@@ -697,33 +695,36 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (store != null) {
             store.beforeClose();
         }
-        try {
+        // Whatever happens below, including a listener throwing, onClosed is released exactly once, after the asynchronous shard close (if
+        // any) has completed.
+        try (var refs = new RefCountingRunnable(onClosed::close)) {
             try {
                 listener.beforeIndexShardClosed(sId, indexShard, indexSettings);
             } finally {
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
-                if (indexShard == null) {
-                    onClosed.close();
-                } else {
+                if (indexShard != null) {
                     // only flush if we are closed (closed index or shutdown) and if we are not deleted
                     final boolean flushEngine = deleted.get() == false && closed.get();
                     // if the store is still open, want to keep it open until afterIndexShardClosed
                     assert store == null || store.hasReferences() : "store exists but already closed";
                     final var hasStoreRef = store != null && store.tryIncRef(); // being cautious
+                    final var shardClosedRef = refs.acquire();
                     ActionListener.run(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
                             try {
                                 // call this before we close the store, so we can release resources for it
                                 listener.afterIndexShardClosed(sId, indexShard, indexSettings);
+                            } catch (Exception e) {
+                                logger.warn(() -> format("[%s] failed to run afterIndexShardClosed (reason: [%s])", shardId, reason), e);
                             } finally {
                                 try {
                                     if (hasStoreRef) {
                                         store.decRef();
                                     }
                                 } finally {
-                                    onClosed.close();
+                                    shardClosedRef.close();
                                 }
                             }
                         }

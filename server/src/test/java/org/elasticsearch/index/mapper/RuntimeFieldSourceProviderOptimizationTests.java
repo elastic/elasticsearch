@@ -195,6 +195,11 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             }
 
             @Override
+            public MappingLookup mappingLookup() {
+                return MappingLookup.EMPTY;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return lookup;
             }

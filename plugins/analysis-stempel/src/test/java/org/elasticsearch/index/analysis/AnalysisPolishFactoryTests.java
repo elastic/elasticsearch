@@ -47,7 +47,11 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
             "polish_stem",
             alwaysShares(),
             "polish_stop",
-            settings().affects("stopwords", List.of("foo")).affects("ignore_case", "true").affects("remove_trailing", "false")
+            settings().affects("stopwords", List.of("foo"))
+                .affects("ignore_case", "true")
+                .affects("remove_trailing", "false")
+                // ignore_case leaves the implicit default list case-sensitive; the same list named explicitly is not.
+                .alsoWith(settings(Map.of("ignore_case", "true")).affects("stopwords", "_polish_"))
         );
     }
 

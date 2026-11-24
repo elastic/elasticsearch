@@ -311,6 +311,7 @@ public class AnalysisRegistryTests extends ESTestCase {
      * share with {@code _english_}, the same words made case-insensitive by {@code ignore_case}.
      */
     public void testStopIgnoreCaseFollowsTheSetApplied() throws IOException {
+        assumeAnalyzerSharingEnabled();
         Settings.Builder defaults = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.my_stop.type", "stop")

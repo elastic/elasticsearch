@@ -31,7 +31,11 @@ public class AnalysisSmartChineseFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, FactorySettings> tokenFilterSettings() {
         return Map.of(
             "smartcn_stop",
-            settings().affects("stopwords", List.of("foo")).affects("ignore_case", "true").affects("remove_trailing", "false"),
+            settings().affects("stopwords", List.of("foo"))
+                .affects("ignore_case", "true")
+                .affects("remove_trailing", "false")
+                // ignore_case leaves the implicit default list case-sensitive; the same list named explicitly is not.
+                .alsoWith(settings(Map.of("ignore_case", "true")).affects("stopwords", "_smartcn_")),
             "smartcn_word",
             alwaysShares()
         );

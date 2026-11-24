@@ -94,6 +94,20 @@ public class FactorySharingKeyTests extends ESTestCase {
         assertNotEquals(caseSensitive.sharingKey(), caseInsensitive.sharingKey());
     }
 
+    /** With {@code ignore_case}, the implicit default list stays case-sensitive while {@code _english_} does not. */
+    public void testStopFactoryIgnoreCaseKeysOnTheSetApplied() {
+        IndexSettings is = indexSettings();
+        Environment env = env();
+        StopTokenFilterFactory defaults = new StopTokenFilterFactory(is, env, "a", Settings.builder().put("ignore_case", true).build());
+        StopTokenFilterFactory english = new StopTokenFilterFactory(
+            is,
+            env,
+            "b",
+            Settings.builder().put("ignore_case", true).put("stopwords", "_english_").build()
+        );
+        assertNotEquals(defaults.sharingKey(), english.sharingKey());
+    }
+
     public void testStopFactoryRemoveTrailingDifferentiates() {
         IndexSettings is = indexSettings();
         Environment env = env();

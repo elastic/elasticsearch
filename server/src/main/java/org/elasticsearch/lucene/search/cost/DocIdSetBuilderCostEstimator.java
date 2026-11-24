@@ -87,11 +87,16 @@ public final class DocIdSetBuilderCostEstimator implements QueryCostEstimator {
     }
 
     /**
-     * Bound on the count a points intersection whose estimated doc count is {@code cost} passes to {@code grow}. The BKD
-     * reader grows by a whole leaf block where the block crosses the query, and {@code PointValues#estimatePointCount}
-     * counts such a block as half matching, so the intersection grows by at most twice the estimated point count. On a
-     * multivalued field the builder buffers one entry per point, and the estimated doc count is that point count scaled
-     * down by at most {@code size / docCount}, and then truncated.
+     * Upper bound on the total count a points intersection passes to {@code grow}, given {@code cost}, its estimated doc
+     * count. {@code grow} counts points, not docs, and {@code cost} undercounts them in three ways, each undone by one
+     * factor:
+     * <ul>
+     *   <li>{@code cost + 1}: the estimate is truncated to a whole number.</li>
+     *   <li>{@code size / docCount}: on a multivalued field the estimated doc count is the estimated point count divided
+     *       by at most the average number of values per doc.</li>
+     *   <li>{@code 2}: {@code PointValues#estimatePointCount} counts a leaf block that crosses the query as half matching,
+     *       but the intersection grows by the whole block.</li>
+     * </ul>
      */
     private static long grownPoints(long cost, long size, int docCount) {
         final double valuesPerDoc = docCount > 0 && size > docCount ? (double) size / docCount : 1d;

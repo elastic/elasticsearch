@@ -269,7 +269,9 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
 
         assertThat(recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC), hasSize(0));
 
-        final var reason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
+        final var reason = randomBoolean()
+            ? MoveReason.of(randomFrom(MoveType.values()))
+            : new MoveReason(randomFrom(MoveType.CANNOT_REMAIN, MoveType.NOT_PREFERRED), randomIdentifier());
         final var moveCount = randomIntBetween(1, 10);
         for (int i = 0; i < moveCount; i++) {
             observer.relocationStarted(startedShard, targetShard, reason);

@@ -28,7 +28,7 @@ public class MoveReasonTests extends ESTestCase {
     }
 
     public void testReasonWithDecider() {
-        final var type = randomFrom(MoveType.values());
+        final var type = randomFrom(MoveType.CANNOT_REMAIN, MoveType.NOT_PREFERRED);
         final var decider = randomIdentifier();
         assertThat(MoveReason.of(type, decider), equalTo(new MoveReason(type, decider)));
     }

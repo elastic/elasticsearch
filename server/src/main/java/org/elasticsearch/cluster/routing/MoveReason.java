@@ -35,6 +35,8 @@ public record MoveReason(MoveType type, @Nullable String canRemainDecider) {
 
     public MoveReason {
         Objects.requireNonNull(type);
+        assert canRemainDecider == null || type == MoveType.CANNOT_REMAIN || type == MoveType.NOT_PREFERRED
+            : "only moves triggered by a canRemain decision have a decider label, but got [" + type + "] with [" + canRemainDecider + "]";
     }
 
     /**

@@ -148,16 +148,22 @@ public class BulkArrowAggregationTests extends ESTestCase {
         assertEquals(expected, sumIntArrow(values));
     }
 
-    /** Only the first {@code count} ints of the segment are summed, even if the buffer holds more. */
+    /**
+     * Only the first {@code count} ints of the segment are summed, even if the buffer holds more. {@code count} is always
+     * strictly below the buffer length and every value past it is {@code Integer.MAX_VALUE}, so a loop that read the whole
+     * segment would change the sum.
+     */
     public void testCombineBulkSegmentIgnoresValuesPastCount() {
-        int[] values = new int[between(1, 100)];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = between(-1000, 1000);
-        }
-        int count = between(0, values.length);
+        int[] values = new int[between(2, 100)];
+        int count = between(0, values.length - 1);
         long expected = 0;
-        for (int i = 0; i < count; i++) {
-            expected += values[i];
+        for (int i = 0; i < values.length; i++) {
+            if (i < count) {
+                values[i] = between(-1000, 1000);
+                expected += values[i];
+            } else {
+                values[i] = Integer.MAX_VALUE;
+            }
         }
         long current = randomLongBetween(-1_000_000_000_000L, 1_000_000_000_000L);
         try (IntBlock block = arrowBlock(values)) {
@@ -166,7 +172,7 @@ public class BulkArrowAggregationTests extends ESTestCase {
         }
     }
 
-    /** The one overflow check per buffer must still fire when the final result does not fit in a long. */
+    /** The single overflow check per buffer must still fire when adding the buffer's sum to {@code current} leaves the long range. */
     public void testCombineBulkSegmentOverflow() {
         try (IntBlock block = arrowBlock(new int[] { 1 })) {
             MemorySegment segment = ((IntArrowBufVector) block.asVector()).valuesSegment();
@@ -178,7 +184,11 @@ public class BulkArrowAggregationTests extends ESTestCase {
         }
     }
 
-    /** Overflow of the final sum throws; a transient overflow that comes back in range does not. */
+    /**
+     * Overflow is checked once per buffer, so a transient overflow that cancels <em>within one</em> unmasked 32-bit Arrow
+     * buffer does not throw, while a sum that leaves the {@code long} range after the buffer is added still does. The
+     * guarantee is per buffer only: see {@link #testTransientOverflowAcrossBuffersStillThrows}.
+     */
     public void testAggregatorOverflowOverArrowBuffer() {
         DriverContext ctx = driverContext();
         try (
@@ -197,6 +207,23 @@ public class BulkArrowAggregationTests extends ESTestCase {
         ) {
             addIntermediate(agg, Long.MAX_VALUE - 5);
             Page page = new Page(block);
+            expectThrows(ArithmeticException.class, () -> agg.addRawInput(page, mask));
+        }
+    }
+
+    /**
+     * The same {@code 10} and {@code -10} as above, split over two buffers, throw on the first buffer even though the
+     * final sum would fit. Cancellation is not guaranteed across buffers or pages, as before this change.
+     */
+    public void testTransientOverflowAcrossBuffersStillThrows() {
+        DriverContext ctx = driverContext();
+        try (
+            IntBlock first = arrowBlock(new int[] { 10 });
+            BooleanVector mask = blockFactory.newConstantBooleanVector(true, 1);
+            SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0, 1))
+        ) {
+            addIntermediate(agg, Long.MAX_VALUE - 5);
+            Page page = new Page(first);
             expectThrows(ArithmeticException.class, () -> agg.addRawInput(page, mask));
         }
     }

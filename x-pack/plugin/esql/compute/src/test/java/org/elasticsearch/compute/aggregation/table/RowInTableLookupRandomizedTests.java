@@ -67,7 +67,7 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                         MultivalueDedupeTests.supportedTypes(),
                         IntStream.range(0, groups).mapToObj(i -> RANDOM_KEY_ELEMENT).toList(),
                         keysPerPosition,
-                        1000,
+                        10_000,
                         any(RowInTableLookup.class) }
                 );
             }
@@ -249,16 +249,17 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
     }
 
     private Table randomTable(BlockFactory blockFactory) {
-        List<List<Object>> keys = new ArrayList<>(maxTableSize);
-        Map<List<Object>, Integer> keyToRow = new HashMap<>(maxTableSize);
+        int tableSize = between(1, maxTableSize);
+        List<List<Object>> keys = new ArrayList<>(tableSize);
+        Map<List<Object>, Integer> keyToRow = new HashMap<>(tableSize);
         ElementType[] elementTypes = new ElementType[groups];
         Block.Builder[] builders = new Block.Builder[groups];
         try {
             for (int g = 0; g < groups; g++) {
                 elementTypes[g] = randomFrom(allowedTypes);
-                builders[g] = elementTypes[g].newBlockBuilder(maxTableSize, blockFactory);
+                builders[g] = elementTypes[g].newBlockBuilder(tableSize, blockFactory);
             }
-            for (int k = 0; k < maxTableSize; k++) {
+            for (int k = 0; k < tableSize; k++) {
                 List<Object> key = new ArrayList<>(groups);
                 for (int g = 0; g < groups; g++) {
                     key.add(generators.get(g).gen(elementTypes[g], k));
@@ -266,7 +267,7 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                 if (keyToRow.putIfAbsent(key, keys.size()) == null) {
                     /*
                      * Duplicate keys aren't allowed in constructors for OffsetInTable
-                     * so just skip them. In most cases we'll have exactly maxTableSize
+                     * so just skip them. In most cases we'll have exactly tableSize
                      * entries, but sometimes, say if the generator is `boolean, boolean`
                      * we'll end up with fewer. That's fine.
                      */

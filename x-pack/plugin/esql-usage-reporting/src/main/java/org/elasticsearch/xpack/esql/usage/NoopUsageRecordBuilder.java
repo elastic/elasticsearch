@@ -12,8 +12,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * A {@link UsageRecordBuilder} that builds nothing, so that the reporter can run, and report nothing, before the real builder
- * exists.
+ * A {@link UsageRecordBuilder} that builds nothing, so that the reporter can be tested without records.
  */
 public final class NoopUsageRecordBuilder implements UsageRecordBuilder {
 

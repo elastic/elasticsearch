@@ -1094,11 +1094,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final var store = indexShard.store();
             if (store.tryIncRef() == false) {
                 assert indexShard.state() == IndexShardState.CLOSED : indexShard.state();
-                listener.onRecoveryFailure(
-                    indexShard.recoveryState(),
-                    new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null),
-                    ABORT
-                );
+                listener.onRecoveryFailure(new RecoveryFailedException(indexShard.recoveryState(), "index shard closed", null), ABORT);
                 return;
             }
             final var releaseStoreRef = Releasables.assertOnce(Releasables.releaseOnce(store::decRef));

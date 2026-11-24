@@ -215,7 +215,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     private void prepareAndExecuteWithLogging(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
         if (request.allowPartialResults() == null) {
-            request.allowPartialResults(defaultAllowPartialResults);
+            request.defaultAllowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
         PageStreamPublisher publisher = new PageStreamPublisher();

@@ -787,7 +787,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final RelocationRunner runner;
         private final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits;
 
-        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingLimits#addOutgoingRecoveryLimitConsumer].
+        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingLimits].
         private int effectiveMaxConcurrentOutgoingRelocations;
         private int activeRelocationCount = 0;
 

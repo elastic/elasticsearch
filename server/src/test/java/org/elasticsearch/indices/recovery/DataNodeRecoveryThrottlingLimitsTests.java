@@ -139,11 +139,8 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
     }
 
     public void testAddIncomingRecoveryLimitsConsumer() {
-        final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
-        final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4).build(),
-            registeredSettings
+        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4).build()
         );
         final List<IncomingRecoveryLimits> observed = new ArrayList<>();
         new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO).addIncomingRecoveryLimitsConsumer(
@@ -173,8 +170,6 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
     }
 
     public void testIncomingRecoveryLimitsApplyHeapBasedLimitBasedOnNodeRole() {
-        final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
         final var throttleSettings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 32)
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
@@ -183,22 +178,21 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
 
         final List<IncomingRecoveryLimits> indexNodeObserved = new ArrayList<>();
         new DataNodeRecoveryThrottlingLimits(
-            new ClusterSettings(throttleSettings, registeredSettings),
+            clusterSettingsWithDataNodeSettingsRegistered(throttleSettings),
             indexOnlyNode(Settings.EMPTY),
             ByteSizeValue.ofGb(4)
         ).addIncomingRecoveryLimitsConsumer(indexNodeObserved::add);
         assertThat(indexNodeObserved, contains(new IncomingRecoveryLimits(6, 3)));
 
         // The heap-based limit does not apply to search nodes, whatever the heap and ratio.
-        final var clusterSettings = new ClusterSettings(
+        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(
             Settings.builder()
                 .put(throttleSettings)
                 .put(
                     INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                     randomFrom(Double.MIN_NORMAL, randomDoubleBetween(0.1, 10, true))
                 )
-                .build(),
-            registeredSettings
+                .build()
         );
         final List<IncomingRecoveryLimits> searchNodeObserved = new ArrayList<>();
         new DataNodeRecoveryThrottlingLimits(
@@ -221,11 +215,8 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
     }
 
     public void testAddOutgoingRecoveryLimitConsumer() {
-        final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
-        final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build(),
-            registeredSettings
+        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
         );
         final List<Integer> observed = new ArrayList<>();
         new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(2)).addOutgoingRecoveryLimitConsumer(
@@ -282,7 +273,6 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
         assertThat(limits.outgoingRecoveryLimit(), equalTo(5));
     }
 
-    /// Every consumer registered with the add methods is notified, and sees the getters already updated.
     public void testConsumersAreNotifiedAfterGettersAreUpdated() {
         final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(Settings.EMPTY);
         final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);

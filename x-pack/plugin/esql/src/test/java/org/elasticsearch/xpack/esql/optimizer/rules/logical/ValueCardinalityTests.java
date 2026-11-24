@@ -122,6 +122,28 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey(query, "k"), equalTo(SINGLE));
     }
 
+    public void testSampleAndLimitByKeepTheProof() {
+        String query = "FROM test | EVAL k = MV_MIN(languages) | SAMPLE 0.5 | LIMIT 2 BY gender | STATS c = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(query, "k"), equalTo(SINGLE));
+    }
+
+    /** DISSECT and GROK add columns. The columns of the child keep their proof, and the added columns are unknown. */
+    public void testGeneratingPlanKeepsTheProofOfTheColumnsOfTheChild() {
+        String dissect = "FROM test | EVAL k = MV_MIN(languages) | DISSECT first_name \"%{a}\" | STATS c = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(dissect, "k"), equalTo(SINGLE));
+        String grok = "FROM test | EVAL k = MV_MIN(languages) | GROK first_name \"%{WORD:a}\" | STATS c = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(grok, "k"), equalTo(SINGLE));
+
+        String generated = "FROM test | DISSECT first_name \"%{a}\" | STATS c = COUNT(*) BY a";
+        assertThat(cardinalityOfKey(generated, "a"), equalTo(MAYBE_MULTI));
+    }
+
+    /** A generated column that has the name of a column of the child replaces it, so the proof of the old column does not apply. */
+    public void testGeneratedColumnThatShadowsAColumnOfTheChildIsUnknown() {
+        String query = "FROM test | EVAL k = MV_MIN(languages) | DISSECT first_name \"%{k}\" | STATS c = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(query, "k"), equalTo(MAYBE_MULTI));
+    }
+
     public void testKeepAfterEvalKeepsTheProof() {
         String query = "FROM test | EVAL k = MV_MIN(languages) | KEEP k | STATS c = COUNT(*) BY k";
         assertThat(cardinalityOfKey(query, "k"), equalTo(SINGLE));

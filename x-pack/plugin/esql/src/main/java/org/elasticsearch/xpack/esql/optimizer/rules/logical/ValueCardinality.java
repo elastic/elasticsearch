@@ -22,16 +22,19 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
 import java.util.Collection;
@@ -151,11 +154,26 @@ enum ValueCardinality {
             // _source or converted is not a plain mapped field, so its EsField never carries the flag.
             return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
         }
-        if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy || plan instanceof TopN) {
+        if (plan instanceof Filter
+            || plan instanceof Limit
+            || plan instanceof LimitBy
+            || plan instanceof Sample
+            || plan instanceof OrderBy
+            || plan instanceof TopN) {
             // These keep, drop or reorder rows without changing columns.
             return askChild(attribute, plan, depth + 1);
         }
-        // Any other node, such as LOOKUP JOIN or GROK, may rewrite columns, so nothing is known.
+        if (plan instanceof GeneratingPlan<?> generating) {
+            // Nodes such as DISSECT, GROK and ENRICH add columns and keep the columns of the child.
+            // EVAL is also a GeneratingPlan, but it is handled above, since it can prove its own fields.
+            for (Attribute generated : generating.generatedAttributes()) {
+                if (generated.id().equals(attribute.id())) {
+                    return MAYBE_MULTI;
+                }
+            }
+            return askChild(attribute, plan, depth + 1);
+        }
+        // Any other node, such as LOOKUP JOIN or INLINE STATS, may rewrite columns, so nothing is known.
         return MAYBE_MULTI;
     }
 

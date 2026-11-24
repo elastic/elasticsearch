@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
@@ -460,9 +461,10 @@ public class StripeStatsStagingTests extends ESTestCase {
     /**
      * The length a stream writes and the entries it then writes come from two different computations, so they
      * must agree on every shape a record takes: with and without a read configuration, with and without the
-     * count licence, and with columns that carry both extrema or neither. Those are the two a text harvest
-     * produces here, because {@code ColumnStatsAccumulator} folds each value into a column's MIN and MAX
-     * together, so a one-sided pair is unreachable until something withholds one end of one.
+     * count licence, with columns that carry both extrema or neither, and with a column that carries exactly
+     * one. {@code ColumnStatsAccumulator} folds each value into a column's MIN and MAX together, so the last of
+     * those is reachable only because the extremum width limit withholds one end and not the other -- the shape
+     * a URL column takes, a narrow lower bound against an upper bound too wide to publish.
      */
     public void testTheSizeAgreesWithTheBuiltMap() {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
@@ -470,9 +472,11 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"), new Row(16, null, null));
         chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
         chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
+        // One end narrow, the other withheld for width.
+        chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1)));
 
         List<Map<String, Object>> records = staged(sink);
-        assertEquals("each read staged its own stripe", 3, records.size());
+        assertEquals("each read staged its own stripe", 4, records.size());
         for (Map<String, Object> record : records) {
             assertEquals("the counted size must equal the built map's", new HashMap<>(record).size(), record.size());
             // Asserted rather than left to the copy being a walk: without it a later change that made the copy
@@ -483,6 +487,15 @@ public class StripeStatsStagingTests extends ESTestCase {
                 ((StagedStripeRecord) record).keepsFlatForm()
             );
         }
+
+        // Values read only now, after the size comparison: a lookup makes a record keep its flat form. This
+        // shows the last record really is the one-sided shape rather than a column empty at both ends.
+        Map<String, Object> oneSided = new HashMap<>(records.get(3));
+        assertEquals("the narrow bound is published", new BytesRef("a"), SourceStatisticsSerializer.extractColumnMin(oneSided, "k"));
+        assertNull(
+            "the wide one is withheld, which is what makes this shape reachable at all",
+            SourceStatisticsSerializer.extractColumnMax(oneSided, "k")
+        );
     }
 
     /**
@@ -523,9 +536,10 @@ public class StripeStatsStagingTests extends ESTestCase {
         chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"));
         chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
         chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
+        chunk(staging, 8192, true, 0, 8192, row(0, 9L, "a"), row(16, 11L, "z".repeat(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES + 1)));
 
         List<Map<String, Object>> records = staged(sink);
-        assertEquals("each read staged its own stripe", 3, records.size());
+        assertEquals("each read staged its own stripe", 4, records.size());
         for (Map<String, Object> record : records) {
             Map<String, Object> built = new HashMap<>(record);
             for (String key : CONTRIBUTION_KEYS) {
@@ -646,9 +660,86 @@ public class StripeStatsStagingTests extends ESTestCase {
         assertNull("and must offer no extremum", SourceStatisticsSerializer.extractColumnMin(record, "k"));
     }
 
+    /**
+     * The width reaches the staging arm, which is the one a chunk-parallel read of a large file takes. A stripe
+     * whose grid cell its pieces cover is handed to {@link StripeStatsStaging#contribute}, never recorded
+     * directly, so a width that stopped at the direct arm would leave the staging area holding the very value
+     * a published record withholds -- and publish it when the stripe folds.
+     */
+    public void testTheWidthReachesTheStagingArm() {
+        assertEquals(
+            "the default stages a five-byte extremum",
+            new BytesRef("alpha"),
+            stagedMin(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES)
+        );
+        assertNull("four bytes withholds it on the same arm", stagedMin(4));
+    }
+
+    /** Stages one stripe through a harvester built at {@code maxExtremumBytes} and returns the minimum it carries. */
+    @Nullable
+    private Object stagedMin(int maxExtremumBytes) {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsHarvester harvester = new StripeStatsHarvester(1024, true, new StripeStatsStaging(sink), maxExtremumBytes);
+        StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(0));
+        accum.rows++;
+        accum.cols = ColumnStatsAccumulator.forProjectedAttributes(SCHEMA.toArray(new Attribute[0]));
+        accum.cols.acceptLongAt(0, 1L);
+        accum.cols.acceptBytesRefAt(1, new BytesRef("alpha"));
+        harvester.emit(PATH, 0, 1024, MTIME, FINGERPRINT, READ_CONFIG, true, SCHEMA);
+
+        Map<String, Object> record = staged(sink).get(0);
+        assertEquals(
+            "the stripe must stage whatever the width does to its extremum",
+            (Long) 1L,
+            SourceStatisticsSerializer.extractColumnValueCount(record, "n")
+        );
+        return SourceStatisticsSerializer.extractColumnMin(record, "k");
+    }
+
+    /**
+     * The width is applied to each piece before the pieces fold, not once the stripe is whole. Two pieces of one
+     * stripe hold local minima {@code a} and {@code alpha}; at four bytes the second publishes no minimum, and a
+     * piece carrying values that offers no minimum poisons the fold, so the stripe serves none. Were the width
+     * applied at publication the fold would still see {@code alpha}, take {@code a} as the smaller of the two and
+     * publish it -- a minimum over the bytes one piece read, offered as the stripe's.
+     */
+    public void testTheWidthIsAppliedBeforeThePiecesFold() {
+        assertEquals("the default folds both pieces' minima", new BytesRef("a"), foldedMin(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES));
+        assertNull("a piece whose minimum the width withheld poisons the fold", foldedMin(4));
+    }
+
+    /** Stages two byte-adjacent pieces of one stripe at {@code maxExtremumBytes} and returns the folded minimum. */
+    @Nullable
+    private Object foldedMin(int maxExtremumBytes) {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        piece(staging, maxExtremumBytes, false, 0, 512, new BytesRef("a"));
+        piece(staging, maxExtremumBytes, true, 512, 1024, new BytesRef("alpha"));
+
+        List<Map<String, Object>> staged = staged(sink);
+        assertEquals("the two pieces must stage one folded record", 1, staged.size());
+        return SourceStatisticsSerializer.extractColumnMin(staged.get(0), "k");
+    }
+
+    /** One piece of stripe 0 covering {@code [start, end)}, harvested at {@code maxExtremumBytes}, holding one row. */
+    private void piece(StripeStatsStaging staging, int maxExtremumBytes, boolean fileFinal, long start, long end, BytesRef keyword) {
+        StripeStatsHarvester harvester = new StripeStatsHarvester(1024, fileFinal, staging, maxExtremumBytes);
+        StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(start));
+        accum.rows++;
+        accum.cols = ColumnStatsAccumulator.forProjectedAttributes(SCHEMA.toArray(new Attribute[0]));
+        accum.cols.acceptLongAt(0, 1L);
+        accum.cols.acceptBytesRefAt(1, keyword);
+        harvester.emit(PATH, start, end - start, MTIME, FINGERPRINT, READ_CONFIG, true, SCHEMA);
+    }
+
     /** A chunk that summarises only the first schema column, leaving the second unmeasured for its stripe. */
     private void narrowChunk(StripeStatsStaging staging, long stripeSize, boolean fileFinal, long start, long end, long number) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            staging,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(start));
         accum.rows++;
         accum.cols = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { SCHEMA.get(0) });
@@ -770,7 +861,12 @@ public class StripeStatsStagingTests extends ESTestCase {
         List<Attribute> schema,
         Row... rows
     ) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            staging,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         for (Row r : rows) {
             StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(r.offset()));
             accum.rows++;
@@ -842,7 +938,12 @@ public class StripeStatsStagingTests extends ESTestCase {
         long stripeSize,
         Row... rows
     ) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            staging,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         for (Row r : rows) {
             StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(r.offset()));
             accum.rows++;

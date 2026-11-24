@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
@@ -69,6 +70,29 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         assertNotNull("clean whole-file drain must publish a contribution", c);
         assertFalse("a whole-file read is not a partial chunk", c.containsKey(ExternalStats.PARTIAL_CHUNK_KEY));
         assertEquals(3L, SplitStats.of(c).rowCount());
+    }
+
+    /**
+     * The whole-file publish reads the width off the context. Every link that drops it yields the default, so
+     * a read that only ever passes the default cannot tell this hop from a hardcoded constant: the same
+     * five-byte extremum publishes at the default and is withheld at four.
+     */
+    public void testTheWidthSettingReachesTheWholeFilePublish() throws Exception {
+        String body = "{\"a\":1,\"k\":\"alpha\"}\n{\"a\":2,\"k\":\"bravo\"}\n";
+
+        Map<String, Object> atDefault = capture(obj(body), FormatReadContext.builder().batchSize(10).build());
+        assertNotNull("the default publishes a contribution", atDefault);
+        assertEquals(
+            "a five-byte extremum publishes under the default",
+            new BytesRef("alpha"),
+            SourceStatisticsSerializer.extractColumnMin(atDefault, "k")
+        );
+
+        Map<String, Object> narrowed = capture(obj(body), FormatReadContext.builder().batchSize(10).statsMaxExtremumBytes(4).build());
+        assertNotNull("the narrowed read still publishes", narrowed);
+        assertNull("four bytes withholds it", SourceStatisticsSerializer.extractColumnMin(narrowed, "k"));
+        assertNull("four bytes withholds it", SourceStatisticsSerializer.extractColumnMax(narrowed, "k"));
+        assertEquals("and the counts survive", 2L, SplitStats.of(narrowed).rowCount());
     }
 
     public void testCloseWithoutFullDrainPublishesNothing() throws Exception {

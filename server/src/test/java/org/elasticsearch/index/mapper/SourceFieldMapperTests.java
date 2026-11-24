@@ -53,6 +53,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
@@ -1658,7 +1659,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertNotNull(mapper);
         assertTrue(
             "supportsColumnarParse must be true for synthetic source + synthetic recovery",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+            mapper.supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
 
         byte[] doc1Source = "{\"field\":\"value\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);

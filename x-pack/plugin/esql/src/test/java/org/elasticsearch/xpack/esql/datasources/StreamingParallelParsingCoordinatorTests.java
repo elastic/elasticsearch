@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import com.github.luben.zstd.ZstdOutputStream;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -26,9 +28,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -45,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -233,10 +239,24 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
-        return readAllPinned(reader, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES, 4);
+        return readAllPinned(reader, null, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES, 4);
+    }
+
+    /** As above, over a given file, so a header read that fails names a location in the log. */
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader, @Nullable StorageObject file) throws Exception {
+        return readAllPinned(reader, file, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES, 4);
     }
 
     private static List<FormatReadContext> readAllPinned(LineFormatReader reader, int maxExtremumBytes, int parallelism) throws Exception {
+        return readAllPinned(reader, null, maxExtremumBytes, parallelism);
+    }
+
+    private static List<FormatReadContext> readAllPinned(
+        LineFormatReader reader,
+        @Nullable StorageObject file,
+        int maxExtremumBytes,
+        int parallelism
+    ) throws Exception {
         InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
         List<Attribute> pinned = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
@@ -246,7 +266,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
                 reader,
                 stream,
-                null,
+                file,
                 List.of("line"),
                 50,
                 parallelism,
@@ -393,6 +413,304 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
         );
+    }
+
+    /**
+     * The streaming path stamps every chunk with the object's last-modified so that chunk's statistics can be
+     * cached under a pinned mtime. Nothing but a capture ever reads that stamp, and the probe is a round trip
+     * against a store that may carry no last-modified header — so a read with no capture sink must not pay for
+     * it.
+     *
+     * <p>This is the compressed/streaming half of the gate the two row readers apply, and unlike theirs it
+     * repeats per chunk rather than once per file, which is why it is worth pinning separately.
+     */
+    public void testNoCaptureSinkDoesNotProbeTheChunkMtime() throws Exception {
+        AtomicInteger uncaptured = new AtomicInteger();
+        streamingReadCountingMtimeProbes(null, uncaptured);
+        assertEquals("a read with no capture sink must not probe lastModified()", 0, uncaptured.get());
+
+        // Control: the same read WITH a sink must probe, or this would also pass against a path that had
+        // stopped stamping chunks altogether. EXACTLY one, because the probe is memoized per file: more than
+        // one would mean the memo broke and every chunk is paying a metadata request again.
+        AtomicInteger captured = new AtomicInteger();
+        List<Instant> capturedStamps = streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
+        assertThat("a capturing read probes once for the whole file", captured.get(), Matchers.equalTo(1));
+
+        // The count cannot tell the memo working from the chunks never asking, though: schema inference calls
+        // chunkStorageObject() before any parser runs, so one probe satisfies it either way. The stamps pin
+        // the other half -- that several chunks got one, and that it is the instant the probe returned.
+        assertThat(
+            "several chunks must be stamped, or the count above is satisfied by inference alone",
+            capturedStamps.size(),
+            Matchers.greaterThanOrEqualTo(2)
+        );
+        assertThat(
+            "every chunk of one file carries the probed instant",
+            capturedStamps,
+            Matchers.everyItem(Matchers.equalTo(MTIME_PROBE_INSTANT))
+        );
+
+        // The control above always gets an answer, so on its own it also passes against a memo that caches
+        // only successful lookups -- which would still pay a metadata request per chunk on exactly the stores
+        // the probe is dear on. These two pin the other outcomes: no last-modified header, and a probe that
+        // fails outright.
+        AtomicInteger noMtime = new AtomicInteger();
+        streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), noMtime, new TestFileStorageObject(MTIME_PROBE_PATH, null));
+        assertThat("a source with no last-modified is probed once, not per chunk", noMtime.get(), Matchers.equalTo(1));
+
+        AtomicInteger failedProbe = new AtomicInteger();
+        streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), failedProbe, new FailingMtimeStorageObject(MTIME_PROBE_PATH));
+        assertThat("a failed probe is memoized too, not retried per chunk", failedProbe.get(), Matchers.equalTo(1));
+    }
+
+    /**
+     * The give-up line names the object, and an {@code https} dataset's resource is the user's own URL: a
+     * pre-signed one carries its signature in the query string, so the location the log names IS the
+     * credential. {@code ExternalFailuresTests} pins the redaction itself; this pins that this call site
+     * applies it, which no test of {@code redactHttpUrl} can.
+     *
+     * <p>Redacting the argument is half of it: a store's own exception can quote the signed URL back, so an
+     * attached throwable would carry past the redaction. The double's message is its own path for that
+     * reason, and the expectation matches only an event with no throwable on it.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:DEBUG",
+        reason = "the give-up is a debug line, and this asserts neither its location nor a throwable carries the signature"
+    )
+    public void testAFailedMtimeProbeDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the give-up line, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*no last-modified for [https://bucket.s3.example.com/data/employees.csv];*"
+                ) {
+                    @Override
+                    public boolean innerMatch(LogEvent event) {
+                        return event.getThrown() == null; // the store's own message is not ours to redact
+                    }
+                }
+            );
+            // Paired with the expectation above, so this cannot pass by the line never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any debug line",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*" + signature + "*"
+                )
+            );
+            streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), new AtomicInteger(), new FailingMtimeStorageObject(path));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. The expectation reads the formatted message; the throwable it attaches is the store's own.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the close give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedCloseDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the close warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to close storage object for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), new AtomicInteger(), new FailingCloseStorageObject(path));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. The release runs on every read and swallows the stream's failure, so this fires on a complete
+     * read rather than needing the early-close shape.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the release give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedStreamReleaseDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the release warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to release stream for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            streamingReadCountingMtimeProbes(
+                ExternalStatsCapture.newSink(),
+                new AtomicInteger(),
+                new TestFileStorageObject(path, MTIME_PROBE_INSTANT),
+                new FailingCloseStream(new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8)))
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /** A stream whose {@code close()} fails, so the release give-up fires on an otherwise ordinary read. */
+    private static final class FailingCloseStream extends FilterInputStream {
+        FailingCloseStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public void close() throws IOException {
+            // No location in the message: the warning attaches this throwable in full, so a path added here
+            // would carry past the redaction.
+            throw new IOException("this stream cannot be released");
+        }
+    }
+
+    /**
+     * A pre-signed URL carries its signature in its query string, so the location this warning names must not be
+     * the full one. A header read that throws is what fires it, and that needs no stream or abort.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the header-read failure is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedHeaderReadDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        LineFormatReader reader = new LineFormatReader(512);
+        reader.headerColumns = List.of("line");
+        reader.headerFailure = new IllegalStateException("cannot read the header");
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the header-read warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*could not read header columns from the first chunk of [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            // The reader needs no captured header names to parse later chunks, so the read survives the
+            // failure and every chunk is handed a null fileHeaderColumns. Asserting that keeps the warning
+            // from being the only thing this test can still see if the failure starts killing the scan.
+            List<FormatReadContext> contexts = readAllPinned(reader, new TestFileStorageObject(path, MTIME_PROBE_INSTANT));
+            assertThat(contexts.size(), Matchers.greaterThan(1));
+            for (FormatReadContext ctx : contexts) {
+                assertNull(ctx.fileHeaderColumns());
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    private static final String MTIME_PROBE_PATH = "mem://streaming-mtime-probe-test";
+
+    private static final Instant MTIME_PROBE_INSTANT = Instant.parse("2020-01-01T00:00:00Z");
+
+    /**
+     * Drains a streaming parallel read whose storage object counts every {@code lastModified()} call, and
+     * returns the mtime each chunk was stamped with, in the order the reader saw them.
+     */
+    private static List<Instant> streamingReadCountingMtimeProbes(
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
+        AtomicInteger probes
+    ) throws Exception {
+        StorageObject source = new TestFileStorageObject(MTIME_PROBE_PATH, MTIME_PROBE_INSTANT);
+        return streamingReadCountingMtimeProbes(sink, probes, source);
+    }
+
+    /** As above, over a given source, so the probe's non-answering outcomes can be counted too. */
+    private static List<Instant> streamingReadCountingMtimeProbes(
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
+        AtomicInteger probes,
+        StorageObject source
+    ) throws Exception {
+        // > 2 chunk-buffers so the segmentator dispatches several chunks and the per-chunk probe repeats.
+        return streamingReadCountingMtimeProbes(
+            sink,
+            probes,
+            source,
+            new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8))
+        );
+    }
+
+    /** As above, over a given stream, so a release that fails can be driven too. */
+    private static List<Instant> streamingReadCountingMtimeProbes(
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
+        AtomicInteger probes,
+        StorageObject source,
+        InputStream stream
+    ) throws Exception {
+        StorageObject file = new CountingMtimeStorageObject(source, probes);
+        List<Instant> chunkMtimes = Collections.synchronizedList(new ArrayList<>());
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, MTIME_PROBE_PATH, chunkMtimes);
+
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                -1L,
+                sink == null ? StripeColumnScope.NONE : StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        return chunkMtimes;
     }
 
     /**
@@ -1136,8 +1454,16 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * {@code abortStream} throwing a RuntimeException after the streamClosed CAS must not skip
      * drain / breaker refund. ParallelParsingCoordinator already catches Exception around abort.
+     * <p>
+     * The signed path also pins the abort-transport warning's redaction: that catch is the only caller of
+     * {@code abortStream}, so this throw is the one way to reach the line.
      */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the abort give-up is a warning, and this asserts its location carries no signature"
+    )
     public void testCloseSurvivesAbortStreamRuntimeException() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
         CountDownLatch parked = new CountDownLatch(1);
         CountDownLatch resume = new CountDownLatch(1);
         StorageObject boom = new AbstractTestStorageObject() {
@@ -1174,7 +1500,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("mem://abort-boom");
+                return StoragePath.of("https://bucket.s3.example.com/data/abort-boom.csv?" + signature);
             }
         };
         InputStream stream = new InputStream() {
@@ -1204,7 +1530,24 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         };
         PeakTrackingBreaker breaker = new PeakTrackingBreaker();
         ExecutorService executor = Executors.newFixedThreadPool(4);
-        try {
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the abort warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to abort transport for [https://bucket.s3.example.com/data/abort-boom.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
             CloseableIterator<Page> iter = StreamingParallelParsingCoordinator.parallelRead(
                 new LineFormatReader(512),
                 stream,
@@ -1249,6 +1592,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertNull("abortStream RuntimeException must not escape close()", closeFailure.get());
             assertNull(iter.tryAdvance());
             assertEquals(0L, breaker.getUsed());
+            mockLog.assertAllExpectationsMatched();
         } finally {
             resume.countDown();
             executor.shutdownNow();
@@ -1843,6 +2187,148 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             iterator.close();
             assertTrue("close() must return within 5s of segmentator being parked", System.nanoTime() <= deadlineNanos);
         } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * {@code close()} must cancel a GET still inside {@code newStream} — {@code decompressedStream}
+     * is null, so stream close is a no-op. The leaf unblocks on {@link StorageObject#close()}.
+     */
+    public void testCloseWhileNewStreamBlocked() throws Exception {
+        CountDownLatch inOpen = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        StorageObject object = new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                inOpen.countDown();
+                try {
+                    if (release.await(15, TimeUnit.SECONDS) == false) {
+                        throw new IOException("newStream was not unblocked by close");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(e);
+                }
+                throw new IOException("read aborted");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                return newStream();
+            }
+
+            @Override
+            public void close() {
+                release.countDown();
+            }
+
+            @Override
+            public long length() {
+                return 4L;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://hung");
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                object::newStream,
+                object,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            );
+            assertTrue("segmentator must enter newStream", inOpen.await(5, TimeUnit.SECONDS));
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            iterator.close();
+            assertTrue("close() must return while newStream is still in flight", System.nanoTime() <= deadlineNanos);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Production gzip/zstd files hang <em>after</em> the leaf GET returns, inside
+     * {@code codec.decompress} (header read), while {@code decompressedStream} is still null.
+     * {@code abortTransport()} is then a deliberate no-op; iterator {@code close()} must still
+     * return without waiting {@code CLOSE_TIMEOUT_SECONDS} by closing {@code inFlightRaw} through
+     * the Retryable → Decompressing chain. Decoder teardown stays on the segmentator.
+     */
+    public void testIteratorCloseUnblocksGzipHeaderReadWhileDecompressedStreamNull() throws Exception {
+        DecompressingStorageObjectTests.HeaderParkStorageObject leaf = new DecompressingStorageObjectTests.HeaderParkStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressionCodec codec = DecompressingStorageObjectTests.countingGzip(decoderClosesOnCloser, closer);
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, codec);
+        RetryableStorageObject retryable = new RetryableStorageObject(decompressing, RetryPolicy.NONE);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(256),
+                retryable::newStream,
+                retryable,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE,
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("test"),
+                ExternalReadCounters.NOOP,
+                null,
+                null
+            );
+            assertTrue("segmentator must enter codec.decompress (gzip header parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            iterator.close();
+            assertTrue(
+                "close() must return while decompressing gzip header, not wait CLOSE_TIMEOUT_SECONDS",
+                System.nanoTime() <= deadlineNanos
+            );
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+        } finally {
+            leaf.release.countDown();
             executor.shutdownNow();
         }
     }
@@ -5534,6 +6020,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         final List<FormatReadContext> seenContexts;
         /** What {@link #fileHeaderColumns} answers; {@code null} makes this a reader without a header line. */
         volatile List<String> headerColumns;
+        /** When set, {@link #fileHeaderColumns} throws this instead of answering. */
+        volatile RuntimeException headerFailure;
 
         LineFormatReader(long minSegment) {
             this(
@@ -5602,6 +6090,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public List<String> fileHeaderColumns(StorageObject file) {
+            if (headerFailure != null) {
+                throw headerFailure;
+            }
             return headerColumns;
         }
 
@@ -6040,14 +6531,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         private final LineFormatReader delegate;
         private final String path;
+        /** Every chunk object's mtime as the reader received it, so a test can see the stamp and not just the probe. */
+        @Nullable
+        private final List<Instant> chunkMtimes;
 
         StatsPublishingLineReader(long minSegment, String path) {
-            this(new LineFormatReader(minSegment), path);
+            this(new LineFormatReader(minSegment), path, null);
         }
 
-        private StatsPublishingLineReader(LineFormatReader delegate, String path) {
+        StatsPublishingLineReader(long minSegment, String path, @Nullable List<Instant> chunkMtimes) {
+            this(new LineFormatReader(minSegment), path, chunkMtimes);
+        }
+
+        private StatsPublishingLineReader(LineFormatReader delegate, String path, @Nullable List<Instant> chunkMtimes) {
             this.delegate = delegate;
             this.path = path;
+            this.chunkMtimes = chunkMtimes;
         }
 
         @Override
@@ -6070,11 +6569,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             // Streaming coordinator swaps `reader` for the result; keep the publishing wrapper so
             // post-inference chunk reads still record under `path`.
             LineFormatReader bound = (LineFormatReader) delegate.withSchema(schema);
-            return new StatsPublishingLineReader(bound, path);
+            return new StatsPublishingLineReader(bound, path, chunkMtimes);
         }
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            if (chunkMtimes != null) {
+                chunkMtimes.add(object.lastModified());
+            }
             return wrapPublishing(delegate.read(object, context), context);
         }
 
@@ -6499,6 +7001,96 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 bytesRead += skipped;
             }
             return skipped;
+        }
+    }
+
+    /** A source whose mtime probe throws — pins that the memo holds the failure rather than retrying it. */
+    private static final class FailingMtimeStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+
+        FailingMtimeStorageObject(String path) {
+            this.path = StoragePath.of(path);
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() throws IOException {
+            // Quotes the location back, as a storage SDK's own error does -- which is why the give-up log
+            // attaches no throwable.
+            throw new IOException("this store serves no last-modified: " + path);
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
+    /**
+     * Path + mtime, and a {@code close()} that fails. Every streaming read closes the storage object on its
+     * way out, so this makes the close warning fire on an otherwise ordinary read.
+     */
+    private static final class FailingCloseStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+
+        FailingCloseStorageObject(String path) {
+            this.path = StoragePath.of(path);
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return MTIME_PROBE_INSTANT;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // Carries no location: the warning attaches this throwable in full, so a signature in its message
+            // would be the store's own leak rather than the call site's.
+            throw new IOException("this store cannot close");
         }
     }
 

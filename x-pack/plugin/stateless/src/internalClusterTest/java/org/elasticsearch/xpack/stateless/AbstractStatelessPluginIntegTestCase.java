@@ -207,7 +207,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             hollowIndexShardsZeroTtl = true;
         }
         if (randomBoolean()) {
-            recoveryThrottlingSettings = randomDataNodeRecoveryThrottlingLimits();
+            recoveryThrottlingSettings = randomDataNodeRecoveryThrottlingSettings();
             logger.info(
                 "Configuring data node recovery throttling settings (individual tests then may override some of them): {}",
                 recoveryThrottlingSettings
@@ -537,7 +537,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     ///
     /// DNRT replaces the master-side recovery throttling, so this hands the throttling over to the data nodes and
     /// unthrottles the master-side deciders. See [DataNodeRecoveryThrottlingLimits] for effective limits.
-    private static Settings randomDataNodeRecoveryThrottlingLimits() {
+    private static Settings randomDataNodeRecoveryThrottlingSettings() {
         return Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(

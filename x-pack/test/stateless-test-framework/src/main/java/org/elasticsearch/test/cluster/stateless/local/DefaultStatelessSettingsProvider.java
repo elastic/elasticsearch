@@ -38,7 +38,7 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     );
 
     /// Master-side recovery throttling settings that leave throttling to the data nodes.
-    private static final Map<String, String> UNTHROTTLED_MASTER_RECOVERY_SETTINGS = Map.of(
+    public static final Map<String, String> UNTHROTTLED_MASTER_RECOVERY_SETTINGS = Map.of(
         "cluster.routing.allocation.node_concurrent_recoveries",
         String.valueOf(Integer.MAX_VALUE),
         "cluster.routing.allocation.node_initial_primaries_recoveries",

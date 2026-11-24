@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
-import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,6 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
+import org.elasticsearch.test.cluster.stateless.local.DefaultStatelessSettingsProvider;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -33,6 +32,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.cluster.stateless.local.DefaultStatelessLocalConfigProvider.node;
 import static org.hamcrest.Matchers.allOf;
@@ -53,28 +53,36 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
     private static final String USER = "admin-user";
     private static final String PASSWORD = "x-pack-test-password";
 
-    private static final int MASTER_NODE = 0;
     private static final List<String> INDEX_NODE_NAMES = List.of("index-1", "index-2");
     private static final List<String> SEARCH_NODE_NAMES = List.of("search-1", "search-2");
-    /// Data node names in the order they are added to the cluster, right after the master.
-    private static final List<String> DATA_NODE_NAMES = List.of("index-1", "index-2", "search-1", "search-2");
+    /// Data node names in the order they are added to the cluster. See [#buildCluster()].
+    private static final List<String> DATA_NODE_NAMES = Stream.concat(INDEX_NODE_NAMES.stream(), SEARCH_NODE_NAMES.stream()).toList();
+    /// The master is added after all the data nodes.
+    private static final int MASTER_NODE = DATA_NODE_NAMES.size();
     private static final int NUM_NODES = 1 + DATA_NODE_NAMES.size();
 
     /// Generous because with tight limits, recoveries queue up and complete one at a time.
     private static final TimeValue AWAIT_TIMEOUT = TimeValue.timeValueMinutes(3);
 
     @ClassRule
-    public static final StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.localEmptyNode()
-        .withNode(masterNode -> masterNode.name("master").setting("node.roles", "[master]"))
-        .withNode(node("index-1", "[remote_cluster_client,ingest,index]"))
-        .withNode(node("index-2", "[remote_cluster_client,ingest,index]"))
-        .withNode(node("search-1", "[remote_cluster_client,search]"))
-        .withNode(node("search-2", "[remote_cluster_client,search]"))
-        .module("stateless")
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .user(USER, PASSWORD)
-        .build();
+    public static final StatelessElasticsearchCluster cluster = buildCluster();
+
+    /// Adds the data nodes in [#DATA_NODE_NAMES] order, then the master at index [#MASTER_NODE].
+    private static StatelessElasticsearchCluster buildCluster() {
+        final var builder = StatelessElasticsearchCluster.localEmptyNode();
+        for (final var nodeName : DATA_NODE_NAMES) {
+            final var roles = INDEX_NODE_NAMES.contains(nodeName)
+                ? "[remote_cluster_client,ingest,index]"
+                : "[remote_cluster_client,search]";
+            builder.withNode(node(nodeName, roles));
+        }
+        return builder.withNode(masterNode -> masterNode.name("master").setting("node.roles", "[master]"))
+            .module("stateless")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.watcher.enabled", "false")
+            .user(USER, PASSWORD)
+            .build();
+    }
 
     /// Each disruption causes a burst of recoveries.
     private enum Disruption {
@@ -180,7 +188,7 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
                 final var nodeName = randomFrom(DATA_NODE_NAMES);
                 final boolean forcibly = randomBoolean();
                 logger.info("--> restarting node [{}], forcibly [{}]", nodeName, forcibly);
-                cluster.restartNodeInPlace(1 + DATA_NODE_NAMES.indexOf(nodeName), forcibly);
+                cluster.restartNodeInPlace(DATA_NODE_NAMES.indexOf(nodeName), forcibly);
             }
         }
     }
@@ -202,7 +210,7 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
         final List<String> matchingNames = new ArrayList<>();
         for (final var node : entityAsList(client().performRequest(request))) {
             final String name = ObjectPath.evaluate(node, "name");
-            if (name.equals(nodeSpecName) || name.startsWith(nodeSpecName + "-")) {
+            if (name.contains(nodeSpecName)) {
                 matchingNames.add(name);
             }
         }
@@ -269,13 +277,17 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
     }
 
     private void verifyAckedDocs(List<String> indices, Map<String, Long> acked, Map<String, Long> attempted) throws IOException {
-        refresh("*");
+        final var refresh = ObjectPath.createFromResponse(
+            client().performRequest(new Request("POST", "/" + String.join(",", indices) + "/_refresh"))
+        );
+        assertAllShardsSucceeded("refresh", refresh);
         long totalAcked = 0;
         for (final var indexName : indices) {
             final long ackedDocs = acked.getOrDefault(indexName, 0L);
             final long attemptedDocs = attempted.getOrDefault(indexName, 0L);
-            final var response = client().performRequest(new Request("GET", "/" + indexName + "/_count"));
-            final long count = ((Number) ObjectPath.createFromResponse(response).evaluate("count")).longValue();
+            final var response = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/" + indexName + "/_count")));
+            assertAllShardsSucceeded("count on [" + indexName + "]", response);
+            final long count = ((Number) response.evaluate("count")).longValue();
             assertThat(
                 "unexpected doc count for [" + indexName + "]",
                 count,
@@ -286,26 +298,22 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
         assertThat("background indexer did not get any write acked", totalAcked, greaterThan(0L));
     }
 
-    /// Lifts master-side throttling and caps the data nodes to tight concurrency limits
+    private static boolean allShardsSucceeded(ObjectPath response) throws IOException {
+        final int total = response.evaluate("_shards.total");
+        final int successful = response.evaluate("_shards.successful");
+        final int failed = response.evaluate("_shards.failed");
+        return successful == total && failed == 0;
+    }
+
+    private static void assertAllShardsSucceeded(String description, ObjectPath response) throws IOException {
+        assertTrue(description + " did not succeed on all shards: " + response.evaluate("_shards"), allShardsSucceeded(response));
+    }
+
+    /// Lifts master-side throttling and caps the data nodes to tight concurrency limits.
     private static Settings tightDataNodeRecoveryThrottlingSettings() {
         return Settings.builder()
             // unthrottle the master-side deciders
-            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(
-                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-                Integer.MAX_VALUE
-            )
-            .put(
-                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
-                Integer.MAX_VALUE
-            )
-            .put(
-                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
-                Integer.MAX_VALUE
-            )
-            .put("cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries", "0b")
-            .put("cluster.routing.allocation.concurrent_primary_recoveries_per_heap_gb", Integer.MAX_VALUE)
-            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
+            .loadFromMap(DefaultStatelessSettingsProvider.UNTHROTTLED_MASTER_RECOVERY_SETTINGS)
             // and throttle on the data nodes instead
             .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), between(1, 3))
             .put(
@@ -449,13 +457,6 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
                 incompleteSearches,
                 failedSearches
             );
-        }
-
-        private static boolean allShardsSucceeded(ObjectPath response) throws IOException {
-            final int total = response.evaluate("_shards.total");
-            final int successful = response.evaluate("_shards.successful");
-            final int failed = response.evaluate("_shards.failed");
-            return successful == total && failed == 0;
         }
     }
 }

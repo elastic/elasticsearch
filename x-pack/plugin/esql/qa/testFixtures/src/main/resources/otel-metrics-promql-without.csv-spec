@@ -242,8 +242,7 @@ result:double | step:datetime            | _timeseries:keyword
 ;
 
 // The outer without names a passthrough attribute by its alias: it is left out of the inner packing at its field path.
-// Ignored until a without over a without is accepted.
-nested_without_over_passthrough_attributes_outer_alias-Ignore
+nested_without_over_passthrough_attributes_outer_alias
 required_capability: promql_command_v0
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
@@ -259,8 +258,7 @@ result:double | step:datetime            | _timeseries:keyword
 ;
 
 // The inner without names the attribute by its field name and the outer one by its alias.
-// Ignored until a without over a without is accepted.
-nested_without_over_passthrough_attributes_inner_field_outer_alias-Ignore
+nested_without_over_passthrough_attributes_inner_field_outer_alias
 required_capability: promql_command_v0
 required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates

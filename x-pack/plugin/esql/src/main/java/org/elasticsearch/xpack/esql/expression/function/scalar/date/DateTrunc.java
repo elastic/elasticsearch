@@ -34,9 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -245,11 +242,9 @@ public class DateTrunc extends EsqlConfigurationFunction implements AnyNullIsNul
             return null;
         }
         Rounding.Prepared rounding = createRounding(interval, zone, null, null);
-        if (field.dataType() == DATE_NANOS
-            && rounding.round(0) < 0
-            && (cmp instanceof LessThan || cmp instanceof LessThanOrEqual || cmp instanceof NotEquals)) {
-            // The first date_nanos values truncate to null when their bucket starts before 1970, but a range without a lower
-            // bound would match them
+        if (field.dataType() == DATE_NANOS && rounding.round(0) < 0) {
+            // The first date_nanos values truncate to null when their bucket starts before 1970, and no range on the field keeps
+            // that null
             return null;
         }
         long literalMillis = DateFunctionLiterals.toMillis(literalEpoch, field.dataType());

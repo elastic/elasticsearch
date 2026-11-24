@@ -29,6 +29,14 @@ restResources {
   }
 }
 
+// Unit tests parse index.sort expressions with ES|QL. Test nodes find its parser on the classpath even without the plugin, so keep
+// it off the internal cluster tests.
+configurations {
+  internalClusterTestRuntimeClasspath {
+    exclude group: 'org.elasticsearch.plugin', module: 'esql'
+  }
+}
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
   implementation project(':modules:mapper-extras')

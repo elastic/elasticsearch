@@ -380,19 +380,20 @@ public class DateFunctionComparisonRewriterTests extends ESTestCase {
     }
 
     /**
-     * The week of 1970-01-01 starts in 1969, so the first {@code date_nanos} values truncate to null. Comparisons whose range has
-     * no lower bound would match them, so they're left alone, while ranges that start after them are still rewritten.
+     * The week of 1970-01-01 starts in 1969, so the first {@code date_nanos} values truncate to null, which no range on the field
+     * keeps: comparisons on such buckets are left alone.
      */
-    public void testDateTruncNanosBucketsBeforeEpoch() {
+    public void testDateTruncNanosBucketsBeforeEpochUnchanged() {
         FieldAttribute ts = nanosField();
         Literal week = new Literal(SRC, Period.ofWeeks(1), DataType.DATE_PERIOD);
         Configuration cfg = utc();
         Literal literal = new Literal(SRC, DateUtils.toNanoSeconds(JULY_13_2026_UTC), DataType.DATE_NANOS);
+        assertNull(invert(eq(trunc(week, ts, cfg), literal)));
+        assertNull(invert(neq(trunc(week, ts, cfg), literal)));
+        assertNull(invert(gt(trunc(week, ts, cfg), literal)));
+        assertNull(invert(gte(trunc(week, ts, cfg), literal)));
         assertNull(invert(lt(trunc(week, ts, cfg), literal)));
         assertNull(invert(lte(trunc(week, ts, cfg), literal)));
-        assertNull(invert(neq(trunc(week, ts, cfg), literal)));
-        assertGte(invert(gte(trunc(week, ts, cfg), literal)), ts, DateUtils.toNanoSeconds(JULY_13_2026_UTC), DataType.DATE_NANOS);
-        assertNotNull(invert(eq(trunc(week, ts, cfg), literal)));
         // A year starts on 1970-01-01, so no value truncates to null
         Literal year = new Literal(SRC, DateUtils.toNanoSeconds(YEAR_2026), DataType.DATE_NANOS);
         assertLt(invert(lt(trunc(yearInterval(), ts, cfg), year)), ts, DateUtils.toNanoSeconds(YEAR_2026), DataType.DATE_NANOS);

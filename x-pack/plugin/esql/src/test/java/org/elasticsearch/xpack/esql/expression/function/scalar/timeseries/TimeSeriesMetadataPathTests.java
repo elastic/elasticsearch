@@ -52,6 +52,20 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
                     equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b")))
                 )
             );
+            // A null or empty value reads as absent, as TS_SET writes an absent label.
+            suppliers.add(read("null value", keyType, "{\"pod\":null}", "pod", nullValue()));
+            suppliers.add(read("empty value", keyType, "{\"pod\":\"\"}", "pod", nullValue()));
+            suppliers.add(read("null and empty elements", keyType, "{\"pod\":[null,\"\"]}", "pod", nullValue()));
+            suppliers.add(read("one value among nulls", keyType, "{\"pod\":[null,\"a\",\"\"]}", "pod", equalTo(new BytesRef("a"))));
+            suppliers.add(
+                read(
+                    "values among nulls",
+                    keyType,
+                    "{\"pod\":[\"b\",null,\"a\"]}",
+                    "pod",
+                    equalTo(List.of(new BytesRef("b"), new BytesRef("a")))
+                )
+            );
             suppliers.add(
                 read(
                     "escaped name and value",

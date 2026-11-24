@@ -18,6 +18,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Evaluates {@link TimeSeriesMetadataPath}: the values of one key, null when the key is absent. */
 final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFunction.AbstractEvaluator {
@@ -43,17 +45,35 @@ final class TimeSeriesMetadataPathEvaluator extends AbstractTimeSeriesMetadataFu
         if (container != null) {
             try (XContentParser parser = parser(container)) {
                 if (find(parser, "", key)) {
+                    // A null or empty value reads as absent, as TS_SET writes an absent label.
                     if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                        result.beginPositionEntry();
+                        List<BytesRef> values = new ArrayList<>();
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            result.appendBytesRef(new BytesRef(parser.text()));
+                            if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                                String value = parser.text();
+                                if (value.isEmpty() == false) {
+                                    values.add(new BytesRef(value));
+                                }
+                            }
                         }
-                        result.endPositionEntry();
-                        return;
-                    }
-                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
-                        result.appendBytesRef(new BytesRef(parser.text()));
-                        return;
+                        if (values.size() == 1) {
+                            result.appendBytesRef(values.getFirst());
+                            return;
+                        }
+                        if (values.size() > 1) {
+                            result.beginPositionEntry();
+                            for (BytesRef value : values) {
+                                result.appendBytesRef(value);
+                            }
+                            result.endPositionEntry();
+                            return;
+                        }
+                    } else if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        String value = parser.text();
+                        if (value.isEmpty() == false) {
+                            result.appendBytesRef(new BytesRef(value));
+                            return;
+                        }
                     }
                 }
             }

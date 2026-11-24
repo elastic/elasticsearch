@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -52,19 +53,20 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
                 "{\"job\":\"api\",\"key\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\",\"pod\":\"a\"}"
             )
         );
-        suppliers.add(new TestCaseSupplier("several values", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
-            List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(keys), DataType.KEYWORD, "metadata"),
-                new TestCaseSupplier.TypedData(new BytesRef("pod"), DataType.KEYWORD, "key").forceLiteral(),
-                new TestCaseSupplier.TypedData(List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")), DataType.KEYWORD, "value")
-            );
-            return new TestCaseSupplier.TestCase(
-                data,
-                evaluator("pod"),
-                DataType.KEYWORD,
-                equalTo(new BytesRef("{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"))
-            );
-        }));
+        suppliers.add(
+            set(
+                "several values",
+                keys,
+                "pod",
+                List.of(new BytesRef("b"), new BytesRef(""), new BytesRef("c")),
+                "{\"job\":\"api\",\"pod\":[\"b\",\"c\"]}"
+            )
+        );
+        // A missing value removes the key and a missing metadata is the empty one, each beside the other argument set.
+        suppliers.add(set("null value removes the key", keys, "pod", null, "{\"job\":\"api\"}"));
+        suppliers.add(set("null value of an absent key", keys, "env", null, keys));
+        suppliers.add(set("null metadata", null, "pod", "a", "{\"pod\":\"a\"}"));
+        suppliers.add(set("null metadata and empty value", null, "pod", "", "{}"));
         // The metadata is the source document: objects nest as in the mapping, and a key is written at its path.
         String source = "{\"labels\":{\"job\":\"api\",\"pod\":\"a\"},\"region\":\"eu\"}";
         suppliers.add(
@@ -111,12 +113,13 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
             + ", value=Attribute[channel=1]]";
     }
 
-    private static TestCaseSupplier set(String name, String metadata, String key, String value, String expected) {
+    /** Sets {@code key} to {@code value}: a string, a list of {@link BytesRef} for several values, or null. */
+    private static TestCaseSupplier set(String name, @Nullable String metadata, String key, @Nullable Object value, String expected) {
         return new TestCaseSupplier(name, List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(metadata), DataType.KEYWORD, "metadata"),
+                new TestCaseSupplier.TypedData(metadata == null ? null : new BytesRef(metadata), DataType.KEYWORD, "metadata"),
                 new TestCaseSupplier.TypedData(new BytesRef(key), DataType.KEYWORD, "key").forceLiteral(),
-                new TestCaseSupplier.TypedData(new BytesRef(value), DataType.KEYWORD, "value")
+                new TestCaseSupplier.TypedData(value instanceof String s ? new BytesRef(s) : value, DataType.KEYWORD, "value")
             );
             return new TestCaseSupplier.TestCase(data, evaluator(key), DataType.KEYWORD, equalTo(new BytesRef(expected)));
         });

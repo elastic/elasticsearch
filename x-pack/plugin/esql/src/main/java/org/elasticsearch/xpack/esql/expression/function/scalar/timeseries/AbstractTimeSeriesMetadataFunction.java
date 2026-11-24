@@ -125,7 +125,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
      * synthetic source writes it: objects nest as the mapping does and keys are sorted in every object. A key is named by its
      * field path, see {@link #find}. Every function streams over the container: a read stops at its key, and a rewrite copies
      * the fields it keeps in their order, writing a set key at its sorted position, so it writes metadata in the
-     * same form and equal key sets get equal bytes.
+     * same form: two series with the same labels and values get equal bytes, whichever functions produced them.
      * <p>
      * When the other arguments are constant on a page, the result depends on the metadata alone: constant metadata
      * is evaluated once, and a dictionary encoded one once per dictionary entry.

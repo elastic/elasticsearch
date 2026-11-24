@@ -1172,7 +1172,8 @@ public abstract class TransportReplicationAction<
         }
 
         void retry(Exception failure) {
-            retry(failure, true);
+            // the request was not sent in this attempt, so it cannot have been executed
+            retry(failure, false);
         }
 
         void retry(Exception failure, boolean possiblyExecuted) {

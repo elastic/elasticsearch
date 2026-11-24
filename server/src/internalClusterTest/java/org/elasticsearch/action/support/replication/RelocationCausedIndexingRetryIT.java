@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.replication.TransportReplicationActionTests.getRoutedBasedOnClusterVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
@@ -41,6 +43,18 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
     }
 
     public void testPrimaryRelocationShouldNotMarkIndexRequestAsRetry() throws Exception {
+        assertPrimaryRelocationDoesNotMarkIndexRequestAsRetry(false);
+    }
+
+    /**
+     * The relocation source can apply the cluster state that completes the relocation before the target does. The target then cannot
+     * route the request it is sent, and retries it in the reroute phase once it has caught up.
+     */
+    public void testPrimaryRelocationToTargetWithStaleClusterStateShouldNotMarkIndexRequestAsRetry() throws Exception {
+        assertPrimaryRelocationDoesNotMarkIndexRequestAsRetry(true);
+    }
+
+    private void assertPrimaryRelocationDoesNotMarkIndexRequestAsRetry(boolean targetHasStaleClusterState) throws Exception {
         String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
@@ -48,6 +62,11 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
         ensureGreen("index1");
         indexRandom(randomBoolean(), "index1", randomIntBetween(10, 100));
         flush("index1");
+
+        final var blockNode2ClusterState = new BlockClusterStateProcessing(node2, random());
+        if (targetHasStaleClusterState) {
+            internalCluster().setDisruptionScheme(blockNode2ClusterState);
+        }
 
         var handOffReceivedLatch = new CountDownLatch(1);
         var continueRelocationLatch = new CountDownLatch(1);
@@ -72,6 +91,10 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
                 handOffReceivedLatch.countDown();
                 logger.info("==> waiting to continue relocation...");
                 safeAwait(continueRelocationLatch);
+                if (targetHasStaleClusterState) {
+                    // node2 will not apply the cluster state that completes the relocation until this is released
+                    blockNode2ClusterState.startDisrupting();
+                }
                 handler.messageReceived(request, channel, task);
             }
         );
@@ -85,6 +108,16 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
                     .filter(r -> r.request() instanceof IndexRequest)
                     .allMatch(r -> ((IndexRequest) r.request()).isRetry() == false)
             );
+            if (targetHasStaleClusterState) {
+                assertThat(
+                    internalCluster().clusterService(node2).state().version(),
+                    lessThan(getRoutedBasedOnClusterVersion(bulkShardRequest))
+                );
+                // the reroute phase waits for a newer cluster state before it retries
+                handler.messageReceived(request, channel, task);
+                blockNode2ClusterState.stopDisrupting();
+                return;
+            }
             // We need to wait for the cluster state to advance to the version of the request, otherwise the request will be retried in the
             // reroute phase.
             ClusterServiceUtils.addTemporaryStateListener(

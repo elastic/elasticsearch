@@ -9,7 +9,6 @@
 
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestRequest;
@@ -27,9 +26,9 @@ public final class HttpServerInstrumentations implements HttpServerInstrumentati
     }
 
     @Override
-    public void start(ThreadContext threadContext, RestRequest request, String matchedRoute) {
+    public void start(RestRequest request, String matchedRoute) {
         for (HttpServerInstrumentation instrumentation : instrumentations) {
-            instrumentation.start(threadContext, request, matchedRoute);
+            instrumentation.start(request, matchedRoute);
         }
     }
 
@@ -41,7 +40,7 @@ public final class HttpServerInstrumentations implements HttpServerInstrumentati
     }
 
     @Override
-    public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
-        return Releasables.wrap(instrumentations.reversed().stream().map(i -> i.prepareEnd(threadContext, request, response)).toList());
+    public Releasable prepareEnd(RestRequest request, RestResponse response) {
+        return Releasables.wrap(instrumentations.reversed().stream().map(i -> i.prepareEnd(request, response)).toList());
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.lucene;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,9 +19,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.PluggableMetrics<BlobStoreCacheDirectoryMetrics> {
+public class BlobStoreCacheDirectoryMetrics
+    implements
+        DirectoryMetrics.PluggableMetrics<BlobStoreCacheDirectoryMetrics>,
+        CacheMissWaitMetrics {
 
-    public static final String NAME = "blob_store_cache";
+    public static final String NAME = DirectoryMetrics.BLOB_STORE_CACHE_METRICS_NAME;
 
     public static final String CACHE_MISS_WAIT_NANOS_HEADER = "cache_miss_wait_nanos";
 
@@ -71,10 +75,12 @@ public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.Pluggabl
         waitBytes += bytes;
     }
 
+    @Override
     public long getWaitTime() {
         return waitTime;
     }
 
+    @Override
     public long getWaits() {
         return waits;
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_FORMAT;
@@ -69,35 +70,41 @@ public class EsqlMediaTypeParser {
 
     private static void validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
-            throw invalid("columnar");
+            throw invalid("columnar", fromMediaType);
         }
     }
 
     private static void validateIncludeCCSMetadata(Boolean includeCCSMetadata, MediaType fromMediaType) {
-        if (Boolean.TRUE.equals(includeCCSMetadata) && fromMediaType instanceof TextFormat) {
-            throw invalid("include_ccs_metadata");
+        if (Boolean.TRUE.equals(includeCCSMetadata) && isTabular(fromMediaType)) {
+            throw invalid("include_ccs_metadata", fromMediaType);
         }
     }
 
     private static void validateIncludeExecutionMetadata(Boolean includeExecutionMetadata, MediaType fromMediaType) {
-        if (Boolean.TRUE.equals(includeExecutionMetadata) && fromMediaType instanceof TextFormat) {
-            throw invalid("include_execution_metadata");
+        if (Boolean.TRUE.equals(includeExecutionMetadata) && isTabular(fromMediaType)) {
+            throw invalid("include_execution_metadata", fromMediaType);
         }
     }
 
     private static void validateProfile(boolean profile, MediaType fromMediaType) {
-        if (profile && fromMediaType instanceof TextFormat) {
-            throw invalid("profile");
+        if (profile && isTabular(fromMediaType)) {
+            throw invalid("profile", fromMediaType);
         }
     }
 
-    private static IllegalArgumentException invalid(String argument) {
+    /**
+     * Whether the format is tabular and so can't carry response metadata such as {@code profile} or {@code include_ccs_metadata}.
+     */
+    private static boolean isTabular(MediaType mediaType) {
+        return mediaType instanceof TextFormat || mediaType == ArrowFormat.INSTANCE;
+    }
+
+    private static IllegalArgumentException invalid(String argument, MediaType mediaType) {
+        var formats = mediaType == ArrowFormat.INSTANCE
+            ? List.of(ArrowFormat.INSTANCE.queryParameter())
+            : Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList();
         return new IllegalArgumentException(
-            "Invalid use of ["
-                + argument
-                + "] argument: cannot be used in combination with "
-                + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
-                + " formats"
+            "Invalid use of [" + argument + "] argument: cannot be used in combination with " + formats + " formats"
         );
     }
 

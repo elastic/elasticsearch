@@ -131,6 +131,25 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
         }
     }
 
+    /**
+     * Multiple days are a fixed interval, so they have rounding points just like the same interval in hours.
+     */
+    public void testSubstituteMultipleDaysDateTruncInAggWithRoundTo() {
+        for (String interval : List.of("2 days", "48 hours")) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) by x = date_trunc({}, hire_date)
+                """, interval);
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), TEST_CFG, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            assertEquals(1, eval.fields().size());
+            // 2023-10-20 to 2023-10-23 covers the two day buckets starting at 2023-10-20 and 2023-10-22
+            verifySubstitution(eval.fields().get(0), 2);
+        }
+    }
+
     public void testSubstituteBucketInAggWithRoundTo() {
         for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
             String predicateString = predicate.getKey();

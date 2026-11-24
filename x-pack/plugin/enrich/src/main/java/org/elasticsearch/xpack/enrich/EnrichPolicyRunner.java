@@ -646,11 +646,11 @@ public class EnrichPolicyRunner {
                 enrichIndexName
             );
             if (logger.isDebugEnabled()) {
-                DefaultShardOperationFailedException[] shardFailures = indicesSegmentResponse.getShardFailures();
+                List<DefaultShardOperationFailedException> shardFailures = indicesSegmentResponse.getShardFailures();
                 int failureNumber = 1;
                 String logPrefix = "Policy [" + policyName + "]: Encountered shard failure [";
                 String logSuffix = " of "
-                    + shardFailures.length
+                    + shardFailures.size()
                     + "] while querying segments for enrich index ["
                     + enrichIndexName
                     + "]. Shard [";
@@ -665,10 +665,10 @@ public class EnrichPolicyRunner {
         }
         IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(enrichIndexName);
         if (indexSegments == null) {
-            if (indicesSegmentResponse.getShardFailures().length == 0) {
+            if (indicesSegmentResponse.getShardFailures().isEmpty()) {
                 throw new ElasticsearchException("Could not locate segment information for newly created index [{}]", enrichIndexName);
             } else {
-                DefaultShardOperationFailedException shardFailure = indicesSegmentResponse.getShardFailures()[0];
+                DefaultShardOperationFailedException shardFailure = indicesSegmentResponse.getShardFailures().getFirst();
                 throw new ElasticsearchException(
                     "Could not obtain segment information for newly created index [{}]; shard info [{}][{}]",
                     shardFailure.getCause(),

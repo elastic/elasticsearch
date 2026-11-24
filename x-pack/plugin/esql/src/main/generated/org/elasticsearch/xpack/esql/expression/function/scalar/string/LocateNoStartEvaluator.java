@@ -72,7 +72,7 @@ public final class LocateNoStartEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock substrBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -109,7 +109,7 @@ public final class LocateNoStartEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

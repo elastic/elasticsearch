@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
@@ -60,18 +61,18 @@ public final class SortProcessor extends AbstractProcessor {
         }
     }
 
-    private final String field;
+    private final FieldPath field;
     private final SortOrder order;
-    private final String targetField;
+    private final FieldPath targetField;
 
     SortProcessor(String tag, String description, String field, SortOrder order, String targetField) {
         super(tag, description);
-        this.field = field;
+        this.field = FieldPath.of(field);
         this.order = order;
-        this.targetField = targetField;
+        this.targetField = FieldPath.of(targetField);
     }
 
-    String getField() {
+    FieldPath getField() {
         return field;
     }
 
@@ -79,7 +80,7 @@ public final class SortProcessor extends AbstractProcessor {
         return order;
     }
 
-    String getTargetField() {
+    FieldPath getTargetField() {
         return targetField;
     }
 

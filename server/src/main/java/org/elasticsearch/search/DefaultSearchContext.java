@@ -164,6 +164,9 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
+    /** The breaker the context charges, or {@code null} for the request breaker of the index. */
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -184,6 +187,7 @@ final class DefaultSearchContext extends SearchContext {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.circuitBreaker = circuitBreaker;
         this.currentThreadDirectoryMetricsCapture = currentThreadDirectoryMetricsCapture;
         boolean success = false;
         try {
@@ -983,7 +987,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public CircuitBreaker circuitBreaker() {
-        return indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        return circuitBreaker != null ? circuitBreaker : indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
     @Override

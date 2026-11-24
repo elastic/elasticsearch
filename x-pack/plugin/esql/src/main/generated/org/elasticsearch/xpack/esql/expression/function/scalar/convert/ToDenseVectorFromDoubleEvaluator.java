@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -44,11 +45,11 @@ public final class ToDenseVectorFromDoubleEvaluator extends AbstractConvertFunct
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantFloatBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
+    try (FloatVector.FixedBuilder builder = driverContext.blockFactory().newFloatVectorFixedBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendFloat(evalValue(vector, p));
+        builder.appendFloat(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

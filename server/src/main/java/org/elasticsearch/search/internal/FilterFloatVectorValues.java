@@ -83,6 +83,11 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues implemen
     }
 
     @Override
+    public void prefetch(int[] ordsToPrefetch, int numOrds) throws IOException {
+        in.prefetch(ordsToPrefetch, numOrds);
+    }
+
+    @Override
     public IndexInput getSlice() {
         return slice;
     }

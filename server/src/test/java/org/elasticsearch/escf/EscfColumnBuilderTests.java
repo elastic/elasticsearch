@@ -831,6 +831,56 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertEquals(List.of(1L, 2L, 3L), unionArrayLongs(col, 1));
     }
 
+    // A double's stored spelling (#163555) lives in the dense DOUBLE column's sidecar. Part 1 keeps it only there:
+    // a column that is promoted to a union drops its spellings, pinned below until part 2 carries them in union rows.
+
+    public void testPromotionToUnionDropsTheSpelling() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.addDouble(1.9, utf8("1.90"));
+        b.addDouble(2.5);
+        b.addAbsent();
+        b.addString(utf8("x"));
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.UNION, data.kind());
+        assertNull("a union has no spellings sidecar", data.lexicalForms());
+        EscfColumn col = EscfColumn.from(data);
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(0));
+        assertEquals(1.9, col.getDoubleValue(0), 0.0);
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(1));
+        assertEquals(2.5, col.getDoubleValue(1), 0.0);
+        assertTrue(col.isAbsent(2));
+        assertEquals("x", col.getStringValue(3).string());
+    }
+
+    public void testDoubleColumnWithSpellingStaysDouble() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.addAbsent();
+        b.addDouble(2.5);
+        b.addDouble(1.9, utf8("1.90"));
+        b.addAbsent();
+        EscfColumnData data = b.finish(4);
+        assertEquals(EscfColumnKind.DOUBLE, data.kind());
+        assertNotNull(data.lexicalForms());
+        EscfColumn col = EscfColumn.from(data);
+        assertTrue(col.isAbsent(0));
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(1));
+        assertEquals("2.5", col.getStringValue(1).string());
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(2));
+        assertEquals("1.90", col.getStringValue(2).string());
+        assertEquals(1.9, col.getDoubleValue(2), 0.0);
+        assertTrue(col.isAbsent(3));
+    }
+
+    public void testRawFixed64CarriesTheSpelling() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.setRawFixed64(0, EscfColumnKind.DOUBLE, Double.doubleToRawLongBits(1.9), bytesRef("1.90"));
+        b.setRawFixed64(1, EscfColumnKind.DOUBLE, Double.doubleToRawLongBits(2.5), null);
+        EscfColumn col = EscfColumn.from(b.finish(2));
+        assertEquals(EscfColumnKind.DOUBLE, col.kind());
+        assertEquals("1.90", col.getStringValue(0).string());
+        assertEquals(SourceValueType.DOUBLE, col.getTypeByte(1));
+    }
+
     private static List<Long> unionArrayLongs(EscfColumn col, int row) {
         ArrayReader r = col.getArrayValue(row);
         List<Long> out = new ArrayList<>();
@@ -838,6 +888,25 @@ public class EscfColumnBuilderTests extends ESTestCase {
             out.add(r.type() == SourceValueType.INT ? (long) r.intValue() : r.longValue());
         }
         return out;
+    }
+
+    public void testRepeatLastRowKeepsSpellings() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.SPLIT);
+        b.addDouble(1.9, utf8("1.90"));
+        b.repeatLastRow(2);
+        b.addDouble(2.5);
+        b.repeatLastRow(1);
+        EscfColumnData data = b.finish(5);
+        assertEquals(EscfColumnKind.DOUBLE, data.kind());
+        EscfColumn col = EscfColumn.from(data);
+        for (int r = 0; r < 3; r++) {
+            assertEquals("row " + r, "1.90", col.getStringValue(r).string());
+            assertEquals("row " + r, 1.9, col.getDoubleValue(r), 0.0);
+        }
+        for (int r = 3; r < 5; r++) {
+            assertEquals("row " + r, "2.5", col.getStringValue(r).string());
+            assertEquals("row " + r, 2.5, col.getDoubleValue(r), 0.0);
+        }
     }
 
     public void testRepeatLastRowLong() {

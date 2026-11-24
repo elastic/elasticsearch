@@ -95,12 +95,12 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     @Override
     public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
-        return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+        return factory.newDoubleBlockBuilder(expectedCount, true).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
     }
 
     @Override
     public BlockLoader.DoubleBuilder doubles(int expectedCount) {
-        return factory.newDoubleBlockBuilder(expectedCount);
+        return factory.newDoubleBlockBuilder(expectedCount, true);
     }
 
     @Override
@@ -110,22 +110,22 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     @Override
     public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
-        return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+        return factory.newIntBlockBuilder(expectedCount, true).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
     }
 
     @Override
     public BlockLoader.IntBuilder ints(int expectedCount) {
-        return factory.newIntBlockBuilder(expectedCount);
+        return factory.newIntBlockBuilder(expectedCount, true);
     }
 
     @Override
     public BlockLoader.LongBuilder longsFromDocValues(int expectedCount) {
-        return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+        return factory.newLongBlockBuilder(expectedCount, true).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
     }
 
     @Override
     public BlockLoader.LongBuilder longs(int expectedCount) {
-        return factory.newLongBlockBuilder(expectedCount);
+        return factory.newLongBlockBuilder(expectedCount, true);
     }
 
     @Override

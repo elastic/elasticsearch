@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
@@ -44,11 +45,11 @@ public final class ToDenseVectorFromIntEvaluator extends AbstractConvertFunction
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantFloatBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
+    try (FloatVector.FixedBuilder builder = driverContext.blockFactory().newFloatVectorFixedBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendFloat(evalValue(vector, p));
+        builder.appendFloat(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

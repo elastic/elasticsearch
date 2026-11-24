@@ -20,7 +20,7 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
  * over multiple leaves.
  */
 abstract class AbstractMaxScoreKnnCollector extends AbstractKnnCollector {
-    public static final long LEAST_COMPETITIVE = NeighborQueue.encodeRaw(Integer.MAX_VALUE, Float.NEGATIVE_INFINITY);
+    public static final long LEAST_COMPETITIVE = NeighborQueue.encodeLeastCompetitive(Float.NEGATIVE_INFINITY);
 
     protected AbstractMaxScoreKnnCollector(int k, long visitLimit, KnnSearchStrategy searchStrategy) {
         super(k, visitLimit, searchStrategy);

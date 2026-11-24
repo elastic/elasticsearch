@@ -11,8 +11,7 @@
             api_key: test-key
 
   - do:
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-non-streaming-cc
         body:
           messages:
@@ -38,8 +37,7 @@
   # rather than Elasticsearch's standard error envelope.
   - do:
       catch: missing
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: does-not-exist
         body:
           messages:

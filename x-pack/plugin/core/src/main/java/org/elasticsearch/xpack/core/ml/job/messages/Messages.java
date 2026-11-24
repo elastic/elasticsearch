@@ -25,6 +25,9 @@ public final class Messages {
     public static final String DATAFEED_ESQL_DELAYED_DATA_MISSING_SUMMARY_COUNT_COLUMN =
         "The ES|QL query must produce the summary_count_field_name [{0}] as a numeric count column when delayed-data checking is "
             + "enabled; produce a numeric count column and set summary_count_field_name, or disable delayed-data checking";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_SUMMARY_COUNT_NOT_INTEGER =
+        "The summary_count_field_name column [{0}] has type [{1}]. When delayed-data checking is enabled, this column must have type "
+            + "long or integer. Use COUNT(*) to produce the column, or disable delayed-data checking";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =
@@ -43,14 +46,11 @@ public final class Messages {
     /** Arg {0} of the ES|QL datafeed messages below: the subject without and with the datafeed id. */
     public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
-    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE =
-        "{0} source_time_field [{1}] resolves to type [{2}] on the queried source, but must be date or date_nanos; "
-            + "source_time_field must name the raw indexed timestamp field on the source, not an alias produced by STATS, BUCKET, "
-            + "or EVAL.";
-    public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_UNRESOLVED =
-        "{0} source_time_field [{1}] could not be resolved as a field on the queried source: {2}; "
-            + "source_time_field must name the raw indexed timestamp field on the source, not an alias produced by STATS, BUCKET, "
-            + "or EVAL.";
+    public static final String DATAFEED_ESQL_DESCRIBE_UNAVAILABLE =
+        "{0} cannot be validated in this build. Validation uses the ES|QL DESCRIBE command, which is only available in snapshot builds.";
+    public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
+        "{0} query contains an outer LIMIT clause. It caps every extraction chunk and the delayed data check, so remove it.";
+    public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";
@@ -92,17 +92,8 @@ public final class Messages {
         + DATAFEED_ESQL_EMITTED_TIME_WINDOW
         + " "
         + DATAFEED_ESQL_EMITTED_TIME_ALIGNMENT;
-    public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
     public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
-    public static final String DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING =
-        "{0} query contains an outer WHERE clause on job time field [{1}]; remove the time-field WHERE clause because ML owns the request "
-            + "window.";
-    public static final String DATAFEED_ESQL_OUTER_TIME_SORT_WARNING =
-        "{0} query contains an outer SORT clause on job time field [{1}]; remove or change the time-field SORT clause because ML owns the "
-            + "request order.";
-    public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
-        "{0} query contains an outer LIMIT clause; remove it because ML owns the safety ceiling.";
     public static final String DATAFEED_ESQL_QUERY_CANCELLED = "ES|QL query was cancelled";
     public static final String DATAFEED_ESQL_RESPONSE_MISSING_COLUMN = "ESQL query response is missing the required columns: {0}";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =
@@ -121,8 +112,8 @@ public final class Messages {
         "Cannot create datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
     public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
-        "ES|QL datafeeds currently do not support remote cluster sources, but the index expression [{0}] in the "
-            + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
+        "{0} reads remote cluster [{1}] through index expression [{2}]. "
+            + "ES|QL datafeeds do not support remote cluster sources. Remove the cluster prefix and query local indices only.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "
@@ -132,6 +123,11 @@ public final class Messages {
     public static final String DATAFEED_ESQL_UPDATE_UPGRADE_IN_PROGRESS =
         "Cannot update datafeed [{0}] while a cluster upgrade is in progress ({1}); "
             + "wait for the cluster to finish upgrading and try again.";
+    public static final String DATAFEED_ESQL_INCOMPLETE_CHUNK =
+        "Within [{0}, {1}) at least one ES|QL datafeed chunk reached its row limit. "
+            + "Rows beyond the limit were not retrieved and will not be extracted again. "
+            + "Use a smaller grouping interval in esql_query. "
+            + "Aggregate the data or add a filter to reduce the number of rows per chunk.";
     public static final String DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED =
         "ES|QL datafeeds require chunking to remain enabled; grouping-interval alignment and truncation detection "
             + "depend on it; do not set chunking_config.mode to off";

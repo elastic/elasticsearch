@@ -22,21 +22,37 @@ import org.elasticsearch.core.ReleasableIterator;
  * offsets of each row in the table.
  */
 public abstract sealed class RowInTableLookup implements Releasable permits EmptyRowInTableLookup, AscendingSequenceRowInTableLookup,
-    BlockHashRowInTableLookup {
+    BlockHashRowInTableLookup, RepeatedKeyBlockHashRowInTableLookup {
     /**
-     * Lookup the values in the {@link Page} and, for each row, return the offset in the
-     * table that was provided when building the lookup.
+     * Look up the values in the {@link Page} and, for each row, return the offsets of the matching rows
+     * in the table that was provided when building the lookup.
      * <p>
      *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
      *     inside the {@link Page}. Close it to release those references.
      * </p>
+     * <p>
+     *     Lookups don't modify the table and build their results with {@code blockFactory} rather
+     *     than the table's factory, so several threads may probe one table at once, each charging
+     *     its own breaker.
+     * </p>
      */
-    public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
+    public abstract ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize);
 
     @Override
     public abstract String toString();
 
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys) {
+        return build(blockFactory, keys, false);
+    }
+
+    /**
+     * Allow repeated build keys for callers that need every match, without relaxing the unique-key contract for other callers.
+     * <p>
+     *     Repeated-key builds require every key component to be non-null. A caller that filters out rows with null keys must
+     *     filter the matching build-side values the same way, because the returned offsets index the rows in {@code keys}.
+     * </p>
+     */
+    public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys) {
         if (keys.length < 1) {
             throw new IllegalArgumentException("expected [keys] to be non-empty");
         }
@@ -53,10 +69,13 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
             }
         }
         if (positions == 0) {
-            return new EmptyRowInTableLookup(blockFactory);
+            return new EmptyRowInTableLookup();
+        }
+        if (repeatedKeys) {
+            return new RepeatedKeyBlockHashRowInTableLookup(blockFactory, keys);
         }
         if (keys.length == 1) {
-            RowInTableLookup lookup = single(blockFactory, keys[0]);
+            RowInTableLookup lookup = single(keys[0]);
             if (lookup != null) {
                 return lookup;
             }
@@ -68,7 +87,7 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      * Build a {@link RowInTableLookup} for a single {@link Block} or returns {@code null}
      * if we don't have a special implementation for this single block.
      */
-    private static RowInTableLookup single(BlockFactory blockFactory, Block b) {
+    private static RowInTableLookup single(Block b) {
         if (b.elementType() != ElementType.INT) {
             return null;
         }
@@ -82,6 +101,6 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
                 return null;
             }
         }
-        return new AscendingSequenceRowInTableLookup(blockFactory, first, first + v.getPositionCount());
+        return new AscendingSequenceRowInTableLookup(first, first + v.getPositionCount());
     }
 }

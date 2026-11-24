@@ -18,6 +18,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.plugins.internal.MeteringModel;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -68,6 +69,21 @@ abstract class AbstractFixed64Column extends EscfColumn {
         PresentDocIterator present = presentDocs();
         for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
             sizes[d] += Long.BYTES;
+        }
+    }
+
+    @Override
+    public final void addMeteredSizes(long[] sizes, MeteringModel model) {
+        final long numberBytes = model.numberBytes();
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += numberBytes;
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += numberBytes;
         }
     }
 

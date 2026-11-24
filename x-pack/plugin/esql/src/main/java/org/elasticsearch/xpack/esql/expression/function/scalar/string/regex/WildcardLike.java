@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -49,6 +50,9 @@ public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNull
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "STRING", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "STRING", "keyword", "boolean" }, returnType = "boolean") },
         briefSummary = "Filters data based on string patterns using wildcards.",
         description = """
             Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`

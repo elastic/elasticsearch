@@ -10,9 +10,19 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.6.0 [elasticsearch-9.6.0-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
+
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes such as `[a-z]+` and `foo|bar` are unaffected, but patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
-This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859).
+  This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859).
 
   Refer to [#164857](https://github.com/elastic/elasticsearch/issues/164857) for further details.
 
@@ -25,6 +35,16 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
   Refer to [#163402](https://github.com/elastic/elasticsearch/issues/163402) for further details.
 
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
+
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
 
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
@@ -39,6 +59,16 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
 ## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
 
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
@@ -65,6 +95,16 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
 
 ## 9.5.0 [elasticsearch-9.5.0-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten without the password and secure settings are then reloaded.
+
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
+
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
   This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
@@ -80,6 +120,20 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
   This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
 
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
+* Shards can fail to allocate after an upgrade when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.5.1. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
+
+## 9.4.0 [elasticsearch-9.4.0-known-issues]
+
+* Shards can fail to allocate after an upgrade to {{es}} 9.4.0 through 9.4.4 when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.4.5. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
 
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
 

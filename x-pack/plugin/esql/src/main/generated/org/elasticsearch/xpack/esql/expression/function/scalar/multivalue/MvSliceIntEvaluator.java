@@ -68,7 +68,7 @@ public final class MvSliceIntEvaluator implements ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, IntBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {

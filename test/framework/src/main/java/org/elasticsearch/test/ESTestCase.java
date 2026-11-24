@@ -151,6 +151,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -183,6 +184,7 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -217,6 +219,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -229,6 +232,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -252,6 +256,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
+@RunWith(ESRandomizedRunner.class)
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
@@ -3143,6 +3148,30 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to {@link #SAFE_AWAIT_TIMEOUT} for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue) {
+        return safePoll(queue, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Retrieve and remove the head of the given {@link BlockingQueue}, waiting up to the given timeout for an element to become
+     * available, preserving the thread's interrupt status flag and asserting that an element was indeed available before the timeout.
+     */
+    public static <T> T safePoll(BlockingQueue<T> queue, TimeValue timeout) {
+        try {
+            final var element = queue.poll(timeout.millis(), TimeUnit.MILLISECONDS);
+            assertNotNull("safePoll: no element available within the timeout", element);
+            return element;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safePoll: interrupted waiting for an element of the queue");
+            return null;
+        }
+    }
+
+    /**
      * Wait for all tasks currently running or enqueued on the given executor to complete.
      */
     public static void flushThreadPoolExecutor(ThreadPool threadPool, String executorName) {
@@ -3318,6 +3347,31 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static void runInParallel(Runnable... tasks) {
         runInParallel(tasks.length, i -> tasks[i].run());
+    }
+
+    /**
+     * Runs {@code task} to completion on a new thread other than the calling one, which waits for it. Any failure of the task, including
+     * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
+     */
+    public static void onOtherThread(CheckedRunnable<Exception> task) {
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "TEST-onOtherThread");
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the task on the other thread", e);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
     }
 
     public static void ensureAllContextsReleased(SearchService searchService) {

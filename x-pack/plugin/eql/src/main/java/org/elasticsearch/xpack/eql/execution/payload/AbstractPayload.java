@@ -11,13 +11,15 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.session.Payload;
 
+import java.util.List;
+
 public abstract class AbstractPayload implements Payload {
 
     private final boolean timedOut;
     private final TimeValue timeTook;
-    private ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
 
-    protected AbstractPayload(boolean timedOut, TimeValue timeTook, ShardSearchFailure[] shardFailures) {
+    protected AbstractPayload(boolean timedOut, TimeValue timeTook, List<ShardSearchFailure> shardFailures) {
         this.timedOut = timedOut;
         this.timeTook = timeTook;
         this.shardFailures = shardFailures;
@@ -34,7 +36,7 @@ public abstract class AbstractPayload implements Payload {
     }
 
     @Override
-    public ShardSearchFailure[] shardFailures() {
+    public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
     }
 }

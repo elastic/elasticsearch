@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166116
+summary: Keep the store fault when an external-read retry is refused
+type: bug

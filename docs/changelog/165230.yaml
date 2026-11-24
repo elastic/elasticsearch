@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 165230
+summary: Let ingest processors use a pre-parsed `FieldPath`
+type: enhancement

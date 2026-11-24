@@ -101,6 +101,23 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey(query, "k"), equalTo(SINGLE));
     }
 
+    /**
+     * The walk searches the fields of an {@code EVAL} or {@code ROW} backwards from the last field it took. These chains skip fields,
+     * take several steps in one node, and leave the node after a step in it, where the next node must be searched in full.
+     */
+    public void testChainThroughFieldsOfTheSameNode() {
+        String skipsFields = "FROM test | EVAL a = MV_MIN(languages), b = 1, c = a, d = salary, k = c | STATS n = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(skipsFields, "k"), equalTo(SINGLE));
+
+        String endsAtUnknown = "FROM test | EVAL a = languages, b = MV_MIN(languages), c = a, k = c | STATS n = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(endsAtUnknown, "k"), equalTo(MAYBE_MULTI));
+
+        String leavesTheEval = "FROM test | EVAL k0 = MV_MIN(languages) | EVAL a = k0, b = 1, k = a | STATS n = COUNT(*) BY k";
+        assertThat(cardinalityOfKey(leavesTheEval, "k"), equalTo(SINGLE));
+
+        assertThat(cardinalityOfKey("ROW a = 1, b = [1, 2], c = a, k = c | STATS n = COUNT(*) BY k", "k"), equalTo(SINGLE));
+    }
+
     public void testRenameOfSingleIsSingle() {
         String query = "FROM test | EVAL a = MV_MAX(languages) | RENAME a AS k | STATS c = COUNT(*) BY k";
         assertThat(cardinalityOfKey(query, "k"), equalTo(SINGLE));
@@ -277,16 +294,15 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * A chain longer than the parser allows an expression to be nested answers unknown, and does so without recursing to the end
-     * of the chain on the test thread's stack.
+     * The walk follows a chain of any length to its end. It is a loop, so a long chain does not overflow the stack.
      */
-    public void testVeryLongAliasChainIsUnknownAndDoesNotOverflow() {
+    public void testVeryLongAliasChainIsFollowedWithoutOverflow() {
         StringBuilder query = new StringBuilder("FROM test | EVAL a0 = MV_MIN(languages)");
         for (int i = 1; i < DEEP_ALIASES; i++) {
             query.append(", a").append(i).append(" = a").append(i - 1);
         }
         query.append(" | STATS c = COUNT(*) BY a").append(DEEP_ALIASES - 1);
-        assertThat(cardinalityOfKey(query.toString(), "a" + (DEEP_ALIASES - 1)), equalTo(MAYBE_MULTI));
+        assertThat(cardinalityOfKey(query.toString(), "a" + (DEEP_ALIASES - 1)), equalTo(SINGLE));
     }
 
     public void testFieldFlaggedByTheMappingIsSingle() {

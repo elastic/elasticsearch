@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirs
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -47,7 +46,7 @@ import java.util.List;
  * single-valued. {@link #MAYBE_MULTI} means unknown: the expression is not proven single-valued, but it is not known to be
  * multi-valued either.
  * <p>
- * The answer is found by recursing through the plan. The recursion returns {@code SINGLE} when it finds:
+ * The answer is found by walking down the plan. The walk returns {@code SINGLE} when it finds:
  * <ul>
  *   <li>a scalar literal;</li>
  *   <li>the output of {@code MV_MIN}, {@code MV_MAX}, {@code MV_FIRST}, {@code MV_LAST} or {@code MV_COUNT}, which reduce any
@@ -62,11 +61,6 @@ import java.util.List;
 enum ValueCardinality {
     SINGLE,
     MAYBE_MULTI;
-
-    /**
-     * Longest chain of aliases and plan nodes to follow. A longer chain answers {@link #MAYBE_MULTI}.
-     */
-    private static final int MAX_DEPTH = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
     /**
      * Whether {@code expression} is single-valued in the output of {@code plan}: the columns that it reads are columns that
@@ -87,134 +81,99 @@ enum ValueCardinality {
      * expression of one of these nodes, pass the node itself.
      */
     static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
-        return ofExpression(expression, plan, 0);
-    }
+        // A loop, not recursion: each step has at most one next step, so the walk needs no stack and no depth limit. It ends,
+        // because each step either moves to the child of plan, or to an earlier field of the same EVAL or ROW.
+        // An EVAL or ROW field can only read earlier fields of the same node. After the walk takes the field at index i of
+        // fieldsOwner, it only needs to search the fields before i. This keeps a long chain of aliases linear, not quadratic.
+        LogicalPlan fieldsOwner = null;
+        int fieldsEnd = 0;
+        while (true) {
+            expression = Alias.unwrap(expression);
+            if (expression instanceof Attribute == false) {
+                return ofComputedValue(expression);
+            }
+            Attribute attribute = (Attribute) expression;
 
-    /**
-     * Follows {@code attribute} down {@code plan} to the node that produced it. In the examples, the key of the last {@code STATS} is
-     * the attribute that is asked about.
-     */
-    private static ValueCardinality ofAttribute(Attribute attribute, LogicalPlan plan, int depth) {
-        if (depth > MAX_DEPTH) {
-            return MAYBE_MULTI;
-        }
-        // Each case finds the producer of the attribute, or passes the question to the child.
-        if (plan instanceof Eval eval) {
-            Alias definition = definitionOf(attribute, eval.fields());
-            if (definition != null) {
-                // Defined here. Resolve against this EVAL, since the expression may read earlier fields of it.
-                // Example: FROM test | EVAL a = MV_MAX(languages), k = a | STATS BY k
-                return ofExpression(definition.child(), eval, depth + 1);
-            }
-            // Passed through from below.
-            return askChild(attribute, plan, depth + 1);
-        }
-        if (plan instanceof Row row) {
-            // A ROW has no child, so every column it outputs is defined here.
-            Alias definition = definitionOf(attribute, row.fields());
-            if (definition != null) {
-                // Example: ROW x = [1, 2] | STATS BY x -> a multi-valued literal, so unknown
-                return ofExpression(definition.child(), plan, depth + 1);
-            }
-            // Only if the caller asks about a column that this node does not output.
-            assert false : "column [" + attribute.name() + "] is not an output of this Row";
-            return MAYBE_MULTI;
-        }
-        if (plan instanceof Project project) {
-            for (NamedExpression projection : project.projections()) {
-                if (projection.id().equals(attribute.id())) {
+            // A copy of another column. Follow it down the plan to the node that produced it. Each case finds the producer of the
+            // attribute, or passes the question to the child. In the examples, the key of the last STATS is the attribute that is
+            // asked about.
+            switch (plan) {
+                case Eval eval -> {
+                    int index = indexOfDefinition(attribute, eval.fields(), fieldsOwner == eval ? fieldsEnd : eval.fields().size());
+                    if (index >= 0) {
+                        // Defined here. Resolve against this EVAL, since the expression may read earlier fields of it.
+                        // Example: FROM test | EVAL a = MV_MAX(languages), k = a | STATS BY k
+                        expression = eval.fields().get(index).child();
+                        fieldsOwner = eval;
+                        fieldsEnd = index;
+                    } else {
+                        plan = eval.child();
+                    }
+                }
+                case Row row -> {
+                    // A ROW has no child, so every column it outputs is defined here.
+                    int index = indexOfDefinition(attribute, row.fields(), fieldsOwner == row ? fieldsEnd : row.fields().size());
+                    if (index < 0) {
+                        return notAnOutput(attribute, row);
+                    }
+                    // Example: ROW x = [1, 2] | STATS BY x -> a multi-valued literal, so unknown
+                    expression = row.fields().get(index).child();
+                    fieldsOwner = row;
+                    fieldsEnd = index;
+                }
+                case Project project -> {
+                    NamedExpression projection = projectionOf(attribute, project);
+                    if (projection == null) {
+                        return notAnOutput(attribute, project);
+                    }
                     if (projection instanceof Alias alias) {
                         // A rename, so resolve its source against the child.
                         // Projections do not read each other (RENAME a AS b, b AS a), so we do not need the current node.
                         // Example: FROM test | EVAL a = MV_MAX(languages) | RENAME a AS k | STATS BY k
-                        return ofExpression(alias.child(), project.child(), depth + 1);
+                        expression = alias.child();
                     }
-                    // A kept column, so go to its definition below.
-                    return askChild(attribute, plan, depth + 1);
+                    // A kept column, or the source of a rename, is defined below.
+                    plan = project.child();
                 }
-            }
-            // Only if the caller asks about a column that this node does not output.
-            assert false : "column [" + attribute.name() + "] is not an output of this Project";
-            return MAYBE_MULTI;
-        }
-        if (plan instanceof MvExpand mvExpand) {
-            if (mvExpand.expanded().id().equals(attribute.id())) {
-                // The expanded column has one value per row.
-                return SINGLE;
-            }
-            // Any other column comes from the child.
-            return askChild(attribute, plan, depth + 1);
-        }
-        if (plan instanceof Aggregate aggregate) {
-            // An earlier STATS.
-            return ofAggregateOutput(attribute, aggregate);
-        }
-        if (plan instanceof EsRelation) {
-            // The source: single-valued only if the mapping of every resolved index guarantees it. A field that may be read from
-            // _source or converted is not a plain mapped field, so its EsField never carries the flag.
-            return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
-        }
-        if (plan instanceof Filter
-            || plan instanceof Limit
-            || plan instanceof LimitBy
-            || plan instanceof Sample
-            || plan instanceof OrderBy
-            || plan instanceof TopN) {
-            // These keep, drop or reorder rows without changing columns.
-            return askChild(attribute, plan, depth + 1);
-        }
-        if (plan instanceof GeneratingPlan<?> generating) {
-            // Nodes such as DISSECT, GROK and ENRICH add columns and keep the columns of the child.
-            // EVAL is also a GeneratingPlan, but it is handled above, since it can prove its own fields.
-            for (Attribute generated : generating.generatedAttributes()) {
-                if (generated.id().equals(attribute.id())) {
+                case MvExpand mvExpand -> {
+                    if (mvExpand.expanded().id().equals(attribute.id())) {
+                        // The expanded column has one value per row.
+                        return SINGLE;
+                    }
+                    // Any other column comes from the child.
+                    plan = mvExpand.child();
+                }
+                case Aggregate aggregate -> {
+                    // An earlier STATS.
+                    return ofAggregateOutput(attribute, aggregate);
+                }
+                case EsRelation relation -> {
+                    // The source: single-valued only if the mapping of every resolved index guarantees it. A field that may be read
+                    // from _source or converted is not a plain mapped field, so its EsField never carries the flag.
+                    return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
+                }
+                // These keep, drop or reorder rows without changing columns.
+                case Filter filter -> plan = filter.child();
+                case Limit limit -> plan = limit.child();
+                case LimitBy limitBy -> plan = limitBy.child();
+                case Sample sample -> plan = sample.child();
+                case OrderBy orderBy -> plan = orderBy.child();
+                case TopN topN -> plan = topN.child();
+                case GeneratingPlan<?> generating -> {
+                    // Nodes such as DISSECT, GROK and ENRICH add columns and keep the columns of the child.
+                    // EVAL is also a GeneratingPlan, but it is handled above, since it can prove its own fields.
+                    if (isGenerated(attribute, generating)) {
+                        return MAYBE_MULTI;
+                    }
+                    plan = plan.children().get(0);
+                }
+                // Any other node, such as LOOKUP JOIN or INLINE STATS, may rewrite columns, so nothing is known. LogicalPlan is not
+                // sealed, so these nodes cannot be listed.
+                default -> {
                     return MAYBE_MULTI;
                 }
             }
-            return askChild(attribute, plan, depth + 1);
         }
-        // Any other node, such as LOOKUP JOIN or INLINE STATS, may rewrite columns, so nothing is known.
-        return MAYBE_MULTI;
-    }
-
-    /**
-     * Passes the question about {@code attribute} to the only child of {@code plan}, for a node that does not change the column.
-     */
-    private static ValueCardinality askChild(Attribute attribute, LogicalPlan plan, int depth) {
-        return ofAttribute(attribute, plan.children().get(0), depth);
-    }
-
-    /**
-     * The same question for the right-hand side of a definition, such as {@code MV_MAX(languages)} in {@code EVAL a = MV_MAX(languages)},
-     * with its columns resolved against {@code plan}.
-     */
-    private static ValueCardinality ofExpression(Expression expression, LogicalPlan plan, int depth) {
-        if (depth > MAX_DEPTH) {
-            return MAYBE_MULTI;
-        }
-        if (isScalarLiteral(expression)) {
-            // A scalar literal, or null, is one value. A multi-valued literal such as [1, 2] holds a list.
-            return SINGLE;
-        }
-        if (expression instanceof Alias alias) {
-            return ofExpression(alias.child(), plan, depth + 1);
-        }
-        if (expression instanceof Attribute attribute) {
-            // A copy of another column.
-            return ofAttribute(attribute, plan, depth + 1);
-        }
-        if (expression instanceof MvMin
-            || expression instanceof MvMax
-            || expression instanceof MvFirst
-            || expression instanceof MvLast
-            || expression instanceof MvCount) {
-            // These return at most one value, even for a list.
-            return SINGLE;
-        }
-
-        // Any other function is unknown. Even a function of a single value can return a list, for example SPLIT.
-        // TODO add more functions that are known to return single values.
-        return MAYBE_MULTI;
     }
 
     /**
@@ -223,9 +182,7 @@ enum ValueCardinality {
     private static ValueCardinality ofAggregateOutput(Attribute attribute, Aggregate aggregate) {
         NamedExpression output = aggregate.aggregates().stream().filter(o -> o.id().equals(attribute.id())).findFirst().orElse(null);
         if (output == null) {
-            // Only if the caller asks about a column that this node does not output.
-            assert false : "column [" + attribute.name() + "] is not an output of this Aggregate";
-            return MAYBE_MULTI;
+            return notAnOutput(attribute, aggregate);
         }
 
         if (isGroupKey(aggregate, output)) {
@@ -272,15 +229,72 @@ enum ValueCardinality {
     }
 
     /**
-     * The {@code EVAL} or {@code ROW} field that defines {@code attribute}, or {@code null}.
+     * The answer when the caller asks about a column that {@code plan} does not output. That is a bug in the caller, so it fails in
+     * tests. In production the answer is MAYBE_MULTI, which is always safe.
      */
-    private static Alias definitionOf(Attribute attribute, List<Alias> fields) {
-        for (Alias field : fields) {
-            if (field.id().equals(attribute.id())) {
-                return field;
+    private static ValueCardinality notAnOutput(Attribute attribute, LogicalPlan plan) {
+        assert false : "column [" + attribute.name() + "] is not an output of this " + plan.nodeName();
+        return MAYBE_MULTI;
+    }
+
+    /**
+     * The index of the {@code EVAL} or {@code ROW} field before {@code end} that defines {@code attribute}, or {@code -1}. It searches
+     * backwards, since a field most often reads the field just before it.
+     */
+    private static int indexOfDefinition(Attribute attribute, List<Alias> fields, int end) {
+        for (int i = end - 1; i >= 0; i--) {
+            if (fields.get(i).id().equals(attribute.id())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * The projection of {@code project} that outputs {@code attribute}, or {@code null}.
+     */
+    private static NamedExpression projectionOf(Attribute attribute, Project project) {
+        for (NamedExpression projection : project.projections()) {
+            if (projection.id().equals(attribute.id())) {
+                return projection;
             }
         }
         return null;
+    }
+
+    /**
+     * Whether {@code generating} adds {@code attribute}, rather than passing it through from its child.
+     */
+    private static boolean isGenerated(Attribute attribute, GeneratingPlan<?> generating) {
+        for (Attribute generated : generating.generatedAttributes()) {
+            if (generated.id().equals(attribute.id())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The answer for an expression that is not a copy of a column, so it does not depend on the cardinality of another column.
+     */
+    private static ValueCardinality ofComputedValue(Expression expression) {
+        if (isScalarLiteral(expression) || isMvReducer(expression)) {
+            return SINGLE;
+        }
+        // Any other function is unknown. Even a function of a single value can return a list, for example SPLIT.
+        // TODO add more functions that are known to return single values.
+        return MAYBE_MULTI;
+    }
+
+    /**
+     * Whether {@code expression} is a function that reduces any input to at most one value.
+     */
+    private static boolean isMvReducer(Expression expression) {
+        return expression instanceof MvMin
+            || expression instanceof MvMax
+            || expression instanceof MvFirst
+            || expression instanceof MvLast
+            || expression instanceof MvCount;
     }
 
     /**

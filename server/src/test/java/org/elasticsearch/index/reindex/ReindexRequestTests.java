@@ -790,6 +790,16 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         assertEquals("tenant-a", request.getSearchRequest().routing());
     }
 
+    public void testSourceSliceInvalidValueRejectedAtParse() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Exception e = expectThrows(Exception.class, () -> parseRequestWithSourceSlice("_bad"));
+        Throwable root = e;
+        while (root.getCause() != null) {
+            root = root.getCause();
+        }
+        assertThat(root.getMessage(), containsString("invalid [_slice] value [_bad]"));
+    }
+
     public void testSourceSliceRejectedWhenFeatureFlagDisabled() throws IOException {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Exception e = expectThrows(Exception.class, () -> parseRequestWithSourceSlice("tenant-a"));

@@ -227,6 +227,15 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(searchRequest.searchSlice(), equalTo("s1,s2"));
     }
 
+    public void testParseRequestRejectsInvalidMetadataSlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
+            {"_slice":"s1,_bad"}
+            {"query":{"match_all":{}}}
+            """));
+        assertThat(ex.getMessage(), containsString("invalid [_slice] value [_bad]"));
+    }
+
     public void testParseRequestRejectsRoutingAndSliceInSameMetadata() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""

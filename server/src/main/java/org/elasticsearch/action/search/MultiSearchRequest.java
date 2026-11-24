@@ -15,7 +15,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -319,7 +318,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                             if (routingProvided || topLevelHasRouting) {
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
-                            applySearchRoutingOrSlice(searchRequest, parseSearchRoutingOrSlice(nodeStringValue(value, null)));
+                            applySearchRoutingOrSlice(searchRequest, SliceIndexing.parsePitSearchSlice(nodeStringValue(value, null)));
                             sliceProvided = true;
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
@@ -389,20 +388,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
         if (parsedRouting != null) {
             searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
         }
-    }
-
-    private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("request does not support [_slice]");
-        }
-        final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
-        if (slices.length == 0) {
-            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
-        }
-        for (String slice : slices) {
-            SliceIndexing.validateUserSliceValue(slice);
-        }
-        return new SliceIndexing.ParsedRouting(String.join(",", slices), true);
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {

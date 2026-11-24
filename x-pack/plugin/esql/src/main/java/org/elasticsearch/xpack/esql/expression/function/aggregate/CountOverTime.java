@@ -53,7 +53,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         .name("count_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries((source, field, window, timestamp) -> new CountOverTime(source, promqlSample(field), window, timestamp))
-        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .counterSupportedSince(Count.ESQL_COUNT_COUNTER_FIELDS)
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)

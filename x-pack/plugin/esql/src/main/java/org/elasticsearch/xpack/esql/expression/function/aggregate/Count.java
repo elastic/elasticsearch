@@ -64,6 +64,8 @@ public class Count extends UnaryAggregateFunction
         OptionalArgument,
         UnitAware.Unitless {
     public static final TransportVersion ESQL_COUNT_HISTOGRAM_BUCKET = TransportVersion.fromName("esql_count_histogram_bucket");
+    /** A node before this version may reject a counter field. */
+    public static final TransportVersion ESQL_COUNT_COUNTER_FIELDS = TransportVersion.fromName("esql_count_counter_fields");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
         .binary(Count::new)

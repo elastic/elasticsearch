@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -50,6 +51,7 @@ public final class PromqlFunctionDefinition {
     private final List<PromqlParamInfo> params;
     private final List<String> examples;
     private final CounterSupport counterSupport;
+    private final TransportVersion counterSupportSince;
     private final ClassicHistogramHandler classicHistogramHandler;
     private final String stdDivergence;
     private final List<StackAvailability> stack;
@@ -175,6 +177,7 @@ public final class PromqlFunctionDefinition {
         List<PromqlParamInfo> params,
         List<String> examples,
         CounterSupport counterSupport,
+        TransportVersion counterSupportSince,
         ClassicHistogramHandler classicHistogramHandler,
         String stdDivergence,
         List<StackAvailability> stack
@@ -217,6 +220,7 @@ public final class PromqlFunctionDefinition {
         this.params = params;
         this.examples = examples;
         this.counterSupport = counterSupport;
+        this.counterSupportSince = counterSupportSince;
         this.classicHistogramHandler = classicHistogramHandler;
         // Optional: only set for functions that reject some uses Prometheus accepts, or whose results differ from it.
         this.stdDivergence = stdDivergence;
@@ -274,6 +278,14 @@ public final class PromqlFunctionDefinition {
 
     public CounterSupport counterSupport() {
         return counterSupport;
+    }
+
+    /**
+     * Whether the function takes a counter as is in a query whose oldest node is on {@code minimumVersion}.
+     */
+    public boolean takesCounter(TransportVersion minimumVersion) {
+        return counterSupport != CounterSupport.UNSUPPORTED
+            && (counterSupportSince == null || minimumVersion.supports(counterSupportSince));
     }
 
     /**
@@ -504,6 +516,7 @@ public final class PromqlFunctionDefinition {
         private String extendedDescription;
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
+        private TransportVersion counterSupportSince;
         private ClassicHistogramHandler classicHistogramHandler;
         private String stdDivergence;
         private List<StackAvailability> stack = List.of();
@@ -511,6 +524,15 @@ public final class PromqlFunctionDefinition {
         public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
             this.counterSupport = counterSupport;
             return this;
+        }
+
+        /**
+         * {@link CounterSupport#SUPPORTED} for a function that nodes before {@code version} only run over a gauge: it takes a
+         * counter as is once every node of the query is on {@code version}.
+         */
+        public PromqlFunctionDefinition.Builder counterSupportedSince(TransportVersion version) {
+            this.counterSupportSince = version;
+            return counterSupport(CounterSupport.SUPPORTED);
         }
 
         public PromqlFunctionDefinition.Builder description(String description) {
@@ -945,6 +967,7 @@ public final class PromqlFunctionDefinition {
                 params,
                 examples,
                 counterSupport,
+                counterSupportSince,
                 classicHistogramHandler,
                 stdDivergence,
                 stack

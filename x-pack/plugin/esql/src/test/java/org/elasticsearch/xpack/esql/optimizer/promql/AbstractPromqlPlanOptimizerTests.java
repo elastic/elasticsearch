@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -51,7 +53,16 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             .addOtelMetrics()
             .addEmptyIndex()
             .unmappedResolution(UnmappedResolution.NULLIFY)
-            .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+            .minimumTransportVersion(promqlMinimumVersion());
+    }
+
+    private TransportVersion promqlMinimumVersion() {
+        return minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE);
+    }
+
+    /** Whether {@code count_over_time} reads a counter as is: an older node only counts a gauge. */
+    protected boolean countOverTimeTakesCounter() {
+        return promqlMinimumVersion().supports(Count.ESQL_COUNT_COUNTER_FIELDS);
     }
 
     protected LogicalPlan planPromql(String query) {

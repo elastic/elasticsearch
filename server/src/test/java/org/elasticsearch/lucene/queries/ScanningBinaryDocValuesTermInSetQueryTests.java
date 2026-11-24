@@ -9,6 +9,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
@@ -26,8 +28,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
 
@@ -62,7 +62,51 @@ public class ScanningBinaryDocValuesTermInSetQueryTests extends ESTestCase {
             List.of(notUtf8, new BytesRef("ascii")),
             BinaryDocValuesFormat.SEPARATE_COUNT
         );
-        assertThat(query.toString("field"), containsString("ScanningBinaryDocValuesTermInSetQuery(fieldName=field"));
+        assertEquals("ScanningBinaryDocValuesTermInSetQuery(fieldName=field,terms=[ascii,[ff 0 fe 1]])", query.toString("field"));
+    }
+
+    public void testRawBytesTerms() throws Exception {
+        List<BytesRef> values = List.of(
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.1"))),
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.2"))),
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:db8::2:1")))
+        );
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (int doc = 0; doc < 12; doc++) {
+                Document document = new Document();
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+                field.add(values.get(doc % values.size()));
+                var countField = new NumericDocValuesField("field.counts", 1);
+                if (doc % 4 == 0) {
+                    field.add(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::ffff:1"))));
+                    countField.setLongValue(field.count());
+                }
+                document.add(field);
+                document.add(countField);
+                writer.addDocument(document);
+            }
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                var format = BinaryDocValuesFormat.SEPARATE_COUNT;
+                assertEquals(0, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", List.of(), format)));
+                assertEquals(4, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", values.subList(0, 1), format)));
+                assertEquals(8, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", values.subList(1, 3), format)));
+                assertEquals(12, searcher.count(new ScanningBinaryDocValuesTermInSetQuery("field", values, format)));
+                assertEquals(
+                    3,
+                    searcher.count(
+                        new ScanningBinaryDocValuesTermInSetQuery(
+                            "field",
+                            List.of(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::ffff:1")))),
+                            format
+                        )
+                    )
+                );
+            }
+        }
     }
 
     public void testBasics() throws Exception {

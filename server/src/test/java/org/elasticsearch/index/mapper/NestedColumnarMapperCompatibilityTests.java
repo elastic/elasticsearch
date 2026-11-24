@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for nested fields on the columnar batch path (Phase 0 of elastic/elasticsearch#167077).
@@ -410,6 +413,17 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         RowPath rowPath,
         Function<IndexMode, String[]> sources
     ) throws IOException {
+        assertRefusedInAllModes(fields, extraSettings, rowPath, null, sources);
+    }
+
+    /** Like above, and with {@link RowPath#REJECTS} the error of the sequential path must also contain {@code rowPathError}. */
+    private void assertRefusedInAllModes(
+        CheckedConsumer<XContentBuilder, IOException> fields,
+        Map<String, String> extraSettings,
+        RowPath rowPath,
+        @Nullable String rowPathError,
+        Function<IndexMode, String[]> sources
+    ) throws IOException {
         for (IndexMode mode : STRICT_COLUMNAR_MODES) {
             final Settings.Builder base = Settings.builder().put(settings(mode));
             extraSettings.forEach(base::put);
@@ -429,7 +443,15 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
                     final Doc doc = doc("p" + i, i, documents[i]);
                     switch (rowPath) {
                         case ACCEPTS -> childCounts(mapperService, doc);
-                        case REJECTS -> expectThrows(DocumentParsingException.class, () -> childCounts(mapperService, doc));
+                        case REJECTS -> {
+                            final DocumentParsingException e = expectThrows(
+                                DocumentParsingException.class,
+                                () -> childCounts(mapperService, doc)
+                            );
+                            if (rowPathError != null) {
+                                assertThat(e.getMessage(), containsString(rowPathError));
+                            }
+                        }
                         case ASSERTS -> {
                         }
                     }
@@ -542,6 +564,21 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
         }, Map.of(), RowPath.ASSERTS, mode -> new String[] { src(mode, "\"meta\":{\"comments.text\":\"a\"}") });
     }
 
+    /**
+     * An object field and array field with the same name are not allowed in both batch and sequential indexing.
+     */
+    public void testObjectAndArrayFieldWithTheSameName() throws IOException {
+        assertRefusedInAllModes(
+            hostAndN(),
+            Map.of(),
+            RowPath.REJECTS,
+            "Duplicate field 'n'",
+            mode -> new String[] {
+                src(mode, "\"n\":[{\"k\":\"a\"}],\"n\":{\"k\":\"b\"}"),
+                src(mode, "\"n\":{\"k\":\"b\"},\"n\":[{\"k\":\"a\"}]") }
+        );
+    }
+
     /** The object spelling with a deeper object: the leaf {@code n.o.x} sits under the non-leaf {@code o}, not directly under {@code n}. */
     public void testDeeperObjectUnderObjectSpellingFallsBack() throws IOException {
         assertRefusedInAllModes(b -> {
@@ -648,18 +685,6 @@ public class NestedColumnarMapperCompatibilityTests extends AbstractColumnarMapp
             );
             expectThrows(DocumentParsingException.class, () -> childCounts(mapperService, doc("d3", 3L, src(mode, "\"n\":[\"a\"]"))));
             expectThrows(DocumentParsingException.class, () -> childCounts(mapperService, doc("d4", 4L, src(mode, "\"n\":[1]"))));
-        }
-    }
-
-    /**
-     * Both spellings in one row can only be written as a duplicate key, which the sequential path rejects. The batch path needs a rule
-     * for it only if the ESCF encoder accepts such a row.
-     */
-    public void testProbeBothSpellingsInOneRow() throws IOException {
-        for (IndexMode mode : STRICT_COLUMNAR_MODES) {
-            final MapperService mapperService = createMapperService(settings(mode), mappingFor(mode, hostAndN()));
-            final String source = src(mode, "\"n\":[{\"k\":\"a\"}],\"n\":{\"k\":\"b\"}");
-            expectThrows(Exception.class, () -> childCounts(mapperService, doc("d1", 1L, source)));
         }
     }
 }

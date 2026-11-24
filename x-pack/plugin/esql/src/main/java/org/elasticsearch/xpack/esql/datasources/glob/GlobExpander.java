@@ -3168,8 +3168,8 @@ public final class GlobExpander {
                     if (isMissingPrefix(t)) {
                         return null;
                     }
-                    if (e instanceof UncheckedIOException u && u.getCause() instanceof IOException io) {
-                        throw io;
+                    if (e instanceof UncheckedIOException u) {
+                        throw u.getCause();
                     }
                     throw e;
                 }

@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matcher;
@@ -644,7 +644,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         LogicalPlan plan = partialMappingTest().statement(queryWithSet);
         assertThat("plan should be fully resolved once the IN left key loads from _source", plan.resolved(), is(true));
         assertThat("column [" + column + "] should be present in the resolved output", Expressions.names(plan.output()), hasItem(column));
-        plan.forEachDown(AbstractSubqueryJoin.class, join -> {
+        plan.forEachDown(AbstractInSubqueryJoin.class, join -> {
             for (Attribute leftKey : join.config().leftFields()) {
                 if (leftKey.name().equals(column)) {
                     assertThat("IN left key [" + column + "] should be resolved", leftKey.resolved(), is(true));

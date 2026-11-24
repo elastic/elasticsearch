@@ -1323,7 +1323,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         singleNodeOptimizations,
                         sortBound,
                         null,
-                        FetchOperatorProvider.UNSUPPORTED
+                        FetchOperatorProvider.UNSUPPORTED,
+                        null
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1540,7 +1541,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.singleNodeOptimizations(),
                         null,
                         reduceLoad(request.shards(), searchContexts),
-                        FetchOperatorProvider.UNSUPPORTED
+                        FetchOperatorProvider.UNSUPPORTED,
+                        null
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,

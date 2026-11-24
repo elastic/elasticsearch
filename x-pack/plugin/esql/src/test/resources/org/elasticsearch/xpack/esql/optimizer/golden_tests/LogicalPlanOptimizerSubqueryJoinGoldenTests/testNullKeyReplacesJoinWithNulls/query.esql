@@ -1,0 +1,3 @@
+FROM employees
+| EVAL language_code = null
+| LEFT OUTER JOIN (FROM languages | EVAL other_name = language_name) ON language_code

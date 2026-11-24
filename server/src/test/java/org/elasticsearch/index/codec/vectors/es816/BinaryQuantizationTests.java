@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,10 @@ import java.util.Random;
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 
 public class BinaryQuantizationTests extends ESTestCase {
+
+    static {
+        LogConfigurator.configureESLogging();
+    }
 
     public void testQuantizeForIndex() {
         // the field mapper rejects BBQ for fewer dimensions. With a single dimension a normalized vector and

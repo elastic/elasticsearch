@@ -600,6 +600,7 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     /** An intersection with a complement written inside one include is a product too, and is charged the same way. */
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): unmute when ~(X) complement is restored.
     public void testIntersectionWithComplementInOnePatternIsCharged() {
         IncludeExclude inexcl = new IncludeExclude("[ab]{200}&~((a|b)*b(a|b){10})", null, null, null);
         CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofMb(2));

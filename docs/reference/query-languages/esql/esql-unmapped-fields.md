@@ -172,7 +172,7 @@ In addition to the restrictions above, `LOAD_ALL` has these limitations:
 
 - It supports most commands, and a query that uses another command fails with an error that lists the supported ones.
 - It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: `LOAD_ALL` doesn't add an `_unmapped_fields` column to a view, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. A view definition can't use `LOAD_ALL`. Indices and subqueries next to a view are loaded as usual, with one exception:
-  - A view can output a column named `_unmapped_fields` of its own. As for any column of that name in the query, that column is used and no `_unmapped_fields` column is generated, so the indices and subqueries next to the view don't return their unmapped fields either.
+  - A view can output a column named `_unmapped_fields` of its own. As for any column of that name in the query, that column is used and no `_unmapped_fields` column is generated, so the indices and subqueries next to the view don't return their unmapped fields in it. Fields that the query names are still loaded as usual.
 - Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. If you know which fields you need, name them and use `LOAD`.
 
 ## Unmapped fields and runtime fields [esql-unmapped-fields-vs-runtime-fields]

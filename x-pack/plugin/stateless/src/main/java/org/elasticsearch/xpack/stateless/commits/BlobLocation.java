@@ -44,7 +44,7 @@ public record BlobLocation(BccBlob bccBlob, long offset, long fileLength) implem
     // private access only for deserialization
     private BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
         this(
-            new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(blobName))),
+            new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, BccBlob.parseGenerationFromBlobName(blobName))),
             offset,
             fileLength
         );

@@ -298,10 +298,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             StreamOutput positionTracking = new OutputStreamStreamOutput(output);
 
             Map<String, BlobLocation> referencedCommitBlobsWithoutBlobLength = StatelessCompoundCommitTestUtils.randomCommitFiles();
-            List<StatelessCompoundCommit.InternalFile> internalFiles = new ArrayList<>();
+            List<InternalFile> internalFiles = new ArrayList<>();
             int internalFileCount = randomIntBetween(1, 10);
             for (int i = 0; i < internalFileCount; i++) {
-                internalFiles.add(new StatelessCompoundCommit.InternalFile("internal_file_" + i, randomLongBetween(100, 1000)));
+                internalFiles.add(new InternalFile("internal_file_" + i, randomLongBetween(100, 1000)));
             }
 
             writeBwcHeader(
@@ -316,10 +316,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             );
 
             var headerOffset = positionTracking.position();
-            var totalSize = headerOffset + internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
+            var totalSize = headerOffset + internalFiles.stream().mapToLong(InternalFile::length).sum();
             var expectedCommitFiles = StatelessCompoundCommit.combineCommitFiles(
                 new BccBlob(
-                    BatchedCompoundCommit.blobNameFromGeneration(testInstance.generation()),
+                    BccBlob.blobNameFromGeneration(testInstance.generation()),
                     new PrimaryTermAndGeneration(testInstance.primaryTerm(), testInstance.generation())
                 ),
                 InternalFilesReplicatedRanges.EMPTY,
@@ -338,7 +338,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 testInstance.nodeEphemeralId(),
                 expectedCommitFiles.commitFiles(),
                 totalSize,
-                internalFiles.stream().map(StatelessCompoundCommit.InternalFile::name).collect(Collectors.toSet()),
+                internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet()),
                 headerOffset,
                 InternalFilesReplicatedRanges.EMPTY,
                 Map.of(),
@@ -360,7 +360,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         long primaryTerm,
         String nodeEphemeralId,
         Map<String, BlobLocation> referencedBlobFiles,
-        List<StatelessCompoundCommit.InternalFile> internalFiles,
+        List<InternalFile> internalFiles,
         int version
     ) throws IOException {
         assert version < StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING;
@@ -469,10 +469,10 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         PrimaryTermAndGeneration previousGeneration = new PrimaryTermAndGeneration(4L, 4L);
         PrimaryTermAndGeneration currentGeneration = new PrimaryTermAndGeneration(5L, 5L);
 
-        BlobLocation previousMin = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "4", previousGeneration), 50L, 25L);
-        BlobLocation previousMax = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "4", previousGeneration), 400L, 25L);
-        BlobLocation currentMin = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "5", currentGeneration), 100L, 50L);
-        BlobLocation currentMax = new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "5", currentGeneration), 300L, 50L);
+        BlobLocation previousMin = new BlobLocation(new BccBlob(BccBlob.PREFIX + "4", previousGeneration), 50L, 25L);
+        BlobLocation previousMax = new BlobLocation(new BccBlob(BccBlob.PREFIX + "4", previousGeneration), 400L, 25L);
+        BlobLocation currentMin = new BlobLocation(new BccBlob(BccBlob.PREFIX + "5", currentGeneration), 100L, 50L);
+        BlobLocation currentMax = new BlobLocation(new BccBlob(BccBlob.PREFIX + "5", currentGeneration), 300L, 50L);
 
         Map<String, BlobLocation> commitFiles = Map.of(
             "previousMin",
@@ -482,7 +482,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             "currentMin",
             currentMin,
             "inBetween",
-            new BlobLocation(new BccBlob(BatchedCompoundCommit.PREFIX + "5", currentGeneration), 200L, 50L),
+            new BlobLocation(new BccBlob(BccBlob.PREFIX + "5", currentGeneration), 200L, 50L),
             "currentMax",
             currentMax
         );

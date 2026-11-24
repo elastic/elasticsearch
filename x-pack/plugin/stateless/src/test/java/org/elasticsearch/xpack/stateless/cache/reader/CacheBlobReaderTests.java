@@ -393,7 +393,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BccBlob.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store", blobName);
@@ -403,7 +403,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BccBlob.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);

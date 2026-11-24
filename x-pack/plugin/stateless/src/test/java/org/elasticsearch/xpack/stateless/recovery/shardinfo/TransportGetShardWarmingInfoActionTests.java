@@ -44,7 +44,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -115,9 +114,33 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         IOUtils.close(stores);
     }
 
+    public void testExcludesStartedSourceCopyWhenTargetAlreadyHoldsStartedCopy() {
+        final long startedAt = randomNonNegativeLong();
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(0, OTHER_TARGET), started(1, SOURCE), started(1, TARGET));
+        withBytesToWarm(600L, 300L);
+
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(Response.NONE));
+    }
+
+    public void testExcludesUncommittedInitializingSourceCopyWhenTargetHoldsOtherCopy() {
+        final long startedAt = randomNonNegativeLong();
+        state = clusterState(
+            startedAt,
+            relocating(0, SOURCE, TARGET),
+            started(0, OTHER_TARGET),
+            initializing(1, SOURCE),
+            started(1, TARGET)
+        );
+        withBytesToWarm(0, 600L);
+        when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
+
+        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
+    }
+
     public void testExcludesShardsRelocatingToOtherTargets() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), relocating(1, OTHER_TARGET), started(2));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), relocating(1, SOURCE, OTHER_TARGET), started(2, SOURCE));
         withBytesToWarm(600L, 300L, 100L);
 
         // 300 goes to another target, so 600 and 100 remain for this target
@@ -131,7 +154,12 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         final ShardId shard0 = new ShardId(index, 0);
         final ShardId otherShard0 = new ShardId(otherIndex, 0);
         final ShardId otherShard1 = new ShardId(otherIndex, 1);
-        state = sourceState(startedAt, relocating(shard0, TARGET), relocating(otherShard0, TARGET), started(otherShard1));
+        state = clusterState(
+            startedAt,
+            relocating(shard0, SOURCE, TARGET),
+            relocating(otherShard0, SOURCE, TARGET),
+            started(otherShard1, SOURCE)
+        );
         withBytesToWarm(shard0, 600L);
         withBytesToWarm(otherShard0, 300L);
         withBytesToWarm(otherShard1, 100L);
@@ -146,13 +174,13 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testSumIsFreshButEstimatesAreMemoized() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), relocating(1, TARGET), started(2));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), relocating(1, SOURCE, TARGET), started(2, SOURCE));
         withBytesToWarm(600L, 300L, 100L);
 
         assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(response(300L, 1000L)));
 
         // shard 0 finished relocating and left the source
-        state = sourceState(startedAt, relocating(1, TARGET), started(2));
+        state = clusterState(startedAt, started(0, TARGET), relocating(1, SOURCE, TARGET), started(2, SOURCE));
         assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(response(300L, 400L)));
         assertThat(action.computeWarmingInfo(request(2, startedAt)), equalTo(response(100L, 400L)));
 
@@ -164,12 +192,12 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testNewShutdownSignalReestimates() {
         final long startedAt = randomLongBetween(0, Long.MAX_VALUE - 1);
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(600L, 300L);
         action.computeWarmingInfo(request(0, startedAt));
 
         final long restartedAt = startedAt + 1;
-        state = sourceState(restartedAt, relocating(0, TARGET), started(1));
+        state = clusterState(restartedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         assertThat(action.computeWarmingInfo(request(0, restartedAt)), equalTo(response(600L, 900L)));
         assertEstimated(0, 2);
         assertEstimated(1, 2);
@@ -177,7 +205,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testMismatchedSignalIsAnsweredButNotMemoized() {
         final long startedAt = randomLongBetween(1, Long.MAX_VALUE);
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(600L, 300L);
 
         // the target still acts on an earlier signal of this node
@@ -194,7 +222,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     }
 
     public void testAnswersWithoutMemoizingWhenNotShuttingDown() {
-        state = sourceState(null, relocating(0, TARGET), started(1));
+        state = clusterState(null, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(600L, 300L);
         final var request = request(0, randomNonNegativeLong());
 
@@ -205,7 +233,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testRemovedOrClosingOtherCopyIsSkipped() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1), started(2));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE), started(2, SOURCE));
         withBytesToWarm(600L, 300L, 100L);
 
         // shard 1 already removed from IndicesService, shard 2 store already closing
@@ -220,7 +248,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testMemoizedCopyClosingBeforeClusterStateUpdateIsSkipped() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(600L, 300L);
 
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 900L)));
@@ -233,7 +261,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testConcurrentStoreCloseDuringEstimateIsSkipped() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(600L, 300L);
         doThrow(new AlreadyClosedException("closed concurrently")).when(directories.get(new ShardId(index, 1)))
             .getCurrentCommitBlobFileRanges();
@@ -244,7 +272,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testFailedEstimateIsNoneAndNotMemoized() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(600L, 300L);
         doThrow(new RuntimeException("directory failed")).when(directories.get(new ShardId(index, 1))).getCurrentCommitBlobFileRanges();
 
@@ -257,7 +285,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testShardNotOnSourceIsNone() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, started(1));
+        state = clusterState(startedAt, started(0, TARGET), started(1, SOURCE));
         withBytesToWarm(1, 300L);
 
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
@@ -265,14 +293,14 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testNoLocalCopiesIsNone() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt);
+        state = clusterState(startedAt, started(0, TARGET));
 
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
     }
 
     public void testZeroBytesToWarmOfInitializingCopyWithCommitIsMemoized() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), initializing(1, SOURCE));
         withBytesToWarm(600L, 0L);
 
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
@@ -283,7 +311,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testInitializingCopyNotCreatedYetIsNone() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), initializing(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), initializing(1, SOURCE));
         withBytesToWarm(0, 600L);
         when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
 
@@ -296,7 +324,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testNullCommitIsNoneAndNotMemoized() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(0, 600L);
         withoutCommit(1);
 
@@ -310,7 +338,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testZeroBytesToWarmOfStartedCopyIsMemoized() {
         final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1));
+        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE));
         withBytesToWarm(0L, 0L);
 
         // Both shards estimate to 0, so new Response(0L, 0L) equals Response.NONE, while the 0 estimates are still memoized.
@@ -515,65 +543,71 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         return indexShard;
     }
 
-    private ShardRouting started(int shard) {
-        return started(new ShardId(index, shard));
+    private ShardRouting started(int shard, String nodeId) {
+        return started(new ShardId(index, shard), nodeId);
     }
 
-    private ShardRouting relocating(int shard, String targetNodeId) {
-        return relocating(new ShardId(index, shard), targetNodeId);
+    private ShardRouting relocating(int shard, String sourceNodeId, String targetNodeId) {
+        return relocating(new ShardId(index, shard), sourceNodeId, targetNodeId);
     }
 
-    private ShardRouting initializing(int shard) {
-        return searchCopy(new ShardId(index, shard), INITIALIZING, null);
+    private ShardRouting initializing(int shard, String nodeId) {
+        return searchCopy(new ShardId(index, shard), nodeId, INITIALIZING, null);
     }
 
-    private static ShardRouting started(ShardId shardId) {
-        return searchCopy(shardId, STARTED, null);
+    private static ShardRouting started(ShardId shardId, String nodeId) {
+        return searchCopy(shardId, nodeId, STARTED, null);
     }
 
-    private static ShardRouting relocating(ShardId shardId, String targetNodeId) {
-        return searchCopy(shardId, RELOCATING, targetNodeId);
+    private static ShardRouting relocating(ShardId shardId, String sourceNodeId, String targetNodeId) {
+        return searchCopy(shardId, sourceNodeId, RELOCATING, targetNodeId);
     }
 
-    private static ShardRouting searchCopy(ShardId shardId, ShardRoutingState shardState, @Nullable String relocatingNodeId) {
-        return TestShardRouting.shardRoutingBuilder(shardId, SOURCE, false, shardState)
+    private static ShardRouting searchCopy(
+        ShardId shardId,
+        String nodeId,
+        ShardRoutingState shardState,
+        @Nullable String relocatingNodeId
+    ) {
+        return TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, shardState)
             .withRelocatingNodeId(relocatingNodeId)
             .withRole(ShardRouting.Role.SEARCH_ONLY)
             .build();
     }
 
-    /// The state as seen by the source, with `searchCopies` on it, and its shutdown signal started at `shutdownStartedAtMillis` (none if
-    /// `null`). Shards of [#index] (and of any other index of `searchCopies`) without a copy on the source have already relocated to
-    /// [#TARGET].
-    private ClusterState sourceState(@Nullable Long shutdownStartedAtMillis, ShardRouting... searchCopies) {
+    /// Cluster state as seen by [#SOURCE], with `searchCopies` placed on their nodes and [#SOURCE]'s shutdown signal started at
+    /// `shutdownStartedAtMillis` (none if `null`).
+    private ClusterState clusterState(@Nullable Long shutdownStartedAtMillis, ShardRouting... searchCopies) {
         final String indexNodeId = "index-node";
-        final Map<Index, Map<Integer, ShardRouting>> copiesByIndex = new HashMap<>();
-        copiesByIndex.put(index, new HashMap<>());
+        final Map<Index, Map<Integer, List<ShardRouting>>> copiesByIndex = new HashMap<>();
         for (ShardRouting searchCopy : searchCopies) {
-            copiesByIndex.computeIfAbsent(searchCopy.index(), i -> new HashMap<>()).put(searchCopy.shardId().id(), searchCopy);
+            copiesByIndex.computeIfAbsent(searchCopy.index(), i -> new HashMap<>())
+                .computeIfAbsent(searchCopy.shardId().id(), i -> new ArrayList<>())
+                .add(searchCopy);
         }
         final ProjectMetadata.Builder project = ProjectMetadata.builder(DEFAULT_PROJECT_ID);
         final RoutingTable.Builder routingTable = RoutingTable.builder();
         for (var indexCopies : copiesByIndex.entrySet()) {
             final Index copiesIndex = indexCopies.getKey();
-            final Map<Integer, ShardRouting> copiesByShard = indexCopies.getValue();
+            final Map<Integer, List<ShardRouting>> copiesByShard = indexCopies.getValue();
             final int numShards = 1 + copiesByShard.keySet().stream().mapToInt(Integer::intValue).max().orElse(0);
+            final int numReplicas = copiesByShard.values().stream().mapToInt(List::size).max().orElse(1);
             final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(copiesIndex);
             for (int shard = 0; shard < numShards; shard++) {
                 final ShardId shardId = new ShardId(copiesIndex, shard);
                 final ShardRouting primary = TestShardRouting.shardRoutingBuilder(shardId, indexNodeId, true, STARTED)
                     .withRole(ShardRouting.Role.INDEX_ONLY)
                     .build();
-                final ShardRouting searchCopy = copiesByShard.getOrDefault(
-                    shard,
-                    TestShardRouting.shardRoutingBuilder(shardId, TARGET, false, STARTED).withRole(ShardRouting.Role.SEARCH_ONLY).build()
-                );
-                routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(searchCopy));
+                final IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(shardId).addShard(primary);
+                for (ShardRouting copy : copiesByShard.getOrDefault(shard, List.of())) {
+                    shardBuilder.addShard(copy);
+                }
+                routingBuilder.addIndexShard(shardBuilder);
             }
             routingTable.add(routingBuilder);
             project.put(
                 IndexMetadata.builder(copiesIndex.getName())
-                    .settings(indexSettings(IndexVersion.current(), copiesIndex.getUUID(), numShards, 1))
+                    .settings(indexSettings(IndexVersion.current(), copiesIndex.getUUID(), numShards, numReplicas))
                     .build(),
                 false
             );
@@ -623,7 +657,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
     ) {
         return new BlobFileRanges(
-            new BlobLocation(new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(generation), 1L), offset, length),
+            new BlobLocation(new BccBlob(BccBlob.blobNameFromGeneration(generation), 1L), offset, length),
             timestampRange
         );
     }

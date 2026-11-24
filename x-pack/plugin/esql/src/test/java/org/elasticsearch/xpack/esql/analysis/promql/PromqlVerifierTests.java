@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -270,6 +271,31 @@ public class PromqlVerifierTests extends ESTestCase {
                 containsString("[max_branch_count_per_merge] query pragma")
             )
         );
+    }
+
+    public void testNestedUnionOperandCopiesLimit() {
+        // An or below the top level reads its left operand twice, so each or nested on its left doubles the copies.
+        int cap = 4;
+        TestAnalyzer analyzer = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .minimumTransportVersion(TransportVersion.current())
+            .configuration(
+                configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE.getKey(), cap).build()))
+            );
+        String twoLevels = "(network.bytes_in or network.connections) or network.bytes_in";
+        assertTrue(analyzer.query("PROMQL index=test step=5m sum(" + twoLevels + ")").resolved());
+        // Nested on the right, an or adds no copies of the left operand of the one above it.
+        assertTrue(analyzer.query("PROMQL index=test step=5m sum(network.bytes_in or (" + twoLevels + "))").resolved());
+        analyzer.error(
+            "PROMQL index=test step=5m sum((" + twoLevels + ") or network.connections)",
+            allOf(
+                containsString("PromQL set operator [or] reads an operand up to [" + cap + "] times, got [8]"),
+                containsString("[max_branch_count_per_merge] query pragma")
+            )
+        );
+        // The top-level chain is one union, which reads each operand once.
+        assertTrue(analyzer.query("PROMQL index=test step=5m " + twoLevels + " or network.connections").resolved());
     }
 
     public void testPromqlInstantQuery() {

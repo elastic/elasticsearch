@@ -18,6 +18,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -142,7 +143,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
             InternalIpDataLookup lookup = new MaxmindIpDataLookups.Country(Database.Country.properties());
             IllegalArgumentException e = assertThrows(
                 IllegalArgumentException.class,
-                () -> lookup.getData(loader, ip, new IpLocationInfoMapCollector())
+                () -> lookup.getData(loader, ip, new IpLocationInfoMapCollector(new HashMap<>()))
             );
             assertThat(e.getMessage(), containsString("not an IP string literal"));
         }
@@ -310,8 +311,9 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
 
     private void assertExpectedLookupResults(String databaseName, String ip, InternalIpDataLookup lookup, Map<String, Object> expected) {
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
-            IpLocationInfoMapCollector actual = new IpLocationInfoMapCollector();
-            lookup.getData(loader, ip, actual);
+            Map<String, Object> actual = new HashMap<>();
+            IpLocationInfoMapCollector collector = new IpLocationInfoMapCollector(actual);
+            lookup.getData(loader, ip, collector);
             assertThat(
                 "The set of keys in the result are not the same as the set of expected keys",
                 actual.keySet(),

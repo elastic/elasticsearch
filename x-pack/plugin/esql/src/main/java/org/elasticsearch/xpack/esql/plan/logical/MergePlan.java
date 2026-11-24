@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -332,6 +333,66 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
+     * Whether a column of this merge that has the name of a metadata field, such as {@code _index}, is one that the query made, as
+     * in {@code EVAL _index = x | FORK ...}, and not the metadata that the merge passes on. A merge outputs the column as a
+     * reference attribute, which does not say which of the two it is, so it is decided from what each branch puts in it: the
+     * query made it when at least one branch has a column of that name that is not known to be null. A branch whose column is
+     * known to hold nothing but nulls has no say, because alignment fills in a column that a sibling has and the analyzer injects
+     * the outer {@code METADATA _index} as nulls into the branches of a union, and neither can be told from {@code EVAL _index = null}.
+     * That is a static property of the plan, not of the data: {@code EVAL _score = gender} is the query's own column even if every
+     * {@code gender} is null. A branch that outputs the column through a merge of its own is what that merge says.
+     */
+    public boolean mergesColumnThatTheQueryMade(Attribute merged) {
+        String name = merged.name();
+        // One walk for the columns that are known to be null, and one bottom-up pass over the merges, so that the work does not grow
+        // with the depth of the nesting: a merge reads what the merges below it decided for their columns from their ids.
+        Predicate<Attribute> nullOnly = producesOnlyNull(this);
+        Map<NameId, ColumnOrigin> originOfMergedColumn = new HashMap<>();
+        forEachUp(plan -> {
+            if (plan instanceof MergePlan merge) {
+                ColumnOrigin origin = merge.originFromBranches(name, nullOnly, originOfMergedColumn);
+                for (Attribute out : merge.output()) {
+                    if (out.name().equals(name)) {
+                        originOfMergedColumn.put(out.id(), origin);
+                    }
+                }
+            }
+        });
+        return originOfMergedColumn.get(merged.id()) == ColumnOrigin.QUERY;
+    }
+
+    /** What a column of a merge holds, see {@link #mergesColumnThatTheQueryMade}. */
+    private enum ColumnOrigin {
+        METADATA,
+        NULLS,
+        QUERY
+    }
+
+    /**
+     * @param below what the merges below this one decided for their column of this name, by the id of that column in their output
+     */
+    private ColumnOrigin originFromBranches(String name, Predicate<Attribute> nullOnly, Map<NameId, ColumnOrigin> below) {
+        boolean metadata = false;
+        for (LogicalPlan branch : children()) {
+            // a branch that does not have the column contributes nulls to it
+            ColumnOrigin origin = ColumnOrigin.NULLS;
+            for (Attribute attr : branch.output()) {
+                if (attr.name().equals(name)) {
+                    origin = attr instanceof MetadataAttribute ? ColumnOrigin.METADATA
+                        : nullOnly.test(attr) ? ColumnOrigin.NULLS
+                        : below.getOrDefault(attr.id(), ColumnOrigin.QUERY);
+                    break;
+                }
+            }
+            if (origin == ColumnOrigin.QUERY) {
+                return ColumnOrigin.QUERY;
+            }
+            metadata |= origin == ColumnOrigin.METADATA;
+        }
+        return metadata ? ColumnOrigin.METADATA : ColumnOrigin.NULLS;
+    }
+
+    /**
      * Whether a column of {@code branch}'s output holds nothing but nulls. A column written as an explicit
      * {@code EVAL x = null} is indistinguishable from one inserted by Analyzer rules (such as {@code InjectOuterMetadataForSubqueries}),
      * so both are treated alike.
@@ -345,6 +406,8 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * which covers {@code RENAME} and {@code EVAL x = y}, and a nested {@link MergePlan}'s output column is null-only
      * when that column is null-only in every one of its branches. A nested union whose branches all null-fill a column
      * outputs it as a fresh attribute that no alias defines, so without the latter it would look like a computed value.
+     * A {@link FillNull} clears the mark from a column it fills, which carries a non-null value from there on even though the
+     * command keeps the column's id until the optimizer expands it.
      * <p>
      * Walks {@code branch} once, so build one predicate per branch and test every column of a wide branch against it.
      */
@@ -381,6 +444,13 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                         }
                     }
                 }
+                case FillNull fillNull -> fillNull.child().output().forEach(attr -> {
+                    // FILLNULL replaces the nulls of a column with a non-null value, so a column it fills is no longer null-only.
+                    // The command keeps the column's id until the optimizer expands it, so the id marked below is the one to clear.
+                    if (fillNull.fills(attr)) {
+                        onlyNull.remove(attr.id());
+                    }
+                });
                 default -> {
                 }
             }

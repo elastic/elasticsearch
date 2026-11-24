@@ -90,13 +90,10 @@ public class SpanEventDocumentBuilderTests extends ESTestCase {
     }
 
     private ObjectPath buildDocument(Resource resource, InstrumentationScope scope, Span span, Span.Event event) throws IOException {
-        TargetIndex targetIndex = TargetIndex.evaluate(
-            "logs",
-            event.getAttributesList(),
-            null,
-            scope.getAttributesList(),
-            resource.getAttributesList()
-        );
+        TargetIndex targetIndex = TargetIndex.defaultForLogs()
+            .withAttributeOverrides(resource.getAttributesList())
+            .withAttributeOverrides(scope.getAttributesList())
+            .withAttributeOverrides(event.getAttributesList());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         documentBuilder.buildSpanEventDocument(builder, resource, RESOURCE_SCHEMA_URL, scope, SCOPE_SCHEMA_URL, targetIndex, span, event);
         return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

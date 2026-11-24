@@ -695,7 +695,8 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
         assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
     }
 
-    // LET bindings are substituted into the plan before analysis, so an IN over a binding must scope union types like an inline one.
+    // LET named subqueries are substituted into the plan before analysis, so an IN over a named subquery must scope union types like an
+    // inline one.
 
     public void testUnionTypeCastAfterInLetBindingWithStats() {
         LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
@@ -734,7 +735,7 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
     }
 
     /**
-     * Only possible with {@code LET}: the same binding body is the source of both the main query and the IN subquery.
+     * Only possible with {@code LET}: the same subquery body is the source of both the main query and the IN subquery.
      */
     public void testUnionTypeCastAfterInWithLetBindingOnBothSides() {
         LogicalPlan plan = letQuery(analyzer().addIndex(unionIndexResolution()).addEmployees(), """
@@ -749,7 +750,7 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
     }
 
     /**
-     * Resolves the {@code LET} bindings before view and IN-subquery resolution and analysis, as {@code EsqlSession} does.
+     * Resolves the {@code LET} named subqueries before view and IN-subquery resolution and analysis, as {@code EsqlSession} does.
      */
     private static LogicalPlan letQuery(TestAnalyzer analyzer, String query) {
         assumeTrue("Requires LET", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());

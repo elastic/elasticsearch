@@ -30,7 +30,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.MergeBlobInjector;
@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.MERGE_BLOBS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -174,7 +173,7 @@ public class TestUtils {
 
     public static StatelessCompoundCommit getCommitWithInternalFilesReplicatedRanges(
         ShardId shardId,
-        BlobFile blobFile,
+        BccBlob bccBlob,
         String nodeEphemeralId,
         int fileOffset,
         long regionSizeInBytes
@@ -195,18 +194,18 @@ public class TestUtils {
                 replicatedRanges.add(new InternalFilesReplicatedRanges.InternalFileReplicatedRange(fileOffset, (short) 1024));
                 replicatedRanges.add(new InternalFilesReplicatedRanges.InternalFileReplicatedRange(fileOffset + size - 16, (short) 16));
             }
-            commitFiles.put(file, new BlobLocation(blobFile, fileOffset, size));
+            commitFiles.put(file, new BlobLocation(bccBlob, fileOffset, size));
             fileOffset += size;
         }
         InternalFilesReplicatedRanges ranges = InternalFilesReplicatedRanges.from(replicatedRanges);
         commitFiles = Maps.transformValues(
             commitFiles,
-            location -> new BlobLocation(location.blobFile(), ranges.dataSizeInBytes() + location.offset(), location.fileLength())
+            location -> new BlobLocation(location.bccBlob(), ranges.dataSizeInBytes() + location.offset(), location.fileLength())
         );
 
         return new StatelessCompoundCommit(
             shardId,
-            blobFile.termAndGeneration(),
+            bccBlob.termAndGeneration(),
             1L,
             nodeEphemeralId,
             commitFiles,

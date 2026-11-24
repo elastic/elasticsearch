@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -44,6 +45,43 @@ public class NestedScopeFieldTests extends ESTestCase {
             NestedScopeField.namespace(List.of(index("a", field("id", "keyword"), field("obj", "object"))), FIRST_OCCURRENCE),
             nullValue()
         );
+    }
+
+    public void testAKeyOfAFlattenedFieldIsAChildOfItsCollection() {
+        EsField root = NestedScopeField.namespace(
+            List.of(index("a", field("items", "nested"), field("items.attrs", "flattened"), field("other", "nested"))),
+            FIRST_OCCURRENCE,
+            Set.of("items.attrs.color"),
+            (name, fields) -> fields.containsKey("items.attrs") ? field(name, "keyword") : null
+        );
+        NestedScopeField color = scoped(scoped(scoped(root, "items"), "attrs"), "color");
+        assertThat(color.getDataType(), equalTo(DataType.KEYWORD));
+        assertThat(color.path(), equalTo("items"));
+        assertThat(scoped(root, "other").getProperties().isEmpty(), equalTo(true));
+    }
+
+    public void testAKeyIsNoChildWhereAnotherIndexMapsTheNameAsAField() {
+        EsField root = NestedScopeField.namespace(
+            List.of(
+                index("a", field("items", "nested"), field("items.attrs", "object"), field("items.attrs.score", "long")),
+                index("b", field("items", "nested"), field("items.attrs", "flattened"))
+            ),
+            FIRST_OCCURRENCE,
+            Set.of("items.attrs.score"),
+            (name, fields) -> fields.containsKey("items.attrs") ? field(name, "keyword") : null
+        );
+        NestedScopeField score = scoped(scoped(scoped(root, "items"), "attrs"), "score");
+        assertThat(score.getDataType(), equalTo(DataType.LONG));
+    }
+
+    public void testAKeyIsNotAChildWhereNoIndexHoldsItInANestedFlattenedField() {
+        EsField root = NestedScopeField.namespace(
+            List.of(index("a", field("items", "nested"), field("items.sku", "keyword"))),
+            FIRST_OCCURRENCE,
+            Set.of("items.attrs.color"),
+            (name, fields) -> null
+        );
+        assertThat(scoped(root, "items").getProperties().containsKey("attrs"), equalTo(false));
     }
 
     public void testIndicesThatAgreeShareOneCollection() {

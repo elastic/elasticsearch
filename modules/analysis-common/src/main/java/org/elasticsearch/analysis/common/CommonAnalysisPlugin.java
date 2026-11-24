@@ -92,6 +92,8 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.sq.AlbanianAnalyzer;
+import org.apache.lucene.analysis.sq.AlbanianNormalizationFilter;
 import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
@@ -174,6 +176,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.put("whitespace", WhitespaceAnalyzerProvider::new);
 
         // Language analyzers:
+        analyzers.put("albanian", AlbanianAnalyzerProvider::new);
         analyzers.put("arabic", ArabicAnalyzerProvider::new);
         analyzers.put("armenian", ArmenianAnalyzerProvider::new);
         analyzers.put("basque", BasqueAnalyzerProvider::new);
@@ -217,6 +220,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
+        filters.put("albanian_normalization", AlbanianNormalizationFilterFactory::new);
         filters.put("apostrophe", ApostropheFilterFactory::new);
         filters.put("arabic_normalization", ArabicNormalizationFilterFactory::new);
         filters.put("arabic_stem", ArabicStemTokenFilterFactory::new);
@@ -453,6 +457,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         );
 
         // Language analyzers:
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("albanian", CachingStrategy.LUCENE, AlbanianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("arabic", CachingStrategy.LUCENE, ArabicAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("armenian", CachingStrategy.LUCENE, ArmenianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("basque", CachingStrategy.LUCENE, BasqueAnalyzer::new));
@@ -510,6 +515,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
         List<PreConfiguredTokenFilter> filters = new ArrayList<>();
+        filters.add(PreConfiguredTokenFilter.singleton("albanian_normalization", true, AlbanianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("apostrophe", false, ApostropheFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("arabic_normalization", true, ArabicNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("arabic_stem", false, ArabicStemFilter::new));

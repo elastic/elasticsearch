@@ -213,6 +213,7 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -6918,6 +6919,64 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(filter.child(), EsRelation.class);
     }
 
+    /**
+     * The right-hand side is turned into a null literal by {@code ConstantFolding} (or {@code PropagateEvalFoldables}) only after
+     * {@code FoldNull} ran in the same batch pass, so the casing rule sees the comparison before it's simplified to null.
+     * https://github.com/elastic/elasticsearch/issues/166709
+     */
+    public void testReplaceStringCasingWithInsensitiveEqualsNullFolded() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            for (var op : List.of("==", "!=")) {
+                for (var query : List.of(
+                    "FROM test | WHERE " + fn + "(first_name) " + op + " CASE(true, null, \"a\")",
+                    "FROM test | EVAL n = null::keyword | WHERE " + fn + "(first_name) " + op + " n"
+                )) {
+                    var plan = optimizedPlan(query);
+                    var local = as(plan, LocalRelation.class);
+                    assertThat(query, local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+                }
+            }
+        }
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsNullFoldedWithWarnings() {
+        var fn = randomFrom("TO_LOWER", "TO_UPPER");
+        var op = randomFrom("==", "!=");
+        var query = "FROM test | WHERE " + fn + "(first_name) " + op + " TO_STRING(1/0)";
+        var plan = optimizedPlan(query);
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+        var column = query.indexOf("1/0") + 1;
+        assertWarnings(
+            "Line 1:" + column + ": evaluation of [1/0] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:" + column + ": java.lang.ArithmeticException: / by zero"
+        );
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsNullFoldedInEval() {
+        var fn = randomFrom("TO_LOWER", "TO_UPPER");
+        var op = randomFrom("==", "!=");
+        var plan = optimizedPlan("FROM test | EVAL x = " + fn + "(first_name) " + op + " CASE(true, null, \"a\") | KEEP x");
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("x"));
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), nullValue());
+        assertThat(literal.dataType(), is(BOOLEAN));
+    }
+
+    public void testReplaceStringCasingWithInsensitiveEqualsNullFoldedDisjunction() {
+        var fn = randomFrom("TO_LOWER", "TO_UPPER");
+        var op = randomFrom("==", "!=");
+        var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) " + op + " CASE(true, null, \"a\") OR emp_no == 10001");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var equals = as(filter.condition(), Equals.class);
+        assertThat(Expressions.name(equals.left()), is("emp_no"));
+        as(filter.child(), EsRelation.class);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -8053,6 +8112,69 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         assertThat(firstPassAggs, hasSize(1));
         assertThat(firstPassAggs.get(0).filter(), instanceOf(Or.class));
+    }
+
+    /**
+     * Filtered and unfiltered aggregates, each inside a scalar expression, in one {@code STATS}. Only the per-time-series aggregates
+     * of the filtered expressions keep the filter. See https://github.com/elastic/elasticsearch/issues/166160.
+     */
+    public void testTranslateWithMixedInlineFiltersOnWrappedAggregates() {
+        var plan = planMetrics("""
+            TS k8s
+            | STATS a = MAX(MAX_OVER_TIME(network.bytes_in)) * 8 WHERE event == "foo",
+                    b = MAX(MAX_OVER_TIME(network.cost)) * 8,
+                    c = MAX(MAX_OVER_TIME(network.eth0.rx)) * 8,
+                    d = MAX(MAX_OVER_TIME(network.eth0.tx)) * 8 WHERE event == "foo"
+              BY TBUCKET(1 minute)
+            """);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        Map<String, Expression> firstPassFilters = new HashMap<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                // The optimizer replaces MAX_OVER_TIME with MAX in the first pass
+                tsAgg.forEachExpression(Max.class, m -> firstPassFilters.put(Expressions.name(m.fields().getFirst()), m.filter()));
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(4));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassFilters.keySet(), containsInAnyOrder("network.bytes_in", "network.cost", "network.eth0.rx", "network.eth0.tx"));
+        assertThat(firstPassFilters.get("network.bytes_in"), instanceOf(Equals.class));
+        assertThat(firstPassFilters.get("network.cost"), equalTo(Literal.TRUE));
+        assertThat(firstPassFilters.get("network.eth0.rx"), equalTo(Literal.TRUE));
+        assertThat(firstPassFilters.get("network.eth0.tx"), instanceOf(Equals.class));
+    }
+
+    /**
+     * {@code LATEST} and {@code EARLIEST} read the implicit {@code @timestamp}, which the second pass cannot see. The first pass must
+     * aggregate it per time series with the same functions as {@code LAST} and {@code FIRST}. See
+     * https://github.com/elastic/elasticsearch/issues/154299 and https://github.com/elastic/elasticsearch/issues/157757.
+     */
+    public void testTranslateLatestAndEarliest() {
+        var plan = planMetrics("""
+            TS k8s
+            | WHERE cluster IS NOT NULL AND cluster != "" AND network.eth0.tx IS NOT NULL
+            | STATS l = LATEST(network.eth0.tx), e = EARLIEST(network.eth0.tx) BY pod
+            """);
+
+        List<TimeSeriesAggregate> firstPass = plan.collect(TimeSeriesAggregate.class);
+        assertThat(firstPass, hasSize(1));
+        List<String> firstPassAggs = new ArrayList<>();
+        for (NamedExpression agg : firstPass.get(0).aggregates()) {
+            if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                firstPassAggs.add(af.getClass().getSimpleName() + "(" + Expressions.name(af.fields().getFirst()) + ")");
+            }
+        }
+        // The optimizer replaces MAX_OVER_TIME and MIN_OVER_TIME with MAX and MIN in the first pass
+        assertThat(
+            firstPassAggs,
+            hasItems("LastOverTime(network.eth0.tx)", "Max(@timestamp)", "FirstOverTime(network.eth0.tx)", "Min(@timestamp)")
+        );
+        assertThat(firstPassAggs, not(hasItem("LastOverTime(@timestamp)")));
     }
 
     /**
@@ -11276,6 +11398,31 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(topN.order(), hasSize(2));
         var fork = as(topN.child(), Fork.class);
         assertThat(fork.children(), hasSize(2));
+    }
+
+    /**
+     * A FORK branch that fills a sibling's grouping key with an untyped null is rejected by the analyzer rather than
+     * failing the plan check after optimization.
+     */
+    public void testForkBranchWithUntypedNullColumnIsRejected() {
+        var e = expectThrows(VerificationException.class, () -> optimizedPlan("""
+            from employees
+             | fork (stats total = sum(salary) by languages)
+                    (stats total = sum(salary) | eval languages = null)
+            """));
+        assertThat(e.getMessage(), containsString("Column [languages] has conflicting data types in FORK branches: [NULL] and [INTEGER]"));
+    }
+
+    public void testForkBranchWithTypedNullColumn() {
+        var plan = optimizedPlan("""
+            from employees
+             | fork (stats total = sum(salary) by languages)
+                    (stats total = sum(salary) | eval languages = null::integer)
+            """);
+        var limit = as(plan, Limit.class);
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
+        assertThat(Expressions.names(fork.output()), contains("total", "languages", "_fork"));
     }
 
     public void testPushDownLimitInFork() {

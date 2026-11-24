@@ -142,6 +142,11 @@ PUT /my-index-000001
 
 The following list contains supported language values for the `stopwords` parameter and a link to their predefined stop words in Lucene.
 
+$$$albanian-stop-words$$$
+
+`_albanian_`
+:   [Albanian stop words](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/resources/org/apache/lucene/analysis/sq/stopwords.txt)
+
 $$$arabic-stop-words$$$
 
 `_arabic_`

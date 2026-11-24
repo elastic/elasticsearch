@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.MergeBlob;
@@ -373,7 +374,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BccBlob.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -443,7 +444,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+                    .filter(BccBlob::startsWithBlobPrefix)
                     .count()
             );
 
@@ -1758,7 +1759,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             bccGenerations.add(randomLongBetween(1L, 1000L));
         }
         for (long generation : bccGenerations) {
-            writeRandomBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(generation));
+            writeRandomBlob(blobContainer, BccBlob.blobNameFromGeneration(generation));
         }
         final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
         // a merge blob must neither be listed nor be the latest blob
@@ -1778,7 +1779,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
                 assertThat(latestBlob, notNullValue());
                 assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
-                assertThat(latestBlob.v2().name(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(maxBccGeneration)));
+                assertThat(latestBlob.v2().name(), equalTo(BccBlob.blobNameFromGeneration(maxBccGeneration)));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

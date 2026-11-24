@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166486
+summary: Make named subqueries in ES|QL generally available
+type: feature

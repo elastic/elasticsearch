@@ -1431,6 +1431,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
+    /** {@code max_rows}, {@code max_bytes} and {@code store} belong to {@code POST /_query/stream} only. */
+    public void testStreamOnlyFieldsAreUnknownOnTheQueryEndpoints() {
+        for (String field : new String[] { "\"max_rows\": 1", "\"max_bytes\": 1", "\"store\": \"none\"" }) {
+            String json = "{\"query\": \"FROM idx\", " + field + "}";
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+            expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestAsync(json));
+        }
+    }
+
     public static QueryBuilder randomQueryBuilder() {
         return randomFrom(
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Verifies that the time-series target-chunk-rows pragma is read independently from the regular aggregation pragmas,
@@ -60,6 +61,14 @@ public class QueryPragmasTests extends ESTestCase {
             pragmas.maxBranchCountPerMergeLimitSource("esql.query.max_branch_count_per_merge"),
             equalTo("[esql.query.max_branch_count_per_merge] cluster setting")
         );
+    }
+
+    /** Unset leaves the decision to the cluster, so the accessor tells the two apart. */
+    public void testFetchPhasePragma() {
+        assertThat(new QueryPragmas(Settings.EMPTY).fetchPhase(), nullValue());
+        assertThat(new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), true).build()).fetchPhase(), equalTo(true));
+        assertThat(new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), false).build()).fetchPhase(), equalTo(false));
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.FETCH_PHASE.getKey()));
     }
 
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {

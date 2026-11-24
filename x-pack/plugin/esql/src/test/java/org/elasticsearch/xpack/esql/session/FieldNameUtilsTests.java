@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes;
@@ -3786,6 +3788,49 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("FROM idx | HIGHLIGHT MATCH(title, \"foo\") AND NOT MATCH(body, \"bar\") | KEEP highlight_title", ALL_FIELDS);
     }
 
+    // JOIN on a subquery tests
+
+    public void testLeftOuterJoinSubquery() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames(
+            """
+                FROM employees
+                | LEFT OUTER JOIN (FROM languages | KEEP language_id, language_name) ON language_id
+                | KEEP emp_no, language_name""",
+            Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "language_name", "language_name.*")
+        );
+    }
+
+    public void testLeftOuterJoinSubqueryWithoutKeepNeedsAllFields() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no
+            | LEFT OUTER JOIN (FROM languages) ON language_id
+            | KEEP emp_no, language_name""", ALL_FIELDS);
+    }
+
+    public void testLeftOuterJoinSubqueryWithStatsNeedsAllFields() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames(
+            "FROM employees | LEFT OUTER JOIN (FROM languages | STATS c = COUNT(*) BY language_id) ON language_id",
+            ALL_FIELDS
+        );
+    }
+
+    public void testLeftOuterJoinSubqueryNestedInSubqueryKeepDoesNotNarrow() {
+        assumeSubqueryJoinGrammar();
+        assertFieldNames("""
+            FROM employees
+            | KEEP emp_no, language_id
+            | LEFT OUTER JOIN (FROM languages | WHERE language_id IN (FROM other | KEEP language_id)) ON language_id
+            | KEEP emp_no""", ALL_FIELDS);
+    }
+
+    private static void assumeSubqueryJoinGrammar() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+    }
+
     // IN subquery tests
 
     public void testInSubquery() {
@@ -3851,6 +3896,15 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP emp_no, first_name""",
             Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "salary", "salary.*", "languages", "languages.*")
         );
+    }
+
+    public void testNestedInSubqueryKeepDoesNotNarrowEnclosingSubquery() {
+        // The KEEP narrows only the innermost subquery. The enclosing subquery has no KEEP of its own and returns every column, so
+        // field_caps must not be narrowed to the fields the queries reference.
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no))
+            | KEEP emp_no""", ALL_FIELDS);
     }
 
     public void testInSubqueryFieldShadowedByMainQueryStatsAlias() {

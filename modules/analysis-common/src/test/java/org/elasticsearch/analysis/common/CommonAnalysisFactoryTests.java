@@ -67,6 +67,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("greeklowercase", LowerCaseTokenFilterFactory.class);
         filters.put("irishlowercase", LowerCaseTokenFilterFactory.class);
         filters.put("lowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("albanianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("albaniannormalization", AlbanianNormalizationFilterFactory.class);
         filters.put("turkishlowercase", LowerCaseTokenFilterFactory.class);
         filters.put("uppercase", UpperCaseTokenFilterFactory.class);
         filters.put("ngram", NGramTokenFilterFactory.class);
@@ -174,6 +176,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
+        filters.put("albanian_normalization", null);
         filters.put("apostrophe", null);
         filters.put("arabic_normalization", null);
         filters.put("arabic_stem", null);
@@ -249,6 +252,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     /** Language analyzers keyed on their stop words (including {@code stopwords_case}) and stem exclusions. */
     private static final List<String> STOPWORD_AND_STEM_EXCLUSION_ANALYZERS = List.of(
+        "albanian",
         "arabic",
         "armenian",
         "basque",
@@ -334,6 +338,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, FactorySettings> tokenFilterSettings() {
         Map<String, FactorySettings> filters = new HashMap<>();
         for (String stateless : List.of(
+            "albanian_normalization",
             "apostrophe",
             "arabic_normalization",
             "arabic_stem",

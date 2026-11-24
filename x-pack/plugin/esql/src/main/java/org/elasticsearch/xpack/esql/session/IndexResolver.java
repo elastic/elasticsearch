@@ -703,7 +703,22 @@ public class IndexResolver {
         EsField nestedNamespace = fieldsInfo.nestedScope()
             ? NestedScopeField.namespace(
                 indexResponses,
-                (name, fullName, occurrences) -> createField(fieldsInfo, name, fullName, occurrences, false, indexDedupCache, true)
+                (name, fullName, occurrences) -> createField(
+                    fieldsInfo,
+                    name,
+                    fullName,
+                    fieldsInfo.objectsAreNotLeaves() && mapsAsALeafToo(occurrences)
+                        ? occurrences.stream().filter(fc -> isObject(fc) == false).toList()
+                        : occurrences,
+                    false,
+                    indexDedupCache,
+                    true
+                ),
+                fieldsInfo.keyNames(),
+                (name, fields) -> {
+                    IndexFieldCapabilities root = flattenedRoot(fields, name);
+                    return root != null && NestedScopeField.inNestedScope(root, fields) ? key(name, root) : null;
+                }
             )
             : null;
         if (nestedNamespace != null) {
@@ -813,9 +828,8 @@ public class IndexResolver {
         if (objectsAreNotLeaves) {
             // Where another index maps the name of an object as a field, the object only shapes the fields under it
             for (IndexFieldCapabilitiesWithSourceHash caps : fieldsCaps.values()) {
-                List<IndexFieldCapabilities> all = caps.fieldCapabilities;
-                if (all.stream().anyMatch(fc -> isObject(fc) == false)) {
-                    all.removeIf(IndexResolver::isObject);
+                if (mapsAsALeafToo(caps.fieldCapabilities)) {
+                    caps.fieldCapabilities.removeIf(IndexResolver::isObject);
                 }
             }
         }
@@ -1142,6 +1156,11 @@ public class IndexResolver {
             // A flattened key can hold many values, so there is no single-value guarantee.
             false
         );
+    }
+
+    /** Whether some index maps the name of {@code occurrences} as something other than an object, which only shapes the fields under it. */
+    private static boolean mapsAsALeafToo(List<IndexFieldCapabilities> occurrences) {
+        return occurrences.stream().anyMatch(fc -> isObject(fc) == false);
     }
 
     private static boolean isObject(IndexFieldCapabilities fc) {

@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
+import org.apache.lucene.search.uhighlight.MemoryIndexOffsetStrategy;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.automaton.ByteRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -50,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
@@ -89,6 +92,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final CustomFieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
+    private boolean tokenPrefilter;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -191,6 +195,19 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         return fieldHighlighter.getFieldOffsetStrategy().getOffsetSource();
     }
 
+    /** Returns whether tokens are filtered against the query before populating the per-document MemoryIndex. */
+    boolean hasTokenPrefilter() {
+        return tokenPrefilter;
+    }
+
+    @Override
+    protected FieldOffsetStrategy getOffsetStrategy(OffsetSource offsetSource, UHComponents components) {
+        FieldOffsetStrategy strategy = super.getOffsetStrategy(offsetSource, components);
+        // Same condition MemoryIndexOffsetStrategy uses to build its (private) prefilter.
+        tokenPrefilter = strategy instanceof MemoryIndexOffsetStrategy && components.terms() != null && components.automata() != null;
+        return strategy;
+    }
+
     @Override
     protected FieldHighlighter newFieldHighlighter(
         String field,
@@ -257,6 +274,27 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         } else {
             return null;
         }
+    }
+
+    @Override
+    protected boolean hasUnrecognizedQuery(Predicate<String> fieldMatcher, Query query) {
+        boolean[] hasUnknownLeaf = new boolean[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public boolean acceptField(String field) {
+                return hasUnknownLeaf[0] == false && fieldMatcher.test(field);
+            }
+
+            @Override
+            public void visitLeaf(Query leaf) {
+                // Shared automata support token filtering, but Lucene only recognizes its own automaton query classes.
+                if (leaf instanceof SharedAutomatonQuery == false
+                    && CustomUnifiedHighlighter.super.hasUnrecognizedQuery(fieldMatcher, leaf)) {
+                    hasUnknownLeaf[0] = true;
+                }
+            }
+        });
+        return hasUnknownLeaf[0];
     }
 
     /**

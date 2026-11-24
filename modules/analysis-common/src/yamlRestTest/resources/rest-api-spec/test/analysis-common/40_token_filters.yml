@@ -887,6 +887,37 @@
     - match:  { tokens.3.token: c }
 
 ---
+"albanian_normalization":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_albanian_normalization:
+                    type: albanian_normalization
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      është
+            tokenizer: keyword
+            filter:    [my_albanian_normalization]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: eshte }
+
+    # Test pre-configured token filter too:
+    - do:
+        indices.analyze:
+          body:
+            text:      është
+            tokenizer: keyword
+            filter:    [albanian_normalization]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: eshte }
+
+---
 "arabic_normalization":
     - do:
         indices.create:

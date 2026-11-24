@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
 import java.util.List;
@@ -115,30 +114,14 @@ public class Into extends UnaryPlan
         };
     }
 
-    /**
-     * A {@link LocalRelation} is a ROW producer that analysis already materialized, for example {@code DESCRIBE}.
-     * Pass {@code false} while the original producer is still in the plan.
-     */
-    public static boolean unsupportedSource(LogicalPlan child, boolean allowMaterializedRow) {
-        return child.anyMatch(p -> {
-            if (p instanceof MergePlan) {
-                return true;
-            }
-            if (p instanceof LeafPlan == false || p instanceof Row) {
-                return false;
-            }
-            if (allowMaterializedRow && p instanceof LocalRelation) {
-                return false;
-            }
-            return true;
-        });
+    private static boolean unsupportedSource(LogicalPlan child) {
+        return child.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && (p instanceof Row) == false));
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
         // TODO: once FROM is supported, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
-        // RejectUnsupportedIntoSource already saw the original producer. DESCRIBE has since replaced it with a LocalRelation.
-        if (unsupportedSource(child(), true)) {
+        if (unsupportedSource(child())) {
             failures.add(fail(this, "INTO currently only supports ROW as a source, without FORK"));
         }
     }

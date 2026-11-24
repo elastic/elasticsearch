@@ -40,7 +40,7 @@ $$$esql-federation-enabled$$$
 
     {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [errors for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
 
-    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    {applies_to}`self:` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 
@@ -108,16 +108,16 @@ $$$esql-external-max-listed-objects$$$
 `esql.external.max_listed_objects` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on objects visited while listing a glob, including keys that don't match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings, and a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
 
-    - **Default:** `1000000`
-    - **Valid values:** `1` to `10000000`
+    - **Default:** `10000000`
+    - **Valid values:** `1` to `100000000`
 
 $$$esql-external-max-discovered-files$$$
 
 `esql.external.max_discovered_files`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs. An explicit value overrides the formula and is not clipped by heap. Planning memory for kept files is charged to the request circuit breaker, which remains the backstop if the cap is raised beyond what the node can hold.
 
-    - **Default:** `25000`
-    - **Valid values:** `1` to `1000000`
+    - **Default:** 15% of the node's max heap at startup divided by about 1180 bytes per kept file, minimum `25000` and maximum `10000000`
+    - **Valid values:** `1` to `10000000`
 
 $$$esql-external-max-glob-expansion$$$
 

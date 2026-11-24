@@ -464,6 +464,8 @@ setup:
                 index_options:
                   type: int8_hnsw
 ---
+# TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163788):
+# muted on mixed-cluster; Lucene 11 int8 knn can reorder these cosine hits on 8.x segments.
 "Test create, merge, and search cosine":
   - requires:
       cluster_features: "gte_v8.12.0"

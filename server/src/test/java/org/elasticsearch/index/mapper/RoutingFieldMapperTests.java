@@ -32,6 +32,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -40,6 +42,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -51,6 +54,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -134,6 +138,49 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         RoutingFieldMapper mapper = (RoutingFieldMapper) docMapper.mappers().getMapper("_routing");
         assertNotNull(mapper);
         assertTrue("doc_values should be true when configured", mapper.docValues());
+    }
+
+    public void testDocValuesFalseIsIgnoredInColumnar() throws Exception {
+        String mode = randomFrom("columnar", "logsdb_columnar");
+        var mapperService = createMapperService(
+            Settings.builder().put("index.mode", mode).build(),
+            topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject())
+        );
+        RoutingFieldMapper mapper = (RoutingFieldMapper) mapperService.documentMapper().mappers().getMapper("_routing");
+        assertTrue("doc_values:false must be ignored in columnar", mapper.docValues());
+        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("doc_values")));
+        assertWarnings(
+            "The [doc_values] parameter of field [_routing] is ignored in columnar index modes, because doc values are "
+                + "always enabled. Remove the parameter."
+        );
+    }
+
+    /**
+     * Only {@code doc_values: false} is a deprecated no-op in columnar; an explicit {@code true} is the default and must not warn
+     * (unexpected deprecation warnings fail the test in {@code ensureNoWarnings}).
+     */
+    public void testDocValuesTrueDoesNotWarnInColumnar() throws Exception {
+        var mapperService = createMapperService(
+            Settings.builder().put("index.mode", randomFrom("columnar", "logsdb_columnar")).build(),
+            topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject())
+        );
+        RoutingFieldMapper mapper = (RoutingFieldMapper) mapperService.documentMapper().mappers().getMapper("_routing");
+        assertTrue(mapper.docValues());
+    }
+
+    public void testDocValuesFalseIsHonoredInColumnarBeforeNoOpVersion() throws Exception {
+        for (IndexVersion version : List.of(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.ROUTING_DOC_VALUES_NO_OP_IN_COLUMNAR),
+            IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS
+        )) {
+            var mapperService = createMapperService(
+                version,
+                Settings.builder().put("index.mode", "columnar").build(),
+                topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject())
+            );
+            RoutingFieldMapper mapper = (RoutingFieldMapper) mapperService.documentMapper().mappers().getMapper("_routing");
+            assertFalse("version " + version, mapper.docValues());
+        }
     }
 
     public void testDocValuesRoutingStoresAsSortedDocValues() throws Exception {

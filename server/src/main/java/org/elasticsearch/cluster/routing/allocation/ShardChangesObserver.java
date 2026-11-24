@@ -66,7 +66,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     // Cache the attribute maps: the set of distinct combinations is small (move types x deciders x 2)
-    private final Map<RelocationAttributes, Map<String, Object>> relocationAttributes = new ConcurrentHashMap<>();
+    private static final Map<RelocationAttributes, Map<String, Object>> RELOCATION_ATTRIBUTES = new ConcurrentHashMap<>();
 
     private final LongHistogram unassignedToInitializingDuration;
     private final LongHistogram unassignedToStartedDuration;
@@ -146,7 +146,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
         );
         relocationStartedCounter.incrementBy(
             1,
-            relocationAttributes.computeIfAbsent(RelocationAttributes.of(reason, startedShard.primary()), RelocationAttributes::toMap)
+            RELOCATION_ATTRIBUTES.computeIfAbsent(RelocationAttributes.of(reason, startedShard.primary()), RelocationAttributes::toMap)
         );
     }
 

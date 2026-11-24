@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
- - 167028
+issues: []
 pr: 167223
 summary: Fail driver on already-failed blocked future
 type: bug

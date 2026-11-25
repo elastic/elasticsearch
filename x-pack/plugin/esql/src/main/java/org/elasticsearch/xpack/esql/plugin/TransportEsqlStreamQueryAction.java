@@ -640,10 +640,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     static long tookMillis(EsqlExecutionInfo executionInfo) {
-        if (executionInfo.overallTook() != null) {
-            return executionInfo.overallTook().millis();
-        }
-        return executionInfo.queryProfile().total().timeSinceStarted().millis();
+        return executionInfo.tookOrElapsed().millis();
     }
 
     static PageStreamPublisher.StreamFooter failureFooter(

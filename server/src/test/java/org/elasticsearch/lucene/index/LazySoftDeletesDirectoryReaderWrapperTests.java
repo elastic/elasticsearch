@@ -30,6 +30,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -37,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@RunWith(ESRandomizedRunner.class)
 public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
 
     public void testDropFullyDeletedSegments() throws IOException {

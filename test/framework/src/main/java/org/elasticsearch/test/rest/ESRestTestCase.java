@@ -2991,6 +2991,26 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeReadCpuNanos,
         boolean includeDriverNanos
     ) {
+        return getResultMatcher(
+            includePartial,
+            includeDocumentsFound,
+            includeTimestamps,
+            includeRollupMetrics,
+            includeReadCpuNanos,
+            includeDriverNanos,
+            false
+        );
+    }
+
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics,
+        boolean includeReadCpuNanos,
+        boolean includeDriverNanos,
+        boolean includeSearchLoad
+    ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
@@ -3011,6 +3031,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (includeDriverNanos) {
                 // Added with the esql_driver_nanos TV. Older nodes don't emit it.
                 mapMatcher = mapMatcher.entry("driver_nanos", IntOrLongMatcher.isIntOrLong());
+            }
+            if (includeSearchLoad) {
+                // Added with the search_load_report TV. Older nodes don't emit them.
+                mapMatcher = mapMatcher.entry("search_load_nanos", IntOrLongMatcher.isIntOrLong());
+                mapMatcher = mapMatcher.entry("search_cpu_nanos", IntOrLongMatcher.isIntOrLong());
+                mapMatcher = mapMatcher.entry("search_waiting_nanos", IntOrLongMatcher.isIntOrLong());
             }
         }
         if (includeTimestamps) {
@@ -3053,7 +3079,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("start_time_in_millis"),
             result.containsKey("rows_emitted"),
             result.containsKey("read_cpu_nanos"),
-            result.containsKey("driver_nanos")
+            result.containsKey("driver_nanos"),
+            result.containsKey("search_load_nanos")
         );
     }
 

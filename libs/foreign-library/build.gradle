@@ -16,7 +16,7 @@ dependencies {
   api project(':libs:core')
   api project(':libs:logging')
 
-  testImplementation buildLibs.junit4
+  testImplementation project(":test:vintage-randomized-runner")
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

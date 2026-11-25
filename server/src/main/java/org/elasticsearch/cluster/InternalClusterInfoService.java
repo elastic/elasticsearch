@@ -393,12 +393,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 }, fetchRef);
                 try {
                     // An Exception before the collector notifies its listener is forwarded to onFailure, which releases fetchRef.
+                    // A normal return keeps fetchRef until that listener runs, including when the collector completes it later.
                     ActionListener.run(listener, l -> searchLoadMetricsCollector.collectSearchLoadMetrics(clusterStateSupplier.get(), l));
-                } finally {
-                    // ActionListener.run does not catch Error. Release the ref here or currentRefresh stays set.
+                } catch (Error e) {
+                    // ActionListener.run does not catch Error. Release the ref or currentRefresh stays set.
                     if (listenerCompleted.get() == false) {
                         fetchRef.close();
                     }
+                    throw e;
                 }
             }
         }

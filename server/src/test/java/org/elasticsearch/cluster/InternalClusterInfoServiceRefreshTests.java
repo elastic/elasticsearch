@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
@@ -36,7 +37,10 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.ClusterInfoServiceUtils.refresh;
 import static org.hamcrest.Matchers.equalTo;
@@ -417,6 +421,68 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             final ClusterInfo clusterInfo = refresh(clusterInfoService);
             assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
             assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(capacities));
+        }
+    }
+
+    public void testSearchLoadMetricsCollectorCompletesAfterReturn() throws Exception {
+        try (RefreshTestContext context = RefreshTestContext.create(baseSettings())) {
+            final ClusterInfo.NodeAndShard nodeAndShard = new ClusterInfo.NodeAndShard("node-id", new ShardId("index", "uuid", 0));
+            final Map<ClusterInfo.NodeAndShard, SearchCopyDemand> demands = Map.of(
+                nodeAndShard,
+                new SearchCopyDemand(randomDouble(), randomDouble())
+            );
+            final Map<String, NodeSearchCapacity> capacities = Map.of(
+                "node-id",
+                new NodeSearchCapacity(randomDoubleBetween(0.1, 64.0, true), randomDoubleBetween(0.1, 64.0, true))
+            );
+            final SearchLoadMetrics metrics = new SearchLoadMetrics(demands, capacities);
+            final AtomicReference<ActionListener<SearchLoadMetrics>> pending = new AtomicReference<>();
+            final CountDownLatch collectorEntered = new CountDownLatch(1);
+            final CountDownLatch allowReturn = new CountDownLatch(1);
+            final SearchLoadMetricsCollector searchLoadMetricsCollector = mock(SearchLoadMetricsCollector.class);
+            doAnswer(invocation -> {
+                pending.set(invocation.getArgument(1));
+                collectorEntered.countDown();
+                assertTrue(allowReturn.await(10, TimeUnit.SECONDS));
+                return null;
+            }).when(searchLoadMetricsCollector).collectSearchLoadMetrics(any(), any());
+
+            final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                nodeStatsClient(context.threadPool()),
+                EstimatedHeapUsageCollector.EMPTY,
+                CacheSizesAndCommitmentCollector.EMPTY,
+                PartitionSizeCollector.EMPTY,
+                SearchLaneRequirementsCollector.EMPTY,
+                searchLoadMetricsCollector
+            );
+
+            final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>();
+            final AtomicReference<Throwable> refreshFailure = new AtomicReference<>();
+            final Thread refreshThread = new Thread(() -> {
+                try {
+                    clusterInfoService.refreshAsync(future);
+                } catch (Throwable t) {
+                    refreshFailure.set(t);
+                }
+            });
+            refreshThread.start();
+            try {
+                assertTrue(collectorEntered.await(10, TimeUnit.SECONDS));
+                allowReturn.countDown();
+                refreshThread.join(10_000);
+                assertFalse(refreshThread.isAlive());
+                assertNull(refreshFailure.get());
+                // The collector has returned without completing the listener, so the refresh is still open.
+                assertFalse(future.isDone());
+
+                pending.get().onResponse(metrics);
+                final ClusterInfo clusterInfo = future.actionGet(10, TimeUnit.SECONDS);
+                assertThat(clusterInfo.getSearchCopyDemands(), equalTo(demands));
+                assertThat(clusterInfo.getNodeSearchCapacities(), equalTo(capacities));
+            } finally {
+                allowReturn.countDown();
+                refreshThread.join(10_000);
+            }
         }
     }
 

@@ -42,12 +42,24 @@ public class NodeSearchCapacityTests extends AbstractWireSerializingTestCase<Nod
     }
 
     public void testRejectsZero() {
-        final double positive = randomPositiveDouble();
-        final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(0.0d, positive));
+        final double valid = randomPositiveDouble();
+        final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(0.0d, valid));
         assertThat(nodeComputeError.getMessage(), containsString("nodeCompute must be finite and positive"));
 
-        final AssertionError threadBudgetError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(positive, 0.0d));
+        final AssertionError threadBudgetError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(valid, 0.0d));
         assertThat(threadBudgetError.getMessage(), containsString("threadBudget must be finite and positive"));
+    }
+
+    public void testRejectsInvalidValues() {
+        final double valid = randomPositiveDouble();
+        for (double rejected : new double[] { Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            final double invalid = rejected;
+            final AssertionError nodeComputeError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(invalid, valid));
+            assertThat(nodeComputeError.getMessage(), containsString("nodeCompute must be finite and positive"));
+
+            final AssertionError threadBudgetError = expectThrows(AssertionError.class, () -> new NodeSearchCapacity(valid, invalid));
+            assertThat(threadBudgetError.getMessage(), containsString("threadBudget must be finite and positive"));
+        }
     }
 
     private static NodeSearchCapacity randomNodeSearchCapacity() {

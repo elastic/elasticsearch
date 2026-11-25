@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -128,7 +129,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
                 response.readNanos(),
                 response.readCpuNanos(),
                 response.cpuNanos(),
-                response.driverNanos()
+                response.driverNanos(),
+                response.searchLoad()
             )
         );
     }
@@ -142,7 +144,8 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         long readNanos,
         long readCpuNanos,
         long cpuNanos,
-        long driverNanos
+        long driverNanos,
+        SearchLoadMetrics searchLoad
     ) {}
 
     @Override

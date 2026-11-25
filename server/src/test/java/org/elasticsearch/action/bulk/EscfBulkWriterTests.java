@@ -18,6 +18,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -214,7 +215,16 @@ public class EscfBulkWriterTests extends ESTestCase {
 
     /** {@code count} rows, each holding its position from {@code first}. */
     static EscfBulkWriter.Rows page(int first, int count) {
+        return page(first, count, false);
+    }
+
+    static EscfBulkWriter.Rows page(int first, int count, boolean refresh) {
         return new EscfBulkWriter.Rows() {
+            @Override
+            public boolean refresh() {
+                return refresh;
+            }
+
             @Override
             public int count() {
                 return count;
@@ -536,6 +546,51 @@ public class EscfBulkWriterTests extends ESTestCase {
         assertThat(ids(client.bulks.getFirst()), equalTo(List.of("id-1")));
         answer();
         assertThat(ids(client.bulks.getFirst()), equalTo(List.of("id-1")));
+    }
+
+    public void testRefreshRowsRefreshTheirBulk() {
+        try (EscfBulkWriter.Producer producer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
+            producer.add(page(0, 1, true), false);
+        }
+        assertThat(client.bulks, hasSize(1));
+        assertThat(client.bulks.getFirst().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+    }
+
+    public void testRowsWithoutRefreshDoNotRefresh() {
+        try (EscfBulkWriter.Producer producer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
+            producer.add(page(0, 1), false);
+        }
+        assertThat(client.bulks, hasSize(1));
+        assertThat(client.bulks.getFirst().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.NONE));
+    }
+
+    public void testRefreshAppliesToTheWholeBatch() {
+        try (EscfBulkWriter.Producer producer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
+            producer.add(page(0, 1), false);
+            producer.add(page(1, 1), false);
+            producer.add(page(2, 1, true), false);
+            producer.add(page(3, 1), false);
+        }
+        assertThat(client.bulks, hasSize(1));
+        BulkRequest first = client.bulks.getFirst();
+        assertThat(first.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.NONE));
+        answer();
+        assertThat(client.bulks, hasSize(1));
+        BulkRequest second = client.bulks.getFirst();
+        assertThat(ids(second), equalTo(List.of("id-1", "id-2", "id-3")));
+        assertThat(second.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+    }
+
+    public void testRefreshDoesNotLeakIntoTheNextBulk() {
+        try (EscfBulkWriter.Producer producer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
+            producer.add(page(0, 1, true), false);
+            producer.add(page(1, 1), true);
+        }
+        assertThat(ids(client.bulks.getFirst()), equalTo(List.of("id-0")));
+        assertThat(client.bulks.getFirst().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+        answer();
+        assertThat(ids(client.bulks.getFirst()), equalTo(List.of("id-1")));
+        assertThat(client.bulks.getFirst().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.NONE));
     }
 
     public void testEmptyRows() {

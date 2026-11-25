@@ -26,6 +26,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * discarded and a later allocation round may report the same event again. The first {@link ShardRouting} argument of each method is
  * the copy concerned, as it was <em>before</em> the change.
  * <p>
+ * The stream covers allocator-driven transitions only, so it is not a complete log of where copies are. A copy can disappear from a node
+ * without an event when it is removed outside the allocator: when its index is deleted, when the number of replicas is reduced, or when
+ * unpromotable replicas are unassigned because their primary failed and no promotable copy could take over. Consumers that need the
+ * authoritative location of every copy must reconcile against the cluster state.
+ * <p>
  * The methods are called on the master service thread inside the allocation round, so implementations must be non-blocking and cheap:
  * hand the event to a bounded queue and do any I/O elsewhere. Events that cannot be queued should be dropped and counted rather than
  * applying back-pressure to allocation. Implementations must not throw. Nothing is allocated for an event unless a listener needs it, so a

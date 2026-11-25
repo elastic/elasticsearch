@@ -21,6 +21,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.simdjson.Utf8Value;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -183,6 +184,36 @@ public final class EscfColumnBuilder implements Releasable {
 
     public void addString(XContentString.UTF8Bytes utf8) {
         setString(nextAppendRow(), utf8);
+    }
+
+    /**
+     * Adds a {@code STRING} value for the next row. The {@code STRING} case of {@link #newRowScalar}, with the value written by
+     * {@link Utf8Value#copyTo} so that its bytes are copied once, into the column's buffer.
+     */
+    public void addString(Utf8Value value) {
+        final int row = nextAppendRow();
+        assert lockedKind == -1 || lockedKind == EscfColumnKind.STRING
+            : "column locked to " + EscfColumnKind.name(lockedKind) + " but received STRING";
+        assert row > lastWrittenRow : nonDecreasing(row);
+        fillGapTo(row);
+        if (current == null) {
+            current = newScalarWithBackfill(EscfColumnKind.STRING);
+            current.addString(value);
+        } else if (current instanceof ArrayBuilder ab) {
+            if (policy == CollisionPolicy.MERGE && ab.childKind() == EscfColumnKind.STRING) {
+                ab.startRow();
+                ab.appendString(value);
+            } else {
+                promoteToUnion();
+                current.addString(value);
+            }
+        } else if (current.kind() == EscfColumnKind.STRING || current.kind() == EscfColumnKind.UNION) {
+            current.addString(value);
+        } else {
+            promoteToUnion();
+            current.addString(value);
+        }
+        lastWrittenRow = row;
     }
 
     public void addBinary(BytesRef value) {
@@ -921,6 +952,8 @@ public final class EscfColumnBuilder implements Releasable {
 
         void addBytes(byte kind, byte[] bytes, int offset, int length);
 
+        void addString(Utf8Value value);
+
         void addNull();
 
         void addAbsent();
@@ -992,6 +1025,31 @@ public final class EscfColumnBuilder implements Releasable {
             count += n;
         }
 
+        /** Holds a string that does not fit in the stream's current page; see {@link #writeString}. */
+        private byte[] stringScratch;
+
+        /**
+         * Writes {@code value} to {@code out} and returns its length. The value goes straight into the stream's current page
+         * when {@link Utf8Value#maxLength()} plus {@link Utf8Value#PADDING} fits there, and through a scratch buffer otherwise.
+         */
+        final int writeString(RecyclerBytesStreamOutput out, Utf8Value value) {
+            final int reserve = value.maxLength() + Utf8Value.PADDING;
+            final BytesRef page = out.tryGetPageForWrite(reserve);
+            if (page != null) {
+                final int length = value.copyTo(page.bytes, page.offset);
+                out.unreserve(reserve - length);
+                return length;
+            }
+            // Cross-page: write to a temp buffer, use the existing writeBytes route (which handles
+            // cross-page correctly).
+            if (stringScratch == null || stringScratch.length < reserve) {
+                stringScratch = new byte[ArrayUtil.oversize(reserve, Byte.BYTES)];
+            }
+            final int length = value.copyTo(stringScratch, 0);
+            writeBytes(out, stringScratch, 0, length);
+            return length;
+        }
+
         /** Marks the current document present and advances {@code count}. */
         final void advancePresent() {
             if (validity != null) {
@@ -1032,6 +1090,11 @@ public final class EscfColumnBuilder implements Releasable {
         @Override
         public void addBytes(byte kind, byte[] bytes, int offset, int length) {
             throw unsupported("bytes");
+        }
+
+        @Override
+        public void addString(Utf8Value value) {
+            throw unsupported("string");
         }
 
         @Override
@@ -1312,6 +1375,14 @@ public final class EscfColumnBuilder implements Releasable {
             advancePresent();
         }
 
+        @Override
+        public void addString(Utf8Value value) {
+            assert kind == EscfColumnKind.STRING : "VarBuilder of " + EscfColumnKind.name(kind) + " given STRING";
+            recordOffset();
+            dataLen += writeString(data, value);
+            advancePresent();
+        }
+
         void addStreamed(CheckedConsumer<StreamOutput, IOException> writer) throws IOException {
             recordOffset();
             final long start = data.position();
@@ -1552,6 +1623,13 @@ public final class EscfColumnBuilder implements Releasable {
             elemCount++;
         }
 
+        void appendString(Utf8Value value) {
+            resolveKind(EscfColumnKind.STRING);
+            recordElemOffset();
+            childDataLen += writeString(childData, value);
+            elemCount++;
+        }
+
         /** Appends an 8-byte element from its raw bit pattern; avoids a bits→double→bits round trip. */
         void appendFixedBits(byte elemKind, long bits) {
             resolveKind(elemKind);
@@ -1693,6 +1771,13 @@ public final class EscfColumnBuilder implements Releasable {
             prep(kind == EscfColumnKind.BINARY ? SourceValueType.BINARY : SourceValueType.STRING);
             writeBytes(data, bytes, offset, length);
             dataLen += length;
+            advancePresent();
+        }
+
+        @Override
+        public void addString(Utf8Value value) {
+            prep(SourceValueType.STRING);
+            dataLen += writeString(data, value);
             advancePresent();
         }
 

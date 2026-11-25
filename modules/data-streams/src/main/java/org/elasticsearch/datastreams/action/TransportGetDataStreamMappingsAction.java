@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -37,6 +38,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
     GetDataStreamMappingsAction.Response> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndicesService indicesService;
+    private final IndexSettingProviders indexSettingProviders;
 
     @Inject
     public TransportGetDataStreamMappingsAction(
@@ -46,7 +48,8 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService
+        IndicesService indicesService,
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             GetSettingsAction.NAME,
@@ -58,6 +61,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesService = indicesService;
+        this.indexSettingProviders = indexSettingProviders;
     }
 
     @Override
@@ -85,7 +89,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
                 new GetDataStreamMappingsAction.DataStreamMappingsResponse(
                     dataStreamName,
                     dataStream.getMappings(),
-                    dataStream.getEffectiveMappings(project.metadata(), indicesService)
+                    dataStream.getEffectiveMappings(project.metadata(), indicesService, indexSettingProviders)
                 )
             );
         }

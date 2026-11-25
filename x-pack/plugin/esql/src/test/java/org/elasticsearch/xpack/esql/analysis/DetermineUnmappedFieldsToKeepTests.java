@@ -717,6 +717,30 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
     }
 
+    /**
+     * A {@code ROW} has no {@code _source}, so a column of it named like the one of unmapped fields hides nothing, and the warning to
+     * rename it to get the unmapped fields would be wrong: there is none, and the query gets no warning. Next to an index that could
+     * have supplied them the warning stays, as in the tests above.
+     */
+    public void testRowColumnNamedUnmappedFieldsHasNoWarning() {
+        var plan = test().statement(setUnmappedLoadAll("ROW _unmapped_fields = \"mine\""));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        assertThat(Expressions.names(plan.output()), equalTo(List.of(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        ensureNoWarnings();
+    }
+
+    /**
+     * A view is a boundary with no {@code _source} of its own, whatever its body is, so a query that only reads views and has a column
+     * named like the one of unmapped fields gets no warning: renaming the column would not get any unmapped field. It does not matter
+     * whether the root of the view body is a relation, as in {@code FROM test}, or something above it.
+     */
+    public void testViewOnlyQueryWithColumnNamedUnmappedFieldsHasNoWarning() {
+        for (String body : List.of("FROM test", "FROM test | KEEP emp_no")) {
+            test().addView("v", body).statement(setUnmappedLoadAll("FROM v | EVAL _unmapped_fields = \"mine\""));
+            ensureNoWarnings();
+        }
+    }
+
     /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */
     public void testLookupJoinFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
         var plan = test().addLookupIndex("colliding_lookup", lookupIndexWithUnmappedFieldsField())

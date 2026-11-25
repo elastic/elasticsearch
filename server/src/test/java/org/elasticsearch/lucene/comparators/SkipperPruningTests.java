@@ -320,7 +320,7 @@ public class SkipperPruningTests extends ESTestCase {
                     comparator.bottom = Long.MIN_VALUE;
                     var leafComparator = comparator.getLeafComparator(reader.leaves().getFirst());
                     leafComparator.setScorer(null);
-                    // The iterator only narrows to the tail once the hits threshold is reached
+                    // The tail is set by setScorer, but the regular iterator only narrows once the hits threshold is reached
                     leafComparator.setHitsThresholdReached();
                     var iterator = leafComparator.competitiveIterator();
                     return iterator == null ? NO_COMPETITIVE_ITERATOR : iterator.nextDoc();

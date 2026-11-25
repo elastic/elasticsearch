@@ -21,6 +21,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
@@ -150,6 +151,14 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                         int maxDoc = context.reader().maxDoc();
                         int start = Math.max(0, context.reader().numDocs() - numHits - 1);
                         return new CompetitiveDISIBuilder(this) {
+                            @Override
+                            protected void setScorer(Scorable scorer) throws IOException {
+                                // The tail holds the smallest values of the segment, so it does not need a full queue. Set it before
+                                // scoring starts: a dense match-all scorer can collect the whole segment in one call, and then an
+                                // update during collection comes too late. The caller must not need the collector to count hits.
+                                doUpdateCompetitiveIterator();
+                            }
+
                             @Override
                             protected int docCount() {
                                 return maxDoc; // missing values are never competitive

@@ -131,6 +131,7 @@ public class SplitSourceService {
     // Used to abort merges that complete just before handoff so that we don't block indexing waiting for them to upload
     // Also used to throttle handoffs
     private final ConcurrentHashMap<ShardId, IndexShard> shardsPreparingForHandoff = new ConcurrentHashMap<>();
+
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
     private Runnable preHandoffHook;

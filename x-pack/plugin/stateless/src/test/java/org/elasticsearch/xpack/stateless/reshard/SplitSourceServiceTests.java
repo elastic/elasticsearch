@@ -557,10 +557,6 @@ public class SplitSourceServiceTests extends ESTestCase {
             publish();
         }
 
-        /**
-         * The source shard of the given index. The throttle only uses its shard id and which instance it is, and a real IndexShard needs
-         * a full node, so a mock is used.
-         */
         IndexShard sourceShard(int source) {
             var shard = mock(IndexShard.class);
             when(shard.shardId()).thenReturn(new ShardId(index, source));

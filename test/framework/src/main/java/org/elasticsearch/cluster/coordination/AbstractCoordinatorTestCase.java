@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotT
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -2181,8 +2182,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (oldState.nodeEnvironment != null) {
                     nodeEnvironment = oldState.nodeEnvironment;
                     inMemoryPersistedState = null;
-                    final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
-                    final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
 
                     final Settings.Builder writerSettings = Settings.builder();
                     if (randomBoolean()) {
@@ -2192,19 +2191,26 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         );
                     }
 
-                    if (updatedMetadata != oldState.getLastAcceptedState().metadata() || updatedTerm != oldState.getCurrentTerm()) {
-                        try (
-                            PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
-                                nodeEnvironment,
-                                xContentRegistry(),
-                                new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                                currentTimeInMillisSupplier,
-                                ESTestCase::randomBoolean
-                            ).createWriter()
-                        ) {
+                    final var persistedClusterStateService = new PersistedClusterStateService(
+                        nodeEnvironment,
+                        xContentRegistry(),
+                        new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        currentTimeInMillisSupplier,
+                        ESTestCase::randomBoolean
+                    );
+
+                    final var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+                    final Metadata updatedMetadata = adaptGlobalMetadata.apply(onDiskState.metadata);
+                    final long updatedTerm = adaptCurrentTerm.apply(onDiskState.currentTerm);
+
+                    if (updatedMetadata != onDiskState.metadata || updatedTerm != onDiskState.currentTerm) {
+                        try (var writer = persistedClusterStateService.createWriter()) {
                             writer.writeFullStateAndCommit(
                                 updatedTerm,
-                                ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build()
+                                ClusterState.builder(ClusterName.DEFAULT)
+                                    .version(onDiskState.lastAcceptedVersion)
+                                    .metadata(updatedMetadata)
+                                    .build()
                             );
                         }
                     }

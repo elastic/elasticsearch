@@ -2234,7 +2234,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             // closing the node discards the pending write
             dataNode.close();
-            final ClusterNode restartedNode = dataNode.restartedNode();
+            final ClusterNode restartedNode = dataNode.restartedNode(
+                // sometimes modify the metadata to trigger a rewrite on startup, ensuring that we don't write the published state
+                md -> randomBoolean() ? md : Metadata.builder(md).build(),
+                Function.identity(),
+                dataNode.nodeSettings
+            );
             cluster.clusterNodes.replaceAll(cn -> cn == dataNode ? restartedNode : cn);
 
             assertThat(

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167493
+summary: Validate TO_IP options on union types
+type: bug

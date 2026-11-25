@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,6 +39,10 @@ public final class StreamId {
     private final TaskId taskId;
     private final String streamKey;
     private final String encoded;
+
+    public static StreamId newStreamId(TaskId taskId) {
+        return new StreamId(taskId, UUIDs.randomBase64UUID());
+    }
 
     /**
      * @param taskId    the task that writes the results of a stream query to the stream system index

@@ -3363,6 +3363,35 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Bytes the request breaker of {@code node} holds.
+     */
+    protected static long getRequestBreakerUsed(String node) {
+        return internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST).getUsed();
+    }
+
+    /**
+     * Bytes the request breakers of all nodes hold.
+     */
+    protected static long getRequestBreakerUsed() {
+        long used = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            used += service.getBreaker(CircuitBreaker.REQUEST).getUsed();
+        }
+        return used;
+    }
+
+    /**
+     * How many times the request breakers of all nodes have tripped.
+     */
+    protected static long getRequestBreakerTrippedCount() {
+        long tripped = 0;
+        for (CircuitBreakerService service : internalCluster().getInstances(CircuitBreakerService.class)) {
+            tripped += service.getBreaker(CircuitBreaker.REQUEST).getTrippedCount();
+        }
+        return tripped;
+    }
+
+    /**
      * Fully allocate a circuit breaker
      *
      * @param circuitBreaker The circuit breaker to allocate

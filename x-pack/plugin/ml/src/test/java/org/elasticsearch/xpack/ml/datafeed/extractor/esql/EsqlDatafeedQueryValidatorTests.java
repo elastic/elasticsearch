@@ -19,6 +19,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
@@ -46,11 +48,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -81,17 +81,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     public void testComputedDateColumnWithoutTimeRoleShouldPassValidation() {
         assertValidationSucceeds(harness(row("event.ingested", "date")), validation().timeField("event.ingested"));
-    }
-
-    public void testRemoteClusterWithoutIndexExpressionShouldNameOnlyAlias() {
-        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
-            new EsqlClusterInfo("east", null, EsqlClusterInfo.Status.SUCCESSFUL)
-        );
-
-        Exception failure = assertValidationFails(harness, validation());
-
-        assertThat(failure.getMessage(), containsString("reads remote cluster [east] through index expression [east]."));
-        assertThat(failure.getMessage(), not(containsString("null")));
     }
 
     public void testRemoteClusterSourceWithUnknownIndexShouldDeferValidation() {
@@ -132,29 +121,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("has type [double]"));
     }
 
-    public void testReleaseBuildWithoutDescribeShouldFailWithoutProbing() {
-        EsqlDatafeedQueryValidator validator = new EsqlDatafeedQueryValidator(
-            (client, query, filter, headers, projectRouting, params, metadata, listener) -> fail("no probe without DESCRIBE"),
-            () -> false
-        );
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        validator.validateQuery(
-            null,
-            Map.of(),
-            ESQL_QUERY,
-            null,
-            TIME_FIELD,
-            null,
-            false,
-            ActionListener.wrap(ok -> fail("expected validation failure"), failure::set),
-            "feed-1"
-        );
-
-        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.get().getMessage(), containsString("only available in snapshot builds"));
-    }
-
     public void testOuterLimitShouldWarn() {
         assertValidationSucceeds(harness(row("@timestamp", "date")), validation().query("FROM logs | LIMIT 10"));
 
@@ -164,40 +130,213 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
     }
 
-    public void testRemoteClusterShouldFailValidation() {
+    public void testRemoteClusterSourceShouldPassValidation() {
         ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
             new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
             new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
-        );
-
-        Exception failure = assertValidationFails(harness, validation());
-
-        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(failure.getMessage(), containsString("do not support remote cluster sources"));
-        assertThat(failure.getMessage(), containsString("reads remote cluster [east] through index expression [east:logs-*]."));
-    }
-
-    public void testRemoteClusterShouldBeCheckedBeforeColumns() {
-        ValidatorHarness harness = harness(row("other_field", "keyword")).withClusters(
-            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
-        );
-        assertThat(assertValidationFails(harness, validation()), instanceOf(ElasticsearchStatusException.class));
-    }
-
-    public void testLocalAndOriginClustersShouldPassValidation() {
-        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
-            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
-            new EsqlClusterInfo("_origin", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
         );
         assertValidationSucceeds(harness, validation());
     }
 
-    public void testRemoteClusterShouldPassValidationWhenCrossProjectIsEnabled() {
-        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
-            new EsqlClusterInfo("linked-project-1", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
+    public void testUnavailableRemoteWithNoColumnsShouldDeferValidation() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(
+                    List.of(
+                        new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED),
+                        new EsqlClusterInfo("west", "logs-*", EsqlClusterInfo.Status.FAILED)
+                    ),
+                    List.of("<no-fields>"),
+                    List.of()
+                )
+            )
         );
-        assertValidationSucceeds(harness, validation().crossProjectEnabled(true));
+        assertValidationSucceeds(harness, validation().query("FROM east:logs-*,west:logs-*"));
+    }
+
+    public void testUnreachableRemoteShouldDeferValidation() {
+        assertValidationSucceeds(
+            new ValidatorHarness(new ConnectTransportException(null, "connect_exception")),
+            validation().query("FROM east:logs-*")
+        );
+    }
+
+    public void testUnreachableProxyRemoteShouldDeferValidation() {
+        assertValidationSucceeds(new ValidatorHarness(new NoSeedNodeLeftException("east")), validation().query("FROM east:logs-*"));
+    }
+
+    public void testValidateAtStartGivenUnreachableRemoteShouldFail() {
+        Exception failure = validateAtStartFailure(new ValidatorHarness(new ConnectTransportException(null, "connect_exception")));
+        assertThat(failure, instanceOf(ConnectTransportException.class));
+    }
+
+    public void testUnavailableRemoteWithLocalColumnsShouldPassValidation() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+        );
+        assertValidationSucceeds(harness, validation());
+    }
+
+    public void testLocalSuccessfulAndRemoteSkippedWithoutDescribeColumnsShouldDeferValidation() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(
+                    List.of(
+                        new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+                        new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+                    ),
+                    List.of("<no-fields>"),
+                    List.of()
+                )
+            )
+        );
+        assertValidationSucceeds(harness, validation().query("FROM logs-*,east:logs-*"));
+    }
+
+    public void testValidateAtStartGivenLocalSuccessfulAndRemoteSkippedWithoutDescribeColumnsShouldNameSkippedCluster() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(
+                    List.of(
+                        new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+                        new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+                    ),
+                    List.of("<no-fields>"),
+                    List.of()
+                )
+            )
+        );
+        Exception failure = validateAtStartFailure(harness);
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.getMessage(), containsString("[east]"));
+    }
+
+    public void testOnlySkippedRemoteWithDescribeColumnsAndNoRowsShouldDeferValidation() {
+        ValidatorHarness harness = harness().withClusters(new EsqlClusterInfo("east", "does_not_exist", EsqlClusterInfo.Status.SKIPPED));
+        assertValidationSucceeds(harness, validation().query("FROM east:does_not_exist"));
+    }
+
+    public void testValidateAtStartGivenOnlySkippedRemoteWithDescribeColumnsAndNoRowsShouldNameSkippedCluster() {
+        ValidatorHarness harness = harness().withClusters(new EsqlClusterInfo("east", "does_not_exist", EsqlClusterInfo.Status.SKIPPED));
+        Exception failure = validateAtStartFailure(harness);
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.getMessage(), containsString("[east]"));
+    }
+
+    public void testSkippedRemoteAndLocalClusterWithoutRequiredColumnShouldFailValidation() {
+        ValidatorHarness harness = harness().withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+        );
+        Exception failure = assertValidationFails(harness, validation());
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        assertThat(failure.getMessage(), containsString("@timestamp"));
+    }
+
+    public void testValidateAtStartGivenSkippedRemoteAndLocalClusterWithoutRequiredColumnShouldNameMissingColumn() {
+        ValidatorHarness harness = harness().withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+        );
+        Exception failure = validateAtStartFailure(harness);
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        assertThat(failure.getMessage(), containsString("@timestamp"));
+    }
+
+    public void testValidateAtStartShouldListOnlyRemoteClusters() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("_origin", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("west", null, EsqlClusterInfo.Status.SUCCESSFUL)
+        );
+
+        assertThat(validateAtStart(harness), equalTo(List.of("east:logs-*", "west:*")));
+        assertThat(
+            harness.capturedQuery,
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+        );
+        assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
+    }
+
+    public void testValidateAtStartGivenSkippedClustersWithoutColumnsShouldFail() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new TestEsqlQueryResponse(
+                describeResponse(List.of(new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)), List.of(), List.of())
+            )
+        );
+        Exception failure = validateAtStartFailure(harness);
+        assertThat(failure, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.getMessage(), containsString("[east]"));
+        assertThat(failure.getMessage(), containsString("[@timestamp]"));
+    }
+
+    public void testValidateAtStartGivenSkippedRemoteWithLocalColumnsShouldListIt() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL),
+            new EsqlClusterInfo("east", "logs-*", EsqlClusterInfo.Status.SKIPPED)
+        );
+        assertThat(validateAtStart(harness), equalTo(List.of("east:logs-*")));
+    }
+
+    public void testValidateAtStartShouldBeEmptyForLocalSource() {
+        ValidatorHarness harness = harness(row("@timestamp", "date")).withClusters(
+            new EsqlClusterInfo("", "logs-*", EsqlClusterInfo.Status.SUCCESSFUL)
+        );
+        assertThat(validateAtStart(harness), equalTo(List.of()));
+    }
+
+    public void testValidateAtStartGivenSourceThatDoesNotExistShouldFail() {
+        ValidatorHarness harness = new ValidatorHarness(
+            new VerificationException("Found 1 problem\nline 1:1: Unknown index [east:logs-new]")
+        );
+        assertThat(validateAtStartFailure(harness), instanceOf(VerificationException.class));
+    }
+
+    public void testValidateAtStartGivenNonDateTimeColumnShouldFail() {
+        Exception failure = validateAtStartFailure(harness(row("@timestamp", "keyword")));
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testValidateAtStartShouldPropagateOtherFailures() {
+        assertThat(
+            validateAtStartFailure(new ValidatorHarness(new IllegalStateException("boom"))),
+            instanceOf(IllegalStateException.class)
+        );
+    }
+
+    private List<String> validateAtStart(ValidatorHarness harness) {
+        AtomicReference<List<String>> remote = new AtomicReference<>();
+        harness.validator.validateAtStart(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(remote::set, e -> fail("unexpected failure " + e)),
+            null
+        );
+        assertThat(remote.get(), notNullValue());
+        return remote.get();
+    }
+
+    private Exception validateAtStartFailure(ValidatorHarness harness) {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.validator.validateAtStart(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(remote -> fail("expected failure"), failure::set),
+            null
+        );
+        assertThat(failure.get(), notNullValue());
+        return failure.get();
     }
 
     public void testIndexNotFoundShouldSucceedValidation() {
@@ -241,9 +380,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation());
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1"));
+        assertThat(
+            harness.capturedQuery,
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+        );
         assertThat(harness.capturedMetadata, equalTo(ExecutionMetadata.CCS_ONLY));
-        assertThat(harness.capturedParams, empty());
+        assertThat(harness.capturedParams, equalTo(describeParams("@timestamp", "@timestamp")));
     }
 
     public void testValidationQueryWithSummaryCountShouldFilterBothColumns() {
@@ -251,14 +393,39 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertValidationSucceeds(harness, validation().summaryCountField(SUMMARY_COUNT_FIELD));
 
-        assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (\"@timestamp\", \"doc_count\")\n| LIMIT 2"));
-        assertThat(harness.capturedParams, empty());
+        assertThat(
+            harness.capturedQuery,
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+        );
+        assertThat(harness.capturedParams, equalTo(describeParams("@timestamp", "doc_count")));
     }
 
-    public void testDescribeFilterShouldEscapeColumnNames() {
-        assertThat(EsqlDatafeedQueryValidator.esqlString("@timestamp"), equalTo("\"@timestamp\""));
-        assertThat(EsqlDatafeedQueryValidator.esqlString("a\"b\\c"), equalTo("\"a\\\"b\\\\c\""));
-        assertThat(EsqlDatafeedQueryValidator.esqlString("a\nb\rc\td"), equalTo("\"a\\nb\\rc\\td\""));
+    public void testColumnNameWithQuotesShouldBeBoundAsParamNotInlined() {
+        String timeField = "a\"b\\c\nd";
+        ValidatorHarness harness = harness(row(timeField, "date"));
+
+        assertValidationSucceeds(harness, validation().timeField(timeField));
+
+        assertThat(
+            harness.capturedQuery,
+            equalTo(ESQL_QUERY + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2")
+        );
+        assertThat(harness.capturedParams, equalTo(describeParams(timeField, timeField)));
+    }
+
+    private static List<EsqlQueryRequestBuilder.EsqlQueryParam> describeParams(String timeField, String countField) {
+        return List.of(
+            new EsqlQueryRequestBuilder.EsqlQueryParam(
+                "describeTimeColumn",
+                timeField,
+                EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE
+            ),
+            new EsqlQueryRequestBuilder.EsqlQueryParam(
+                "describeCountColumn",
+                countField,
+                EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE
+            )
+        );
     }
 
     public void testTrailingLineCommentShouldKeepDescribeOnNewLine() {
@@ -268,7 +435,10 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(
             harness.capturedQuery,
-            equalTo("FROM logs | KEEP @timestamp // hourly\n\n| DESCRIBE\n| WHERE name IN (\"@timestamp\")\n| LIMIT 1")
+            equalTo(
+                "FROM logs | KEEP @timestamp // hourly\n"
+                    + "\n| DESCRIBE\n| WHERE name IN (?describeTimeColumn, ?describeCountColumn)\n| LIMIT 2"
+            )
         );
     }
 
@@ -754,7 +924,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         private String projectRouting;
         private String timeField = TIME_FIELD;
         private String summaryCountField;
-        private boolean crossProjectEnabled;
 
         Validation query(String query) {
             this.query = query;
@@ -776,11 +945,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             return this;
         }
 
-        Validation crossProjectEnabled(boolean crossProjectEnabled) {
-            this.crossProjectEnabled = crossProjectEnabled;
-            return this;
-        }
-
         void run(ValidatorHarness harness, ActionListener<Boolean> listener) {
             harness.validator.validateQuery(
                 null,
@@ -789,7 +953,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 projectRouting,
                 timeField,
                 summaryCountField,
-                crossProjectEnabled,
                 listener,
                 null
             );
@@ -842,7 +1005,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                     ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
                     ActionListener.respondAndRelease(refCountedListener, response);
                 }
-            }, () -> true);
+            });
         }
     }
 

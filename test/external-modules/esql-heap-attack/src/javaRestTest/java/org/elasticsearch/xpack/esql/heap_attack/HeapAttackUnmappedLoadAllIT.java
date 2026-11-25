@@ -426,6 +426,44 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
         assertLoadAllSingleColumn(index, docs);
     }
 
+    /**
+     * Index:
+     * <ul>
+     *     <li>The 5,000 documents with 1,000 unmapped leaves each of {@link #testManyDocsWithManyDistinctFields}: a query over all of
+     *     them passes alone</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL}, then a {@code FORK} of 8 branches that each return every document</li>
+     * </ul>
+     * Expected: circuit break
+     * <p>
+     * Eight branches that each return every document do not break at the default limit: the rows are not all held at once. What this
+     * attacks is what comes after a break, so the request breaker is lowered, as in
+     * {@link #testDedupCircuitBreaksWhileTheJsonOfEveryGroupIsHeld}, until a read of this index trips it. The branches that did not trip
+     * it are cancelled, and the pages and reservations that they hold must be released. The check is the one that every test of this
+     * suite ends with, that the request breaker of each node is back at zero.
+     */
+    public void testForkOfWideReadsCircuitBreaksAndReleasesWhatTheBranchesHold() throws IOException {
+        assumeTrue("requires LOAD_ALL with FORK", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_FORK.isEnabled());
+        String index = "load_all_fork";
+        int docs = 5_000;
+        indexManyDocsWithManyDistinctFields(index, docs, 1_000);
+        assertLoadAllSingleColumn(index, docs);
+
+        setRequestBreakerLimit("15%");
+        assertCircuitBreaks(attempt -> {
+            StringBuilder query = startQuery();
+            query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+            query.append("FROM ").append(index).append("\n| FORK");
+            for (int branch = 0; branch < 8; branch++) {
+                query.append(" (LIMIT ").append(docs).append(')');
+            }
+            query.append("\"}");
+            return responseAsMap(query(query.toString(), "columns"));
+        });
+    }
+
     /** Runs {@code LOAD_ALL} over {@code index}: whether it circuit broke, or false if it succeeded. Fails on any other outcome. */
     private boolean loadAllBrokeTheCircuit(String index, int limit) throws IOException {
         StringBuilder query = startQuery();

@@ -303,18 +303,27 @@ public class StatelessManyShardsDataNodeRecoveryRestIT extends ESRestTestCase {
             final long attemptedDocs = attempted.getOrDefault(indexName, 0L);
             assertThat(
                 "acked documents in [" + indexName + "]",
-                countDocs(
-                    indexName,
-                    "{\"query\":{\"ids\":{\"values\":["
-                        + indexAckedIds.stream().map(id -> '"' + id + '"').collect(Collectors.joining(","))
-                        + "]}}}"
-                ),
+                countDocsWithIds(indexName, indexAckedIds),
                 equalTo((long) indexAckedIds.size())
             );
             assertThat("doc count for [" + indexName + "]", countDocs(indexName, "{}"), lessThanOrEqualTo(attemptedDocs));
             totalAcked += indexAckedIds.size();
         }
         assertThat("background indexer did not get any write acked", totalAcked, greaterThan(0L));
+    }
+
+    /// Counts the documents with the given ids.
+    private static long countDocsWithIds(String indexName, List<String> ids) throws IOException {
+        final int batchSize = 1_000;
+        long count = 0;
+        for (int from = 0; from < ids.size(); from += batchSize) {
+            final var batch = ids.subList(from, Math.min(from + batchSize, ids.size()));
+            count += countDocs(
+                indexName,
+                "{\"query\":{\"ids\":{\"values\":[" + batch.stream().map(id -> '"' + id + '"').collect(Collectors.joining(",")) + "]}}}"
+            );
+        }
+        return count;
     }
 
     private static long countDocs(String indexName, String body) throws IOException {

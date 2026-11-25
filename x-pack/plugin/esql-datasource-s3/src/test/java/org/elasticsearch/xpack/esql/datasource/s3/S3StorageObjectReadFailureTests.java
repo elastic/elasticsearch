@@ -13,6 +13,7 @@ import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.retries.api.BackoffStrategy;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -167,6 +168,23 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertNull(eue.getCause());
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
         assertFalse(eue.throttling());
+    }
+
+    public void testPermanentRedirectMapsToActionableClientException() {
+        S3Client mockS3 = mock(S3Client.class);
+        SdkHttpResponse response = SdkHttpResponse.builder().statusCode(301).appendHeader("x-amz-bucket-region", "ca-central-1").build();
+        S3Exception redirect = (S3Exception) S3Exception.builder()
+            .statusCode(301)
+            .message("PermanentRedirect")
+            .awsErrorDetails(AwsErrorDetails.builder().errorCode("PermanentRedirect").sdkHttpResponse(response).build())
+            .build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(redirect);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException thrown = expectThrows(ExternalClientException.class, obj::newStream);
+        assertThat(thrown.getMessage(), containsString("set region on the dataset"));
+        assertThat(thrown.getMessage(), containsString("ca-central-1"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
     }
 
     public void testSdkClientExceptionWithoutIoCauseStaysClientError() {

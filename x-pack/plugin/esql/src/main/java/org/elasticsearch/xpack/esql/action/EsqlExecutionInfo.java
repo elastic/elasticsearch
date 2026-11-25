@@ -293,6 +293,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             work.readCpuNanos(),
             work.cpuNanos(),
             work.driverNanos(),
+            work.searchLoad(),
             List.of(),
             List.of(),
             Map.of(),

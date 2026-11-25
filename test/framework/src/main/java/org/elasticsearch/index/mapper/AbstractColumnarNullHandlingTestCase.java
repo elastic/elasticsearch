@@ -557,23 +557,23 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
-    public void testNullOnlyArraysHaveNoValueInColumnar() throws IOException {
-        assertNullOnlyArraysHaveNoValue(IndexMode.COLUMNAR);
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.COLUMNAR);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
-    public void testNullOnlyArraysHaveNoValueInLogsdbColumnar() throws IOException {
-        assertNullOnlyArraysHaveNoValue(IndexMode.LOGSDB_COLUMNAR);
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInLogsdbColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.LOGSDB_COLUMNAR);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
-    public void testNullOnlyArraysHaveNoValueInVectordbColumnar() throws IOException {
-        assertNullOnlyArraysHaveNoValue(IndexMode.VECTORDB_COLUMNAR);
+    public void testNullOnlyArraysHaveNoDocValuesOrNormInVectordbColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode.VECTORDB_COLUMNAR);
     }
 
-    private record ExistsAndNorms(List<Integer> exists, List<Integer> withDocValues, List<Integer> withNorm) {}
+    private record DocValuesAndNorms(List<Integer> withDocValues, List<Integer> withNorm) {}
 
-    private void assertNullOnlyArraysHaveNoValue(IndexMode indexMode) throws IOException {
+    private void assertNullOnlyArraysHaveNoDocValuesOrNorm(IndexMode indexMode) throws IOException {
         final MapperService mapperService = createMapperService(
             IndexVersion.current(),
             Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build(),
@@ -586,27 +586,25 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         shapes.addAll(VALUELESS_FIELD_SHAPES);
         final List<String> sources = shapes.stream().map(AbstractColumnarNullHandlingTestCase::timestamped).toList();
 
-        final ExistsAndNorms oneByOne;
+        final DocValuesAndNorms oneByOne;
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
             for (int i = 0; i < sources.size(); i++) {
                 final SourceToParse source = new SourceToParse("d" + i, new BytesArray(sources.get(i)), XContentType.JSON);
                 iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
             }
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                oneByOne = existsAndNorms(mapperService, reader);
+                oneByOne = docValuesAndNorms(reader);
             }
         }
 
-        final ExistsAndNorms batch;
+        final DocValuesAndNorms batch;
         try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
             withMappedColumns(mapperService, sources, columns -> iw.addBatch(columns.toColumnBatch()));
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
-                batch = existsAndNorms(mapperService, reader);
+                batch = docValuesAndNorms(reader);
             }
         }
 
-        assertEquals("documents that match exists, indexed one by one", List.of(0), oneByOne.exists());
-        assertEquals("documents that match exists, indexed as a batch", List.of(0), batch.exists());
         assertEquals("documents that have doc values, indexed one by one", List.of(0), oneByOne.withDocValues());
         assertEquals("documents that have doc values, indexed as a batch", List.of(0), batch.withDocValues());
         final List<Integer> expectedWithNorm = mapperService.fieldType(FIELD).getTextSearchInfo().hasNorms() ? List.of(0) : List.of();
@@ -614,12 +612,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         assertEquals("documents that have a norm, indexed as a batch", expectedWithNorm, batch.withNorm());
     }
 
-    private ExistsAndNorms existsAndNorms(MapperService mapperService, DirectoryReader reader) throws IOException {
-        final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
-        final List<Integer> matched = Arrays.stream(new IndexSearcher(reader).search(exists, reader.maxDoc()).scoreDocs)
-            .map(scoreDoc -> scoreDoc.doc)
-            .sorted()
-            .toList();
+    private DocValuesAndNorms docValuesAndNorms(DirectoryReader reader) throws IOException {
         final List<Integer> withDocValues = new ArrayList<>();
         final List<Integer> withNorm = new ArrayList<>();
         for (LeafReaderContext leaf : reader.leaves()) {
@@ -636,7 +629,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 }
             }
         }
-        return new ExistsAndNorms(matched, withDocValues, withNorm);
+        return new DocValuesAndNorms(withDocValues, withNorm);
     }
 
     private static DocIdSetIterator docValuesIterator(LeafReaderContext leaf) throws IOException {

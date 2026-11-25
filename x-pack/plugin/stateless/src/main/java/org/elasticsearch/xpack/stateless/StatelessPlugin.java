@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.SetOnce;
@@ -134,6 +135,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics;
 import org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAction;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -190,6 +192,8 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
+import org.elasticsearch.xpack.stateless.engine.MergedSegmentListener;
+import org.elasticsearch.xpack.stateless.engine.MergedSegmentWarmer;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerServiceFactory;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
@@ -844,6 +848,7 @@ public class StatelessPlugin extends Plugin
         setAndGet(hollowShardMetrics, HollowShardsMetrics.from(meterRegistry, this::amountOfHollowableShards));
         setAndGet(readerHeapMetrics, StatelessReaderHeapMetrics.register(meterRegistry, readerHeapBreaker.get()));
         setAndGet(prefetcherMetrics, SearchCommitPrefetcherMetrics.register(meterRegistry));
+        components.add(GetVirtualBatchedCompoundCommitChunkMetrics.register(meterRegistry));
         StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
@@ -1332,7 +1337,6 @@ public class StatelessPlugin extends Plugin
             ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD,
             ObjectStoreService.CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING,
             BCCHeaderReadExecutor.MAX_CONCURRENCY_SETTING,
-            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
             ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
@@ -1617,6 +1621,29 @@ public class StatelessPlugin extends Plugin
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
     }
 
+    /**
+     * @return whether the segments produced by merges are handed to a {@link MergedSegmentListener} before the merge is committed
+     */
+    protected boolean mergeBlobsEnabled() {
+        return MERGE_BLOBS_ENABLED;
+    }
+
+    /**
+     * @return the warmer that tells the {@link MergedSegmentListener} of the shard about each merged segment, or {@code null} if merged
+     * segments are not handed to a listener
+     */
+    @Nullable
+    protected IndexWriter.IndexReaderWarmer mergedSegmentWarmer(ShardId shardId) {
+        return mergeBlobsEnabled() ? new MergedSegmentWarmer(shardId, mergedSegmentListener(shardId)) : null;
+    }
+
+    /**
+     * @return the listener of the merged segments of the shard, which is resolved when the engine configuration of the shard is built
+     */
+    protected MergedSegmentListener mergedSegmentListener(ShardId shardId) {
+        return MergedSegmentListener.NOOP;
+    }
+
     protected IndexEngine newIndexEngine(
         EngineConfig engineConfig,
         TranslogReplicator translogReplicator,
@@ -1728,6 +1755,9 @@ public class StatelessPlugin extends Plugin
                             return policy;
                         }
                     })
+                    // The warmer is installed on the IndexWriter, which is created during InternalEngine construction. It is passed here
+                    // and not set by IndexEngine for the same reason as the deletion policy wrapper above. Hollow engines have no writer.
+                    .mergedSegmentWarmer(mergedSegmentWarmer(config.getShardId()))
                     .build();
 
                 final Engine engine = newHollowOrIndexEngine(indexSettings, newConfig);

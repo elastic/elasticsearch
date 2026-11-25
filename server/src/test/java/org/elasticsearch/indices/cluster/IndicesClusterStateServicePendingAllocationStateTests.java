@@ -69,7 +69,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -571,39 +570,32 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(0));
     }
 
-    /// [IndicesClusterStateService#getLocalRecoveryRetryCounts] is what the [LocalRecoveryRetriesHealthTracker]
-    /// reads instead of [IndexShard#recoveryState], specifically because IndexShard isn't alive during this window.
-    public void testGetLocalRecoveryRetryCountsIncludesAwaitingRecoveryRetry() {
+    /// [IndicesClusterStateService#getLocalRecoveryRetryCount] must cover the awaiting retry window when no [IndexShard] is alive.
+    public void testGetLocalRecoveryRetryCountIncludesAwaitingRecoveryRetry() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         assertTrue(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        assertThat(
-            indicesClusterStateService.getLocalRecoveryRetryCounts(),
-            equalTo(Map.of(ShardAllocationId.fromRouting(shardRouting), 1))
-        );
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(1));
     }
 
     /// Once the retry applier recreates the shard, InFlight carries the same retry count forward, so it
     /// must still be reported -- the count doesn't just live in the no-shard window.
-    public void testGetLocalRecoveryRetryCountsIncludesInFlightCarriedRetryCount() {
+    public void testGetLocalRecoveryRetryCountIncludesInFlightCarriedRetryCount() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(isInFlight(shardRouting));
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        assertThat(
-            indicesClusterStateService.getLocalRecoveryRetryCounts(),
-            equalTo(Map.of(ShardAllocationId.fromRouting(shardRouting), 1))
-        );
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(1));
     }
 
     /// [RecoveryListener#onRecoveryDone] releases the InFlight ticket before [ShardStateAction#shardStarted] reaches master,
     /// so a shard that just finished recovering can briefly have no ticket while master still sees it as initializing.
-    /// [IndexShard#recoveryState] still has the count for that window, so it must be reported from there instead.
-    public void testGetLocalRecoveryRetryCountsFallsBackToRecoveryStateAfterTicketReleased() {
+    /// [IndexShard#recoveryState()] still has the count for that window, so it must be reported from there instead.
+    public void testGetLocalRecoveryRetryCountFallsBackToRecoveryStateAfterTicketReleased() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
         deterministicTaskQueue.runAllRunnableTasks();
@@ -613,14 +605,16 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
 
-        assertThat(
-            indicesClusterStateService.getLocalRecoveryRetryCounts(),
-            equalTo(Map.of(ShardAllocationId.fromRouting(shardRouting), 1))
-        );
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(1));
+    }
 
-        // Once master catches up and the shard goes active, recoveryState's count must stop being reported --
-        // otherwise the fallback would keep flagging a perfectly healthy shard as retrying forever, since
-        // recoveryState never clears the count on its own.
+    /// [IndicesClusterStateService#getLocalRecoveryRetryCount] should not filter on active shards.
+    public void testGetLocalRecoveryRetryCountForActiveShard() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        handleRecoveryFailureWithRetry(shardRouting);
+        deterministicTaskQueue.runAllRunnableTasks();
+        indicesService.completeRecoveryViaListener();
+
         ShardRouting started = TestShardRouting.shardRoutingBuilder(
             shardRouting.shardId(),
             shardRouting.currentNodeId(),
@@ -630,22 +624,24 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         applyState(stateWithShardRouting(started));
         assertTrue(indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().active());
 
-        assertThat(indicesClusterStateService.getLocalRecoveryRetryCounts(), equalTo(Map.of()));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(started), equalTo(1));
     }
 
-    /// A shard that's never failed has an InFlight ticket with a zero retry count -- omitted, because
-    /// that's the way [LocalRecoveryRetriesHealthTracker] likes it.
-    public void testGetLocalRecoveryRetryCountsOmitsZeroRetries() {
+    /// A shard that's never failed has an InFlight ticket with a zero retry count.
+    public void testGetLocalRecoveryRetryCountOmitsZeroRetries() {
         ShardRouting shardRouting = applyInitializingPrimary();
         assertTrue(isInFlight(shardRouting));
 
-        assertThat(indicesClusterStateService.getLocalRecoveryRetryCounts(), equalTo(Map.of()));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(0));
     }
 
-    /// A shard whose failure was reported to master contributes nothing: master, not this node's health
-    /// report, is the source of truth once a failure has actually been escalated.
-    public void testGetLocalRecoveryRetryCountsOmitsFailureReported() {
+    /// A shard whose failure was reported to master contributes nothing.
+    public void testGetLocalRecoveryRetryCountOmitsFailureReported() {
         ShardRouting shardRouting = applyInitializingPrimary();
+        handleRecoveryFailureWithRetry(shardRouting);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertThat(currentInFlight(shardRouting).localRecoveryRetries(), equalTo(1));
+
         indicesClusterStateService.handleRecoveryFailure(
             shardRouting,
             FAIL_SEND,
@@ -655,7 +651,33 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         );
         assertTrue(isFailureReported(shardRouting));
 
-        assertThat(indicesClusterStateService.getLocalRecoveryRetryCounts(), equalTo(Map.of()));
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(shardRouting), equalTo(0));
+    }
+
+    /// No pending allocation state and no local [IndexShard] at all.
+    public void testGetLocalRecoveryRetryCountReturnsZeroForUnknownIndex() {
+        ShardRouting unknownRouting = TestShardRouting.newShardRouting(
+            new ShardId(randomIndexName(), randomUUID(), 0),
+            randomAlphaOfLength(8),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(unknownRouting), equalTo(0));
+    }
+
+    /// No pending allocation state and no local [IndexShard] for this specific allocation, but the index itself is loaded.
+    public void testGetLocalRecoveryRetryCountReturnsZeroForUnknownShardInKnownIndex() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+
+        ShardRouting siblingRouting = TestShardRouting.newShardRouting(
+            new ShardId(shardRouting.index(), shardRouting.id() + 1),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+
+        assertThat(indicesClusterStateService.getLocalRecoveryRetryCount(siblingRouting), equalTo(0));
     }
 
     public void testFailureReportedEvictedWhenPrimaryTermBumped() {

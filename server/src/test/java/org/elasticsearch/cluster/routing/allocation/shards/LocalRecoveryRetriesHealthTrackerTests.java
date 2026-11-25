@@ -10,14 +10,21 @@
 package org.elasticsearch.cluster.routing.allocation.shards;
 
 import org.elasticsearch.cluster.routing.ShardAllocationId;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.health.node.HealthInfoTests;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Map;
 
+import static java.util.stream.Collectors.groupingBy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -25,50 +32,76 @@ import static org.mockito.Mockito.when;
 
 public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
 
-    public void testNoRetries() {
+    public void testNoShards() {
         assertThat(determineHealth(Map.of()), equalTo(LocalRecoveryRetriesHealthInfo.EMPTY));
     }
 
-    public void testRetriesAreReportedPerAllocation() {
-        var shard1 = randomShardId();
-        var shard2 = randomShardId();
-        var allocation1 = randomAlphaOfLength(12);
-        var allocation2 = randomAlphaOfLength(12);
+    public void testShardsWithLocalRetriesAreReportedSameIndex() {
+        ShardId shardId1 = randomShardId();
+        ShardId shardId2 = new ShardId(shardId1.getIndex(), shardId1.id() + 1);
+        var shard1 = shard(shardId1, ShardRoutingState.INITIALIZING);
+        var shard2 = shard(shardId2, ShardRoutingState.INITIALIZING);
         int retries1 = randomIntBetween(1, 10);
         int retries2 = randomIntBetween(1, 10);
 
-        var health = determineHealth(
-            Map.of(new ShardAllocationId(shard1, allocation1), retries1, new ShardAllocationId(shard2, allocation2), retries2)
-        );
+        var health = determineHealth(Map.of(shard1, retries1, shard2, retries2));
 
         assertThat(
             health.localRetries(),
-            equalTo(Map.of(new ShardAllocationId(shard1, allocation1), retries1, new ShardAllocationId(shard2, allocation2), retries2))
+            equalTo(
+                Map.of(
+                    ShardAllocationId.fromRouting(shard1.routingEntry()),
+                    retries1,
+                    ShardAllocationId.fromRouting(shard2.routingEntry()),
+                    retries2
+                )
+            )
         );
     }
 
-    /// The tracker must key its output by [ShardAllocationId], not by shard ID alone -- otherwise two allocations of the
-    /// same shard (e.g. a stale entry not yet cleaned up alongside its replacement) would be merged into one, silently
-    /// dropping or mixing up one allocation's retry count with the other's.
-    public void testMultipleAllocationsOfSameShardAreReported() {
-        var shardId = randomShardId();
-        var allocation1 = randomAlphaOfLength(12);
-        var allocation2 = randomAlphaOfLength(12);
+    public void testShardsWithLocalRetiesAreReportedDifferentIndices() {
+        var shard1 = shard(randomShardId(), ShardRoutingState.INITIALIZING);
+        var shard2 = shard(randomShardId(), ShardRoutingState.INITIALIZING);
         int retries1 = randomIntBetween(1, 10);
         int retries2 = randomIntBetween(1, 10);
 
-        var health = determineHealth(
-            Map.of(new ShardAllocationId(shardId, allocation1), retries1, new ShardAllocationId(shardId, allocation2), retries2)
-        );
+        var health = determineHealth(Map.of(shard1, retries1, shard2, retries2));
 
         assertThat(
             health.localRetries(),
-            equalTo(Map.of(new ShardAllocationId(shardId, allocation1), retries1, new ShardAllocationId(shardId, allocation2), retries2))
+            equalTo(
+                Map.of(
+                    ShardAllocationId.fromRouting(shard1.routingEntry()),
+                    retries1,
+                    ShardAllocationId.fromRouting(shard2.routingEntry()),
+                    retries2
+                )
+            )
         );
+    }
+
+    public void testShardsWithoutLocalRetriesAreOmitted() {
+        var shardWithoutRetries = shard(randomShardId(), ShardRoutingState.INITIALIZING);
+        var shardWithRetries = shard(randomShardId(), ShardRoutingState.INITIALIZING);
+        int retries = randomIntBetween(1, 10);
+
+        LocalRecoveryRetriesHealthInfo health = determineHealth(Map.of(shardWithoutRetries, 0, shardWithRetries, retries));
+
+        assertThat(health.localRetries(), equalTo(Map.of(ShardAllocationId.fromRouting(shardWithRetries.routingEntry()), retries)));
+    }
+
+    public void testShardsWhichAreActiveAreOmitted() {
+        var inactive = shard(randomShardId(), ShardRoutingState.INITIALIZING);
+        var active = shard(randomShardId(), ShardRoutingState.STARTED);
+        int retriesInactive = randomIntBetween(1, 10);
+
+        var health = determineHealth(Map.of(active, randomIntBetween(1, 10), inactive, retriesInactive));
+
+        assertThat(health.localRetries(), equalTo(Map.of(ShardAllocationId.fromRouting(inactive.routingEntry()), retriesInactive)));
     }
 
     public void testSetBuilder() {
-        var tracker = new LocalRecoveryRetriesHealthTracker(() -> indicesClusterStateService(Map.of()));
+        var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.of()), () -> mock(IndicesClusterStateService.class));
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
         var health = new LocalRecoveryRetriesHealthInfo(Map.of(HealthInfoTests.randomShardAllocationId(), randomIntBetween(1, 10)));
 
@@ -77,18 +110,39 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         verify(builder).localRecoveryRetriesHealthInfo(health);
     }
 
-    private static LocalRecoveryRetriesHealthInfo determineHealth(Map<ShardAllocationId, Integer> localRecoveryRetryCounts) {
-        var tracker = new LocalRecoveryRetriesHealthTracker(() -> indicesClusterStateService(localRecoveryRetryCounts));
+    private static LocalRecoveryRetriesHealthInfo determineHealth(Map<IndexShard, Integer> shardsWithRetries) {
+        var service = mock(IndicesClusterStateService.class);
+        shardsWithRetries.forEach((shard, retries) -> when(service.getLocalRecoveryRetryCount(shard.routingEntry())).thenReturn(retries));
+        var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.copyOf(shardsWithRetries.keySet())), () -> service);
         return tracker.determineCurrentHealth();
     }
 
-    /// [LocalRecoveryRetriesHealthTracker] only reads [IndicesClusterStateService#getLocalRecoveryRetryCounts], so that's
-    /// the only method mocked here -- the real method's own behaviour (e.g. omitting shards with no pending allocation
-    /// state, or ones that never retried) is covered directly against IndicesClusterStateService itself.
-    private static IndicesClusterStateService indicesClusterStateService(Map<ShardAllocationId, Integer> localRecoveryRetryCounts) {
-        var service = mock(IndicesClusterStateService.class);
-        when(service.getLocalRecoveryRetryCounts()).thenReturn(localRecoveryRetryCounts);
-        return service;
+    /// Creates an [IndicesService] containing one [IndexService] per distinct index among `shards`, grouping
+    /// each shard under its own `ShardRouting#index`.
+    ///
+    /// Mocks are used for [IndicesService], [IndexService] and [IndexShard] because constructing real ones needs a
+    /// full node (or at least a data path, analysis registry, and engine factory), and the tracker only uses them
+    /// as containers to iterate over and to get a shard's routing entry.
+    private static IndicesService indicesService(List<IndexShard> shards) {
+        var indexServices = shards.stream()
+            .collect(groupingBy(shard -> shard.routingEntry().index()))
+            .values()
+            .stream()
+            .map(shardsInIndex -> {
+                var indexService = mock(IndexService.class);
+                when(indexService.iterator()).thenAnswer(invocation -> shardsInIndex.iterator());
+                return indexService;
+            })
+            .toList();
+        var indicesService = mock(IndicesService.class);
+        when(indicesService.iterator()).thenAnswer(invocation -> indexServices.iterator());
+        return indicesService;
+    }
+
+    private static IndexShard shard(ShardId shardId, ShardRoutingState routingState) {
+        var shard = mock(IndexShard.class);
+        when(shard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(8), true, routingState));
+        return shard;
     }
 
     private static ShardId randomShardId() {

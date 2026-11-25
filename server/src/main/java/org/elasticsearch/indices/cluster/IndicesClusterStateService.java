@@ -245,41 +245,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return pendingAllocationStates.keySet().stream().anyMatch(key -> key.shardId().equals(shardId));
     }
 
-    /// Snapshot of local recovery retry counts (non-zero only) for shard allocations on this node that have
-    /// failed recovery and are either recovering again, awaiting their next local retry or awaiting to be
-    /// started.
-    public Map<ShardAllocationId, Integer> getLocalRecoveryRetryCounts() {
-        final Map<ShardAllocationId, Integer> result = new HashMap<>();
-        for (final var entry : pendingAllocationStates.entrySet()) {
-            final int retries = switch (entry.getValue()) {
+    /// Local recovery retry count for the shard allocation identified by `routing`, which must be
+    /// assigned to this node. [pendingAllocationStates] is checked first, since
+    /// it's the only place the count survives during the awaiting-retry window, when no local [Shard]
+    /// exists for this allocation. Otherwise, falls back to the local shard's own [Shard#recoveryState].
+    public int getLocalRecoveryRetryCount(ShardRouting routing) {
+        final PendingAllocationState pending = pendingAllocationStates.get(ShardAllocationId.fromRouting(routing));
+        if (pending != null) {
+            return switch (pending) {
                 case PendingAllocationState.InFlight inFlight -> inFlight.localRecoveryRetries();
                 case PendingAllocationState.AwaitingRecoveryRetry awaiting -> awaiting.localRecoveryRetries();
                 case PendingAllocationState.FailureReported ignored -> 0;
             };
-            if (retries > 0) {
-                result.put(entry.getKey(), retries);
-            }
         }
-        // onRecoveryDone removes the InFlight ticket before sending shardStarted, so a shard that just finished
-        // recovering can briefly have no pending allocation state while master still sees it as initializing.
-        // IndexShard#recoveryState retains the retry count through that window, so fall back to it here.
-        for (final AllocatedIndex<? extends Shard> indexService : indicesService) {
-            for (final Shard shard : indexService) {
-                final ShardRouting routing = shard.routingEntry();
-                if (routing.active()) {
-                    continue;
-                }
-                final ShardAllocationId key = ShardAllocationId.fromRouting(routing);
-                if (pendingAllocationStates.containsKey(key)) {
-                    continue;
-                }
-                final int localRetries = shard.recoveryState().getLocalRetries();
-                if (localRetries > 0) {
-                    result.put(key, localRetries);
-                }
-            }
-        }
-        return result;
+        final AllocatedIndex<? extends Shard> indexService = indicesService.indexService(routing.index());
+        final Shard shard = indexService == null ? null : indexService.getShardOrNull(routing.id());
+        return shard == null ? 0 : shard.recoveryState().getLocalRetries();
     }
 
     private final RepositoriesService repositoriesService;

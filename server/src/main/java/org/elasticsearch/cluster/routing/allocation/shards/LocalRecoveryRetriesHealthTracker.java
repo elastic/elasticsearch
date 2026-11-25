@@ -9,10 +9,17 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.cluster.routing.ShardAllocationId;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.tracker.HealthTracker;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /// A [HealthTracker] which captures the [LocalRecoveryRetriesHealthInfo] for a node.
@@ -22,9 +29,14 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
     // failedAllocations – but, at time of writing, the former is reset by direct cancellation and the latter is not.
     // See elastic/elasticsearch-team#5557
 
+    private final IndicesService indicesService;
     private final Supplier<IndicesClusterStateService> indicesClusterStateService;
 
-    public LocalRecoveryRetriesHealthTracker(Supplier<IndicesClusterStateService> indicesClusterStateService) {
+    public LocalRecoveryRetriesHealthTracker(
+        IndicesService indicesService,
+        Supplier<IndicesClusterStateService> indicesClusterStateService
+    ) {
+        this.indicesService = indicesService;
         this.indicesClusterStateService = indicesClusterStateService;
     }
 
@@ -33,7 +45,23 @@ public class LocalRecoveryRetriesHealthTracker extends HealthTracker<LocalRecove
         assert indicesClusterStateService.get() != null
             : "the supplier is only read once health monitoring starts, which is driven by a cluster state "
                 + "update and so cannot happen before node construction (and hence the injector) completes";
-        return new LocalRecoveryRetriesHealthInfo(indicesClusterStateService.get().getLocalRecoveryRetryCounts());
+        IndicesClusterStateService clusterStateService = indicesClusterStateService.get();
+
+        Map<ShardAllocationId, Integer> localRetriesByRecovery = new HashMap<>();
+        for (IndexService indexService : indicesService) {
+            for (IndexShard shard : indexService) {
+                // The retry count is retained after the recovery completes, but the health indicator only reads the retry count for shards
+                // which are not active in the routing table, so only those need to be reported:
+                ShardRouting routing = shard.routingEntry();
+                if (routing.active() == false) {
+                    int localRetries = clusterStateService.getLocalRecoveryRetryCount(routing);
+                    if (localRetries > 0) {
+                        localRetriesByRecovery.put(ShardAllocationId.fromRouting(routing), localRetries);
+                    }
+                }
+            }
+        }
+        return new LocalRecoveryRetriesHealthInfo(localRetriesByRecovery);
     }
 
     @Override

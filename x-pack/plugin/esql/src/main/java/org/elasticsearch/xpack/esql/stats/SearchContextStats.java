@@ -11,6 +11,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetReader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
@@ -47,10 +50,12 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper.TimestampFieldType;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -457,6 +462,82 @@ public class SearchContextStats implements SearchStats {
         return count;
     }
 
+    private static final BytesRef EMPTY_STRING = new BytesRef();
+
+    @Override
+    public List<BytesRef> distinctKeywordValues(FieldName field, int limit) {
+        if (shardFilters) {
+            // The terms include the values of the documents that a filter hides, which must not show in a plan
+            return null;
+        }
+        String name = field.string();
+        TreeSet<BytesRef> values = new TreeSet<>();
+        boolean emptyStringReadsAsNull = false;
+        try {
+            for (SearchExecutionContext context : contexts) {
+                MappedFieldType fieldType = context.getFieldType(name);
+                if (fieldType == null) {
+                    // No document of this shard holds a value
+                    continue;
+                }
+                // The terms of the index are the values that are read only for a plain keyword: a normalizer indexes other terms
+                // than the values. The values that ignore_above skips are neither indexed nor read from the doc values.
+                if (isExtractableMappedField(context, name) == false
+                    || fieldType instanceof KeywordFieldType == false
+                    || isQueryable(context, name, DataType.KEYWORD, true) == false) {
+                    return null;
+                }
+                KeywordFieldType keyword = (KeywordFieldType) fieldType;
+                if (keyword.indexType().hasTerms() == false || keyword.hasDocValues() == false) {
+                    return null;
+                }
+                if (hidesDocuments(context.searcher().getIndexReader())) {
+                    return null;
+                }
+                emptyStringReadsAsNull |= keyword.emptyStringReadsAsNull();
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    Terms terms = leafContext.reader().terms(keyword.name());
+                    if (terms == null) {
+                        continue;
+                    }
+                    if (terms.size() > limit) {
+                        return null;
+                    }
+                    TermsEnum termsEnum = terms.iterator();
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                        if (values.contains(term) == false) {
+                            if (values.size() == limit) {
+                                return null;
+                            }
+                            values.add(BytesRef.deepCopyOf(term));
+                        }
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        if (emptyStringReadsAsNull && values.contains(EMPTY_STRING)) {
+            // A term query for the empty string of one shard matches the documents with no value of a shard that reads it as null
+            return null;
+        }
+        return new ArrayList<>(values);
+    }
+
+    /**
+     * Whether document level security hides documents of this reader from the user. The terms of the index still include the
+     * values of the hidden documents, which the user must not see, not even as the keys of counts that turn out to be zero.
+     */
+    private static boolean hidesDocuments(IndexReader reader) {
+        while (reader instanceof FilterDirectoryReader filter) {
+            if (filter instanceof DocumentSubsetReader.DocumentSubsetDirectoryReader) {
+                return true;
+            }
+            reader = filter.getDelegate();
+        }
+        return false;
+    }
+
     @Override
     public Object min(FieldName field) {
         final var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
@@ -665,7 +746,9 @@ public class SearchContextStats implements SearchStats {
         if (stat.singleValue == null) {
             // a missing field is trivially single-valued; otherwise every leaf must prove it
             stat.singleValue = stat.config.exists == false
-                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldName));
+                // Lucene only knows the concrete field, so read its metadata under the resolved name: an alias would find none and
+                // a missing skipper or points index is treated as "no values".
+                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldType.name()));
         }
         return stat.singleValue;
     }

@@ -21,6 +21,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolvableDependencies;
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
+import org.gradle.api.artifacts.result.ResolvedArtifactResult;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.DocsType;
@@ -30,12 +31,14 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 
 import java.io.File;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,10 +50,15 @@ import java.util.stream.Collectors;
  * its javadoc output directory as a consumable variant ({@code javadocDirElements}). A consuming
  * project then <em>resolves</em> that variant from its own {@code compileClasspath} project
  * dependencies via an {@link org.gradle.api.artifacts.ArtifactView} with variant reselection. The
- * resolved artifact files are registered as task inputs, so Gradle derives the producing
+ * package lists of the resolved artifacts are registered as task inputs, so Gradle derives the producing
  * {@code :upstream:javadoc} task dependency from the artifact's {@code builtBy} automatically. This
  * removes the need for {@code Project#afterEvaluate}, {@code Project#evaluationDependsOn} and
  * explicit cross-project {@code dependsOn(":upstream:javadoc")} wiring.
+ *
+ * <p>The javadoc task must stay relocatable so it can be taken from the build cache across checkouts.
+ * Upstream package lists are therefore tracked with relative paths, and the resulting {@code -linkoffline}
+ * entries (which are only applied in {@code doFirst}) are declared as an input property using
+ * project-relative, {@code /}-separated package list locations.
  *
  * <p>Order matters: the {@code linksOffline} entry for {@code org.elasticsearch:elasticsearch} must
  * be the last one, otherwise all links for the other packages (e.g. {@code org.elasticsearch.client})
@@ -183,12 +191,44 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
         File projectDir = project.getProjectDir();
         String artifactHost = artifactHost(project);
 
+        // The offline links (external URL + package list location relative to this project), computed
+        // from the resolved upstream javadoc variants. Skipped upstream javadoc tasks produce no output
+        // directory; their links are dropped, as javadoc would fail otherwise.
+        Provider<List<OfflineLink>> offlineLinks = javadocDirs.getResolvedArtifacts()
+            .map(
+                artifacts -> artifacts.stream()
+                    .map(UpstreamJavadoc::of)
+                    .filter(upstream -> upstream.linkPath() != null && upstream.dir().exists())
+                    // Sort by the published link path (which begins with the producer's group) so
+                    // that org.elasticsearch:elasticsearch is linked last (see class javadoc).
+                    .sorted(Comparator.comparing(UpstreamJavadoc::linkPath))
+                    .map(
+                        upstream -> new OfflineLink(
+                            artifactHost + "/javadoc/" + upstream.linkPath(),
+                            // javadoc accepts '/' on all platforms; normalizing keeps the input OS-independent
+                            projectDir.toPath().relativize(upstream.dir().toPath()).toString().replace(File.separatorChar, '/') + "/"
+                        )
+                    )
+                    .toList()
+            );
+
         project.getTasks().named("javadoc", Javadoc.class).configure(javadoc -> {
             // Registering the resolved artifact files as inputs wires the producing :upstream:javadoc
             // tasks via their builtBy metadata. This replaces dependsOn(":upstream:javadoc") and
             // evaluationDependsOn(upstream). We bind to the public Task#getInputs() (rather than
             // Javadoc's covariant override, which returns the internal TaskInputsInternal type).
-            ((Task) javadoc).getInputs().files(javadocDirs.getArtifactFiles());
+            //
+            // Only the package lists are read by javadoc for -linkoffline, so we only track those, and
+            // with relative paths so the build cache key does not depend on the checkout location.
+            ((Task) javadoc).getInputs()
+                .files(javadocDirs.getArtifactFiles().getAsFileTree().matching(p -> p.include("element-list", "package-list")))
+                .withPropertyName("upstreamJavadocPackageLists")
+                .withPathSensitivity(PathSensitivity.RELATIVE);
+
+            // The links are applied in doFirst, after the cache key is calculated, so they need to be
+            // declared as an input. Otherwise a version change could reuse javadoc linking the old version.
+            ((Task) javadoc).getInputs()
+                .property("upstreamJavadocLinks", offlineLinks.map(links -> links.stream().map(OfflineLink::asInputValue).toList()));
 
             // linksOffline lives on StandardJavadocDocletOptions, which is read while the javadoc tool
             // runs. doFirst is the safe point at which the resolved ArtifactCollection is available and
@@ -197,29 +237,34 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
                 @Override
                 public void execute(Task task) {
                     var options = (StandardJavadocDocletOptions) javadoc.getOptions();
-                    javadocDirs.getArtifacts()
-                        .stream()
-                        // Sort by the published link path (which begins with the producer's group) so
-                        // that org.elasticsearch:elasticsearch is linked last (see class javadoc).
-                        .sorted(Comparator.comparing(a -> a.getVariant().getAttributes().getAttribute(JAVADOC_LINK_PATH_ATTRIBUTE)))
-                        .forEach(artifact -> {
-                            String linkPath = artifact.getVariant().getAttributes().getAttribute(JAVADOC_LINK_PATH_ATTRIBUTE);
-                            if (linkPath == null) {
-                                return;
-                            }
-                            String relativeDir = projectDir.toPath().relativize(artifact.getFile().toPath()) + "/";
-                            options.linksOffline(artifactHost + "/javadoc/" + linkPath, relativeDir);
-                        });
-                    /*
-                     * Some dependent javadoc tasks are explicitly skipped. We need to ignore those
-                     * external links as javadoc would fail otherwise.
-                     */
-                    options.setLinksOffline(
-                        options.getLinksOffline().stream().filter(link -> new File(projectDir, link.getPackagelistLoc()).exists()).toList()
-                    );
+                    offlineLinks.get().forEach(link -> options.linksOffline(link.url(), link.packageListLocation()));
                 }
             });
         });
+    }
+
+    /**
+     * A resolved upstream javadoc directory together with its published link path, which is {@code null}
+     * if the producer does not publish one.
+     */
+    private record UpstreamJavadoc(String linkPath, File dir) {
+        static UpstreamJavadoc of(ResolvedArtifactResult artifact) {
+            return new UpstreamJavadoc(artifact.getVariant().getAttributes().getAttribute(JAVADOC_LINK_PATH_ATTRIBUTE), artifact.getFile());
+        }
+    }
+
+    /**
+     * A {@code -linkoffline} entry. The package list location is relative to the project directory to keep
+     * the javadoc task relocatable.
+     */
+    private record OfflineLink(String url, String packageListLocation) {
+        /**
+         * The value tracked as part of the javadoc task's build cache key. Changing the format changes the
+         * cache key of every javadoc task with project dependencies.
+         */
+        String asInputValue() {
+            return url + " " + packageListLocation;
+        }
     }
 
     /**

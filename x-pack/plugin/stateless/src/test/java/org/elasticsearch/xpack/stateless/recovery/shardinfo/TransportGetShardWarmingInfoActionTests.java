@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction.Response;
@@ -376,8 +377,8 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     }
 
     public void testEstimateBytesToWarmUsesPerCommitRatio() {
-        var oldCommit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
-        var recentCommit = new StatelessCompoundCommit.TimestampFieldValueRange(10, 20);
+        var oldCommit = new TimestampFieldValueRange(1, 2);
+        var recentCommit = new TimestampFieldValueRange(10, 20);
         BlobFileRanges oldRange = range(1, 0, 40, oldCommit);
         BlobFileRanges recentRange = range(1, 40, 60, recentCommit);
         WarmingRatioProvider provider = (tsRange, resolved, now) -> oldCommit.equals(tsRange) ? 1.0d : 0.5d;
@@ -385,7 +386,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     }
 
     public void testEstimateBytesToWarmFilesOfOneCommitFormOneExtent() {
-        var commit = new StatelessCompoundCommit.TimestampFieldValueRange(1, 2);
+        var commit = new TimestampFieldValueRange(1, 2);
         BlobFileRanges first = range(1, 0, 30, commit);
         BlobFileRanges second = range(1, 50, 50, commit);
         assertThat(estimateBytesToWarm(List.of(first, second), 0.5d), equalTo(50L));
@@ -420,8 +421,8 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
     /// and the blob bytes are summed.
     public void testEstimateBytesToWarmCombinesHeaderNonTimeBasedCommitAndTimeBasedCommit() {
         final long now = 10_000L;
-        final var recent = new StatelessCompoundCommit.TimestampFieldValueRange(8_000L, 10_000L);
-        final var old = new StatelessCompoundCommit.TimestampFieldValueRange(1L, 2L);
+        final var recent = new TimestampFieldValueRange(8_000L, 10_000L);
+        final var old = new TimestampFieldValueRange(1L, 2L);
         // Non-time-based: header [0, 100), file [100, 140), gap [140, 200), file [200, 300). No timestamp range.
         final BlobFileRanges plainFirst = range(1, 100, 40);
         final BlobFileRanges plainSecond = range(1, 200, 100);
@@ -452,7 +453,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     /// What [org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#resolveRegionTimestampMillis] returns without a directory:
     /// no timestamp range is unknown, and a range contributes its midpoint.
-    private static long resolvedTimestamp(@Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {
+    private static long resolvedTimestamp(@Nullable TimestampFieldValueRange timestampRange) {
         return timestampRange == null
             ? SharedBlobCacheService.UNKNOWN_TIMESTAMP
             : Math.max(timestampRange.midpointMillis(), SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
@@ -650,12 +651,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         return range(generation, offset, length, null);
     }
 
-    private static BlobFileRanges range(
-        long generation,
-        long offset,
-        long length,
-        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
-    ) {
+    private static BlobFileRanges range(long generation, long offset, long length, @Nullable TimestampFieldValueRange timestampRange) {
         return new BlobFileRanges(
             new BlobLocation(new BccBlob(BccBlob.blobNameFromGeneration(generation), 1L), offset, length),
             timestampRange

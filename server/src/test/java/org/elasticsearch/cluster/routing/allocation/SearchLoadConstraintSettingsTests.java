@@ -31,7 +31,22 @@ public class SearchLoadConstraintSettingsTests extends ESTestCase {
     }
 
     public void testSearchLoadCpuThresholdSettingRejectsInvalidValues() {
-        for (String invalid : new String[] { "0", "0.0", "-0.0", "-0.1", "1.01", "NaN", "-NaN", "Infinity", "75%", "not-a-number" }) {
+        final String aboveOne = Double.toString(randomDoubleBetween(Math.nextUp(1.0), Double.MAX_VALUE, true));
+        final String negative = Double.toString(randomDoubleBetween(-Double.MAX_VALUE, -Double.MIN_VALUE, true));
+        for (String invalid : new String[] {
+            "0",
+            "0.0",
+            "-0.0",
+            "-0.1",
+            "1.01",
+            aboveOne,
+            negative,
+            "NaN",
+            "-NaN",
+            "Infinity",
+            "-Infinity",
+            "75%",
+            "not-a-number" }) {
             expectThrows(IllegalArgumentException.class, () -> cpuThreshold(invalid));
         }
     }

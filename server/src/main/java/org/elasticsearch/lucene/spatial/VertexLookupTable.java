@@ -26,28 +26,63 @@ import java.util.Arrays;
  * vertices (a vertex typically appears in ~6 adjacent triangles). Vertices only needed by the tree
  * (e.g. from dateline normalization) are appended after the geometry vertices.
  *
- * <p>Vertices are grouped into blocks of {@link #BLOCK_SIZE} consecutive ordinals. Since the table is in
- * geometry order, the vertices of a block are close together even when the whole shape is large, so each
- * block stores its coordinates as bit-packed offsets from the block minimum, using only as many bits per
- * axis as that block needs. A fixed-size directory entry per block holds the block minimum, the bit widths
- * and the position of the block's packed data, so any ordinal is still read in O(1) without decoding its
- * neighbours. The read path avoids allocating coordinate arrays by reading directly from the underlying
- * doc-value byte array.
+ * <h2>Encoding</h2>
  *
- * <p>Block minimums are stored as unsigned offsets from the minimum of the document's {@link Extent}, using
- * a fixed number of bytes per axis (0 to 4) chosen per document from the largest offset. If any vertex lies
- * below the extent minimum on an axis (possible for geometry vertices that the tessellation drops), that
- * axis stores absolute 4-byte block minimums instead.
+ * <p>The coordinates are compressed with block frame-of-reference bit-packing, the scheme Lucene uses for numeric
+ * doc values (see {@code Lucene90DocValuesConsumer#writeBlock}) and postings, first described by Goldstein,
+ * Ramakrishnan and Shaft in "Compressing Relations and Indexes" (ICDE 1998). Vertices are grouped into blocks of
+ * {@link #BLOCK_SIZE} consecutive ordinals, and each block stores every coordinate as its offset from the block
+ * minimum, in as many bits as the largest offset in that block needs. Offsets are from the block minimum, not from
+ * the previous vertex as in delta coding, so a vertex is decoded without reading the vertices before it. A
+ * fixed-size directory entry per block holds the block minimum, the bit widths and the position of the block's
+ * packed data, so reading any ordinal is O(1).
  *
- * <p>Layout: {@code numVertices(VInt) | layout(byte) | offsetWidth(byte, only if more than one block) |
- * directory | packed data}, written only if {@code numVertices > 0}. The layout byte holds the block-minimum
- * byte width for x in bits 0-2 and for y in bits 3-5, and the absolute flags for x and y in bits 6 and 7.
- * Each directory entry is the block minimum x and y, the x and y bit widths (one byte each), and the byte
- * offset of the block's data from the start of the packed data ({@code offsetWidth} bytes, big-endian).
- * Each block's data holds, per vertex, the x offset followed by the y offset, packed most significant bit first.
+ * <p>Since the table is in geometry order, the vertices of a block are close together even when the whole shape
+ * is large, which keeps the bit widths small. Compared to Lucene's numeric encoding:
+ * <ul>
+ *   <li>Each vertex has two coordinates, and each axis has its own block minimum and bit width.</li>
+ *   <li>Blocks are small, since a table holds the vertices of a single geometry rather than of a whole segment.</li>
+ *   <li>The block minimums are frame-of-reference encoded too: as unsigned offsets from the minimum of the
+ *   document's {@link Extent}, in a whole number of bytes per axis (0 to 4) chosen per document from the largest
+ *   offset. If any vertex lies below the extent minimum on an axis (possible for geometry vertices that the
+ *   tessellation drops), that axis stores absolute 4-byte block minimums instead.</li>
+ * </ul>
+ *
+ * <h2>Layout</h2>
+ *
+ * <p>Everything after {@code numVertices} is written only if {@code numVertices > 0}. All multi-byte fields are
+ * big-endian.
+ * <pre>
+ * numVertices    VInt
+ * layout         byte    bits 0-2: widthX, bits 3-5: widthY, the bytes per block minimum on each axis
+ *                        bit 6: the x block minimums are absolute, bit 7: the y block minimums are absolute
+ * offsetWidth    byte    bytes per data offset, only present if there is more than one block
+ * directory      one entry per block, each widthX + widthY + 2 + offsetWidth bytes:
+ *                  minX - baseX   widthX bytes
+ *                  minY - baseY   widthY bytes
+ *                  bitsX          byte
+ *                  bitsY          byte
+ *                  dataOffset     offsetWidth bytes, from the start of the packed data
+ * packed data    per block, per vertex: x - minX in bitsX bits then y - minY in bitsY bits, most significant
+ *                bit first, with the block padded to a whole byte
+ * </pre>
+ * where {@code baseX} and {@code baseY} are the extent minimum, or 0 for an absolute axis.
+ *
+ * <p>For example a block holding (1000, 500), (1003, 502) and (1001, 507) has the minimum (1000, 500) and the
+ * offsets (0, 0), (3, 2) and (1, 7). The largest x offset 3 needs 2 bits and the largest y offset 7 needs 3 bits,
+ * so each vertex takes 5 bits: {@code 00 000 11 010 01 111}, padded to the two bytes {@code 00000110 10011110}.
  *
  * <p>Values made only of points have no triangle tree or connectivity, and store just the points in this table
  * (see {@link Builder#writePointsTo}). A single point stores only {@code numVertices}, as it is the extent minimum.
+ *
+ * <h2>Reading</h2>
+ *
+ * <p>The read path decodes directly from the doc-value byte array, without allocating coordinate arrays. Rather
+ * than reading the fields above one at a time, it mostly reads a whole big-endian long and extracts fields with
+ * shifts and masks: one long holds both block minimums of a directory entry, another the bit widths and data
+ * offset, and another the packed x and y of a vertex. Each of these falls back to a slower read near the end of
+ * the array, where a whole long would run past it. The directory entry of the last block read is cached, since
+ * ordinals are mostly read in runs from the same block.
  */
 public class VertexLookupTable {
 
@@ -160,8 +195,8 @@ public class VertexLookupTable {
         int shift = bitPosition & 7;
         if (shift + bitsPerVertex <= Long.SIZE && start + Long.BYTES <= bytes.length) {
             long word = ByteUtils.readLongBE(bytes, start) << shift;
-            int x = blockMinX + (int) ((word >>> 1 >>> (Long.SIZE - 1 - blockBitsX)));
-            int y = blockMinY + (int) ((word << blockBitsX) >>> 1 >>> (Long.SIZE - 1 - blockBitsY));
+            int x = blockMinX + unpackX(word, blockBitsX);
+            int y = blockMinY + unpackY(word, blockBitsX, blockBitsY);
             return ((long) x << 32) | (y & 0xFFFFFFFFL);
         }
         int x = blockMinX + readBits(bytes, blockDataOffset, dataEnd, bitPosition, blockBitsX);
@@ -185,8 +220,8 @@ public class VertexLookupTable {
                 int shift = bitPosition & 7;
                 if (shift + bitsPerVertex <= Long.SIZE && start + Long.BYTES <= bytes.length) {
                     long word = ByteUtils.readLongBE(bytes, start) << shift;
-                    x[offset] = encoder.decodeX(blockMinX + (int) (word >>> 1 >>> (Long.SIZE - 1 - blockBitsX)));
-                    y[offset] = encoder.decodeY(blockMinY + (int) ((word << blockBitsX) >>> 1 >>> (Long.SIZE - 1 - blockBitsY)));
+                    x[offset] = encoder.decodeX(blockMinX + unpackX(word, blockBitsX));
+                    y[offset] = encoder.decodeY(blockMinY + unpackY(word, blockBitsX, blockBitsY));
                 } else {
                     x[offset] = encoder.decodeX(blockMinX + readBits(bytes, blockDataOffset, dataEnd, bitPosition, blockBitsX));
                     y[offset] = encoder.decodeY(
@@ -197,6 +232,26 @@ public class VertexLookupTable {
         }
     }
 
+    /**
+     * The x offset of a vertex whose packed bits start at the most significant bit of {@code word}. The shift is
+     * split as {@code >>> 1 >>> (63 - bitsX)} rather than {@code >>> (64 - bitsX)} because Java only uses the low six
+     * bits of a long shift distance, so a single shift by 64 would leave the word unchanged instead of giving the 0
+     * that a zero bit width needs.
+     */
+    private static int unpackX(long word, int bitsX) {
+        return (int) (word >>> 1 >>> (Long.SIZE - 1 - bitsX));
+    }
+
+    /** The y offset of a vertex whose packed bits start at the most significant bit of {@code word}, as {@link #unpackX}. */
+    private static int unpackY(long word, int bitsX, int bitsY) {
+        return (int) ((word << bitsX) >>> 1 >>> (Long.SIZE - 1 - bitsY));
+    }
+
+    /**
+     * Reads the directory entry of {@code block} into the cached block fields, unless it is already cached. The fast
+     * path reads two longs, one starting at the block minimums and one at the bit widths, and shifts out the bytes
+     * beyond each field, which belong to the rest of the entry or the entries after it.
+     */
     private void loadBlock(int block) {
         if (block == cachedBlock) {
             return;

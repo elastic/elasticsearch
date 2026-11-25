@@ -84,6 +84,24 @@ public class VertexLookupTableTests extends ESTestCase {
         assertRoundTrip(xs, ys, extent, 1 + 1 + 6 + 4);
     }
 
+    /** The worked example in the {@link VertexLookupTable} javadoc. */
+    public void testDocumentedExample() throws IOException {
+        int[] xs = { 1000, 1003, 1001 };
+        int[] ys = { 500, 502, 507 };
+        Extent extent = new Extent();
+        extent.addRectangle(1000, 500, 1003, 507);
+        VertexLookupTable.Builder builder = VertexLookupTable.builder();
+        for (int i = 0; i < xs.length; i++) {
+            builder.appendVertex(xs[i], ys[i]);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        builder.writeTo(out, extent);
+        // count, layout (no block minimum bytes, not absolute), directory entry (bitsX, bitsY), packed data
+        byte[] expected = { 3, 0, 2, 3, (byte) 0b00000110, (byte) 0b10011110 };
+        assertThat(BytesRef.deepCopyOf(out.bytes().toBytesRef()).bytes, equalTo(expected));
+        assertRoundTrip(xs, ys, extent, expected.length);
+    }
+
     public void testDuplicatesKeepPositionsAndDeduplicateTreeLookups() throws IOException {
         VertexLookupTable.Builder builder = VertexLookupTable.builder();
         assertThat(builder.appendVertex(1, 1), equalTo(0));

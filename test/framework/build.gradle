@@ -101,7 +101,6 @@ tasks.named("thirdPartyAudit").configure {
           'net.bytebuddy.agent.Installer',
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-<<<<<<< HEAD
 
           // junit-jupiter-api Kotlin extensions; we do not ship Kotlin
           'kotlin.Unit',
@@ -118,8 +117,6 @@ tasks.named("thirdPartyAudit").configure {
           'com.carrotsearch.randomizedtesting.jupiter.Seed',
           'com.carrotsearch.randomizedtesting.jupiter.SeedChain',
           'com.carrotsearch.randomizedtesting.jupiter.SysProps',
-=======
->>>>>>> 38725e2a3a432332b446190e39d82004c8ff2456
 
           // not using JNA
          'com.sun.jna.FunctionMapper',

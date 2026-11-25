@@ -117,8 +117,9 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
         var service = mock(IndicesClusterStateService.class);
         // Stub a nonzero answer for *any* routing first, so a remote-allocation leak would show up as a false
         // positive rather than coincidentally looking right because the mock only knows about the local one.
-        when(service.getLocalRecoveryRetryCount(any())).thenReturn(randomIntBetween(1, 10));
-        int localRetries = randomIntBetween(1, 10);
+        int defaultRetries = randomIntBetween(1, 10);
+        when(service.getLocalRecoveryRetryCount(any())).thenReturn(defaultRetries);
+        int localRetries = randomValueOtherThan(defaultRetries, () -> randomIntBetween(1, 10));
         when(service.getLocalRecoveryRetryCount(localRouting)).thenReturn(localRetries);
 
         var clusterService = mock(ClusterService.class);

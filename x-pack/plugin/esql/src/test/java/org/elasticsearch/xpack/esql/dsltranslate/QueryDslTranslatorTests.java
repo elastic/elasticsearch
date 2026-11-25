@@ -323,7 +323,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
         // a mixed list drops only the unmatchable value
         Expression mixed = translate(QueryBuilders.termsQuery("status", List.of("300.5", 404)));
         assertThat(mixed, instanceOf(MvIntersects.class));
-        assertEquals(List.of(404), ((Literal) ((MvIntersects) mixed).children().get(1)).value());
+        // The raw value is used: the values are a list even when a single one is left.
+        assertEquals(List.of(404), ((Literal) ((MvIntersects) mixed).children().get(1)).rawValue());
     }
 
     /**

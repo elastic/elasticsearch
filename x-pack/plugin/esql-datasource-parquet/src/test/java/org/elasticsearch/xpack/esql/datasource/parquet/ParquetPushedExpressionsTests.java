@@ -3136,13 +3136,14 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     public void testListValuedKeywordBoundIsNotRenderedAsAString() {
-        // On a keyword column a list-valued bound does not throw, it stringifies: mv_less(region, ["zzz"]) pushed
-        // LTE("[zzz]"), which sorts below "zoo", so the row group holding region=zoo was dropped and the retained
+        // On a keyword column a list-valued bound does not throw, it stringifies: mv_less(region, ["zzz", "yyy"]) pushed
+        // LTE("[zzz, yyy]"), which sorts below "zoo", so the row group holding region=zoo was dropped and the retained
         // filter never saw the row. Reported against a one-row file; here the same shape must build no bound for
         // the mv_ arm while the other arms of the query still push.
+        // A list with a single value is the same as that value, so it is not list-valued: see the test below.
         MessageType schema = Types.buildMessage().required(BINARY).as(stringType()).named("region").named("test");
-        Literal listOfOne = new Literal(Source.EMPTY, List.of(new BytesRef("zzz")), DataType.KEYWORD);
-        Expression mvLess = new MvLess(Source.EMPTY, attr("region", DataType.KEYWORD), listOfOne);
+        Literal listOfTwo = new Literal(Source.EMPTY, List.of(new BytesRef("zzz"), new BytesRef("yyy")), DataType.KEYWORD);
+        Expression mvLess = new MvLess(Source.EMPTY, attr("region", DataType.KEYWORD), listOfTwo);
         assertNull("a list-valued keyword bound must not become a scalar bound", predicateFor(schema, mvLess));
         FilterPredicate underAnd = predicateFor(
             schema,
@@ -3154,6 +3155,18 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         );
         assertNotNull("the other arm still pushes", underAnd);
         assertThat(underAnd.toString(), not(containsString("[zzz]")));
+    }
+
+    public void testOneElementListKeywordBoundIsTheScalarBound() {
+        // A list with a single value is the same as that value, so it gives the same bound, not a stringified one.
+        MessageType schema = Types.buildMessage().required(BINARY).as(stringType()).named("region").named("test");
+        Literal listOfOne = new Literal(Source.EMPTY, List.of(new BytesRef("zzz")), DataType.KEYWORD);
+        FilterPredicate fromList = predicateFor(schema, new MvLess(Source.EMPTY, attr("region", DataType.KEYWORD), listOfOne));
+        assertNotNull(fromList);
+        assertEquals(
+            predicateFor(schema, new MvLess(Source.EMPTY, attr("region", DataType.KEYWORD), lit(new BytesRef("zzz"), DataType.KEYWORD))),
+            fromList
+        );
     }
 
     public void testMvFormWithAColumnOperandUnderOrDoesNotThrow() {

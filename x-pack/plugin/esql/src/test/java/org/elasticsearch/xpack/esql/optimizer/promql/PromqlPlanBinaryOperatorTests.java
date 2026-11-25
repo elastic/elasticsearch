@@ -481,7 +481,8 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     private static void assertInstantConstFolded(LogicalPlan plan, List<Long> expectedSteps) {
         Row row = plan.collect(Row.class).getFirst();
-        assertThat(((Literal) row.fields().getLast().child()).value(), equalTo(expectedSteps));
+        // The raw value is used: the steps are a list even when there is a single one.
+        assertThat(((Literal) row.fields().getLast().child()).rawValue(), equalTo(expectedSteps));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
         assertNoIndexBackedPromqlPlan(plan);

@@ -184,6 +184,142 @@ public class GroupingEqualityTests extends ESTestCase {
         }
     }
 
+    /**
+     * The same key is one group whichever page it arrives on, and whichever row it occupies on that page.
+     * A multivalue list keeps its own order: {@code [1, 2]} on a later page matches {@code [1, 2]}, not {@code [2, 1]}.
+     */
+    public void testGroupingIgnoresPageAndOrder() {
+        for (BlockHashKind kind : BlockHashKind.values()) {
+            try (Block earlier = ints(2, 1); Block later = ints(1, 3, 2)) {
+                assertSameKeyAcrossPages(kind, ElementType.INT, earlier, later, 1, 0, 1);
+            }
+            try (Block earlier = keywords("b", "a"); Block later = keywords("a", "c", "b")) {
+                assertSameKeyAcrossPages(kind, ElementType.BYTES_REF, earlier, later, 1, 0, 1);
+            }
+            try (
+                Block earlier = blockFactory.newIntBlockBuilder(2).appendInt(1).appendNull().build();
+                Block later = blockFactory.newIntBlockBuilder(2).appendNull().appendInt(1).build()
+            ) {
+                assertSameKeyAcrossPages(kind, ElementType.INT, earlier, later, 1, 0, -1);
+            }
+        }
+        try (
+            Block earlier = blockFactory.newIntBlockBuilder(4)
+                .beginPositionEntry()
+                .appendInt(1)
+                .appendInt(2)
+                .endPositionEntry()
+                .beginPositionEntry()
+                .appendInt(2)
+                .appendInt(1)
+                .endPositionEntry()
+                .build();
+            Block later = blockFactory.newIntBlockBuilder(4)
+                .beginPositionEntry()
+                .appendInt(2)
+                .appendInt(1)
+                .endPositionEntry()
+                .beginPositionEntry()
+                .appendInt(1)
+                .appendInt(2)
+                .endPositionEntry()
+                .build()
+        ) {
+            int[] first;
+            int[] second;
+            try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.INT), blockFactory)) {
+                first = hash.add(new Page(earlier));
+                second = hash.add(new Page(later));
+            }
+            assertThat(second[0], equalTo(first[1]));
+            assertThat(second[1], equalTo(first[0]));
+            assertThat(first[0], not(equalTo(first[1])));
+        }
+        try (
+            Block numbers = ints(1, 2);
+            Block names = keywords("a", "b");
+            Block laterNumbers = ints(2, 1);
+            Block laterNames = keywords("b", "a")
+        ) {
+            try (RowKeyHash hash = new RowKeyHash(new int[] { 0, 1 }, List.of(ElementType.INT, ElementType.BYTES_REF), blockFactory)) {
+                int[] first = hash.add(new Page(numbers, names));
+                int[] second = hash.add(new Page(laterNumbers, laterNames));
+                assertThat(second[0], equalTo(first[1]));
+                assertThat(second[1], equalTo(first[0]));
+                assertThat(first[0], not(equalTo(first[1])));
+            }
+            try (
+                BlockHash hash = BlockHash.buildPackedValuesBlockHash(
+                    List.of(new BlockHash.GroupSpec(0, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
+                    blockFactory,
+                    1024
+                )
+            ) {
+                int[][] first = collect(hash, new Page(numbers, names), false);
+                int[][] second = collect(hash, new Page(laterNumbers, laterNames), false);
+                assertThat(second[0][0], equalTo(first[1][0]));
+                assertThat(second[1][0], equalTo(first[0][0]));
+                assertThat(first[0][0], not(equalTo(first[1][0])));
+            }
+        }
+    }
+
+    /**
+     * {@code earlierMatch} on the first page is the same key as position 0 of the second page, and
+     * {@code laterMatch} is the same key as its last position. {@code fresh} is a new key, or {@code -1} when the
+     * second page only repeats keys.
+     */
+    private void assertSameKeyAcrossPages(
+        BlockHashKind kind,
+        ElementType type,
+        Block earlier,
+        Block later,
+        int earlierMatch,
+        int laterMatch,
+        int fresh
+    ) {
+        if (kind == BlockHashKind.ROW) {
+            try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(type), blockFactory)) {
+                int[] first = hash.add(new Page(earlier));
+                int[] second = hash.add(new Page(later));
+                assertThat(kind + " " + type, second[0], equalTo(first[earlierMatch]));
+                assertThat(kind + " " + type, second[second.length - 1], equalTo(first[laterMatch]));
+                if (fresh >= 0) {
+                    assertThat(second[fresh], not(equalTo(first[0])));
+                    assertThat(second[fresh], not(equalTo(first[1])));
+                }
+            }
+            return;
+        }
+        BlockHash hash = kind == BlockHashKind.SINGLE
+            ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024, false)
+            : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024);
+        int[][] first = collect(hash, new Page(earlier), false);
+        int[][] second = collect(hash, new Page(later), true);
+        assertThat(kind + " " + type, second[0][0], equalTo(first[earlierMatch][0]));
+        assertThat(kind + " " + type, second[second.length - 1][0], equalTo(first[laterMatch][0]));
+        if (fresh >= 0) {
+            assertThat(second[fresh][0], not(equalTo(first[0][0])));
+            assertThat(second[fresh][0], not(equalTo(first[1][0])));
+        }
+    }
+
+    private Block ints(int... values) {
+        var builder = blockFactory.newIntBlockBuilder(values.length);
+        for (int value : values) {
+            builder.appendInt(value);
+        }
+        return builder.build();
+    }
+
+    private Block keywords(String... values) {
+        var builder = blockFactory.newBytesRefBlockBuilder(values.length);
+        for (String value : values) {
+            builder.appendBytesRef(new BytesRef(value));
+        }
+        return builder.build();
+    }
+
     private static BytesRef encoded(DataType type) {
         return switch (type) {
             case KEYWORD -> new BytesRef("keyword");

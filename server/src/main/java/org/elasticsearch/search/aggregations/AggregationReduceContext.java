@@ -191,8 +191,8 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     protected abstract AggregationReduceContext forSubAgg(AggregationBuilder sub);
 
     /**
-     * Whether the coordinator got node responses, which a data node may have partially reduced, so a single result can still carry a
-     * terms doc count error. Sub-contexts must carry it over.
+     * Whether the coordinator got node responses with aggregations, which a data node may have partially reduced, so a single result
+     * can still carry a terms doc count error. Sub-contexts must carry it over.
      */
     public boolean hasBatchedResult() {
         return hasBatchedResult;

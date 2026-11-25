@@ -324,7 +324,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             batchedResults = this.batchedResults;
         }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
-        final boolean hasBatchedResults = batchedResults.isEmpty() == false;
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final Deque<DelayableWriteable<InternalAggregations>> localAggsList = hasAggs
             ? new ArrayDeque<>(mergeResult != null ? 1 : 0)
@@ -362,8 +361,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 AggregationReduceContext aggReduceContext = performFinalReduce
                     ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
                     : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
-                aggReduceContext.setHasBatchedResult(hasBatchedResults);
-                // a merge result without aggregations (its shards all failed or were skipped) adds nothing to the lists, so don't count it
+                // a merge result without aggregations (its shards all failed or were skipped) adds nothing to the lists,
+                // so it neither marks the reduce as batched nor counts toward aggsCount
+                aggReduceContext.setHasBatchedResult(remoteAggsList.isEmpty() == false);
                 final int aggsCount = buffer.size() + localAggsList.size() + remoteAggsList.size();
                 aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), aggsCount, aggReduceContext);
             } else {

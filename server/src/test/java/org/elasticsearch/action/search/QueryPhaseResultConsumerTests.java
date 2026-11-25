@@ -606,15 +606,20 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             assertEquals(
                 "batched, " + finalReduce,
                 Long.valueOf(docCountError),
-                reduceSingleTermsResult(searchRequest, true, docCountError)
+                reduceSingleTermsResult(searchRequest, true, between(0, 5), docCountError)
             );
-            assertEquals("unbatched, " + finalReduce, Long.valueOf(0), reduceSingleTermsResult(searchRequest, false, docCountError));
+            assertEquals("unbatched, " + finalReduce, Long.valueOf(0), reduceSingleTermsResult(searchRequest, false, 0, docCountError));
+            // node responses without aggregations don't mark the reduce as batched
+            assertEquals(
+                "unbatched with empty node responses, " + finalReduce,
+                Long.valueOf(0),
+                reduceSingleTermsResult(searchRequest, false, between(1, 5), docCountError)
+            );
         }
     }
 
-    private Long reduceSingleTermsResult(SearchRequest searchRequest, boolean batched, long docCountError) throws Exception {
-        // a node response, even an empty one, marks the reduce as batched, so the unbatched case has none
-        int emptyResponses = batched ? randomIntBetween(0, 5) : 0;
+    private Long reduceSingleTermsResult(SearchRequest searchRequest, boolean batched, int emptyResponses, long docCountError)
+        throws Exception {
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
         LongTerms terms = new LongTerms(
             "terms",
@@ -634,17 +639,13 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
         Long reducedDocCountError;
         try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, circuitBreaker, 1 + emptyResponses)) {
+            List<QueryPhaseResultConsumer.MergeResult> nodeResults = new ArrayList<>();
+            for (int i = 0; i < emptyResponses; i++) {
+                nodeResults.add(emptyMergeResult());
+            }
             if (batched) {
                 consumePartiallyReducedResult(consumer, 0);
-                List<QueryPhaseResultConsumer.MergeResult> nodeResults = new ArrayList<>();
                 nodeResults.add(mergeResultOf(terms));
-                for (int i = 0; i < emptyResponses; i++) {
-                    nodeResults.add(emptyMergeResult());
-                }
-                Collections.shuffle(nodeResults, random());
-                for (QueryPhaseResultConsumer.MergeResult nodeResult : nodeResults) {
-                    consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), nodeResult);
-                }
             } else {
                 QuerySearchResult result = new QuerySearchResult(
                     new ShardSearchContextId("", 0),
@@ -659,6 +660,10 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 result.setShardIndex(0);
                 consumer.consumeResult(result, () -> {});
                 result.decRef();
+            }
+            Collections.shuffle(nodeResults, random());
+            for (QueryPhaseResultConsumer.MergeResult nodeResult : nodeResults) {
+                consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), nodeResult);
             }
 
             InternalAggregations reduced = consumer.reduce().aggregations();

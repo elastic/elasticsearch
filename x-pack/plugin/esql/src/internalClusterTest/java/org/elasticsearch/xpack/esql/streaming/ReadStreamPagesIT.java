@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -112,14 +113,14 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         String streamId = randomAlphaOfLength(12);
         writeMetadata(running(streamId));
         List<BytesRef> first = randomBlobs(between(1, 3));
-        writePages(streamId, 1, first);
+        writePages(streamId, 0, first);
         // indexed but never refreshed
         List<StoredPage> visible = read(
-            new TransportReadStreamPagesAction.Request(streamId, 1, first.size(), Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+            new TransportReadStreamPagesAction.Request(streamId, 0, first.size(), Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
         );
         assertThat(visible.size(), equalTo(first.size()));
 
-        int nextSeq = first.size() + 1;
+        int nextSeq = first.size();
         ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
             streamId,
             new TransportReadStreamPagesAction.Request(streamId, nextSeq, 10, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
@@ -154,7 +155,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         int pages = between(1, 4);
         StreamMetadata started = running(streamId);
         writeMetadata(started);
-        writePages(streamId, 1, randomBlobs(pages));
+        writePages(streamId, 0, randomBlobs(pages));
         boolean failed = randomBoolean();
         writeMetadata(
             failed ? started.failed(false, 10, new IllegalStateException("boom")) : started.complete(false, 10, pages, pages * 10L)
@@ -163,7 +164,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
 
         TransportReadStreamPagesAction.Response response = client().execute(
             TransportReadStreamPagesAction.TYPE,
-            new TransportReadStreamPagesAction.Request(streamId, pages + 1, 1, Long.MAX_VALUE, TimeValue.timeValueMinutes(1))
+            new TransportReadStreamPagesAction.Request(streamId, pages, 1, Long.MAX_VALUE, TimeValue.timeValueMinutes(1))
         ).actionGet(TEST_REQUEST_TIMEOUT);
         try {
             assertTrue(response.resultEnded());
@@ -172,7 +173,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
             response.decRef();
         }
         // the pages before the end are still read
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 1, pages)).size(), equalTo(pages));
+        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 0, pages)).size(), equalTo(pages));
     }
 
     /**
@@ -181,18 +182,18 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     public void testReadPastRunningResultWaits() throws Exception {
         String streamId = randomAlphaOfLength(12);
         writeMetadata(running(streamId));
-        writePages(streamId, 1, randomBlobs(2));
+        writePages(streamId, 0, randomBlobs(2));
         refreshPages();
 
         ActionFuture<TransportReadStreamPagesAction.Response> waiting = startWaitingRead(
             streamId,
-            new TransportReadStreamPagesAction.Request(streamId, 3, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
+            new TransportReadStreamPagesAction.Request(streamId, 2, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
         );
         assertFalse(waiting.isDone());
-        writePages(streamId, 3, randomBlobs(1));
+        writePages(streamId, 2, randomBlobs(1));
         List<StoredPage> pages = pagesOf(waiting);
         assertThat(pages.size(), equalTo(1));
-        assertThat(pages.get(0).seq(), equalTo(3));
+        assertThat(pages.get(0).seq(), equalTo(2));
     }
 
     /**
@@ -201,12 +202,12 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
      */
     public void testReadFromRow() throws Exception {
         String streamId = randomAlphaOfLength(12);
-        writePages(streamId, 1, randomBlobs(4));
+        writePages(streamId, 0, randomBlobs(4));
         refreshPages();
-        assertThat(firstSeqFromRow(streamId, 0), equalTo(1));
-        assertThat(firstSeqFromRow(streamId, 9), equalTo(1));
-        assertThat(firstSeqFromRow(streamId, 10), equalTo(2));
-        assertThat(firstSeqFromRow(streamId, 39), equalTo(4));
+        assertThat(firstSeqFromRow(streamId, 0), equalTo(0));
+        assertThat(firstSeqFromRow(streamId, 9), equalTo(0));
+        assertThat(firstSeqFromRow(streamId, 10), equalTo(1));
+        assertThat(firstSeqFromRow(streamId, 39), equalTo(3));
         assertThat(firstSeqFromRow(streamId, 40), equalTo(-1));
         assertThat(firstSeqFromRow(streamId, Long.MAX_VALUE), equalTo(-1));
 
@@ -214,10 +215,10 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
             streamId,
             TransportReadStreamPagesAction.Request.fromRow(streamId, 45, 1, Long.MAX_VALUE, TimeValue.timeValueSeconds(30))
         );
-        writePages(streamId, 5, randomBlobs(1));
+        writePages(streamId, 4, randomBlobs(1));
         List<StoredPage> pages = pagesOf(waiting);
         assertThat(pages.size(), equalTo(1));
-        assertThat(pages.get(0).seq(), equalTo(5));
+        assertThat(pages.get(0).seq(), equalTo(4));
     }
 
     /**
@@ -227,13 +228,13 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         String streamId = randomAlphaOfLength(12);
         int pageBytes = 1024;
         int pageCount = between(2, 8);
-        writePages(streamId, 1, sameSizeBlobs(pageCount, pageBytes));
+        writePages(streamId, 0, sameSizeBlobs(pageCount, pageBytes));
         refreshPages();
 
         int fitting = between(1, pageCount);
         long maxBytes = fitting * pageBytes + between(0, pageBytes - 1);
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 1, 100, maxBytes, TimeValue.ZERO)).size(), equalTo(fitting));
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 1, 100, 0, TimeValue.ZERO)).size(), equalTo(1));
+        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 0, 100, maxBytes, TimeValue.ZERO)).size(), equalTo(fitting));
+        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, 0, 100, 0, TimeValue.ZERO)).size(), equalTo(1));
     }
 
     /**
@@ -242,12 +243,12 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     public void testReadStopsAtMissingPage() {
         String streamId = randomAlphaOfLength(12);
         int before = between(1, 4);
-        writePages(streamId, 1, randomBlobs(before));
-        writePages(streamId, before + 2, randomBlobs(between(1, 4)));
+        writePages(streamId, 0, randomBlobs(before));
+        writePages(streamId, before + 1, randomBlobs(between(1, 4)));
         refreshPages();
 
-        List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, 1, 100, Long.MAX_VALUE, TimeValue.ZERO));
-        assertThat(pages.stream().map(StoredPage::seq).toList(), equalTo(IntStream.rangeClosed(1, before).boxed().toList()));
+        List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, 0, 100, Long.MAX_VALUE, TimeValue.ZERO));
+        assertThat(pages.stream().map(StoredPage::seq).toList(), equalTo(IntStream.range(0, before).boxed().toList()));
     }
 
     /**
@@ -256,7 +257,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     public void testReadChargesRequestBreaker() {
         String streamId = randomAlphaOfLength(12);
         int pageBytes = 64 * 1024;
-        writePages(streamId, 1, sameSizeBlobs(between(2, 4), pageBytes));
+        writePages(streamId, 0, sameSizeBlobs(between(2, 4), pageBytes));
         refreshPages();
         TransportReadStreamPagesAction.Request request = new TransportReadStreamPagesAction.Request(
             streamId,
@@ -285,7 +286,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
             Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "16kb").build()
         );
         String streamId = randomAlphaOfLength(12);
-        writePages(streamId, 1, sameSizeBlobs(1, 64 * 1024));
+        writePages(streamId, 0, sameSizeBlobs(1, 64 * 1024));
         refreshPages();
         ensureGreen(EsqlStreamResultsIndexDescriptor.INDEX);
         AtomicInteger shardReads = new AtomicInteger();
@@ -304,7 +305,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
                 () -> pagesOf(
                     client(coordinator).execute(
                         TransportReadStreamPagesAction.TYPE,
-                        new TransportReadStreamPagesAction.Request(streamId, 1, 100)
+                        new TransportReadStreamPagesAction.Request(streamId, 0, 100)
                     )
                 )
             );
@@ -327,7 +328,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         int pagesPerBatch = between(1, 5);
         for (int b = 0; b < batches; b++) {
             for (String streamId : streamIds) {
-                writePages(streamId, 1 + b * pagesPerBatch, randomBlobs(pagesPerBatch));
+                writePages(streamId, b * pagesPerBatch, randomBlobs(pagesPerBatch));
             }
             // a segment per batch
             refreshPages();
@@ -336,14 +337,11 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         try {
             updateClusterSettings(Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false));
             for (String streamId : streamIds) {
-                int fromSeq = between(1, pageCount);
+                int fromSeq = between(0, pageCount - 1);
                 List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq, 100));
-                assertThat(
-                    pages.stream().map(StoredPage::seq).toList(),
-                    equalTo(IntStream.rangeClosed(fromSeq, pageCount).boxed().toList())
-                );
+                assertThat(pages.stream().map(StoredPage::seq).toList(), equalTo(IntStream.range(fromSeq, pageCount).boxed().toList()));
                 long row = randomLongBetween(0, pageCount * 10L - 1);
-                assertThat(firstSeqFromRow(streamId, row), equalTo((int) (row / 10) + 1));
+                assertThat(firstSeqFromRow(streamId, row), equalTo((int) (row / 10)));
             }
         } finally {
             updateClusterSettings(Settings.builder().putNull(ALLOW_EXPENSIVE_QUERIES.getKey()));
@@ -357,18 +355,22 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
     public void testReadAcrossSkipperBlocks() {
         String streamId = "b" + randomAlphaOfLength(11);
         int pageCount = between(10_000, 20_000);
-        writePages(streamId, 1, sameSizeBlobs(pageCount, 1));
+        writePages(streamId, 0, sameSizeBlobs(pageCount, 1));
         // the neighbors sort before and after the result, on its shard
         IndexRouting routing = IndexRouting.fromIndexMetadata(
-            clusterService().state().metadata().getProject().index(EsqlStreamResultsIndexDescriptor.INDEX)
+            internalCluster().clusterService(internalCluster().getMasterName())
+                .state()
+                .metadata()
+                .getProject(ProjectId.DEFAULT)
+                .index(EsqlStreamResultsIndexDescriptor.INDEX)
         );
         int shardId = routing.getShard(streamId, streamId);
         String before = randomValueOtherThanMany(id -> routing.getShard(id, id) != shardId, () -> "a" + randomAlphaOfLength(11));
         String after = randomValueOtherThanMany(id -> routing.getShard(id, id) != shardId, () -> "c" + randomAlphaOfLength(11));
         int beforeCount = between(1, 5_000);
         int afterCount = between(1, 5_000);
-        writePages(before, 1, sameSizeBlobs(beforeCount, 1));
-        writePages(after, 1, sameSizeBlobs(afterCount, 1));
+        writePages(before, 0, sameSizeBlobs(beforeCount, 1));
+        writePages(after, 0, sameSizeBlobs(afterCount, 1));
         ensureGreen(EsqlStreamResultsIndexDescriptor.INDEX);
         assertNoFailures(
             esqlClient().admin().indices().prepareForceMerge(EsqlStreamResultsIndexDescriptor.INDEX).setMaxNumSegments(1).get()
@@ -400,16 +402,16 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
         }
         assertThat(copies, greaterThan(0));
         for (int i = 0; i < 20; i++) {
-            int fromSeq = between(1, pageCount);
+            int fromSeq = between(0, pageCount - 1);
             List<StoredPage> pages = read(new TransportReadStreamPagesAction.Request(streamId, fromSeq, 3));
             assertThat(
                 pages.stream().map(StoredPage::seq).toList(),
-                equalTo(IntStream.rangeClosed(fromSeq, Math.min(fromSeq + 2, pageCount)).boxed().toList())
+                equalTo(IntStream.rangeClosed(fromSeq, Math.min(fromSeq + 2, pageCount - 1)).boxed().toList())
             );
             long row = randomLongBetween(0, pageCount * 10L - 1);
-            assertThat(firstSeqFromRow(streamId, row), equalTo((int) (row / 10) + 1));
+            assertThat(firstSeqFromRow(streamId, row), equalTo((int) (row / 10)));
         }
-        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, pageCount + 1, 3)), empty());
+        assertThat(read(new TransportReadStreamPagesAction.Request(streamId, pageCount, 3)), empty());
         assertThat(firstSeqFromRow(streamId, pageCount * 10L), equalTo(-1));
     }
 
@@ -449,7 +451,7 @@ public class ReadStreamPagesIT extends AbstractEsqlIntegTestCase {
                 EscfRowBuffer row = builder.beginRow();
                 row.stringField(EsqlStreamResultsIndexDescriptor.STREAM_ID_FIELD, id, 0, id.length);
                 row.longField(EsqlStreamResultsIndexDescriptor.PAGE_SEQ_FIELD, seq);
-                row.longField(EsqlStreamResultsIndexDescriptor.PAGE_OFFSET_FIELD, (seq - 1) * 10L);
+                row.longField(EsqlStreamResultsIndexDescriptor.PAGE_OFFSET_FIELD, seq * 10L);
                 row.longField(EsqlStreamResultsIndexDescriptor.PAGE_SIZE_FIELD, 10);
                 row.longField(EsqlStreamResultsIndexDescriptor.PAGE_TRANSPORT_VERSION_FIELD, 1);
                 row.binaryField(EsqlStreamResultsIndexDescriptor.PAGE_FIELD, blobs.get(i));

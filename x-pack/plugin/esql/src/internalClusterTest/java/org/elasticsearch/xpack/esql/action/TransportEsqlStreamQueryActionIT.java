@@ -25,6 +25,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -36,6 +37,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction;
+import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.StoredPage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -121,6 +124,7 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
             offset += ((Number) page.get(PAGE_SIZE_FIELD)).intValue();
         }
         assertThat(offset, equalTo((long) docCount));
+        assertReadsStoredRows(streamId, 0, 0, docCount);
     }
 
     public void testStoreOverflow() throws Exception {
@@ -160,6 +164,48 @@ public class TransportEsqlStreamQueryActionIT extends AbstractEsqlIntegTestCase 
             offset += ((Number) page.get(PAGE_SIZE_FIELD)).intValue();
         }
         assertThat("every row after the sent ones must be stored", offset, equalTo((long) docCount));
+        assertReadsStoredRows(streamId, maxRows, firstSeq, docCount);
+    }
+
+    /**
+     * Reads the stored pages from the one that holds {@code row} until the result ends, and checks that they start at page
+     * {@code firstSeq} and hold every row up to {@code rowCount}, in order.
+     */
+    private void assertReadsStoredRows(String streamId, long row, int firstSeq, long rowCount) {
+        TransportReadStreamPagesAction.Request request = TransportReadStreamPagesAction.Request.fromRow(
+            streamId,
+            row,
+            between(1, 10),
+            Long.MAX_VALUE,
+            TimeValue.ZERO
+        );
+        int nextSeq = firstSeq;
+        long nextRow = -1;
+        while (true) {
+            TransportReadStreamPagesAction.Response response = client().execute(TransportReadStreamPagesAction.TYPE, request)
+                .actionGet(TEST_REQUEST_TIMEOUT);
+            try {
+                if (response.resultEnded()) {
+                    break;
+                }
+                assertThat(response.pages(), not(empty()));
+                for (StoredPage page : response.pages()) {
+                    assertThat(page.seq(), equalTo(nextSeq));
+                    if (nextRow < 0) {
+                        assertThat(page.firstRow(), lessThanOrEqualTo(row));
+                        assertThat(page.firstRow() + page.rowCount(), greaterThan(row));
+                    } else {
+                        assertThat(page.firstRow(), equalTo(nextRow));
+                    }
+                    nextSeq++;
+                    nextRow = page.firstRow() + page.rowCount();
+                }
+            } finally {
+                response.decRef();
+            }
+            request = new TransportReadStreamPagesAction.Request(streamId, nextSeq, between(1, 10));
+        }
+        assertThat(nextRow, equalTo(rowCount));
     }
 
     public void testStoreOverflowWhenResultFitsTheLimit() throws Exception {

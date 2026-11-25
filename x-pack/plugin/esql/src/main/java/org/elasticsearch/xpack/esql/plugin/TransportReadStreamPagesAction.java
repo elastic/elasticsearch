@@ -104,9 +104,9 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     static final int MAX_PAGES_PER_READ = 1024;
     static final TimeValue MAX_WAIT_TIMEOUT = TimeValue.timeValueMinutes(1);
     /**
-     * The seq of the metadata document of a result; its pages of rows start at {@code 1}.
+     * The seq of the metadata document of a result; its pages of rows start at {@code 0}.
      */
-    static final int METADATA_SEQ = 0;
+    static final int METADATA_SEQ = -1;
 
     private final IndicesService indicesService;
     private final StoredPagesService service;
@@ -326,8 +326,9 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
     }
 
     /**
-     * Whether the result ended before page {@code fromSeq}: its metadata document says the query is done, with fewer pages when
-     * it says how many. The last bulk of a result refreshes its shard, so a reader that sees the end sees every page before it.
+     * Whether the result ended before page {@code fromSeq}: its metadata document says the query is done, with at most
+     * {@code fromSeq} pages when it says how many. The pages are indexed before the final status, on the same shard, so a reader
+     * that sees the end sees every page before it.
      */
     private static boolean endsBefore(
         Engine.Searcher searcher,
@@ -350,7 +351,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
             return false;
         }
         SortedNumericLongValues pages = PageReader.numeric(context, STREAM_TOTAL_PAGES).load(leaf).getLongValues();
-        return pages.advanceExact(doc.doc) == false || fromSeq > pages.nextValue();
+        return pages.advanceExact(doc.doc) == false || fromSeq >= pages.nextValue();
     }
 
     private Response readPages(Engine.Searcher searcher, PageReader reader, List<PageDoc> docs, int fromSeq, long maxBytes)
@@ -394,7 +395,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
      */
     private static int seqForRow(PageReader reader, List<Run> runs, long row) throws IOException {
         // the last page starting at or before the row
-        long seq = 0;
+        long seq = -1;
         long firstRow = -1;
         long rowCount = 0;
         for (Run run : runs) {
@@ -410,8 +411,8 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
                 rowCount = value(reader.rowCount.load(run.leaf).getLongValues(), doc);
             }
         }
-        if (seq == 0) {
-            return 1;
+        if (seq < 0) {
+            return 0;
         }
         return row < firstRow + rowCount ? (int) seq : (int) seq + 1;
     }
@@ -602,7 +603,7 @@ public class TransportReadStreamPagesAction extends TransportSingleShardAction<
                 e = addValidationError("[streamId] is required", e);
             }
             if (fromRow < 0 && fromSeq <= METADATA_SEQ) {
-                e = addValidationError("[fromSeq] must be at least 1, or [fromRow] positive, got [" + fromSeq + "]", e);
+                e = addValidationError("[fromSeq] or [fromRow] must be at least 0, got [" + fromSeq + "] and [" + fromRow + "]", e);
             }
             if (maxPages < 1 || maxPages > MAX_PAGES_PER_READ) {
                 e = addValidationError("[maxPages] must be between 1 and [" + MAX_PAGES_PER_READ + "], got [" + maxPages + "]", e);

@@ -36,14 +36,15 @@ import static org.hamcrest.Matchers.nullValue;
 public class ReadStreamPagesRequestTests extends ESTestCase {
 
     public void testValid() {
-        assertThat(new Request("r", 1, MAX_PAGES_PER_READ, 0, MAX_WAIT_TIMEOUT).validate(), nullValue());
+        assertThat(new Request("r", 0, MAX_PAGES_PER_READ, 0, MAX_WAIT_TIMEOUT).validate(), nullValue());
         assertThat(Request.fromRow("r", 0, 1, Long.MAX_VALUE, TimeValue.ZERO).validate(), nullValue());
     }
 
     public void testInvalid() {
-        assertInvalid(new Request("r", -1, 1, 0, TimeValue.ZERO), "[fromSeq] must be at least 1");
-        // seq 0 is the metadata document, not a page
-        assertInvalid(new Request("r", 0, 1, 0, TimeValue.ZERO), "[fromSeq] must be at least 1");
+        // seq -1 is the metadata document, not a page
+        assertInvalid(new Request("r", -1, 1, 0, TimeValue.ZERO), "[fromSeq] or [fromRow] must be at least 0");
+        assertInvalid(Request.fromRow("r", -5, 1, 0, TimeValue.ZERO), "got [-1] and [-5]");
+        assertInvalid(new Request("r", randomIntBetween(Integer.MIN_VALUE, -2), 1, 0, TimeValue.ZERO), "[fromSeq]");
         assertInvalid(new Request("r", 1, 0, 0, TimeValue.ZERO), "[maxPages]");
         assertInvalid(new Request("r", 1, MAX_PAGES_PER_READ + 1, 0, TimeValue.ZERO), "[maxPages]");
         assertInvalid(new Request("r", 1, 1, -1, TimeValue.ZERO), "[maxBytes]");
@@ -54,7 +55,7 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
         Request request = randomBoolean()
             ? new Request(
                 randomAlphaOfLength(8),
-                randomIntBetween(1, Integer.MAX_VALUE),
+                randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(1, MAX_PAGES_PER_READ),
                 randomNonNegativeLong(),
                 randomTimeValue()
@@ -78,7 +79,7 @@ public class ReadStreamPagesRequestTests extends ESTestCase {
         long bytes = 0;
         long firstRow = 0;
         int count = between(0, 5);
-        for (int seq = 1; seq <= count; seq++) {
+        for (int seq = 0; seq < count; seq++) {
             int rowCount = between(1, 100);
             byte[] content = randomByteArrayOfLength(between(0, 1024));
             pages.add(new StoredPage(seq, firstRow, rowCount, TransportVersionUtils.randomVersion(), new BytesArray(content)));

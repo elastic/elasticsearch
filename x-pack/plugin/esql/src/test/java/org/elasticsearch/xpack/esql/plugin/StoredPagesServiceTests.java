@@ -212,8 +212,8 @@ public class StoredPagesServiceTests extends ESTestCase {
      * Reads with and without a timeout share the slots: once both kinds fill them, both kinds are rejected.
      */
     public void testTooManyWaitsAreRejected() throws Exception {
-        read(SHARD, TIMEOUT);
         read(SHARD, TimeValue.ZERO);
+        read(SHARD, TIMEOUT);
         for (int i = 2; i < StoredPagesService.MAX_WAITING_READS; i++) {
             read(SHARD, randomBoolean() ? TIMEOUT : TimeValue.ZERO);
         }
@@ -224,7 +224,12 @@ public class StoredPagesServiceTests extends ESTestCase {
         }
         assertThat(service.waitingReads(), equalTo(StoredPagesService.MAX_WAITING_READS));
 
+        // the first refresh serves the read without a timeout, which keeps its slot until it answers
+        completeRefreshes();
+        assertThat(service.waitingReads(), equalTo(StoredPagesService.MAX_WAITING_READS));
+
         // a slot frees once its read answers
+        queue.runAllRunnableTasks();
         while (running.isEmpty() == false) {
             completeRefreshes();
             queue.runAllRunnableTasks();
@@ -266,8 +271,8 @@ public class StoredPagesServiceTests extends ESTestCase {
 
     private static List<StoredPage> pages(int count) {
         List<StoredPage> pages = new ArrayList<>();
-        for (int seq = 1; seq <= count; seq++) {
-            pages.add(new StoredPage(seq, (seq - 1) * 10L, 10, TransportVersion.current(), new BytesArray(new byte[10])));
+        for (int seq = 0; seq < count; seq++) {
+            pages.add(new StoredPage(seq, seq * 10L, 10, TransportVersion.current(), new BytesArray(new byte[10])));
         }
         return pages;
     }

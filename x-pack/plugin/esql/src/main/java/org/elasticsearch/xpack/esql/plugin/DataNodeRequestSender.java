@@ -386,19 +386,24 @@ abstract class DataNodeRequestSender {
                                 remainingUnavailableShardResolutionAttempts.decrementAndGet();
                             }
                         }
-                        for (ShardId shardId : pendingShardIds) {
-                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()
-                                && waitingShards.contains(shardId) == false
-                                && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
-                                shardFailures.compute(
-                                    shardId,
-                                    (k, v) -> new ShardFailure(
-                                        true,
-                                        false,
-                                        v != null && v.lastRefused,
-                                        v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                                    )
-                                );
+                        // Once the failures were reported their entries are gone, while the shards stay pending. A pass that runs
+                        // after that, for the outcome of a wait or a late response, must not read a missing entry as a shard
+                        // without copies and report that on top of the failure the shard really had.
+                        if (reportedFailure == false) {
+                            for (ShardId shardId : pendingShardIds) {
+                                if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                                    && waitingShards.contains(shardId) == false
+                                    && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
+                                    shardFailures.compute(
+                                        shardId,
+                                        (k, v) -> new ShardFailure(
+                                            true,
+                                            false,
+                                            v != null && v.lastRefused,
+                                            v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                        )
+                                    );
+                                }
                             }
                         }
                         if (reportedFailure

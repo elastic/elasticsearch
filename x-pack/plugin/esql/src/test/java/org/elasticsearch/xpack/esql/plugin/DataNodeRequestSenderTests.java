@@ -105,6 +105,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -982,23 +983,26 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     /**
      * A shard is resolved again only if every failure seen for it allows that: a failure that does not, followed by a disconnect from
-     * another copy, fails the shard with the first failure.
+     * another copy, fails the shard with the first failure. It is not resolved again, and so it does not wait for routing either.
      */
-    public void testIneligibleFailureThenDisconnectDoesNotResolveAgain() {
+    public void testNoWaitAfterUnresolvableFailure() {
+        RecordedMetrics recorded = new RecordedMetrics();
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
-        var response = safeGet(
-            sendRequests(true, -1, List.of(targetShard(shard1, node1, node2)), (node, shardIds, aliasFilters, listener) -> {
-                sent.add(nodeRequest(node, shardIds));
-                if (node.equals(node1)) {
-                    runWithDelay(() -> listener.onFailure(new IOException("not retryable elsewhere"), false));
-                } else {
-                    runWithDelay(() -> listener.onFailure(randomNodeUnavailableFailure(node), false));
-                }
-            })
-        );
+        var response = safeGet(setup(List.of(targetShard(shard1, node1, node2)), (node, shardIds, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shardIds));
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onFailure(new IOException("not retryable elsewhere"), false));
+            } else {
+                runWithDelay(() -> listener.onFailure(randomNodeUnavailableFailure(node), false));
+            }
+        }).allowPartialResults(true)
+            .resolver(shardIds -> { throw new AssertionError("No shard resolution is expected here"); })
+            .metrics(recorded)
+            .start());
         assertThat(response.failedShards, equalTo(1));
         assertThat(response.failures.get(0).getCause(), instanceOf(IOException.class));
         assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+        assertThat(recorded.routingWaits(), equalTo(0L));
     }
 
     /**
@@ -1244,7 +1248,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
      * <p>
      * The start cannot be held any earlier without a hook in production code: nothing overridable runs between the pass handing
      * the wait over and the wait listing itself. A wait that fails in that gap is not listed yet, so only the start's own read of
-     * the reported failure ends it; that interleaving is not forced here. {@code testParkedShardSurvivesReportedFailure} covers
+     * the reported failure ends it; that interleaving is not forced here. {@link #testParkedShardSurvivesReportedFailure} covers
      * the outcome for a wait that is already armed.
      */
     public void testWaitNotStartedAfterReportedFailure() {
@@ -1496,6 +1500,583 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
             return action.get();
+        }
+    }
+
+    /**
+     * The only copy answers "not available" and the routing has not changed: the coordinator is on stale routing. The shard is
+     * resolved once and then waits. It does not spend the attempts on asking the same copy again.
+     */
+    public void testShardNotAvailableUnderStaleRoutingWaits() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        AtomicInteger resolutions = new AtomicInteger();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        var future = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shards));
+            runWithDelay(() -> listener.onResponse(node.equals(node1) ? shardNotFound(shard1) : ok()));
+        }).allowPartialResults(randomBoolean()).metrics(recorded).onResolve(resolved -> {
+            resolutions.incrementAndGet();
+            return resolved;
+        }).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        assertThat(resolutions.get(), equalTo(1));
+        assertThat(sent, contains(nodeRequest(node1, shard1)));
+
+        publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(resolutions.get(), equalTo(2));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+    }
+
+    /**
+     * A newer cluster state that shows the same routing does not end the wait: nothing is handed back to the sending loop.
+     */
+    public void testUnrelatedStateDoesNotEndWait() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        GatedExecutor handOff = new GatedExecutor(executor);
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        var future = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shards));
+            runWithDelay(() -> listener.onResponse(node.equals(node1) ? shardNotFound(shard1) : ok()));
+        }).metrics(recorded).handOffExecutor(handOff).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        assertThat("the wait has not ended", handOff.submitted(), equalTo(0));
+        assertFalse(future.isDone());
+        assertThat(sent, contains(nodeRequest(node1, shard1)));
+
+        publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(handOff.submitted(), equalTo(1));
+        assertThat(recorded.routingWaits(), equalTo(1L));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+    }
+
+    /**
+     * The shard comes back on the node that failed it, under a new allocation id. That is a copy that was not tried, so the wait
+     * ends and the node is asked a second time.
+     */
+    public void testSameNodeNewAllocationEndsWait() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        AtomicInteger requests = new AtomicInteger();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        var future = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+            assertThat(node, equalTo(node1));
+            boolean first = requests.incrementAndGet() == 1;
+            runWithDelay(() -> listener.onResponse(first ? shardNotFound(shard1) : ok()));
+        }).metrics(recorded).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-2"))));
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(requests.get(), equalTo(2));
+    }
+
+    /**
+     * A response for another shard runs the sending loop while shard1 waits. The loop must leave shard1 alone: it has no node
+     * left and is not resolved again, which outside a wait marks a shard as failed.
+     */
+    public void testResponseDuringWaitLeavesWaitingShardParked() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        SubscribableListener<Void> releaseShard2 = new SubscribableListener<>();
+        CountDownLatch shard2Handled = new CountDownLatch(1);
+        publish(
+            Map.of(shard1.shardId(), List.of(started(node1, "allocation-1")), shard2.shardId(), List.of(started(node2, "allocation-2")))
+        );
+        var future = setup(List.of(targetShard(shard1, node1), targetShard(shard2, node2)), (node, shards, aliasFilters, listener) -> {
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            } else if (node.equals(node2)) {
+                releaseShard2.addListener(ActionListener.running(() -> executor.execute(() -> {
+                    listener.onResponse(ok());
+                    shard2Handled.countDown();
+                })));
+            } else {
+                runWithDelay(() -> listener.onResponse(ok()));
+            }
+        }).metrics(recorded).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        releaseShard2.onResponse(null);
+        safeAwait(shard2Handled);
+        assertFalse("shard1 is still waiting, and was not failed", future.isDone());
+
+        publish(
+            Map.of(shard1.shardId(), List.of(started(node3, "allocation-3")), shard2.shardId(), List.of(started(node2, "allocation-2")))
+        );
+        ComputeResponse response = safeGet(future);
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(response.successfulShards, equalTo(2));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    /**
+     * The waiting shard is the last pending work: no request is in flight and no pass is running. The wait holds the compute
+     * listener, so the query does not complete before the wait has ended and the shard was served.
+     */
+    public void testQueryCompletesOnlyAfterWaitEnds() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        CountDownLatch lastResponseHandled = new CountDownLatch(1);
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        var future = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+            if (node.equals(node1)) {
+                listener.onResponse(shardNotFound(shard1));
+                lastResponseHandled.countDown();
+            } else {
+                listener.onResponse(ok());
+            }
+        })).allowPartialResults(randomBoolean()).metrics(recorded).start();
+
+        safeAwait(lastResponseHandled);
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+        ComputeResponse response = safeGet(future);
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    /**
+     * The routing does not change and the copy keeps answering "not available". When the wait times out the copy gets one last
+     * try, and then the shard fails with the failure it had before the wait.
+     */
+    public void testWaitTimeoutReportsOriginalFailure() {
+        for (boolean allowPartialResults : List.of(false, true)) {
+            RecordedMetrics recorded = new RecordedMetrics();
+            AtomicInteger requests = new AtomicInteger();
+            publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+            var future = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+                assertThat(node, equalTo(node1));
+                requests.incrementAndGet();
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            }).allowPartialResults(allowPartialResults).routingWaitTimeout(TimeValue.timeValueMillis(100)).metrics(recorded).start();
+
+            if (allowPartialResults) {
+                ComputeResponse response = safeGet(future);
+                assertThat(response.totalShards, equalTo(1));
+                assertThat(response.successfulShards, equalTo(0));
+                assertThat(response.failedShards, equalTo(1));
+                assertThat(response.failures, hasSize(1));
+                assertThat(response.failures.get(0).getCause(), instanceOf(NoShardAvailableActionException.class));
+                assertThat(response.failures.get(0).reason(), containsString("no such shard"));
+            } else {
+                expectThrows(
+                    NoShardAvailableActionException.class,
+                    containsString("no such shard"),
+                    () -> future.actionGet(10, TimeUnit.SECONDS)
+                );
+            }
+            assertThat("asked again by the last try, once", requests.get(), equalTo(2));
+            assertThat(recorded.routingWaits(), equalTo(1L));
+            assertThat(recorded.routingWaitTimeouts(), equalTo(1L));
+            assertThat(recorded.attemptsExhausted(), equalTo(0L));
+        }
+    }
+
+    /**
+     * A cancellation ends the wait at once, long before its timeout.
+     */
+    public void testCancellationEndsWait() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        SenderSetup setup = setup(
+            List.of(targetShard(shard1, node1)),
+            (node, shards, aliasFilters, listener) -> runWithDelay(() -> listener.onResponse(shardNotFound(shard1)))
+        ).metrics(recorded);
+        PlainActionFuture<ComputeResponse> future = setup.start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        TaskCancelHelper.cancel(setup.task(), "test cancellation");
+
+        TaskCancelledException failure = expectThrows(TaskCancelledException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(failure.getMessage(), containsString("test cancellation"));
+        assertThat(recorded.routingWaitTimeouts(), equalTo(0L));
+    }
+
+    /**
+     * A state that shows the new copy is applied after the shard was resolved and before its wait is started. The wait observes
+     * from the state the shard was resolved on, so it sees that state at once and needs no further one.
+     */
+    public void testStateAppliedBeforeWaitStartsEndsWait() {
+        RecordedMetrics recorded = new RecordedMetrics();
+        AtomicBoolean published = new AtomicBoolean();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        ComputeResponse response = safeGet(setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, shards));
+            runWithDelay(() -> listener.onResponse(node.equals(node1) ? shardNotFound(shard1) : ok()));
+        }).metrics(recorded).onResolve(resolved -> {
+            if (published.compareAndSet(false, true)) {
+                publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+            }
+            // what the pass goes by is still the state it read before
+            return resolved;
+        }).start());
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+        assertThat(recorded.routingWaits(), equalTo(1L));
+        assertThat(recorded.routingWaitTimeouts(), equalTo(0L));
+    }
+
+    /**
+     * The index is deleted while the request is out. The routing has no copy of the shard and none will come: the shard fails in
+     * the pass that handles the failure, with that failure, and without a wait.
+     */
+    public void testDeletedIndexFailsWithoutWait() {
+        RecordedMetrics recorded = new RecordedMetrics();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        var future = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> runWithDelay(() -> {
+            publish(Map.of());
+            listener.onResponse(shardNotFound(shard1));
+        })).metrics(recorded).start();
+
+        expectThrows(NoShardAvailableActionException.class, containsString("no such shard"), () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(recorded.routingWaits(), equalTo(0L));
+    }
+
+    /**
+     * The index is deleted while its shard waits. The state without the index ends the wait, and the shard fails with the
+     * failure it had: the predicate of the wait does not throw on a routing table that lacks the index.
+     */
+    public void testIndexDeletedDuringWaitEndsWait() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        var future = setup(
+            List.of(targetShard(shard1, node1)),
+            (node, shards, aliasFilters, listener) -> runWithDelay(() -> listener.onResponse(shardNotFound(shard1)))
+        ).metrics(recorded).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        publish(Map.of());
+        expectThrows(NoShardAvailableActionException.class, containsString("no such shard"), () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(recorded.routingWaitTimeouts(), equalTo(0L));
+    }
+
+    /**
+     * One refused request stalls all of its shards in the same pass. They share one wait, and so one observer on the cluster
+     * applier, however many they are.
+     */
+    public void testManyStalledShardsShareOneWait() throws Exception {
+        List<DataNodeRequest.Shard> shards = new ArrayList<>();
+        Map<ShardId, List<Copy>> onNode1 = new HashMap<>();
+        Map<ShardId, List<Copy>> onNode2 = new HashMap<>();
+        for (int i = 1; i <= 50; i++) {
+            DataNodeRequest.Shard shard = new DataNodeRequest.Shard(new ShardId("index", "n/a", i), SplitShardCountSummary.UNSET);
+            shards.add(shard);
+            onNode1.put(shard.shardId(), List.of(started(node1, "old-" + i)));
+            onNode2.put(shard.shardId(), List.of(started(node2, "new-" + i)));
+        }
+        RecordedMetrics recorded = new RecordedMetrics();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        publish(onNode1);
+        var future = setup(shards.stream().map(shard -> targetShard(shard, node1)).toList(), (node, requested, aliasFilters, listener) -> {
+            sent.add(nodeRequest(node, requested));
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onFailure(refusal(node1), false));
+            } else {
+                runWithDelay(() -> listener.onResponse(ok()));
+            }
+        }).allowPartialResults(randomBoolean()).metrics(recorded).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        publish(onNode2);
+        ComputeResponse response = safeGet(future);
+        assertThat(response.totalShards, equalTo(50));
+        assertThat(response.successfulShards, equalTo(50));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(sent, contains(nodeRequest(node1, shards), nodeRequest(node2, shards)));
+        assertThat(recorded.routingWaits(), equalTo(1L));
+    }
+
+    /**
+     * A query of a project other than the default one, resolved through the request header as in production. The predicate of
+     * the wait runs on the cluster applier thread, which does not carry that header: it has to go by the project the sender
+     * captured when it was built. A lookup through the resolver there would read the default project, find no index, and end
+     * the wait on a state that changes nothing.
+     * <p>
+     * Then the project is removed: the shard fails as gone, and the predicate does not throw.
+     */
+    public void testWaitInNonDefaultProject() throws Exception {
+        ProjectId projectId = randomUniqueProjectId();
+        for (boolean projectRemoved : List.of(false, true)) {
+            RecordedMetrics recorded = new RecordedMetrics();
+            GatedExecutor handOff = new GatedExecutor(executor);
+            Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+            publish(projectId, Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+            PlainActionFuture<ComputeResponse> future = withProjectHeader(
+                projectId,
+                () -> setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+                    sent.add(nodeRequest(node, shards));
+                    runWithDelay(() -> listener.onResponse(node.equals(node1) ? shardNotFound(shard1) : ok()));
+                }).projectResolver(TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()))
+                    .metrics(recorded)
+                    .handOffExecutor(handOff)
+                    .start()
+            );
+
+            assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+            publish(projectId, Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+            assertThat("unchanged routing of the project does not end the wait", handOff.submitted(), equalTo(0));
+            assertFalse(future.isDone());
+
+            if (projectRemoved) {
+                publish(null, Map.of());
+                expectThrows(
+                    NoShardAvailableActionException.class,
+                    containsString("no such shard"),
+                    () -> future.actionGet(10, TimeUnit.SECONDS)
+                );
+                assertThat(sent, contains(nodeRequest(node1, shard1)));
+            } else {
+                publish(projectId, Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+                ComputeResponse response = safeGet(future);
+                assertThat(response.successfulShards, equalTo(1));
+                assertThat(sent, contains(nodeRequest(node1, shard1), nodeRequest(node2, shard1)));
+            }
+            assertThat(handOff.submitted(), equalTo(1));
+        }
+    }
+
+    /**
+     * The outcome of a wait sits in the queue of the search pool while the query finishes or is cancelled. Only one outcome is
+     * ever queued per wait, so the pass that applies it reads both signals again. Without that the queued timeout would give the
+     * shard a last try, and the queued routing change, here a deleted index, would fail it: for a query that needs no more data,
+     * or one that was cancelled.
+     */
+    public void testQueuedOutcomeAfterQueryFinished() throws Exception {
+        for (boolean timedOut : List.of(true, false)) {
+            for (boolean cancelled : List.of(false, true)) {
+                RecordedMetrics recorded = new RecordedMetrics();
+                GatedExecutor handOff = new GatedExecutor(executor);
+                handOff.hold();
+                SubscribableListener<Void> queryFinished = new SubscribableListener<>();
+                AtomicInteger requests = new AtomicInteger();
+                publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+                SenderSetup setup = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+                    requests.incrementAndGet();
+                    runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+                }).allowPartialResults(cancelled == false && randomBoolean())
+                    .routingWaitTimeout(timedOut ? TimeValue.timeValueMillis(100) : DEFAULT_ROUTING_WAIT_TIMEOUT)
+                    .queryFinished(queryFinished)
+                    .metrics(recorded)
+                    .handOffExecutor(handOff);
+                PlainActionFuture<ComputeResponse> future = setup.start();
+
+                assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+                if (timedOut) {
+                    assertBusy(() -> assertThat(recorded.routingWaitTimeouts(), equalTo(1L)));
+                } else {
+                    publish(Map.of());
+                }
+                assertBusy(() -> assertThat("the outcome is queued", handOff.submitted(), equalTo(1)));
+                assertFalse(future.isDone());
+
+                if (cancelled) {
+                    TaskCancelHelper.cancel(setup.task(), "test cancellation");
+                } else {
+                    queryFinished.onResponse(null);
+                }
+                handOff.release();
+
+                if (cancelled) {
+                    TaskCancelledException failure = expectThrows(
+                        TaskCancelledException.class,
+                        () -> future.actionGet(10, TimeUnit.SECONDS)
+                    );
+                    assertThat(failure.getMessage(), containsString("test cancellation"));
+                } else {
+                    ComputeResponse response = safeGet(future);
+                    assertThat(response.totalShards, equalTo(1));
+                    assertThat(response.skippedShards, equalTo(1));
+                    assertThat(response.failedShards, equalTo(0));
+                    assertThat(response.failures, empty());
+                }
+                assertThat("no last try for a query that is over", requests.get(), equalTo(1));
+                assertThat(handOff.submitted(), equalTo(1));
+            }
+        }
+    }
+
+    /**
+     * Without partial results, a fatal failure of shard2 fails the query while shard1 waits. Reporting the failures empties the
+     * failures of every shard, shard1's too. The parked shard must not be picked up as one that has no node and no failure, which
+     * would add a "no shard copies found" for it, and its wait must end with the pass and not hold the query until its timeout.
+     * <p>
+     * The failure shard1 had before it waited is reported along with shard2's, as every retained failure is when a query fails.
+     */
+    public void testParkedShardSurvivesReportedFailure() throws Exception {
+        RecordedMetrics recorded = new RecordedMetrics();
+        SubscribableListener<Void> failShard2 = new SubscribableListener<>();
+        var future = setup(List.of(targetShard(shard1, node1), targetShard(shard2, node2)), (node, shards, aliasFilters, listener) -> {
+            if (node.equals(node1)) {
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            } else {
+                failShard2.addListener(
+                    ActionListener.running(() -> runWithDelay(() -> listener.onFailure(new IOException("shard2 failed for good"), true)))
+                );
+            }
+        }).resolver(shardIds -> Map.of(shard1.shardId(), List.of(node1))).metrics(recorded).start();
+
+        assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+        assertFalse(future.isDone());
+        failShard2.onResponse(null);
+
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        Throwable failure = ExceptionsHelper.unwrap(e, IOException.class);
+        assertNotNull(e.toString(), failure);
+        assertThat(failure.getMessage(), equalTo("shard2 failed for good"));
+        for (Throwable suppressed : failure.getSuppressed()) {
+            assertThat(suppressed.getMessage(), not(containsString("no shard copies found")));
+        }
+        assertThat(recorded.routingWaitTimeouts(), equalTo(0L));
+    }
+
+    /**
+     * What is left of a wait once it has ended, as far as it shows from outside. A wait hands exactly one outcome back to the
+     * sending loop, whatever ends it: its timer, the timeout of its observer, a cancellation or the finished query. The observer
+     * cannot be cancelled and stays with the cluster applier; a state it would have accepted, published later, does nothing.
+     * And the sender registers its cancellation and query-finished hooks once, not once per wait.
+     * <p>
+     * That the lingering observer callback holds no reference to the wait is not visible from here: the callback is private to
+     * the sender and the applier does not expose its listeners. An outcome delivered twice would show; a retained reference does
+     * not.
+     */
+    public void testEndedWaitReleasesItsState() throws Exception {
+        enum Ending {
+            TIMER,
+            CANCELLATION,
+            QUERY_FINISHED
+        }
+        for (Ending ending : Ending.values()) {
+            RecordedMetrics recorded = new RecordedMetrics();
+            GatedExecutor handOff = new GatedExecutor(executor);
+            SubscribableListener<Void> queryFinished = new SubscribableListener<>();
+            AtomicInteger requests = new AtomicInteger();
+            publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+            SenderSetup setup = setup(List.of(targetShard(shard1, node1)), (node, shards, aliasFilters, listener) -> {
+                requests.incrementAndGet();
+                runWithDelay(() -> listener.onResponse(shardNotFound(shard1)));
+            }).allowPartialResults(true)
+                .routingWaitTimeout(ending == Ending.TIMER ? TimeValue.timeValueMillis(100) : DEFAULT_ROUTING_WAIT_TIMEOUT)
+                .queryFinished(queryFinished)
+                .metrics(recorded)
+                .handOffExecutor(handOff);
+            PlainActionFuture<ComputeResponse> future = setup.start();
+
+            assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(1L)));
+            switch (ending) {
+                case TIMER -> {
+                }
+                case CANCELLATION -> TaskCancelHelper.cancel(setup.task(), "test cancellation");
+                case QUERY_FINISHED -> queryFinished.onResponse(null);
+            }
+            ComputeResponse response = safeGet(future);
+            assertThat(response.successfulShards, equalTo(0));
+            int requestsWhenDone = requests.get();
+            assertThat(requestsWhenDone, equalTo(ending == Ending.TIMER ? 2 : 1));
+
+            // a copy that was not tried: the predicate of the ended wait would have accepted this state
+            publish(Map.of(shard1.shardId(), List.of(started(node2, "allocation-2"))));
+            assertThat("one outcome per wait", handOff.submitted(), equalTo(1));
+            assertThat(requests.get(), equalTo(requestsWhenDone));
+            assertThat(setup.queryFinishedListeners(), equalTo(1));
+        }
+
+        // three waits of one sender: each new copy answers "not available" too, until the last one
+        RecordedMetrics recorded = new RecordedMetrics();
+        List<DiscoveryNode> homes = List.of(node1, node2, node3, node4);
+        publish(Map.of(shard1.shardId(), List.of(started(node1, "allocation-1"))));
+        SenderSetup setup = setup(
+            List.of(targetShard(shard1, node1)),
+            (node, shards, aliasFilters, listener) -> runWithDelay(
+                () -> listener.onResponse(node.equals(node4) ? ok() : shardNotFound(shard1))
+            )
+        ).metrics(recorded);
+        PlainActionFuture<ComputeResponse> future = setup.start();
+        for (int wait = 1; wait <= 3; wait++) {
+            long expectedWaits = wait;
+            assertBusy(() -> assertThat(recorded.routingWaits(), equalTo(expectedWaits)));
+            assertFalse(future.isDone());
+            publish(Map.of(shard1.shardId(), List.of(started(homes.get(wait), "allocation-" + (wait + 1)))));
+        }
+        assertThat(safeGet(future).successfulShards, equalTo(1));
+        assertThat(recorded.routingWaits(), equalTo(3L));
+        assertThat("the hooks are registered with the first wait only", setup.queryFinishedListeners(), equalTo(1));
+    }
+
+    /**
+     * Three shards move twice while the query runs, and each move reaches the coordinator as a published state. Whether a shard
+     * waits for the state or finds it applied when its copy fails, it follows the move, and no copy is asked twice.
+     */
+    public void testRetryMultipleMovedShards() throws Exception {
+        List<DataNodeRequest.Shard> shards = List.of(shard1, shard2, shard3);
+        List<DiscoveryNode> nodes = List.of(node1, node2, node3);
+        IntFunction<Map<ShardId, List<Copy>>> placement = round -> {
+            Map<ShardId, List<Copy>> routing = new HashMap<>();
+            for (int i = 0; i < shards.size(); i++) {
+                routing.put(shards.get(i).shardId(), List.of(started(nodes.get((i + round) % nodes.size()), "round-" + round + "-" + i)));
+            }
+            return routing;
+        };
+        AtomicBoolean settled = new AtomicBoolean();
+        AtomicInteger unavailableAnswers = new AtomicInteger();
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        publish(placement.apply(0));
+        var future = setup(
+            List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node3)),
+            (node, requested, aliasFilters, listener) -> {
+                sent.add(nodeRequest(node, requested));
+                runWithDelay(() -> {
+                    // a node only has a shard once the moves are over and the routing in effect places the shard on it
+                    Map<ShardId, Exception> failures = new HashMap<>();
+                    for (DataNodeRequest.Shard shard : requested) {
+                        DiscoveryNode home = nodes.get((shards.indexOf(shard) + 2) % nodes.size());
+                        if (settled.get() == false || home.equals(node) == false) {
+                            failures.put(shard.shardId(), new ShardNotFoundException(shard.shardId()));
+                        }
+                    }
+                    listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, failures));
+                    unavailableAnswers.addAndGet(failures.size());
+                });
+            }
+        ).allowPartialResults(randomBoolean()).start();
+
+        assertBusy(() -> assertThat(unavailableAnswers.get(), equalTo(3)));
+        publish(placement.apply(1));
+        assertBusy(() -> assertThat(unavailableAnswers.get(), equalTo(6)));
+        settled.set(true);
+        publish(placement.apply(2));
+
+        ComputeResponse response = safeGet(future);
+        assertThat(response.totalShards, equalTo(3));
+        assertThat(response.successfulShards, equalTo(3));
+        assertThat(response.skippedShards, equalTo(0));
+        assertThat(response.failedShards, equalTo(0));
+        Map<DataNodeRequest.Shard, List<DiscoveryNode>> asked = new HashMap<>();
+        for (NodeRequest request : sent) {
+            for (DataNodeRequest.Shard shard : request.shards()) {
+                asked.computeIfAbsent(shard, ignored -> new ArrayList<>()).add(request.node());
+            }
+        }
+        for (int i = 0; i < shards.size(); i++) {
+            assertThat(
+                "each copy of a shard is asked once, in the order of the moves",
+                asked.get(shards.get(i)),
+                contains(nodes.get(i), nodes.get((i + 1) % nodes.size()), nodes.get((i + 2) % nodes.size()))
+            );
         }
     }
 

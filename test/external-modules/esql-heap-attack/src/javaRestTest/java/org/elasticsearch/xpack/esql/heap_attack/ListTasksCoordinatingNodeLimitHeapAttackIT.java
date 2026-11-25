@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -68,15 +69,12 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
             }
 
             for (String nodeId : remoteNodeIds(coordinatingClient)) {
-                assertFalse(
-                    "the reply of node [" + nodeId + "] alone must fit",
-                    listTasksTripsCoordinatingNodeBreaker(coordinatingClient, nodeId)
-                );
+                assertReplyOfNodeFits(coordinatingClient, nodeId);
             }
 
             int tripped = 0;
             for (int call = 0; call < LIST_CALLS; call++) {
-                if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient, null)) {
+                if (listTasksTripsCoordinatingNodeBreaker(coordinatingClient)) {
                     tripped++;
                 }
             }
@@ -111,11 +109,23 @@ public class ListTasksCoordinatingNodeLimitHeapAttackIT extends HeapAttackRestHe
         return remote;
     }
 
-    private boolean listTasksTripsCoordinatingNodeBreaker(RestClient coordinatingClient, String nodeId) throws IOException {
+    private void assertReplyOfNodeFits(RestClient coordinatingClient, String nodeId) throws IOException {
         Request request = new Request("GET", "/_tasks");
-        if (nodeId != null) {
-            request.addParameter("nodes", nodeId);
-        }
+        request.addParameter("detailed", "true");
+        request.addParameter("actions", "*esql*");
+        request.addParameter("nodes", nodeId);
+        request.addParameter("filter_path", "node_failures,nodes.*.tasks.*.action");
+        Map<String, Object> response = entityAsMap(coordinatingClient.performRequest(request));
+        assertNull("node failures listing the tasks of node [" + nodeId + "] alone", response.get("node_failures"));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+        assertNotNull("no tasks listed from node [" + nodeId + "]", nodes);
+        Map<?, ?> node = (Map<?, ?>) nodes.get(nodeId);
+        assertNotNull("no tasks listed from node [" + nodeId + "]", node);
+        assertThat(((Map<?, ?>) node.get("tasks")).size(), greaterThan(0));
+    }
+
+    private boolean listTasksTripsCoordinatingNodeBreaker(RestClient coordinatingClient) throws IOException {
+        Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         request.addParameter("actions", "*esql*");
         request.addParameter("filter_path", "node_failures");

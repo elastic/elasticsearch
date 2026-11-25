@@ -66,6 +66,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -285,6 +286,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     }
 
+    private final List<CountDownLatch> latchesToRelease = new ArrayList<>();
+
+    @After
+    public void releaseBlockedTasks() {
+        latchesToRelease.forEach(CountDownLatch::countDown);
+    }
+
     private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"));
     }
@@ -301,6 +309,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
         throws Exception {
+        latchesToRelease.add(checkLatch);
         CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {

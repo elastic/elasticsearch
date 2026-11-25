@@ -1,0 +1,3 @@
+FROM employees
+| STATS c = COUNT(*), d = COUNT(*) BY languages
+| STATS mc = MIN(c), md = MIN(d)

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -797,10 +796,12 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         createView(view, "FROM " + INDEX + " | FORK (WHERE id > 0) (WHERE id < 2)");
         String query = "FROM " + view + " | FORK (WHERE id > 0) (WHERE id < 5) | KEEP _fork, id | SORT _fork, id";
 
-        VerificationException withoutFilter = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query)).close());
-        assertThat(withoutFilter.getMessage(), containsString("Only a single FORK command is supported"));
-
+        List<List<Object>> rowsWithoutFilter;
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query))) {
+            rowsWithoutFilter = getValuesList(response);
+        }
         List<List<Object>> rows = rows(query, QueryBuilders.rangeQuery("id").gte(0));
+        assertThat(rowsWithoutFilter, equalTo(rows));
         assertThat(rows, hasSize(12));
         assertForkId(rows.get(0), "fork1", 1);
         assertForkId(rows.get(1), "fork1", 1);

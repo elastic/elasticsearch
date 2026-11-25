@@ -16,7 +16,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -27,6 +26,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -150,10 +150,13 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         // TestEncryptionServicePlugin binds an EncryptionService so the (always-registered) data-source
         // CRUD actions can be constructed — esql couples the datasources feature to the encryption
         // feature, so a bound service is required wherever esql runs.
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), TestEncryptionServicePlugin.class),
-            EsqlPluginWithEnterpriseOrTrialLicense.class
-        );
+        // MockSearchService tracks every registered reader context, so the check after each test finds the ones a query leaked.
+        // Without it in the list the mock is only installed at random.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestEncryptionServicePlugin.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(MockSearchService.TestPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -259,6 +262,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             }
             if (randomBoolean()) {
                 settings.put("node_level_reduction", randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put("time_series_single_pass", randomBoolean());
             }
         }
         return new QueryPragmas(settings.build());

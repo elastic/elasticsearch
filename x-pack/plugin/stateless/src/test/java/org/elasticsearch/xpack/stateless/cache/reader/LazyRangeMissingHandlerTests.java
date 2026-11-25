@@ -13,7 +13,7 @@ import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,7 +44,7 @@ public class LazyRangeMissingHandlerTests extends ESTestCase {
                 cacheBlobReader,
                 () -> null,
                 copiedBytes -> {},
-                StatelessPlugin.SHARD_READ_THREAD_POOL
+                StatelessThreadPools.SHARD_READ_THREAD_POOL
             ) {
                 @Override
                 public void fillCacheRange(

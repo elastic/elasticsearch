@@ -31,6 +31,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -1280,7 +1281,8 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
             .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
             .build();
-        ExternalSourceResolution resolution = new ExternalSourceResolution(
+        ExternalSourceResolution resolution = externalResolutionFor(
+            projectMetadata,
             Map.of(
                 SALARIES_INT_RESOURCE,
                 externalSource(SALARIES_INT_RESOURCE, DataType.INTEGER),

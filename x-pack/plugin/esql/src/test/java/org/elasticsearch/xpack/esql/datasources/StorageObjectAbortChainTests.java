@@ -22,6 +22,7 @@ import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
@@ -118,8 +119,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             assertArrayEquals(original, stream.readAllBytes());
         }
 
-        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
-        assertTrue("a fully decoded body must reach end-of-body before the abort", tracking.endOfBodyReadBeforeAbort.get());
+        assertEquals("a fully decoded body must not drop the connection", 0, tracking.abortCalls.get());
+        assertTrue("a fully decoded body must reach end-of-body before close", tracking.endOfBodyReadBeforeAbort.get());
         assertEquals(compressed.length, tracking.bytesConsumed.get());
     }
 
@@ -174,15 +175,20 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         InputStream stream = chain.newStream();
         assertArrayEquals(original, stream.readAllBytes());
         // The gzip decoder reads its input to -1 itself, so it hits the reset and the retry layer resumes during the
-        // read. Only what close() adds is the release's.
+        // read. Resume abortStream-discards the reset GET; only what close() adds is the release's.
+        // abortCalls counts abortStream only, not close(), so drain-close of the failed GET stays 0.
+        assertTrue("gzip decoder must hit the end-of-body reset during read", raw.endOfBodyFaulted.get());
+        assertEquals("resume during read must open a second GET", 2, raw.opens.get());
+        assertEquals("resume must abortStream-discard the failed GET, not drain-close it", 1, raw.abortCalls.get());
         int opensBeforeClose = raw.opens.get();
         long retriesBeforeClose = retryable.metrics().retryCount();
+        int abortsBeforeClose = raw.abortCalls.get();
         stream.close();
 
         assertTrue("the end-of-body read must have hit the reset", raw.endOfBodyFaulted.get());
         assertEquals("a fault on the end-of-body read must not re-open the object", opensBeforeClose, raw.opens.get());
         assertEquals("a fault on the end-of-body read must not count a retry", retriesBeforeClose, retryable.metrics().retryCount());
-        assertEquals("abortStream must be invoked exactly once", 1, raw.abortCalls.get());
+        assertEquals("teardown must abort the current GET exactly once", abortsBeforeClose + 1, raw.abortCalls.get());
     }
 
     /**
@@ -369,7 +375,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         public InputStream newStream() {
             opens.incrementAndGet();
             ByteArrayInputStream body = new ByteArrayInputStream(bytes);
-            return new InputStream() {
+            return countingCloseStream(new InputStream() {
                 @Override
                 public int read() throws IOException {
                     byte[] one = new byte[1];
@@ -386,7 +392,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                     }
                     return n;
                 }
-            };
+            });
         }
 
         @Override
@@ -396,13 +402,20 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                 return newStream();
             }
             opens.incrementAndGet();
-            return InputStream.nullInputStream();
+            return countingCloseStream(InputStream.nullInputStream());
         }
 
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            abortCalls.incrementAndGet();
-            stream.close();
+        private InputStream countingCloseStream(InputStream inner) {
+            AtomicBoolean closed = new AtomicBoolean();
+            return new FilterInputStream(inner) {
+                @Override
+                public void close() throws IOException {
+                    if (closed.compareAndSet(false, true)) {
+                        abortCalls.incrementAndGet();
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override
@@ -484,19 +497,18 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                 public int available() {
                     return 0;
                 }
+
+                @Override
+                public void close() {
+                    endOfBodyBeforeAbort.set(endOfBodyReturned.get());
+                    abortCalls.incrementAndGet();
+                }
             };
         }
 
         @Override
         public InputStream newStream(long position, long length) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            endOfBodyBeforeAbort.set(endOfBodyReturned.get());
-            abortCalls.incrementAndGet();
-            stream.close();
         }
 
         @Override

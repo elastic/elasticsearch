@@ -112,7 +112,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     protected abstract SpatialRelations getSpatialRelations();
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         try {
             if (this.spatialTypeResolver.supportsGrid) {
                 if (DataType.isGeoGrid(left().dataType())) {

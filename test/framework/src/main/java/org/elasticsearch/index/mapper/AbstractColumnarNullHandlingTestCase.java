@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -458,7 +459,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         final IndexSettings indexSettings = mapperService.getIndexSettings();
         assertTrue(
             "the field must take the batch path, otherwise this test proves nothing",
-            ((FieldMapper) mappingLookup.getMapper(FIELD)).supportsColumnarParse(indexSettings)
+            ((FieldMapper) mappingLookup.getMapper(FIELD)).supportsColumnarParse(indexSettings, Set.of())
         );
 
         final int docCount = sources.size();
@@ -478,7 +479,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
             )
         ) {
             final List<MetadataFieldMapper> metadata = Arrays.stream(mappingLookup.getMapping().getSortedMetadataMappers())
-                .filter(m -> m.supportsColumnarParse(indexSettings))
+                .filter(m -> m.supportsColumnarParse(indexSettings, Set.of()))
                 .toList();
             for (MetadataFieldMapper m : metadata) {
                 m.preColumnarParse(ctx);
@@ -518,17 +519,16 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
-        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics()))
-            .setCodec(
-                new PerFieldMapperCodec(
-                    Lucene104Codec.Mode.BEST_SPEED,
-                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                    mapperService,
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null
-                )
-            );
+        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
+        );
     }
 
     private void assertBatchesIndex(IndexMode indexMode, boolean withCodec, List<List<String>> batches) throws IOException {

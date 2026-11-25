@@ -45,9 +45,9 @@
  *
  * <li>If as a result of the received status update requests, all shards in the cluster state are in a completed state, i.e are marked as
  * either {@code SUCCESS}, {@code FAILED} or {@code MISSING}, the {@code SnapshotsService} will update the state of the {@code Entry}
- * itself and mark it as {@code SUCCESS}. At the same time
- * {@link org.elasticsearch.snapshots.SnapshotsService#submitFinalizeSnapshotRepositoryDataWriteTask} is executed, writing to the repository
- * the metadata necessary to finalize the snapshot in the repository.</li>
+ * itself and mark it as {@code SUCCESS}. It then calls
+ * {@link org.elasticsearch.snapshots.SnapshotsService#ensureRepositoryDataWriteTaskRunning} to ensure that the metadata necessary to
+ * finalize the snapshot is eventually written to the repository.</li>
  *
  * <li>After writing the final metadata to the repository, a cluster state update to remove the snapshot from the cluster state is
  * submitted and the removal of the snapshot's {@code SnapshotsInProgress.Entry} from the cluster state completes the snapshot process.
@@ -120,7 +120,7 @@
  *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#masterServiceTaskQueue} which updates the
  *     clone's {@code SnapshotsInProgress.Entry} to mark the shard clone operation completed.</li>
  *     <li>Once all the entries in {@code SnapshotsInProgress.Entry#clones} have completed, the clone is finalized just like any other
- *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#submitFinalizeSnapshotRepositoryDataWriteTask}. The only
+ *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#ensureRepositoryDataWriteTaskRunning}. The only
  *     difference being that the metadata that is written out for indices and the global metadata are read from the source snapshot in the
  *     repository instead of the cluster state.
  *     </li>
@@ -139,7 +139,7 @@
  * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
  * operations on a single shard is given by the order in which the snapshots were started.
  * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot
- * at a time, working in the order in which snapshots had their shards completed.
+ * at a time, picking the first ready-to-finalize snapshot in the repository (in the order in which the snapshots were started).
  *
  * <h3>Concurrent Snapshot Deletes</h3>
  *

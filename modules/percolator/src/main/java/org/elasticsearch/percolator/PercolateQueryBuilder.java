@@ -37,7 +37,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -77,9 +76,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -502,7 +499,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         String queryName = this.name != null ? this.name : pft.name();
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, pft.mapUnmappedFieldsAsText, context);
 
-        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
+        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context);
     }
 
     public String getField() {
@@ -602,8 +599,10 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         CheckedSupplier<BytesRef, IOException> fallbackSource
     ) throws IOException {
         try (
-            InputStream in = new ByteArrayInputStream(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, bytesRef.length), registry)
+            StreamInput input = new NamedWriteableAwareStreamInput(
+                StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length),
+                registry
+            )
         ) {
             // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
             // to encode multiple binary values into a single binary doc values field.
@@ -627,7 +626,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                 // set the transportversion here - only read vints so far, so can change the version freely at this point
                 input.setTransportVersion(transportVersion);
                 queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                assert in.read() == -1;
+                assert input.available() == 0;
             } else {
                 // incompatible transport version, try the fallback
                 queryBuilder = readQueryBuilder(fallbackSource.get(), registry, indexVersion, null);

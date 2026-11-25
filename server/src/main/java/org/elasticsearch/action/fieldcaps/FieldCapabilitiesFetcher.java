@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -18,10 +19,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -57,14 +61,16 @@ import java.util.function.Predicate;
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
     private final boolean includeEmptyFields;
+    private final boolean includeTimeSeriesStats;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
     private static final boolean enableFieldHasValue = Booleans.parseBoolean(
         System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
     );
 
-    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields, boolean includeTimeSeriesStats) {
         this.indicesService = indicesService;
         this.includeEmptyFields = includeEmptyFields;
+        this.includeTimeSeriesStats = includeTimeSeriesStats;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -80,7 +86,7 @@ class FieldCapabilitiesFetcher {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final Engine.Searcher searcher;
-        if (alwaysMatches(indexFilter)) {
+        if (alwaysMatches(indexFilter) && includeTimeSeriesStats == false) {
             // no need to open a searcher if we aren't filtering, but make sure we are reading from an up-to-dated shard
             indexShard.readAllowed();
             searcher = null;
@@ -131,7 +137,9 @@ class FieldCapabilitiesFetcher {
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
         final int numberOfShards = searchExecutionContext.getIndexSettings().getNumberOfShards();
         final int createdVersion = searchExecutionContext.getIndexSettings().getIndexVersionCreated().id();
-        if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext, requestBreaker()) == false) {
+        if (searcher != null
+            && alwaysMatches(indexFilter) == false
+            && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext, requestBreaker()) == false) {
             return new FieldCapabilitiesIndexResponse(
                 shardId.getIndexName(),
                 null,
@@ -141,17 +149,15 @@ class FieldCapabilitiesFetcher {
                 numberOfShards,
                 createdVersion,
                 settingsVersion,
-                mappingVersion
+                mappingVersion,
+                null
             );
         }
 
         final MappingMetadata mapping = indexMetadata.mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local.
-            indexMappingHash = mapping != null
-                ? mapping.getSha256() + indexMode + analyzerNamesDigest(configuredAnalyzerNames(searchExecutionContext))
-                : null;
+            indexMappingHash = mapping != null ? mappingDedupHash(mapping, indexMode, searchExecutionContext) : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -173,7 +179,8 @@ class FieldCapabilitiesFetcher {
                     numberOfShards,
                     createdVersion,
                     settingsVersion,
-                    mappingVersion
+                    mappingVersion,
+                    timeSeriesStats(searcher, searchExecutionContext, indexFilter, nowInMillis, numberOfShards)
                 );
             }
         }
@@ -199,8 +206,26 @@ class FieldCapabilitiesFetcher {
             numberOfShards,
             createdVersion,
             settingsVersion,
-            mappingVersion
+            mappingVersion,
+            timeSeriesStats(searcher, searchExecutionContext, indexFilter, nowInMillis, numberOfShards)
         );
+    }
+
+    private TimeSeriesStats timeSeriesStats(
+        Engine.Searcher searcher,
+        SearchExecutionContext context,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        int numberOfShards
+    ) throws IOException {
+        if (searcher == null || includeTimeSeriesStats == false) {
+            return null;
+        }
+        if (context.getFieldType(DataStream.TIMESTAMP_FIELD_NAME) instanceof DateFieldMapper.DateFieldType timestamp) {
+            final long[] bounds = TimeSeriesStats.timestampBounds(indexFilter, timestamp, nowInMillis);
+            return TimeSeriesStats.ofShard(searcher.getIndexReader(), timestamp.resolution(), numberOfShards, bounds[0], bounds[1]);
+        }
+        return null;
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
@@ -257,7 +282,8 @@ class FieldCapabilitiesFetcher {
                     ft.meta(),
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
-                    indexLocalAnalyzer
+                    indexLocalAnalyzer,
+                    ft.isStaticallySingleValued()
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -300,6 +326,7 @@ class FieldCapabilitiesFetcher {
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false,
                             false
                         );
                         responseMap.put(parentField, fieldCap);
@@ -314,6 +341,15 @@ class FieldCapabilitiesFetcher {
     /** Names under {@code index.analysis.analyzer}. */
     private static Set<String> configuredAnalyzerNames(SearchExecutionContext context) {
         return context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet();
+    }
+
+    /**
+     * Indices with the same key share one response. Besides the mapping, the key includes the settings that change the response
+     * without changing the mapping: {@code index.analysis} and {@code index.mapping.doc_values.multi_value}.
+     */
+    static String mappingDedupHash(MappingMetadata mapping, IndexMode indexMode, SearchExecutionContext context) {
+        return mapping.getSha256() + indexMode + analyzerNamesDigest(configuredAnalyzerNames(context))
+            + FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(context.getIndexSettings().getSettings());
     }
 
     /**

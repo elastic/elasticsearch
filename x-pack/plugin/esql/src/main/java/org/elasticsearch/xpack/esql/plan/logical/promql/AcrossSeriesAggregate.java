@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema
  * These functions reduce the number of time series by aggregating values across series
  * that share the same grouping labels (or all series if no grouping is specified).
  */
-public final class AcrossSeriesAggregate extends PromqlFunctionCall {
+public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits CountValuesAggregate {
 
     public enum Grouping {
         BY,

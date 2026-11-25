@@ -457,11 +457,10 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         private Matcher<Double> matchDouble(double value) {
             // Very large values have floating point errors, so instead of an absolute value, we use a relative one
             // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
+            // Below 1e20 use at least |value| / 1e15 (4.5 to 9 ulps), as a fixed delta is smaller than one ulp of values past ~6.7e7.
             double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
                 : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
-                : (value > 1e8 || value < -1e8) ? Math.abs(value / 1e15)
-                : (value > 1e5 || value < -1e5) ? DELTA * 10
-                : DELTA;
+                : Math.max(DELTA, Math.abs(value / 1e15));
             return closeTo(value, delta);
         }
 

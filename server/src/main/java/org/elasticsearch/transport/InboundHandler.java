@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -32,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.function.Supplier;
 
 /**
  * Handles inbound messages by first deserializing a {@link TransportRequest} or {@link TransportResponse} from an {@link InboundMessage}
@@ -49,6 +51,7 @@ public class InboundHandler {
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
     private final HandlingTimeTracker handlingTimeTracker;
+    private final Supplier<CircuitBreaker> requestBreaker;
     private final boolean ignoreDeserializationErrors;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
@@ -64,6 +67,7 @@ public class InboundHandler {
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
         HandlingTimeTracker handlingTimeTracker,
+        Supplier<CircuitBreaker> requestBreaker,
         boolean ignoreDeserializationErrors
     ) {
         this.threadPool = threadPool;
@@ -74,6 +78,7 @@ public class InboundHandler {
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
         this.handlingTimeTracker = handlingTimeTracker;
+        this.requestBreaker = requestBreaker;
         this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
@@ -277,6 +282,11 @@ public class InboundHandler {
         final long requestId = header.getRequestId();
         final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
         assert message.isShortCircuit() || reg != null : action;
+        final DecodedRequestBytes decodedBytes = new DecodedRequestBytes(
+            requestBreaker,
+            reg != null && reg.canTripCircuitBreaker(),
+            message.takeBreakerReleaseControl()
+        );
         final TransportChannel transportChannel = new TcpTransportChannel(
             outboundHandler,
             channel,
@@ -286,7 +296,7 @@ public class InboundHandler {
             header.getCompressionScheme(),
             reg == null ? ResponseStatsConsumer.NONE : reg,
             false,
-            Releasables.assertOnce(message.takeBreakerReleaseControl())
+            Releasables.assertOnce(decodedBytes)
         );
 
         try {
@@ -302,7 +312,7 @@ public class InboundHandler {
             }
 
             assert reg != null;
-            final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+            final StreamInput stream = decodedBytes.streamInput(message.openOrGetStreamInput(), namedWriteableRegistry);
             assert assertRemoteVersion(stream, header.getVersion());
             T request;
             try {
@@ -320,6 +330,7 @@ public class InboundHandler {
                 assert requestId > 0;
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
+                decodedBytes.checkRead();
                 if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                         doHandleRequest(reg, request, transportChannel);

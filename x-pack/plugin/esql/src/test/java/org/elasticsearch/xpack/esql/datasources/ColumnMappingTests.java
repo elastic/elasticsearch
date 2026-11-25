@@ -38,6 +38,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -315,16 +318,11 @@ public class ColumnMappingTests extends ESTestCase {
         assertEquals(1, adapted.size());
     }
 
-    public void testMapFiltersDropsConjunctOnKeywordCast() {
+    public void testMapFiltersSkipsConjunctOnKeywordCast() {
         // The UBN KEYWORD fallback installs a stringify cast that has no safe inverse — "1" < "10"
         // is lexicographic, not numeric, so a pushed literal would produce wrong row-group skips.
-        // `mapFilters` must withhold the column name from the per-file allowlist so
-        // {@link FilterAdaptation} drops the conjunct entirely; RECHECK reruns the original
-        // predicate against the unified-shape page. The downstream AND-collapse semantics in
-        // FilterAdaptation treat a value comparison on a withheld column as unsatisfiable, so
-        // the whole pushdown empties for this file — equivalent to the missing-column case in
-        // {@link #testMapFiltersDropsAllWhenValueComparisonOnMissingColumn}. The empty pushdown
-        // is correct: RECHECK still runs the predicate post-stringification.
+        // The conjunct on that present-but-unadaptable column is left unpushed, while an
+        // independent conjunct remains available for file-level skipping.
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.KEYWORD });
         ExternalSchema query = new ExternalSchema(List.of(intAttr("id"), intAttr("col")));
         Expression idFilter = greaterThan(query.get(0), 10);
@@ -332,7 +330,32 @@ public class ColumnMappingTests extends ESTestCase {
 
         List<Expression> adapted = mapping.mapFilters(List.of(idFilter, colFilter), query);
 
-        assertTrue("filter on KEYWORD-cast column collapses pushdown; RECHECK is the backstop", adapted.isEmpty());
+        assertEquals(List.of(idFilter), adapted);
+    }
+
+    public void testMapFiltersDoesNotPushOrWithUnadaptableDoubleCast() {
+        ColumnMapping widenedMapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.DOUBLE, null });
+        ExternalSchema query = new ExternalSchema(List.of(doubleAttr("x"), longAttr("y")));
+        Expression yEqualsTwo = new Equals(Source.EMPTY, query.get(1), new Literal(Source.EMPTY, 2L, DataType.LONG));
+        Expression filter = new Or(Source.EMPTY, new IsNotNull(Source.EMPTY, query.get(0)), yEqualsTwo);
+
+        assertEquals(List.of(), widenedMapping.mapFilters(List.of(filter), query));
+
+        ColumnMapping missingMapping = new ColumnMapping(new int[] { -1, 0 }, null);
+        assertEquals(
+            "an actually absent x still simplifies the OR",
+            List.of(yEqualsTwo),
+            missingMapping.mapFilters(List.of(filter), query)
+        );
+    }
+
+    public void testMapFiltersSkipsConjunctOnDateNanosCast() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.DATE_NANOS, null });
+        ExternalSchema query = new ExternalSchema(List.of(typedAttr("timestamp", DataType.DATE_NANOS), longAttr("id")));
+        Expression timestampFilter = new IsNotNull(Source.EMPTY, query.get(0));
+        Expression idFilter = greaterThan(query.get(1), 10L);
+
+        assertEquals(List.of(idFilter), mapping.mapFilters(List.of(timestampFilter, idFilter), query));
     }
 
     public void testMapFiltersKeywordCastWithoutReferencingFilterLeavesPushdownUnchanged() {
@@ -1070,6 +1093,14 @@ public class ColumnMappingTests extends ESTestCase {
 
     private static Attribute longAttr(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.LONG, Nullability.TRUE, null, false);
+    }
+
+    private static Attribute doubleAttr(String name) {
+        return typedAttr(name, DataType.DOUBLE);
+    }
+
+    private static Attribute typedAttr(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false);
     }
 
     private static ExternalSchema schema(String... names) {

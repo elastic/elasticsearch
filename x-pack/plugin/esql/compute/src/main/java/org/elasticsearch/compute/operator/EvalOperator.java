@@ -93,7 +93,15 @@ public class EvalOperator extends AbstractPageMappingOperator {
         this.ctx = ctx;
         this.evaluator = evaluator;
         this.description = getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
-        ctx.breaker().addEstimateBytesAndMaybeBreak(BASE_RAM_BYTES_USED + evaluator.baseRamBytesUsed(), "ESQL");
+        boolean success = false;
+        try {
+            ctx.breaker().addEstimateBytesAndMaybeBreak(BASE_RAM_BYTES_USED + evaluator.baseRamBytesUsed(), "ESQL");
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeWhileHandlingException(evaluator);
+            }
+        }
     }
 
     @Override

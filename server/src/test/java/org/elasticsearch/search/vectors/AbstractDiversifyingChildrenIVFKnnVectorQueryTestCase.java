@@ -49,9 +49,12 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +69,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Mostly copied from Lucene
  */
+@RunWith(ESRandomizedRunner.class)
 public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
 
     protected TestIvfQueryConfigResolver testResolver() {
@@ -119,6 +123,19 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase<V> e
 
     /** Random vector of the given dimension. */
     abstract V randomVector(int dim);
+
+    public void testLeafCollectorBudgetHasNoOverspillHeadroom() {
+        int k = random().nextInt(100) + 1;
+        float oversample = 1f + random().nextFloat() * 9f;
+        AbstractIVFKnnVectorQuery query = (AbstractIVFKnnVectorQuery) getDiversifyingChildrenKnnQuery(
+            "field",
+            randomVector(4),
+            null,
+            k,
+            new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")))
+        );
+        assertEquals(IvfSegmentConfig.shardMergeBudget(k, oversample), query.leafCollectorBudget(oversample));
+    }
 
     @SuppressWarnings("unchecked")
     public void testEmptyIndex() throws IOException {

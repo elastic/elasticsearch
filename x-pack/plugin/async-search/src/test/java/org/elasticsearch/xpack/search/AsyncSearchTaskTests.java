@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -491,7 +492,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
-            listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", List.of()));
             assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true, true, false);
         }
     }
@@ -619,7 +620,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 assertThat(resp.getSearchResponse().getFailedShards(), equalTo(expectedShardFailures));
                 assertThat(resp.isPartial(), equalTo(isPartial));
                 if (expectedShardFailures > 0) {
-                    assertThat(resp.getSearchResponse().getShardFailures().length, equalTo(expectedShardFailures));
+                    assertThat(resp.getSearchResponse().getShardFailures(), hasSize(expectedShardFailures));
                     for (ShardSearchFailure failure : resp.getSearchResponse().getShardFailures()) {
                         assertThat(failure.getCause(), instanceOf(IOException.class));
                         assertThat(failure.getCause().getMessage(), equalTo("boum"));

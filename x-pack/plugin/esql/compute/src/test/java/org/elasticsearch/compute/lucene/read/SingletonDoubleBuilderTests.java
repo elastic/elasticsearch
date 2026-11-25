@@ -18,8 +18,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -120,6 +123,32 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                 }
             }
         }
+    }
+
+    public void testReusesArrayAcrossPages() {
+        BlockFactory parent = blockFactory();
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory factory = parent.newChildFactory(local);
+        int count = between(1_000, 10_000);
+        long arrayBytes = (long) count * Double.BYTES;
+        for (int page = 0; page < 3; page++) {
+            try (SingletonDoubleBuilder builder = new SingletonDoubleBuilder(count, factory)) {
+                for (int i = 0; i < count; i++) {
+                    builder.appendLongs(l -> l, new long[] { page + i }, 0, 1);
+                }
+                try (Block block = builder.build()) {
+                    assertThat(parent.breaker().getUsed(), equalTo(block.ramBytesUsed()));
+                    DoubleVector vector = ((DoubleBlock) block).asVector();
+                    assertThat(vector.getPositionCount(), equalTo(count));
+                    for (int i = 0; i < count; i++) {
+                        assertThat(vector.getDouble(i), equalTo((double) (page + i)));
+                    }
+                }
+            }
+            assertThat(parent.breaker().getUsed(), equalTo(arrayBytes));
+        }
+        local.close();
+        assertThat(parent.breaker().getUsed(), equalTo(0L));
     }
 
     static IndexWriter createIndexWriter(Directory directory) throws IOException {

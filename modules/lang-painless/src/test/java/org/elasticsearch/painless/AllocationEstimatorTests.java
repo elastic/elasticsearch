@@ -16,10 +16,20 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 
+import java.time.Month;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalQuery;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.SortedMap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -211,7 +221,7 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         // The Instant plus the whole zoned chain: ZonedDateTime, LocalDateTime, LocalDate and LocalTime.
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
-            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';")
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC); return 'x';")
         );
     }
 
@@ -225,12 +235,12 @@ public class AllocationEstimatorTests extends AllocationTestCase {
     public void testZonedDateTimeArithmeticChargesTheChain() {
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + 2 * TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
-            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).plusDays(1); return 'x';")
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC).plusDays(1); return 'x';")
         );
     }
 
     public void testZonedDateTimeChainTripsLimit() {
-        assertTripsLimit("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';");
+        assertTripsLimit("Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC); return 'x';");
     }
 
     public void testZonedDateTimeParseChargedFromText() {
@@ -255,13 +265,15 @@ public class AllocationEstimatorTests extends AllocationTestCase {
     }
 
     public void testFormatChargedAsABoundedString() {
-        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatBytes(null, null)
-            + TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES;
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatBytes(
+            (DateTimeFormatter) null,
+            (TemporalAccessor) null
+        ) + TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES;
         assertEquals(
             expected,
             allocatedBytes(
                 "DateTimeFormatter f = DateTimeFormatter.ofPattern('yyyy');"
-                    + "f.format(Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC'))); return 'x';"
+                    + "f.format(Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC)); return 'x';"
             )
         );
     }
@@ -277,7 +289,240 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         assertEquals(0L, allocatedBytes("ZoneOffset z = ZoneOffset.UTC; Instant e = Instant.EPOCH; return 'x';"));
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
-            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).toLocalDate(); return 'x';")
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC).toLocalDate(); return 'x';")
+        );
+    }
+
+    public void testZoneIdOfChargedAsTwoReferences() {
+        // ZoneId.of builds a region object over cached rules each call; ZoneOffset.UTC is a constant and costs nothing.
+        assertEquals(TimeAllocationEstimators.TWO_REFERENCE_BYTES, allocatedBytes("ZoneId.of('UTC'); return 'x';"));
+        assertEquals(0, allocatedBytes("ZoneOffset.UTC.normalized(); return 'x';"));
+    }
+
+    public void testAvailableZoneIdsCharged() {
+        assertEquals(TimeAllocationEstimators.availableZoneIdsBytes(), allocatedBytes("ZoneId.getAvailableZoneIds(); return 'x';"));
+    }
+
+    public void testDisplayNameChargedAsAFormatterAndAString() {
+        long expected = TimeAllocationEstimators.displayNameBytes((Month) null, null, null);
+        assertEquals(expected, allocatedBytes("Month.JANUARY.getDisplayName(TextStyle.FULL, Locale.ROOT); return 'x';"));
+        assertTrue(expected > TimeAllocationEstimators.localizedFormatterBytes(null));
+    }
+
+    public void testLocalizedFormatterAndFormatAdapterCharged() {
+        assertEquals(
+            TimeAllocationEstimators.localizedFormatterBytes(null),
+            allocatedBytes("DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT); return 'x';")
+        );
+        assertEquals(TimeAllocationEstimators.TWO_REFERENCE_BYTES, allocatedBytes("DateTimeFormatter.ISO_DATE.toFormat(); return 'x';"));
+        // The combined pattern is joined into a new string on every call.
+        assertEquals(
+            TimeAllocationEstimators.localizedPatternBytes(null, null, null, null),
+            allocatedBytes(
+                "DateTimeFormatterBuilder.getLocalizedDateTimePattern(FormatStyle.SHORT, FormatStyle.SHORT, "
+                    + "IsoChronology.INSTANCE, Locale.ROOT);"
+                    + " return 'x';"
+            )
+        );
+    }
+
+    public void testParseBestChargesTheSameAsParseWithAQuery() {
+        assertEquals(
+            TimeAllocationEstimators.formatterParseBytes(null, "2020-01-01", (TemporalQuery<?>) null),
+            TimeAllocationEstimators.formatterParseBytes(null, "2020-01-01", (TemporalQuery<?>[]) null)
+        );
+    }
+
+    public void testRangeChargedAsAValueRange() {
+        String date = "LocalDate d = LocalDate.of(2020, 1, 1); ";
+        long base = allocatedBytes(date + "return 'x';");
+        assertEquals(
+            TimeAllocationEstimators.VALUE_RANGE_BYTES,
+            allocatedBytes(date + "d.range(ChronoField.DAY_OF_MONTH); return 'x';") - base
+        );
+    }
+
+    public void testChronoClassesCharged() {
+        // Non-ISO dates have their own entries, which shadow the chrono interface ones.
+        assertEquals(
+            2 * TimeAllocationEstimators.CHRONO_DATE_BYTES,
+            allocatedBytes("JapaneseDate.of(2000, 1, 1).plus(1, ChronoUnit.DAYS); return 'x';")
+        );
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes("IsoChronology.INSTANCE.date(2020, 1, 1); return 'x';"));
+        // Through the interface the chronology is unknown, so the bigger non-ISO shapes are charged.
+        assertEquals(
+            TimeAllocationEstimators.CHRONO_DATE_BYTES + TimeAllocationEstimators.CHRONO_ZONED_DATE_TIME_BYTES,
+            allocatedBytes(
+                "Chronology c = IsoChronology.INSTANCE; c.date(2020, 1, 1); c.zonedDateTime(Instant.EPOCH, ZoneOffset.UTC); return 'x';"
+            )
+        );
+    }
+
+    public void testSortedViewsCharged() {
+        // The keys are boxed up front so only the views are measured.
+        String map = "TreeMap m = new TreeMap(); def lo = 1; def hi = 2; ";
+        long base = allocatedBytes(map + "return 'x';");
+        long expected = AllocationEstimators.subMapBytes((SortedMap<?, ?>) null, null) + AllocationEstimators.mapViewBytes(
+            (NavigableMap<?, ?>) null
+        ) + AllocationEstimators.subMapBytes((NavigableMap<?, ?>) null, null, true, null, true);
+        assertEquals(expected, allocatedBytes(map + "m.headMap(lo); m.descendingMap(); m.subMap(lo, true, hi, true); return 'x';") - base);
+    }
+
+    public void testLocalDateArithmeticChargedFlat() {
+        assertEquals(2 * TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes("LocalDate.of(2020, 1, 1).plusDays(1); return 'x';"));
+    }
+
+    public void testLocalDateTimeChainCharged() {
+        // The date, the date-time chain it starts, and the zoned chain on top.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.LOCAL_DATE_TIME_BYTES
+                + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("LocalDate.of(2020, 1, 1).atStartOfDay().atZone(ZoneOffset.UTC); return 'x';")
+        );
+    }
+
+    public void testOffsetTimeChainCharged() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.OFFSET_TIME_BYTES,
+            allocatedBytes("LocalTime.of(1, 2).atOffset(ZoneOffset.UTC); return 'x';")
+        );
+    }
+
+    public void testDurationCharged() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES,
+            allocatedBytes("Duration.between(Instant.EPOCH, Instant.EPOCH); return 'x';")
+        );
+        assertEquals(TimeAllocationEstimators.parseFlatValueBytes("PT1S"), allocatedBytes("Duration.parse('PT1S'); return 'x';"));
+    }
+
+    public void testLocalDateParseWithFormatterChargedFromText() {
+        String text = "2020-01-01";
+        assertEquals(
+            TimeAllocationEstimators.parseFlatValueBytes(text),
+            allocatedBytes("LocalDate.parse('" + text + "', DateTimeFormatter.ISO_LOCAL_DATE); return 'x';")
+        );
+    }
+
+    public void testOffsetDateTimeFormatCharged() {
+        long expected = TimeAllocationEstimators.OFFSET_DATE_TIME_BYTES + TimeAllocationEstimators.formatBytes(
+            (DateTimeFormatter) null,
+            (TemporalAccessor) null
+        );
+        assertEquals(
+            expected,
+            allocatedBytes("OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE); return 'x';")
+        );
+    }
+
+    public void testTemporalInterfaceCallChargesTheBiggestChain() {
+        // Through the interface the result type is unknown, so the zoned chain is charged even for a LocalDate.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Temporal t = LocalDate.of(2020, 1, 1); t.plus(1, ChronoUnit.DAYS); return 'x';")
+        );
+    }
+
+    public void testValueRangeCharged() {
+        assertEquals(TimeAllocationEstimators.VALUE_RANGE_BYTES, allocatedBytes("ValueRange.of(1, 2); return 'x';"));
+    }
+
+    public void testFormatterBuilderCharged() {
+        long expected = TimeAllocationEstimators.formatterBuilderBytes() + TimeAllocationEstimators.patternStepBytes(null, "yyyy")
+            + TimeAllocationEstimators.toFormatterBytes(null);
+        assertEquals(expected, allocatedBytes("new DateTimeFormatterBuilder().appendPattern('yyyy').toFormatter(); return 'x';"));
+    }
+
+    public void testFormatterCopyCharged() {
+        assertEquals(
+            TimeAllocationEstimators.FORMATTER_BYTES,
+            allocatedBytes("DateTimeFormatter.ISO_DATE.withZone(ZoneOffset.UTC); return 'x';")
+        );
+    }
+
+    public void testDateGettersChargeNothing() {
+        // Getters return a part of an existing value.
+        assertEquals(
+            TimeAllocationEstimators.LOCAL_DATE_TIME_BYTES,
+            allocatedBytes("LocalDateTime d = LocalDateTime.of(2020, 1, 1, 0, 0); d.toLocalDate(); d.getMonth(); d.getYear(); return 'x';")
+        );
+    }
+
+    public void testMapViewsCharged() {
+        long base = allocatedBytes("Map m = new HashMap(); return 'x';");
+        long views = allocatedBytes("Map m = new HashMap(); m.keySet(); m.values(); m.entrySet(); return 'x';");
+        assertEquals(3 * AllocationEstimators.mapViewBytes((Map<?, ?>) null), views - base);
+    }
+
+    public void testStreamIteratorCharged() {
+        long base = allocatedBytes("[1, 2].stream(); return 'x';");
+        long withIterator = allocatedBytes("[1, 2].stream().iterator(); return 'x';");
+        assertEquals(AllocSizes.ITERATOR_BYTES, withIterator - base);
+    }
+
+    public void testPrimitiveStreamIteratorCharged() {
+        // IntStream, LongStream and DoubleStream redeclare iterator(), so each needs its own entry.
+        long base = allocatedBytes("IntStream.range(0, 2); LongStream.range(0, 2); DoubleStream.of(new double[] {1.0}); return 'x';");
+        long withIterators = allocatedBytes(
+            "IntStream.range(0, 2).iterator(); LongStream.range(0, 2).iterator(); "
+                + "DoubleStream.of(new double[] {1.0}).iterator(); return 'x';"
+        );
+        assertEquals(3 * AllocSizes.ITERATOR_BYTES, withIterators - base);
+    }
+
+    public void testChronoInterfaceEntriesCharged() {
+        // format and toInstant are declared only on the chrono interfaces, so the charge must come from those entries.
+        long format = TimeAllocationEstimators.formatBytes((DateTimeFormatter) null, (TemporalAccessor) null);
+        String zoned = "ZonedDateTime z = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC); ";
+        long zonedBase = allocatedBytes(zoned + "return 'x';");
+
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes(zoned + "z.toInstant(); return 'x';") - zonedBase);
+        assertEquals(format, allocatedBytes(zoned + "z.format(DateTimeFormatter.ISO_INSTANT); return 'x';") - zonedBase);
+        assertEquals(
+            TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes(zoned + "z.withZoneSameInstant(ZoneOffset.UTC); return 'x';") - zonedBase
+        );
+
+        String local = "LocalDateTime d = LocalDateTime.of(2020, 1, 1, 0, 0); ";
+        long localBase = allocatedBytes(local + "return 'x';");
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES,
+            allocatedBytes(local + "d.toInstant(ZoneOffset.UTC); return 'x';") - localBase
+        );
+        assertEquals(format, allocatedBytes(local + "d.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME); return 'x';") - localBase);
+
+        String date = "LocalDate d = LocalDate.of(2020, 1, 1); ";
+        long dateBase = allocatedBytes(date + "return 'x';");
+        assertEquals(format, allocatedBytes(date + "d.format(DateTimeFormatter.ISO_LOCAL_DATE); return 'x';") - dateBase);
+    }
+
+    public void testChronoInterfaceEntriesChargedThroughDefDispatch() {
+        String zoned = "def z = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC); ";
+        long zonedBase = allocatedBytes(zoned + "return 'x';");
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes(zoned + "z.toInstant(); return 'x';") - zonedBase);
+    }
+
+    public void testFormatterResolverFieldsCopyCharged() {
+        // withResolverFields copies the set, so the charge grows with it.
+        String fields =
+            "Set s = new HashSet(); s.add(ChronoField.YEAR); s.add(ChronoField.MONTH_OF_YEAR); s.add(ChronoField.DAY_OF_MONTH); ";
+        long base = allocatedBytes(fields + "return 'x';");
+        long withCopy = allocatedBytes(fields + "DateTimeFormatter.ISO_DATE.withResolverFields(s); return 'x';");
+        Set<?> three = Set.of(ChronoField.YEAR, ChronoField.MONTH_OF_YEAR, ChronoField.DAY_OF_MONTH);
+        assertEquals(TimeAllocationEstimators.formatterCopyBytes(null, three), withCopy - base);
+        assertTrue(TimeAllocationEstimators.formatterCopyBytes(null, three) > TimeAllocationEstimators.formatterCopyBytes(null, Set.of()));
+    }
+
+    public void testAppendZoneTextCopyCharged() {
+        // appendZoneText copies a non-empty set of preferred zones.
+        String zones = "Set s = new HashSet(); s.add(ZoneOffset.UTC); s.add(ZoneId.of('Europe/Paris')); "
+            + "DateTimeFormatterBuilder b = new DateTimeFormatterBuilder(); ";
+        long base = allocatedBytes(zones + "return 'x';");
+        long withStep = allocatedBytes(zones + "b.appendZoneText(TextStyle.FULL, s); return 'x';");
+        Set<?> two = Set.of(ZoneOffset.UTC, ZoneId.of("Europe/Paris"));
+        assertEquals(TimeAllocationEstimators.builderStepBytes(null, null, two), withStep - base);
+        assertTrue(
+            TimeAllocationEstimators.builderStepBytes(null, null, two) > TimeAllocationEstimators.builderStepBytes(null, null, Set.of())
         );
     }
 
@@ -285,7 +530,7 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         // A def call must charge the same as a typed call.
         assertEquals(
             TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
-            allocatedBytes("def i = Instant.ofEpochMilli(0); i.atZone(ZoneId.of('UTC')); return 'x';")
+            allocatedBytes("def i = Instant.ofEpochMilli(0); i.atZone(ZoneOffset.UTC); return 'x';")
         );
     }
 

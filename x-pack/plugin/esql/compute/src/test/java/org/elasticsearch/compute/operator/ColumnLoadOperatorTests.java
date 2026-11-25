@@ -11,15 +11,20 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceIntBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ColumnLoadOperatorTests extends OperatorTestCase {
     @Override
@@ -78,6 +83,73 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo("ColumnLoad[values=values:LONG, positions=0]");
+    }
+
+    public void testNullHeavyPageStaysWhole() {
+        assertPageStaysWhole(3333, p -> p % 10 == 0);
+    }
+
+    public void testDensePageStaysWhole() {
+        assertPageStaysWhole(3333, p -> true);
+    }
+
+    private void assertPageStaysWhole(int positionCount, IntPredicate hit) {
+        DriverContext driverContext = driverContext();
+        Page input;
+        try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (hit.test(p)) {
+                    builder.appendInt(between(0, 4));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            input = new Page(builder.build());
+        }
+        List<Page> origInput = BlockTestUtils.deepCopyOf(List.of(input), TestBlockFactory.getNonBreakingInstance());
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(input).run(simple());
+        try {
+            assertThat(results, hasSize(1));
+            assertSimpleOutput(origInput, results);
+        } finally {
+            for (Page p : results) {
+                p.releaseBlocks();
+            }
+        }
+    }
+
+    public void testBlownUpPageSplits() {
+        int valuesPerPosition = 1000;
+        int positionCount = 100;
+        LongBlock values;
+        try (LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(valuesPerPosition)) {
+            builder.beginPositionEntry();
+            for (int v = 0; v < valuesPerPosition; v++) {
+                builder.appendLong(v);
+            }
+            builder.endPositionEntry();
+            values = builder.build();
+        }
+        DriverContext driverContext = driverContext();
+        Page input = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, positionCount));
+        List<Page> results = new TestDriverRunner().builder(driverContext)
+            .input(input)
+            .run(new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values("values", values), 0));
+        try {
+            // each position copies about 8KB, so a page of 100 positions is well over the target
+            assertThat(results, hasSize(greaterThan(1)));
+            assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(positionCount));
+            for (Page page : results) {
+                LongBlock loaded = page.getBlock(1);
+                for (int p = 0; p < loaded.getPositionCount(); p++) {
+                    assertThat(loaded.getValueCount(p), equalTo(valuesPerPosition));
+                }
+            }
+        } finally {
+            for (Page p : results) {
+                p.releaseBlocks();
+            }
+        }
     }
 
     @Override

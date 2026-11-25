@@ -457,6 +457,32 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/148475">#148475</a>. The enriched {@code artist}
+     * replaces the {@code artist} column that was sorted on, and dropping every column after the FORK used to give the TopN a layout
+     * that did not match its input, failing with an {@code ArrayIndexOutOfBoundsException}. It only reproduces without a LIMIT
+     * between the SORT and the FORK.
+     */
+    public void testForkAfterEnrichReplacingSortedColumnWithAllColumnsDropped() {
+        String query = """
+            FROM listens
+            | EVAL artist = ["a", "b"]
+            | KEEP song_id, artist
+            | MV_EXPAND artist
+            | SORT artist
+            | ENRICH songs ON song_id WITH artist
+            | FORK (WHERE true) (WHERE true)
+            | WHERE _fork == "fork1"
+            | DROP _fork
+            | KEEP artist
+            | DROP artist
+            """;
+        try (EsqlQueryResponse resp = run(query)) {
+            assertThat(resp.columns(), hasSize(0));
+            assertThat(EsqlTestUtils.getValuesList(resp), hasSize(14));
+        }
+    }
+
     public void testRejection() {
         for (var ts : internalCluster().getInstances(TransportService.class)) {
             ((MockTransportService) ts).addRequestHandlingBehavior(EnrichLookupService.LOOKUP_ACTION_NAME, (h, r, channel, t) -> {

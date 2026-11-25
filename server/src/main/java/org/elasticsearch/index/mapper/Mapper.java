@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
@@ -34,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+public abstract class Mapper implements Iterable<Mapper> {
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -365,7 +364,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return getClass().getSimpleName() + "[" + fullPath() + "]";
     }
 
     private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();

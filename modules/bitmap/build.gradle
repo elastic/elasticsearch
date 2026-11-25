@@ -9,6 +9,7 @@
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 
 esplugin {
   description = 'Adds bitmap_terms query for efficient integer and long set matching using RoaringBitmap'
@@ -17,6 +18,10 @@ esplugin {
 
 dependencies {
   implementation("org.roaringbitmap:RoaringBitmap:1.6.15")
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
+  heapPressureTestImplementation("org.roaringbitmap:RoaringBitmap:1.6.15")
 }
 
 restResources {

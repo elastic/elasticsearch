@@ -44,6 +44,28 @@ is_present:double | step:datetime            | cluster:keyword
 1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
+// A counter field is present like a gauge: Prometheus does not distinguish sample types here.
+present_over_time_of_counter_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: count_present_absent_counter_support
+
+PROMQL index=prometheus-k8s step=10m is_present=(max by (cluster) (present_over_time(network.total_bytes_in[10m])))
+| SORT cluster, step | LIMIT 10;
+
+is_present:double | step:datetime            | cluster:keyword
+1.0               | 2024-05-10T00:10:00.000Z | prod
+1.0               | 2024-05-10T00:20:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:10:00.000Z | qa
+1.0               | 2024-05-10T00:20:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:10:00.000Z | staging
+1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | staging
+;
+
 present_over_time_of_long_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse

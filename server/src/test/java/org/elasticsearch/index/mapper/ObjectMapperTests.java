@@ -136,7 +136,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
         CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))));
-        Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE).mapping();
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -336,7 +336,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertEquals("mapper [obj.my.field] cannot be changed from type [keyword] to [long]", exception.getMessage());
 
         // Passes on template merging.
-        Mapping merged = mapperService.mergeMappings(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE).mapping();
         assertThat(((ObjectMapper) merged.getRoot().getMapper("obj")).getMapper("my.field"), instanceOf(NumberFieldMapper.class));
     }
 
@@ -450,7 +450,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testExplicitDefaultSubobjects() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", true)));
-        assertEquals("{\"_doc\":{\"subobjects\":true}}", Strings.toString(mapperService.mappingLookup().getMapping()));
+        assertEquals("{\"_doc\":{\"subobjects\":true}}", mapperService.documentMapper().mappingSource().string());
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws IOException {

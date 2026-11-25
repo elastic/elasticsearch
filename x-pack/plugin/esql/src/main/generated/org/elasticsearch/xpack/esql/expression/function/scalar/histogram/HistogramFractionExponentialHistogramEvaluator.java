@@ -71,7 +71,7 @@ public final class HistogramFractionExponentialHistogramEvaluator implements Exp
 
   public DoubleBlock eval(int positionCount, ExponentialHistogramBlock histogramBlock,
       DoubleRangeBlock bucketBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       ExponentialHistogramScratch histogramScratch = new ExponentialHistogramScratch();
       DoubleRangeBlockBuilder.DoubleRange bucketScratch = new DoubleRangeBlockBuilder.DoubleRange();
       position: for (int p = 0; p < positionCount; p++) {

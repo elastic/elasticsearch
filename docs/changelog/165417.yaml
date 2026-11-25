@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165417
+summary: Honor async GET wait timeout
+type: bug

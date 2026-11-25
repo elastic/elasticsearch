@@ -90,6 +90,10 @@ branches before the final `FORK`:
 :::::
 
 - In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A full-text search after `FORK` is a
+  [runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-fork) when
+  a branch contains a command that changes the rows, such as `LIMIT` or `STATS`. It then doesn't contribute to
+  `_score`, and a mapped `text` field in the output needs an analyzer declared with `TO_TEXT` to be searched.
 
 ## Examples
 

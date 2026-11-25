@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165289
+summary: Fix false failure on FORK after a subquery, view or LET binding that contains a FORK
+type: bug

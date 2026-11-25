@@ -19,7 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
@@ -80,7 +80,7 @@ public class CacheBlobReaderService {
      *
      * @param shardId                       the shard id
      * @param blobContainer                 the blob container where the blob can be read from
-     * @param blobFile                      the blob file
+     * @param bccBlob                       the blob file
      * @param tracker                       the tracker to determine if the blob has been uploaded to the object store
      * @param totalBytesReadFromObjectStore counts how many bytes were read from object store
      * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes
@@ -95,7 +95,7 @@ public class CacheBlobReaderService {
     public CacheBlobReader getCacheBlobReader(
         ShardId shardId,
         LongFunction<BlobContainer> blobContainer,
-        BlobFile blobFile,
+        BccBlob bccBlob,
         MutableObjectStoreUploadTracker tracker,
         LongConsumer totalBytesReadFromObjectStore,
         LongConsumer totalBytesReadFromIndexing,
@@ -106,12 +106,12 @@ public class CacheBlobReaderService {
     ) {
         assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
             : "cache-miss reads serve blocked searches and can never be speculative";
-        final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
+        final var locationPrimaryTermAndGeneration = bccBlob.termAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
             getObjectStoreCacheBlobReader(
-                blobContainer.apply(blobFile.primaryTerm()),
-                blobFile.blobName(),
+                blobContainer.apply(bccBlob.primaryTerm()),
+                bccBlob.blobName(),
                 rangeSize,
                 objectStoreFetchExecutor
             ),

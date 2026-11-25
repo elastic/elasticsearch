@@ -11,13 +11,13 @@ FROM employees_no_mv
 | RENAME salary AS pay
 | EVAL double_pay = pay * 2
 | DESCRIBE
-| KEEP name, type, field, origin, role, searchable, aggregatable;
+| KEEP name, type, field, origin, role;
 
-name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword | searchable:boolean | aggregatable:boolean
-emp_no       | integer      | emp_no        | dataset        | null         | null               | null
-first_name   | keyword      | first_name    | dataset        | null         | null               | null
-pay          | integer      | salary        | renamed        | null         | null               | null
-double_pay   | integer      | null          | computed       | null         | null               | null
+name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | integer      | emp_no        | dataset        | null
+first_name   | keyword      | first_name    | dataset        | null
+pay          | integer      | salary        | renamed        | null
+double_pay   | integer      | null          | computed       | null
 ;
 
 describeDatasetFileMetadata
@@ -33,4 +33,22 @@ FROM employees_no_mv METADATA _file.path
 name:keyword | field:keyword | origin:keyword | role:keyword
 emp_no       | emp_no        | dataset        | null
 _file.path   | _file.path    | metadata       | metadata
+;
+
+describeDatasetTimeColumn
+required_capability: dataset_in_from_command
+required_capability: describe_time_columns
+dataset: employees_by_hire: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "true", "properties": {"@timestamp": {"type": "date", "path": "hire_date"}}}}
+
+FROM employees_by_hire
+| KEEP emp_no, @timestamp
+| EVAL year = DATE_TRUNC(1 year, @timestamp)
+| DESCRIBE
+| KEEP name, field, origin, role
+;
+
+name:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | emp_no        | dataset        | null
+@timestamp   | @timestamp    | dataset        | time
+year         | null          | computed       | time
 ;

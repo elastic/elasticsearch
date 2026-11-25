@@ -83,7 +83,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -4021,6 +4023,56 @@ public class AnalyzerTests extends AnalyzerTestCase {
                         + "[ip] in [foo], [keyword] in [bar]"
                 )
             );
+    }
+
+    /**
+     * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} can't be converted per type of a union-typed field, as their base is
+     * another input. A union with a non-string type fails like any other type conflict.
+     */
+    public void testConversionWithBaseOnUnionWithNonStringTypeFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "long"))
+            ),
+            List.of()
+        );
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, 16)",
+                    containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+                );
+        }
+    }
+
+    /**
+     * Even a union of string types fails with a base, and converting it to a string first works, keeping the base.
+     */
+    public void testConversionWithBaseOnUnionOfStringTypesFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "text"))
+            ),
+            List.of()
+        );
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, 16)",
+                    containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+                );
+
+            LogicalPlan plan = analyzer().addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = " + function + "(value::keyword, 16)");
+            List<Expression> conversions = new ArrayList<>();
+            plan.forEachExpression(ToLongSurrogate.class, conversions::add);
+            plan.forEachExpression(ToIntegerSurrogate.class, conversions::add);
+            assertThat(conversions, hasSize(1));
+            assertThat(conversions.get(0).children(), hasSize(2));
+            assertThat(conversions.get(0).children().get(1).sourceText(), equalTo("16"));
+        }
     }
 
     public void testValidFuse() {

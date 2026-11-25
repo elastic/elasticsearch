@@ -387,6 +387,50 @@ load two indices with single conversion function TO_LONG:
   - match: { values.7.4: "Connected to 10.1.0.1" }
 
 ---
+load two indices and convert event_duration with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_reject_conversions_with_base]
+      reason: "Conversions with a base of union types fail like any other type conflict"
+  - do:
+      catch: '/Cannot use field \[event_duration\] due to ambiguities/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_LONG(event_duration, 16) | KEEP x'
+  - do:
+      catch: '/Cannot use field \[event_duration\] due to ambiguities/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | EVAL x = TO_INTEGER(event_duration, 16) | KEEP x'
+
+---
+load two indices and convert event_duration to a string, then with a base:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_reject_conversions_with_base]
+      reason: "The base of a conversion of a union type was dropped in older nodes"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # The largest value, 8268153, is 136741203 in base 16
+          query: 'FROM events_ip_* | EVAL x = TO_LONG(event_duration::keyword, 16) | STATS c = COUNT(x), m = MAX(x)'
+
+  - match: { columns.0.name: "c" }
+  - match: { columns.1.name: "m" }
+  - match: { values.0.0: 14 }
+  - match: { values.0.1: 136741203 }
+
+---
 load two indices and drop ambiguous field event_duration:
   - do:
       allowed_warnings_regex:

@@ -164,6 +164,12 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
     }
 
     @Override
+    public boolean canBeUnionTypeEsFieldConversion() {
+        // The options only select the surrogate, a ToIpLeadingZeros* whose only child is the field.
+        return true;
+    }
+
+    @Override
     public Set<DataType> supportedTypes() {
         // All ToIpLeadingZeros* functions support the same input set. So we just pick one.
         return ToIpLeadingZerosRejected.EVALUATORS.keySet();

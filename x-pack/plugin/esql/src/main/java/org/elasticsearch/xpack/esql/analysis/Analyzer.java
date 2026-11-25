@@ -4805,6 +4805,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
+            if (convert.canBeUnionTypeEsFieldConversion() == false) {
+                // Left unresolved, so the field keeps its type conflict and the Verifier reports it.
+                return convertExpression;
+            }
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the

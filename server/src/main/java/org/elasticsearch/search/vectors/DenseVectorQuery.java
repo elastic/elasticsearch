@@ -195,14 +195,21 @@ public abstract class DenseVectorQuery extends Query {
             return new ScorerSupplier() {
                 @Override
                 public Scorer get(long leadCost) throws IOException {
-                    return new DenseVectorScorer(vectorScorer, filterIterator, boost);
+                    return sequentialScorer();
                 }
 
                 @Override
                 public BulkScorer bulkScorer() throws IOException {
-                    // scores every vector of the leaf, so reads them in order
-                    VectorScorer sequentialScorer = query.vectorScorer(context, DataAccessHint.SEQUENTIAL);
-                    return new DenseVectorBulkScorer(new DenseVectorScorer(sequentialScorer, filterIterator, boost), cost);
+                    return new DenseVectorBulkScorer(sequentialScorer(), cost);
+                }
+
+                /**
+                 * Scorers advance in doc order, so they read the vectors in order, in a conjunction too.
+                 * TODO: a very selective filter skips most vectors and wastes the readahead; the cost of
+                 * the filter or the lead cost could pick the random input instead.
+                 */
+                private DenseVectorScorer sequentialScorer() throws IOException {
+                    return new DenseVectorScorer(query.vectorScorer(context, DataAccessHint.SEQUENTIAL), filterIterator, boost);
                 }
 
                 @Override

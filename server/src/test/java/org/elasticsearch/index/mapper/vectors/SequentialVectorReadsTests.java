@@ -117,8 +117,8 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
         }
     }
 
-    /** Only a query scoring every vector of the leaf reads them in order. */
-    public void testOnlyTheBulkScorerReadsInOrder() throws IOException {
+    /** Brute-force queries read the vectors in order, on their own and in a conjunction. */
+    public void testBruteForceQueriesReadInOrder() throws IOException {
         try (Directory dir = index(rescoreOnlyType()); DirectoryReader reader = open(dir)) {
             IndexSearcher searcher = new ContextIndexSearcher(
                 reader,
@@ -139,8 +139,9 @@ public class SequentialVectorReadsTests extends MapperServiceTestCase {
                 .add(tagged, BooleanClause.Occur.FILTER)
                 .build();
             TopDocs conjunctionHits = searcher.search(conjunction, 10);
-            assertThat("a conjunction picks the vectors it scores: " + opens, sequentialOpens(IOContext.Context.DEFAULT), hasSize(0));
+            assertThat(opens.toString(), sequentialOpens(IOContext.Context.DEFAULT), hasSize(1));
 
+            // the scan reads through the input the conjunction opened
             TopDocs scanHits = searcher.search(randomBoolean() ? query : query.filteredBy(tagged), 10);
             assertThat(opens.toString(), sequentialOpens(IOContext.Context.DEFAULT), hasSize(1));
             assertThat(scanHits.scoreDocs.length, equalTo(conjunctionHits.scoreDocs.length));

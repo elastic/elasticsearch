@@ -26,9 +26,10 @@ import org.apache.lucene.search.DocIdSetIterator;
 import java.io.IOException;
 
 /**
- * The reader of a segment that Lucene is flushing, whose doc values can only move to the next document and which doesn't
- * know its number of documents. Moves the doc values forward document by document when asked to advance, and reports the
- * number of documents that Lucene gives to the index sort. Like any doc values, they then can't move backward.
+ * The reader of a segment that Lucene is flushing. Lucene sorts it from its indexing buffers, whose doc values can only move
+ * to the next document, while the block loaders that compute the keys advance to a document. This moves the doc values
+ * forward document by document to the target, and reports the number of documents that Lucene gives to the index sort, which
+ * the reader doesn't know. Like any doc values, they then can't move backward.
  */
 final class ForwardOnlyLeafReader extends FilterLeafReader {
     private final int maxDoc;

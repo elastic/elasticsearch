@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 167522
-summary: Stop bounded walk at `maxFiles`
+summary: Stop bounded walk at `max_discovered_files`
 type: enhancement

@@ -1748,6 +1748,11 @@ public final class GlobExpander {
             // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
             // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
             if (walk != null && walk.matched().isEmpty()) {
+                if (walk.truncated()) {
+                    // Bound filled with non-keeps; a match may sit past it. Do not promote a stash or
+                    // inference anchor, and do not suppress the value filter.
+                    return emptyListing(pattern, null, true);
+                }
                 // _file.* rejected every glob match in surviving folders. Keep that stash — not a file
                 // from a pruned directory, which would be the partition-all-pruned inference path.
                 if (walk.fileKeepStash() != null && maxDiscoveredFiles > 0) {
@@ -1811,10 +1816,13 @@ public final class GlobExpander {
                 List<String> walkNotices = new ArrayList<>();
                 PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                 if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
-                    if (walkTypesConsistent(walk, walkedMetadata)) {
+                    // A truncated sample can look narrower than folder-level types. Rejecting then
+                    // suppressValueFilter prefix-drains unfiltered. Keep the walked sample instead.
+                    if (walkTypesConsistent(walk, walkedMetadata) || walk.truncated()) {
                         // Prove the walk on the full matched set, then apply the file-set bound. Truncating first
                         // can hide a type-widening folder past the prefix and reject a correct walk, after which
                         // the bounded flat drain prefix-lists unfiltered.
+                        reserveRetained(memory, walked.size(), 0, true);
                         boolean truncated = walk.truncated() || (extents.boundsFileSet() && walked.size() > extents.maxFiles());
                         if (extents.boundsFileSet() && walked.size() > extents.maxFiles()) {
                             walked = new ArrayList<>(walked.subList(0, extents.maxFiles()));

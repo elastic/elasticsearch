@@ -8939,6 +8939,90 @@ public class GlobExpanderTests extends ESTestCase {
         assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
     }
 
+    /**
+     * {@code maxFiles} above {@code max_discovered_files} still stops the collector at the discovery cap.
+     */
+    public void testBoundedWalkStopsAtDiscoveredFilesLimitWithoutThrowing() throws IOException {
+        List<StorageEntry> files = new ArrayList<>();
+        files.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 80; i++) {
+            files.add(entry("s3://bucket/data/year=2025/f" + i + ".parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            20,
+            MAX,
+            MAX,
+            new ListingExtents(50),
+            PlanningMemory.NONE
+        );
+        assertEquals(20, result.fileCount());
+        assertTrue(result.isTruncated());
+        assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
+    }
+
+    /**
+     * Bounded walk hitting {@code max_listed_objects} after a full sample marks truncated instead of throwing.
+     */
+    public void testBoundedWalkListedObjectsCapTruncatesInsteadOfThrowing() throws IOException {
+        List<StorageEntry> files = new ArrayList<>();
+        files.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 80; i++) {
+            files.add(entry("s3://bucket/data/year=2025/f" + i + ".parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            40,
+            MAX,
+            15,
+            new ListingExtents(10),
+            PlanningMemory.NONE
+        );
+        assertEquals(10, result.fileCount());
+        assertTrue(result.isTruncated());
+        assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
+    }
+
+    /**
+     * Truncated walk sample can omit a type-widening folder the directory listing already saw. Keep the
+     * walked sample rather than prefix-draining unfiltered.
+     */
+    public void testBoundedWalkTruncationKeepsValueFilterOnTypeWiden() throws IOException {
+        List<StorageEntry> files = new ArrayList<>();
+        files.add(entry("s3://bucket/data/year=2024/month=01/old.parquet", 100));
+        for (int i = 0; i < 30; i++) {
+            files.add(entry("s3://bucket/data/year=2025/month=01/f" + i + ".parquet", 100));
+        }
+        files.add(entry("s3://bucket/data/year=2025/month=abc/x.parquet", 100));
+        TreeStubProvider provider = new TreeStubProvider(files);
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/year=*/month=*/*.parquet",
+            provider,
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            HIVE_ON,
+            20,
+            MAX,
+            MAX,
+            new ListingExtents(10),
+            PlanningMemory.NONE
+        );
+        assertEquals(10, result.fileCount());
+        assertTrue(result.isTruncated());
+        assertThat("must not fall back to a prefix drain of the dataset", provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
+        assertFalse("pruned 2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
+        for (int i = 0; i < result.fileCount(); i++) {
+            assertThat(result.path(i).toString(), containsString("year=2025"));
+        }
+    }
+
     public void testUnboundedWalkStillThrowsAtDiscoveredFilesLimit() {
         List<StorageEntry> files = new ArrayList<>();
         files.add(entry("s3://bucket/data/year=2024/old.parquet", 100));

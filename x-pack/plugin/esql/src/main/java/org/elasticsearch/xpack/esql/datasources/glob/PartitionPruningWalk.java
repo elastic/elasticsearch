@@ -2070,7 +2070,12 @@ final class PartitionPruningWalk {
                 return; // directory placeholder key, skipped as in the flat listing
             }
             listed++;
-            if (listed > maxListedObjects) {
+            if (maxFiles != Integer.MAX_VALUE) {
+                if (listed > maxListedObjects) {
+                    truncated = true;
+                    return;
+                }
+            } else {
                 GlobExpander.checkListedObjectsLimit(listed, maxListedObjects, diagnostics.get());
             }
             if (matcher.matches(relativePath) == false) {

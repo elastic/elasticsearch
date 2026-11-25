@@ -17,7 +17,6 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractInSubqueryJoin;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -107,7 +106,7 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
     public void testDefaultThresholdUsesHashJoinAboveLimit() {
         updateClusterSettings(Settings.builder().putNull(PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getKey()));
         createEvents("events", null, "type=keyword,index=false");
-        int limit = AbstractInSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES;
+        int limit = 100;
 
         QueryResult atLimit = query("events", limit, getPragmas());
         assertThat(atLimit.matches(), equalTo((long) limit));

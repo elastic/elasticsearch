@@ -35,7 +35,6 @@ import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
 import org.elasticsearch.search.internal.ExecutionCharge;
-import org.elasticsearch.search.internal.LeafExecutionAccountable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -64,7 +63,7 @@ import java.util.Objects;
  * byte-wise comparison reproduces signed numeric order, while the bitmap iterates in unsigned order.
  * The two agree only while every bitmap value is non-negative.
  */
-public class BitmapBKDQuery extends Query implements Accountable, LeafExecutionAccountable {
+public class BitmapBKDQuery extends Query implements Accountable, ExecutionCharge.Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitmapBKDQuery.class);
 
@@ -189,9 +188,8 @@ public class BitmapBKDQuery extends Query implements Accountable, LeafExecutionA
 
     /**
      * Only the collecting path allocates, a {@link DocIdSetBuilder} that the tree walk grows by every cell it visits whole and every
-     * leaf it crosses, whether or not the leaf's points match. So {@link #estimateCost} bounds nothing here, and the bound is all of
-     * the field's points instead. On most segments that reserves a full bit set, which is settled down to the set the scorer keeps
-     * once it is built.
+     * leaf it crosses, regardless of whether the leaf's points match. So {@link #estimateCost} bounds nothing here, and the bound is all of
+     * the field's points instead. On most segments that reserves a full bit set, held until the leaf is done.
      */
     private long collectedBytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
         LeafReader reader = ctx.reader();

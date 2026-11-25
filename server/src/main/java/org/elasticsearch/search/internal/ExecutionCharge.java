@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  * What {@link ExecutionBreakerWeight} charges for one query whose scorer allocates per-leaf execution memory.
  * {@link #forQuery} maps each such query to its charge; a query defined outside {@code server} supplies its own through
- * {@link LeafExecutionAccountable}.
+ * {@link Accountable}.
  * <p>
  * {@link ContextIndexSearcher#createWeight} consults {@link #forQuery} only for the queries that reach the searcher: the root, and
  * children whose parent builds their weight through {@code searcher.createWeight} (e.g. {@link BooleanQuery}
@@ -45,6 +45,25 @@ import java.io.IOException;
  * @param label     the request circuit breaker label the memory is charged under
  */
 public record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
+
+    /**
+     * A {@link Query} that knows the execution memory its own scorers allocate per leaf, such as a doc id set it materializes.
+     * {@link #forQuery} recognises only Lucene's queries by their type, so this is how a query defined outside {@code server} gets the
+     * same treatment: {@link ContextIndexSearcher} charges what the estimator reports to the request circuit breaker when the scorer is
+     * built, and releases it once the leaf is done.
+     */
+    public interface Accountable {
+
+        /**
+         * Called each time a searcher with a request circuit breaker creates this query's weight, so the estimator can capture what it
+         * needs from the query up front and read only leaf statistics per leaf.
+         *
+         * @return the charge for this query's execution memory, or {@code null} if it allocates none worth charging
+         */
+        @Nullable
+        ExecutionCharge executionCharge();
+    }
+
     /**
      * Looks through the wrappers that create their child's weight directly: {@link BoostQuery},
      * {@link IndexSortSortedNumericDocValuesRangeQuery} and {@link IndexOrDocValuesQuery}. Their children never reach the searcher
@@ -76,7 +95,7 @@ public record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
 
     @Nullable
     private static ExecutionCharge forAllocatingQuery(Query query) {
-        if (query instanceof LeafExecutionAccountable accountable) {
+        if (query instanceof Accountable accountable) {
             return accountable.executionCharge();
         }
         if (query instanceof PointRangeQuery pointRangeQuery) {

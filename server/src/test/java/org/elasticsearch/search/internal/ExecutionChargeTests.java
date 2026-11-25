@@ -43,6 +43,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -156,7 +157,7 @@ public class ExecutionChargeTests extends ESTestCase {
         }
     }
 
-    public void testLeafExecutionAccountable() throws IOException {
+    public void testAccountable() throws IOException {
         long bytes = randomLongBetween(0, Long.MAX_VALUE);
         Query accountable = new AccountableQuery(bytes, true);
         // Cost 0 routes IndexOrDocValuesQuery to its index side; the estimator never builds the scorer.
@@ -182,7 +183,7 @@ public class ExecutionChargeTests extends ESTestCase {
         }
     }
 
-    public void testLeafExecutionAccountableWithoutCharge() {
+    public void testAccountableWithoutCharge() {
         Query accountable = new AccountableQuery(randomNonNegativeLong(), false);
         assertNotCharged(accountable);
         assertNotCharged(new BoostQuery(accountable, 2f));
@@ -221,7 +222,7 @@ public class ExecutionChargeTests extends ESTestCase {
      * Charges a fixed size for every leaf, so the charge can be told apart from any built-in estimator's, or declines to be charged
      * at all.
      */
-    private static final class AccountableQuery extends Query implements LeafExecutionAccountable {
+    private static final class AccountableQuery extends Query implements ExecutionCharge.Accountable {
         static final String LABEL = "accountable-execution";
 
         private final long bytes;
@@ -249,12 +250,15 @@ public class ExecutionChargeTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            return sameClassAs(obj) && bytes == ((AccountableQuery) obj).bytes && charged == ((AccountableQuery) obj).charged;
+            if (obj instanceof AccountableQuery accountableQuery) {
+                return sameClassAs(obj) && bytes == accountableQuery.bytes && charged == accountableQuery.charged;
+            }
+            return false;
         }
 
         @Override
         public int hashCode() {
-            return 31 * (31 * classHash() + Long.hashCode(bytes)) + Boolean.hashCode(charged);
+            return Objects.hash(classHash(), bytes, charged);
         }
     }
 }

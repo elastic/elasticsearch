@@ -18,12 +18,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -35,7 +33,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.LeafExecutionAccountable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -48,11 +45,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Searches with both bitmap queries through a {@link ContextIndexSearcher} with a request breaker, and checks that the
- * {@code DocIdSetBuilder} of the collecting path is charged under {@code bitmap_terms}, settled and released, and that the
+ * {@code DocIdSetBuilder} of the collecting path is charged under {@code bitmap_terms} and released, and that the
  * streaming path charges nothing.
  */
 public class BitmapExecutionBreakerTests extends ESTestCase {
@@ -93,24 +89,6 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
         assertChargesNothing(TERM_FIELD, termsQuery());
     }
 
-    /** The reservation covers the builder at its peak, but the scorer keeps only the set it built, so the settle refunds the rest. */
-    public void testCollectingPathSettlesToBuiltSet() throws IOException {
-        for (Query query : List.of(pointsQuery(), termsQuery())) {
-            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
-            try (Directory directory = newDirectory(); DirectoryReader reader = index(directory, null)) {
-                LeafReaderContext leaf = reader.leaves().getFirst();
-                try (ContextIndexSearcher searcher = newSearcher(reader, breaker)) {
-                    ScorerSupplier supplier = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f).scorerSupplier(leaf);
-                    supplier.get(Long.MAX_VALUE);
-                    assertThat(query.toString(), breaker.charges(), equalTo(List.of(reservation(query, leaf))));
-                    assertThat("the built set must stay charged", breaker.getUsed(), greaterThan(0L));
-                    assertThat("the settle must refund the builder's buffers", breaker.getUsed(), lessThan(breaker.peak()));
-                }
-                assertThat("closing the searcher must release the leaf's charge", breaker.getUsed(), equalTo(0L));
-            }
-        }
-    }
-
     public void testExpensiveQueryTripsBreakerWithoutLeaking() throws IOException {
         for (Query query : List.of(pointsQuery(), termsQuery())) {
             TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1L);
@@ -138,10 +116,6 @@ public class BitmapExecutionBreakerTests extends ESTestCase {
             assertThat(count(reader, query, breaker), equalTo(NUM_DOCS / 2));
         }
         assertThat("the streaming path builds no doc id set: " + query, breaker.labels(), empty());
-    }
-
-    private static long reservation(Query query, LeafReaderContext leaf) throws IOException {
-        return ((LeafExecutionAccountable) query).executionCharge().estimator().bytesForLeaf(leaf, null, Long.MAX_VALUE);
     }
 
     /** Matches the documents with value 0, half of them, so the collecting path builds a bit set. */

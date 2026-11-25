@@ -697,11 +697,6 @@ tests:
 - class: org.elasticsearch.join.heappressure.HasChildHeapPressureIT
   method: testHasChildClausesWithAvgScores
   issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.snapshots.SnapshotResiliencyTests
-  tasks:
-  - :server:test
-  method: testSnapshotDeleteWithMasterFailover
-  issue: https://github.com/elastic/elasticsearch/issues/166596
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

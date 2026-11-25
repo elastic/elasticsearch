@@ -279,6 +279,7 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public void testTopLevelReduceAssertsCountMatchesIterator() {
+        assumeTrue("requires assertions enabled", InternalAggregations.class.desiredAssertionStatus());
         InternalAggregations aggs = InternalAggregations.from(
             new StringTerms(
                 "name",

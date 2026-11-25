@@ -325,10 +325,15 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
                     .build()
             );
         }, () -> limits.addIncomingRecoveryLimitsConsumer(newLimits -> {
+            // Consumers are called while holding the ClusterSettings monitor, the one applySettings holds when it runs
+            // updates, so registration and updates are serialized by that single lock.
+            assertTrue(Thread.holdsLock(clusterSettings));
             incomingObserved.add(newLimits);
             if (incomingObserved.size() == 1) {
-                limits.addOutgoingRecoveryLimitConsumer(outgoingObserved::add);
-                clusterSettings.initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING, ignored -> {});
+                limits.addOutgoingRecoveryLimitConsumer(newLimit -> {
+                    assertTrue(Thread.holdsLock(clusterSettings));
+                    outgoingObserved.add(newLimit);
+                });
                 initialCallStarted.countDown();
                 safeAwait(updateStarting);
                 // Hold the lock to give the settings update time to be blocked on the registration

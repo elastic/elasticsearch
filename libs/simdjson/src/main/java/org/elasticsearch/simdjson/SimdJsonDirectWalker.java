@@ -339,7 +339,7 @@ public final class SimdJsonDirectWalker {
             boolean keyEscaped = containsBackslash(buffer, keyStart, keyLen);
             String fieldName;
             if (keyEscaped) {
-                int parsed = stringParser.parseString(buffer, keyIdx, ensureStringBuf(keyLen));
+                int parsed = stringParser.parseFieldName(buffer, keyIdx, ensureStringBuf(keyLen));
                 fieldName = new String(stringBuf, 0, parsed, StandardCharsets.UTF_8);
             } else {
                 fieldName = new String(buffer, keyStart, keyLen, StandardCharsets.UTF_8);
@@ -1053,7 +1053,7 @@ public final class SimdJsonDirectWalker {
             if (buffer[end] == '\\') end += 2;
             else end++;
         }
-        int parsed = stringParser.parseString(buffer, quoteIdx, ensureStringBuf(end - start));
+        int parsed = stringParser.parseFieldName(buffer, quoteIdx, ensureStringBuf(end - start));
         int h = FieldNameHash.hashName(stringBuf, 0, parsed);
         String s = nameCache.lookup(stringBuf, 0, parsed, h);
         return s != null ? s : nameCache.insert(stringBuf, 0, parsed, h);

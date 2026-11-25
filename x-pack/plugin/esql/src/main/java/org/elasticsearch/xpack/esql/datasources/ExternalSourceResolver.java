@@ -5297,31 +5297,7 @@ public class ExternalSourceResolver {
             ),
             listener::onFailure
         );
-        if (path.indexOf(',') >= 0) {
-            // Comma-separated paths expand synchronously — GlobExpander.expand handles the union
-            // without any fan-out, so no pool-thread blocking occurs.
-            FileList listing;
-            try {
-                listing = GlobExpander.expand(
-                    path,
-                    provider,
-                    hints,
-                    config,
-                    listingService.maxDiscoveredFiles(),
-                    listingService.maxGlobExpansion(),
-                    listingService.maxListedObjects(),
-                    extents,
-                    planningMemory(),
-                    listingCancellation(),
-                    folderRange,
-                    listingService.maxDirectoryListings()
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listingListener.onResponse(listing);
-        } else if (isCacheable(provider)) {
+        if (isCacheable(provider)) {
             cachedListingAsync(
                 path,
                 storagePath,

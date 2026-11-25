@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefComparator;
@@ -153,13 +154,17 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
             this.table = new int[capacity];
             Arrays.fill(table, -1);
             this.offsets = new int[size + 1];
-            int total = 0;
+            long totalLength = 0;
             int longest = 0;
             PrefixCodedTerms.TermIterator iterator = termData.iterator();
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-                total += term.length;
+                totalLength += term.length;
                 longest = Math.max(longest, term.length);
             }
+            if (totalLength > ArrayUtil.MAX_ARRAY_LENGTH) {
+                throw new IllegalArgumentException("terms are too large: [" + totalLength + "] bytes");
+            }
+            int total = (int) totalLength;
             this.maxTermLength = longest;
             this.bytes = new byte[total];
             iterator = termData.iterator();

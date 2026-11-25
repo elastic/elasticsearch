@@ -7,12 +7,16 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -208,6 +212,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -398,6 +403,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+    private final SetOnce<BooleanSupplier> batchIndexingSupported = new SetOnce<>();
+    private final SetOnce<EscfBulkService> escfBulkService = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> storedStreamBreaker = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -414,6 +422,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        this.escfBulkService.set(
+            new EscfBulkService(services.indexingPressure(), services.threadPool().generic(), services.bigArrays().bytesRefRecycler())
+        );
+        this.storedStreamBreaker.set(services.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BatchIndexingEnabled batchIndexingEnabled = new BatchIndexingEnabled(services.clusterService().getClusterSettings());
+        this.batchIndexingSupported.set(() -> ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, services.clusterService()));
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)
                 .maxPrimitiveArraySize(
@@ -909,7 +923,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
-            handlers.add(new RestEsqlStreamQueryAction(capabilities));
+            handlers.add(
+                new RestEsqlStreamQueryAction(
+                    capabilities,
+                    batchIndexingSupported.get(),
+                    escfBulkService.get(),
+                    storedStreamBreaker.get(),
+                    restHandlersServices.projectResolver()
+                )
+            );
             // A stream can be read or deleted only where it can be created, and only when its results are stored.
             if (EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()) {
                 handlers.add(new RestEsqlGetStreamResultAction());

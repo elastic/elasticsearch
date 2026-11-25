@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +22,7 @@ import org.elasticsearch.compute.aggregation.blockhash.RowKeyHash;
 import org.elasticsearch.compute.aggregation.table.RowInTableLookup;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
@@ -261,6 +264,128 @@ public class GroupingEqualityTests extends ESTestCase {
                 assertThat(second[1][0], equalTo(first[0][0]));
                 assertThat(first[0][0], not(equalTo(first[1][0])));
             }
+        }
+    }
+
+    /**
+     * A block read back from the wire is the same key as the block that was written. This includes a multivalue list
+     * and the raw bits of a NaN or a signed zero.
+     */
+    public void testSerializedBlockGroupsWithTheOriginal() {
+        for (BlockHashKind kind : BlockHashKind.values()) {
+            for (DataType type : equalityTypes(kind)) {
+                try (Block original = valueBlock(blockFactory, ordinary(type)); Block restored = roundTrip(original)) {
+                    assertBlocksShareGroups(kind, PlannerUtils.toElementType(type), original, restored);
+                }
+            }
+        }
+        try (Block original = pairBlock(blockFactory, 1, null); Block restored = roundTrip(original)) {
+            for (BlockHashKind kind : BlockHashKind.values()) {
+                assertBlocksShareGroups(kind, ElementType.INT, original, restored);
+            }
+        }
+        try (
+            Block original = blockFactory.newIntBlockBuilder(2)
+                .beginPositionEntry()
+                .appendInt(1)
+                .appendInt(2)
+                .endPositionEntry()
+                .beginPositionEntry()
+                .appendInt(2)
+                .appendInt(1)
+                .endPositionEntry()
+                .build();
+            Block restored = roundTrip(original)
+        ) {
+            for (BlockHashKind kind : BlockHashKind.values()) {
+                assertBlocksShareGroups(kind, ElementType.INT, original, restored);
+            }
+        }
+        // Block serialization writes a double with StreamOutput#writeDouble, which uses doubleToLongBits.
+        // That collapses every NaN payload into one, and collapses a signed zero exactly when doubleToLongBits does.
+        // https://github.com/elastic/elasticsearch/issues/167086
+        double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
+        try (Block original = pairBlock(blockFactory, Double.NaN, otherNan); Block restored = roundTrip(original)) {
+            assertDoubleRoundTrip(original, restored, true);
+        }
+        boolean signedZeroCollapses = Double.doubleToLongBits(0.0d) == Double.doubleToLongBits(-0.0d);
+        try (Block original = pairBlock(blockFactory, 0.0d, -0.0d); Block restored = roundTrip(original)) {
+            assertDoubleRoundTrip(original, restored, signedZeroCollapses);
+        }
+    }
+
+    /**
+     * Hash the original page and then the restored page. When {@code collapseDistinctBits} is true, a non-single
+     * hash kept the two positions apart and the restored page maps both of them onto the first position's group.
+     */
+    private void assertDoubleRoundTrip(Block original, Block restored, boolean collapseDistinctBits) {
+        for (BlockHashKind kind : BlockHashKind.values()) {
+            if (collapseDistinctBits && kind != BlockHashKind.SINGLE) {
+                int[][] groups = groupedPositions(kind, ElementType.DOUBLE, original, restored);
+                assertThat(set(groups[0]), not(equalTo(set(groups[1]))));
+                assertThat(set(groups[2]), equalTo(set(groups[0])));
+                assertThat(set(groups[3]), equalTo(set(groups[0])));
+            } else {
+                assertBlocksShareGroups(kind, ElementType.DOUBLE, original, restored);
+            }
+        }
+    }
+
+    /** The restored block was written from {@code original}, so each position keeps that position's groups. */
+    private void assertBlocksShareGroups(BlockHashKind kind, ElementType type, Block original, Block restored) {
+        if (kind == BlockHashKind.ROW) {
+            try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(type), blockFactory)) {
+                int[] first = hash.add(new Page(original));
+                int[] second = hash.add(new Page(restored));
+                assertThat(Arrays.toString(second), equalTo(Arrays.toString(first)));
+            }
+            return;
+        }
+        BlockHash hash = kind == BlockHashKind.SINGLE
+            ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024, false)
+            : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024);
+        try {
+            int[][] first = collect(hash, new Page(original), false);
+            int[][] second = collect(hash, new Page(restored), false);
+            for (int position = 0; position < first.length; position++) {
+                assertThat(set(second[position]), equalTo(set(first[position])));
+            }
+        } finally {
+            hash.close();
+        }
+    }
+
+    /** Groups of the original page's positions, then the restored page's, from one hash. */
+    private int[][] groupedPositions(BlockHashKind kind, ElementType type, Block original, Block restored) {
+        if (kind == BlockHashKind.ROW) {
+            try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(type), blockFactory)) {
+                int[] first = hash.add(new Page(original));
+                int[] second = hash.add(new Page(restored));
+                return new int[][] { { first[0] }, { first[1] }, { second[0] }, { second[1] } };
+            }
+        }
+        BlockHash hash = kind == BlockHashKind.SINGLE
+            ? BlockHash.build(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024, false)
+            : BlockHash.buildPackedValuesBlockHash(List.of(new BlockHash.GroupSpec(0, type)), blockFactory, 1024);
+        try {
+            int[][] first = collect(hash, new Page(original), false);
+            int[][] second = collect(hash, new Page(restored), false);
+            return new int[][] { first[0], first[1], second[0], second[1] };
+        } finally {
+            hash.close();
+        }
+    }
+
+    private Block roundTrip(Block block) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Block.writeTypedBlock(block, out);
+            try (
+                BlockStreamInput in = new BlockStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), blockFactory)
+            ) {
+                return Block.readTypedBlock(in);
+            }
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 
